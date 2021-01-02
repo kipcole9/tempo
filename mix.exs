@@ -21,7 +21,7 @@ defmodule Tempo.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:nimble_parsec, "~> 1.0"}
+      {:nimble_parsec, "~> 1.0 or ~> 0.5"}
     ]
   end
 end
