@@ -3,16 +3,14 @@ defmodule Tempo do
   Documentation for `Tempo`.
   """
 
-  @doc """
-  Hello world.
+  alias Tempo.Iso8601.Parser
 
-  ## Examples
-
-      iex> Tempo.hello()
-      :world
-
-  """
-  def hello do
-    :world
+  def from_iso8601(string) do
+    case Parser.iso8601(string) do
+      {:ok, parsed, "", %{}, _line, _char} -> {:ok, parsed}
+      {:ok, _parsed, _rest, %{}, _line, _char} -> {:error, :invalid_format}
+      {:error, _message, _rest, %{}, _line, _char} -> {:error, :invalid_format}
+    end
   end
+
 end
