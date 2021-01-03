@@ -1,214 +1,277 @@
 defmodule Tempo.Iso8601.Parser.Helpers do
   import NimbleParsec
 
+  # NOTES
+
+  # Doesn't not correctly parse negative centuries and decades
+  # since elixir does not support the idea of -0.
+  # See ISO8601 4.4.1.7 and 4.4.1.8
+
+  def integer_or_unknown(combinator \\ empty(), opts)
+
+  # Used parsing implicit forms
+  def integer_or_unknown(combinator, n) when is_integer(n) do
+    combinator
+    |> choice([
+      optional(negative()) |> integer(n) |> reduce(:detect_sign),
+      ascii_char([?0..?9, ?X]) |> times(n)
+    ])
+    |> reduce(:detect_unknown)
+  end
+
+  # Used parsing explicit forms
+  def integer_or_unknown(combinator, opts) do
+    combinator
+    |> choice([
+      optional(negative()) |> integer(opts) |> reduce(:detect_sign),
+      string("X*"),
+      ascii_char([?0..?9, ?X]) |> times(opts)
+    ])
+    |> reduce(:detect_unknown)
+  end
+
+  def integer_or_unknown_year(combinator \\ empty(), opts) do
+    combinator
+    |> choice([
+      maybe_exponent_integer(opts),
+      string("X*"),
+      ascii_char([?0..?9, ?X]) |> times(opts)
+    ])
+    |> reduce(:detect_unknown)
+  end
+
+  def maybe_exponent_integer(opts) do
+    optional(negative())
+    |> integer(opts)
+    |> optional(string("E") |> integer(min: 1))
+    |> optional(string("S") |> integer(min: 1))
+    |> reduce(:detect_sign)
+  end
+
   def iso8601_parser do
     choice([
       date_time_x(),
       date_time(),
-      calendar_date_x(),
-      calendar_date(),
+      implicit_date_x(),
+      implicit_date(),
       ordinal_date_x(),
       ordinal_date(),
-      calendar_week_date_x(),
-      calendar_week_date(),
-      ignore(optional(string("T"))) |> concat(time_of_day_x()),
-      ignore(string("T")) |> concat(time_of_day()),
+      implicit_week_date_x(),
+      implicit_week_date(),
+      time_of_day_x(),
+      time_of_day(),
+      duration()
     ])
   end
 
-  def calendar_year do
-    optional(negative())
-    |> ascii_char([?0..?9])
-    |> times(4)
-    |> reduce({List, :to_integer, []})
+  def implicit_year do
+    integer_or_unknown(4)
     |> unwrap_and_tag(:year)
   end
 
-  def explicit_years do
+  # Detect is a sign was presented in which case
+  # apply it.
+
+  def detect_sign([?-, integer]) do
+    -integer
+  end
+
+  def detect_sign([?+, integer]) do
+    integer
+  end
+
+  def detect_sign([integer]) when is_integer(integer) do
+    integer
+  end
+
+  def detect_sign([?- | rest]) do
+    case detect_sign(rest) do
+      int when is_integer(int) -> -int
+      {int, significance} -> {-int, significance}
+    end
+  end
+
+  def detect_sign([int, "E", exp]) do
+    int * :math.pow(10, exp) |> trunc
+  end
+
+  def detect_sign([int, "S", significance]) do
+    {int, significance}
+  end
+
+  def detect_sign([int, "E", exp, "S", significance]) do
+    {int * :math.pow(10, exp) |> trunc, significance}
+  end
+
+  # In many cases an integer can also have "placeholders"
+  # represented by one or more `X`'s and these need to be
+  # detected
+
+  def detect_unknown(["X*"]) do
+    [:undefined]
+  end
+
+  def detect_unknown([integer]) when is_integer(integer) do
+    integer
+  end
+
+  def detect_unknown([tuple]) when is_tuple(tuple) do
+    tuple
+  end
+
+  def detect_unknown(chars) when is_list(chars) do
+    Enum.map chars, fn
+      char when char in ?0..?9 -> char - ?0
+      ?X -> :undefined
+    end
+  end
+
+  def explicit_year do
     choice([
-      explicit_years_bc(),
-      explicit_years_with_sign()
+      explicit_year_bc(),
+      explicit_year_with_sign()
     ])
   end
 
-  def explicit_years_with_sign do
-    optional(negative())
-    |> ascii_char([?0..?9])
-    |> times(min: 1)
+  def explicit_year_with_sign do
+    integer_or_unknown_year(min: 1)
     |> ignore(string("Y"))
-    |> reduce({List, :to_integer, []})
-    |> unwrap_and_tag(:years)
+    |> unwrap_and_tag(:year)
   end
 
-  def explicit_years_bc do
-    ascii_char([?0..?9])
-    |> times(min: 1)
+  def explicit_year_bc do
+    integer_or_unknown_year(min: 1)
     |> ignore(string("Y"))
-    |> reduce({List, :to_integer, []})
     |> optional(string("B"))
-    |> post_traverse(:convert_bc)
-    |> unwrap_and_tag(:years)
+    |> reduce(:convert_bc)
+    |> unwrap_and_tag(:year)
   end
 
-  def convert_bc(_rest, ["B", int], context, _line, _offset) do
-    {[-(int - 1)], context}
+  def convert_bc(["B", int]) do
+    -(int - 1)
   end
 
-  def convert_bc(_rest, args, context, _line, _offset) do
-    IO.inspect args
-    {args, context}
+  def convert_bc([other]) do
+    other
   end
 
-  def calendar_month do
-    ascii_char([?0..?9])
-    |> times(2)
-    |> reduce({List, :to_integer, []})
+  def implicit_month do
+    integer_or_unknown(2)
     |> unwrap_and_tag(:month)
   end
 
-  def explicit_months do
-    ascii_char([?0..?9])
-    |> times(min: 1)
+  def explicit_month do
+    integer_or_unknown(min: 1)
     |> ignore(string("M"))
-    |> reduce({List, :to_integer, []})
-    |> unwrap_and_tag(:nonths)
+    |> unwrap_and_tag(:month)
   end
 
-  def calendar_week do
-    string("W")
-    |> ascii_char([?0..?9])
-    |> times(2)
-    |> reduce({List, :to_integer, []})
+  def implicit_week do
+    ignore(string("W"))
+    |> integer_or_unknown(2)
     |> unwrap_and_tag(:week)
   end
 
   def explicit_weeks do
-    optional(negative())
-    |> ascii_char([?0..?9])
-    |> times(min: 1)
+    integer_or_unknown(min: 1)
     |> ignore(string("W"))
-    |> reduce({List, :to_integer, []})
-    |> unwrap_and_tag(:weeks)
+    |> unwrap_and_tag(:week)
   end
 
-  def calendar_day_of_month do
-    ascii_char([?0..?9])
-    |> times(2)
-    |> reduce({List, :to_integer, []})
+  def implicit_day_of_month do
+    integer_or_unknown(2)
     |> unwrap_and_tag(:day_of_month)
   end
 
   def explicit_day_of_month do
-    optional(negative())
-    |> ascii_char([?0..?9])
-    |> times(min: 1)
+    integer_or_unknown(min: 1)
     |> ignore(string("D"))
-    |> reduce({List, :to_integer, []})
-    |> unwrap_and_tag(:days)
+    |> unwrap_and_tag(:day_of_month)
   end
 
-  def calendar_day_of_week do
-    ascii_char([?1..?7])
-    |> reduce({List, :to_integer, []})
+  def implicit_day_of_week do
+    choice([
+      ascii_char([?1..?7]) |> reduce({List, :to_integer, []}),
+      ascii_char([?X])
+    ])
     |> unwrap_and_tag(:day_of_week)
   end
 
   def explicit_day_of_week do
-    ascii_char([?1..?7])
+    choice([
+      ascii_char([?1..?7]) |> reduce({List, :to_integer, []}),
+      ascii_char([?X])
+    ])
     |> ignore(string("K"))
-    |> reduce({List, :to_integer, []})
     |> unwrap_and_tag(:day_of_week)
   end
 
-  def calendar_day_of_year do
-    ascii_char([?0..?9])
-    |> times(3)
-    |> reduce({List, :to_integer, []})
+  def implicit_day_of_year do
+    integer_or_unknown(3)
     |> unwrap_and_tag(:day_of_year)
   end
 
   def explicit_day_of_year do
     optional(negative())
-    |> ascii_char([?0..?9])
-    |> times(min: 1)
+    |> integer_or_unknown(min: 1)
     |> ignore(string("O"))
     |> reduce({List, :to_integer, []})
     |> unwrap_and_tag(:day_of_year)
   end
 
-  def calendar_decade do
-    ascii_char([?0..?9])
-    |> times(3)
-    |> reduce({List, :to_integer, []})
+  def implicit_decade do
+    integer_or_unknown(3)
     |> unwrap_and_tag(:decade)
   end
 
   def explicit_decade do
-    ascii_char([?0..?9])
-    |> times(min: 1)
+    integer_or_unknown(min: 1)
     |> ignore(string("J"))
-    |> reduce({List, :to_integer, []})
     |> unwrap_and_tag(:decade)
   end
 
-  def calendar_century do
-    ascii_char([?0..?9])
-    |> times(2)
-    |> reduce({List, :to_integer, []})
+  def implicit_century do
+    integer_or_unknown(2)
     |> unwrap_and_tag(:century)
   end
 
   def explicit_century do
-    ascii_char([?0..?9])
-    |> times(min: 1)
+    integer_or_unknown(min: 1)
     |> ignore(string("C"))
-    |> reduce({List, :to_integer, []})
     |> unwrap_and_tag(:century)
   end
 
   def clock_hour do
-    ascii_char([?0..?9])
-    |> times(2)
-    |> reduce({List, :to_integer, []})
+    integer_or_unknown(2)
     |> unwrap_and_tag(:hour)
   end
 
   def explicit_hours do
-    ascii_char([?0..?9])
-    |> times(min: 1)
+    integer_or_unknown(min: 1)
     |> ignore(string("H"))
-    |> reduce({List, :to_integer, []})
-    |> unwrap_and_tag(:minutes)
+    |> unwrap_and_tag(:hour)
   end
 
   def clock_minute do
-    ascii_char([?0..?9])
-    |> times(2)
-    |> reduce({List, :to_integer, []})
+    integer_or_unknown(2)
     |> unwrap_and_tag(:minute)
   end
 
   def explicit_minutes do
-    ascii_char([?0..?9])
-    |> times(min: 1)
+    integer_or_unknown(min: 1)
     |> ignore(string("M"))
-    |> reduce({List, :to_integer, []})
-    |> unwrap_and_tag(:minutes)
+    |> unwrap_and_tag(:minute)
   end
 
   def clock_second do
-    ascii_char([?0..?9])
-    |> times(2)
-    |> reduce({List, :to_integer, []})
+    integer_or_unknown(2)
     |> unwrap_and_tag(:second)
   end
 
   def explicit_seconds do
-    ascii_char([?0..?9])
-    |> times(min: 1)
+    integer_or_unknown(min: 1)
     |> ignore(string("S"))
-    |> reduce({List, :to_integer, []})
-    |> unwrap_and_tag(:seconds)
+    |> unwrap_and_tag(:second)
   end
 
   def sign do
@@ -234,7 +297,8 @@ defmodule Tempo.Iso8601.Parser.Helpers do
       sign() |> concat(clock_hour()),
       zulu()
     ])
-    |> tag(:time_shift)
+    |> reduce({:resolve_shift, []})
+    |> unwrap_and_tag(:time_shift)
   end
 
   def time_shift_x do
@@ -243,77 +307,84 @@ defmodule Tempo.Iso8601.Parser.Helpers do
       sign() |> concat(clock_hour()),
       zulu()
     ])
-    |> tag(:time_shift)
+    |> reduce({:resolve_shift, []})
+    |> unwrap_and_tag(:time_shift)
   end
 
-  def calendar_date do
-    choice([
-      calendar_year() |> concat(calendar_month()) |> concat(calendar_day_of_month()),
-      calendar_year() |> ignore(dash()) |> concat(calendar_month()),
-      calendar_year(),
-      calendar_decade(),
-      calendar_century()
-    ])
-    |> tag(:date)
+  def resolve_shift([{:sign, ?-} | rest]) do
+    [{:sign, :negative} | rest]
   end
 
-  def calendar_date_x do
+  def resolve_shift([{:sign, ?+} | rest]) do
+    [{:sign, :postitive} | rest]
+  end
+
+  def resolve_shift([?Z | rest]) do
+    [{:sign, :postitive}, {:hour, 0} | rest]
+  end
+
+  def implicit_date do
     choice([
-      calendar_year() |> ignore(dash()) |> concat(calendar_month()) |> ignore(dash()) |> concat(calendar_day_of_month()),
-      calendar_year() |> ignore(dash()) |> concat(calendar_month()),
-      calendar_year(),
-      calendar_decade(),
-      calendar_century()
+      implicit_year() |> concat(implicit_month()) |> concat(implicit_day_of_month()),
+      implicit_year() |> ignore(dash()) |> concat(implicit_month()),
+      implicit_year(),
+      implicit_decade(),
+      implicit_century()
     ])
-    |> tag(:date)
+  end
+
+  def implicit_date_x do
+    choice([
+      implicit_year() |> ignore(dash()) |> concat(implicit_month()) |> ignore(dash()) |> concat(implicit_day_of_month()),
+      implicit_year() |> ignore(dash()) |> concat(implicit_month()),
+      implicit_year(),
+      implicit_decade(),
+      implicit_century()
+    ])
   end
 
   def ordinal_date do
-    calendar_year() |> concat(calendar_day_of_year())
-    |> tag(:ordinal_date)
+    implicit_year() |> concat(implicit_day_of_year())
   end
 
   def ordinal_date_x do
-    calendar_year() |> ignore(dash()) |> concat(calendar_day_of_year())
-    |> tag(:ordinal_date)
+    implicit_year() |> ignore(dash()) |> concat(implicit_day_of_year())
   end
 
-  def calendar_week_date do
+  def implicit_week_date do
     choice([
-      calendar_year() |> concat(calendar_week()) |> concat(calendar_day_of_week()),
-      calendar_year() |> concat(calendar_week())
+      implicit_year() |> concat(implicit_week()) |> concat(implicit_day_of_week()),
+      implicit_year() |> concat(implicit_week())
     ])
-    |> tag(:week_date)
   end
 
-  def calendar_week_date_x do
+  def implicit_week_date_x do
     choice([
-      calendar_year() |> ignore(dash()) |> concat(calendar_week()) |> ignore(dash()) |> concat(calendar_day_of_week()),
-      calendar_year() |> ignore(dash()) |> concat(calendar_week())
+      implicit_year() |> ignore(dash()) |> concat(implicit_week()) |> ignore(dash()) |> concat(implicit_day_of_week()),
+      implicit_year() |> ignore(dash()) |> concat(implicit_week())
     ])
-    |> tag(:week_date)
   end
 
   def time_of_day do
-    choice([
+    ignore(string("T"))
+    |> choice([
       clock_hour() |> concat(clock_minute()) |> concat(clock_second()),
       clock_hour() |> concat(clock_minute()),
       clock_hour()
     ])
     |> optional(fraction())
     |> optional(time_shift())
-    |> tag(:time)
   end
 
   def time_of_day_x do
-    choice([
+    ignore(optional(string("T")))
+    |> choice([
       clock_hour() |> ignore(colon()) |> concat(clock_minute()) |> ignore(colon()) |> concat(clock_second()),
       clock_hour() |> ignore(colon()) |> concat(clock_minute()),
       clock_hour()
     ])
     |> optional(fraction())
     |> optional(time_shift_x())
-    |> tag(:time)
   end
 
   def fraction do
@@ -331,17 +402,16 @@ defmodule Tempo.Iso8601.Parser.Helpers do
   end
 
   def date_time do
-    calendar_date() |> ignore(string("T")) |> concat(time_of_day())
-    |> tag(:date_time)
+    implicit_date() |> ignore(string("T")) |> concat(time_of_day())
   end
 
   def date_time_x do
-    calendar_date_x() |> ignore(string("T")) |> concat(time_of_day_x())
-    |> tag(:date_time)
+    implicit_date_x() |> ignore(string("T")) |> concat(time_of_day_x())
   end
 
-  def explicit do
-    string("P")
+  def duration do
+    optional(negative() |> replace({:direction, :negative}))
+    |> ignore(string("P"))
     |> choice([
       explicit_date() |> concat(explicit_time()),
       explicit_date(),
@@ -353,14 +423,14 @@ defmodule Tempo.Iso8601.Parser.Helpers do
 
   def explicit_date do
     choice([
-      explicit_years() |> concat(explicit_months()) |> concat(explicit_day_of_month()),
-      explicit_years() |> concat(explicit_months()),
-      explicit_years()
+      explicit_year() |> concat(explicit_month()) |> concat(explicit_day_of_month()),
+      explicit_year() |> concat(explicit_month()),
+      explicit_year()
     ])
   end
 
   def explicit_time do
-    string("T")
+    ignore(string("T"))
     |> choice([
       explicit_hours() |> concat(explicit_minutes()) |> concat(explicit_seconds()),
       explicit_hours() |> concat(explicit_minutes()),
