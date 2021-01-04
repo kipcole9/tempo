@@ -1,22 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
-    <title>Elixir Cldr</title>
-    <description>Building Elixir Apps For A Global Audience</description>
+    <title>Tempo</title>
+    <description>A different look at time in Elixir</description>
     <link>http://localhost:4000/</link>
     <atom:link href="http://localhost:4000/feed.xml" rel="self" type="application/rss+xml" />
     
       <item>
-        <title>Stay tuned</title>
+        <title>Thinking differently about time in Elixir</title>
         <description>
           
-          Stay tuned for adventures in internationalization and localization
-
-
+          Elixir, in common with many (most?, all?) programming languages considers date and time to be separate structures even though time is a continuum and both date and time are different representations of the same concept. Additionally date and time are represented as a moment (or instant) in time: date represents...
         </description>
-        <pubDate>Thu, 09 Apr 2020 00:00:00 -0700</pubDate>
-        <link>http://localhost:4000/2020-04-09-first-post/</link>
-        <guid isPermaLink="true">http://localhost:4000/2020-04-09-first-post/</guid>
+        <pubDate>Sun, 03 Jan 2021 00:00:00 -0800</pubDate>
+        <link>http://localhost:4000/2021-01-03-its-about-time/</link>
+        <guid isPermaLink="true">http://localhost:4000/2021-01-03-its-about-time/</guid>
       </item>
     
   </channel>

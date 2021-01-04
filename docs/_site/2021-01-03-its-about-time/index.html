@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+  <!-- Beautiful Jekyll | MIT license | Copyright Dean Attali 2016 -->
+  <head>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+
+  <title>Thinking differently about time in Elixir</title>
+
+  <meta name="author" content="Kip Cole" />
+
+  
+
+  <link rel="alternate" type="application/rss+xml" title="Tempo - A different look at time in Elixir" href="http://localhost:4000/feed.xml" />
+
+  
+
+  
+
+  
+
+
+  
+    
+      
+  <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/all.min.css" />
+
+
+    
+  
+
+  
+    
+      <link rel="stylesheet" href="/css/bootstrap.min.css" />
+    
+      <link rel="stylesheet" href="/css/bootstrap-social.css" />
+    
+      <link rel="stylesheet" href="/css/main.css" />
+    
+  
+
+  
+    
+      <link rel="stylesheet" href="//fonts.googleapis.com/css?family=Lora:400,700,400italic,700italic" />
+    
+      <link rel="stylesheet" href="//fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800" />
+    
+  
+
+  
+
+  
+
+  
+
+    <!-- Facebook OpenGraph tags -->
+  
+
+  
+  <meta property="og:title" content="Thinking differently about time in Elixir" />
+  
+
+   
+  <meta property="og:description" content="Elixir, in common with many (most?, all?) programming languages considers date and time to be separate structures even though time is a continuum and both date and time are different representations of the same concept. Additionally date and time are represented as a moment (or instant) in time: date represents...">
+  
+
+
+  <meta property="og:type" content="website" />
+
+  
+  <meta property="og:url" content="http://localhost:4000/2021-01-03-its-about-time/" />
+  <link rel="canonical" href="http://localhost:4000/2021-01-03-its-about-time/" />
+  
+
+  
+  <meta property="og:image" content="http://localhost:4000/img/logo.png" />
+  
+
+
+  <!-- Twitter summary cards -->
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:site" content="@" />
+  <meta name="twitter:creator" content="@" />
+
+  
+  <meta name="twitter:title" content="Thinking differently about time in Elixir" />
+  
+
+  
+  <meta name="twitter:description" content="Elixir, in common with many (most?, all?) programming languages considers date and time to be separate structures even though time is a continuum and both date and time are different representations of the same concept. Additionally date and time are represented as a moment (or instant) in time: date represents...">
+  
+
+  
+  <meta name="twitter:image" content="http://localhost:4000/img/logo.png" />
+  
+
+  
+
+  
+
+</head>
+
+
+  <body>
+
+    
+
+  
+    <nav class="navbar navbar-default navbar-fixed-top navbar-custom">
+  <div class="container-fluid">
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#main-navbar">
+        <span class="sr-only">Toggle navigation</span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button><a class="navbar-brand" href="http://localhost:4000/">Tempo</a></div>
+
+    <div class="collapse navbar-collapse" id="main-navbar">
+      <ul class="nav navbar-nav navbar-right"></ul>
+    </div>
+
+	
+	<div class="avatar-container">
+	  <div class="avatar-img-border">
+	    <a href="http://localhost:4000/">
+	      <img class="avatar-img" src="/img/logo.png" />
+		</a>
+	  </div>
+	</div>
+	
+
+  </div>
+</nav>
+
+
+    <!-- TODO this file has become a mess, refactor it -->
+
+
+
+
+
+<header class="header-section ">
+
+<div class="intro-header no-img">
+  <div class="container">
+    <div class="row">
+      <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+        <div class="post-heading">
+          <h1>Thinking differently about time in Elixir</h1>
+		  
+		  
+		  
+		  <span class="post-meta">Posted on January 3, 2021</span>
+		  
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</header>
+
+
+
+
+
+<div class="container">
+  <div class="row">
+    <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+
+      
+
+      <article role="main" class="blog-post">
+        <p>Elixir, in common with many (most?, all?) programming languages considers <code class="highlighter-rouge">date</code> and <code class="highlighter-rouge">time</code> to be separate structures even though time is a continuum and both <code class="highlighter-rouge">date</code> and <code class="highlighter-rouge">time</code> are different representations of the same concept.</p>
+
+<p>Additionally <code class="highlighter-rouge">date</code> and <code class="highlighter-rouge">time</code> are represented as a moment (or instant) in time:</p>
+
+<ul>
+  <li>
+    <p><code class="highlighter-rouge">date</code> represents a moment in time. That is, a <code class="highlighter-rouge">date</code> represents a unique moment on the timeline since the big bang.</p>
+  </li>
+  <li>
+    <p><code class="highlighter-rouge">time</code> represents a moment <em>within</em> any given <code class="highlighter-rouge">date</code>.  Therefore <code class="highlighter-rouge">time</code> is a set of moments on the universe’s timeline; one moment occuring for each <code class="highlighter-rouge">date</code>.</p>
+  </li>
+</ul>
+
+<p>So despite representing the same concepts - a moment in time - a <code class="highlighter-rouge">date</code> is a scalar and <code class="highlighter-rouge">time</code> is a set.</p>
+
+<h3 id="what-is-a-date">What is a Date?</h3>
+
+<p>Your package from Amazon is scheduled to arrive on <code class="highlighter-rouge">~D[2021-01-10]</code>. What does that represent to you, as the receiver of the package?  I think you would say that you expect the package to arrive somewhere in the 24 hour period of January 10th, 2021.</p>
+
+<p>That is, we think of a <code class="highlighter-rouge">date</code> as an interval of time. Does that mean that dates are enumerable?  Let’s check:</p>
+
+<div class="language-elixir highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">iex</span><span class="o">&gt;</span> <span class="no">Enum</span><span class="o">.</span><span class="n">map</span> <span class="sx">~D[2021-01-01]</span><span class="p">,</span> <span class="o">&amp;</span><span class="no">IO</span><span class="o">.</span><span class="n">puts</span><span class="o">/</span><span class="m">1</span>
+<span class="o">**</span> <span class="p">(</span><span class="no">Protocol</span><span class="o">.</span><span class="no">UndefinedError</span><span class="p">)</span> <span class="n">protocol</span> <span class="no">Enumerable</span> <span class="ow">not</span> <span class="n">implemented</span> <span class="n">for</span> <span class="sx">~D[2021-01-01]</span> <span class="n">of</span> <span class="n">type</span> <span class="no">Date</span> <span class="p">(</span><span class="n">a</span> <span class="n">struct</span><span class="p">)</span><span class="o">.</span> <span class="no">This</span> <span class="n">protocol</span> <span class="n">is</span> <span class="n">implemented</span> <span class="n">for</span> <span class="n">the</span> <span class="n">following</span> <span class="n">type</span><span class="p">(</span><span class="n">s</span><span class="p">):</span> <span class="no">HashSet</span><span class="p">,</span> <span class="no">Range</span><span class="p">,</span> <span class="no">Map</span><span class="p">,</span> <span class="no">Function</span><span class="p">,</span> <span class="no">List</span><span class="p">,</span> <span class="no">Stream</span><span class="p">,</span> <span class="no">Date</span><span class="o">.</span><span class="no">Range</span><span class="p">,</span> <span class="no">HashDict</span><span class="p">,</span> <span class="no">GenEvent</span><span class="o">.</span><span class="no">Stream</span><span class="p">,</span> <span class="no">MapSet</span><span class="p">,</span> <span class="no">File</span><span class="o">.</span><span class="no">Stream</span><span class="p">,</span> <span class="no">IO</span><span class="o">.</span><span class="no">Stream</span>
+    <span class="p">(</span><span class="n">elixir</span> <span class="m">1.11</span><span class="o">.</span><span class="m">2</span><span class="p">)</span> <span class="n">lib</span><span class="o">/</span><span class="n">enum</span><span class="o">.</span><span class="ss">ex:</span><span class="m">1</span><span class="p">:</span> <span class="no">Enumerable</span><span class="o">.</span><span class="n">impl_for!</span><span class="o">/</span><span class="m">1</span>
+    <span class="p">(</span><span class="n">elixir</span> <span class="m">1.11</span><span class="o">.</span><span class="m">2</span><span class="p">)</span> <span class="n">lib</span><span class="o">/</span><span class="n">enum</span><span class="o">.</span><span class="ss">ex:</span><span class="m">141</span><span class="p">:</span> <span class="no">Enumerable</span><span class="o">.</span><span class="n">reduce</span><span class="o">/</span><span class="m">3</span>
+    <span class="p">(</span><span class="n">elixir</span> <span class="m">1.11</span><span class="o">.</span><span class="m">2</span><span class="p">)</span> <span class="n">lib</span><span class="o">/</span><span class="n">enum</span><span class="o">.</span><span class="ss">ex:</span><span class="m">3461</span><span class="p">:</span> <span class="no">Enum</span><span class="o">.</span><span class="n">map</span><span class="o">/</span><span class="m">2</span>
+</code></pre></div></div>
+
+<p>No, <code class="highlighter-rouge">Date</code> is not enumerable in Elixir (and other languages). It’s implemented as a scalar. It represents a moment in time with a precision of one day.</p>
+
+<h3 id="what-is-a-time">What is a Time?</h3>
+
+<p>You have been invited to a call at <code class="highlighter-rouge">11:00</code> for 30 minutes. What does that signify to you? Mostly likely that the call will start at <code class="highlighter-rouge">11:00</code> (ignoring cultural expectations for “on time” for now).  Would you think differently is the call was scheduled for <code class="highlighter-rouge">11:00:00</code>?  Probably, because there is a higher precision being applied.</p>
+
+<p>Depending on how the invitation was written, you may also need to ask the question “on which date”?</p>
+
+<p>Since the call starts at <code class="highlighter-rouge">11:30</code> for 30 minutes can we enumerate those minutes?  Lets check:</p>
+
+<div class="language-elixir highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">iex</span><span class="p">(</span><span class="m">1</span><span class="p">)</span><span class="o">&gt;</span> <span class="no">Enum</span><span class="o">.</span><span class="n">map</span> <span class="sx">~T[11:00]</span><span class="p">,</span> <span class="o">&amp;</span><span class="no">IO</span><span class="o">.</span><span class="n">puts</span><span class="o">/</span><span class="m">1</span>
+<span class="o">**</span> <span class="p">(</span><span class="no">ArgumentError</span><span class="p">)</span> <span class="n">cannot</span> <span class="n">parse</span> <span class="sd">"</span><span class="s2">11:00"</span> <span class="n">as</span> <span class="no">Time</span> <span class="n">for</span> <span class="no">Calendar</span><span class="o">.</span><span class="no">ISO</span><span class="p">,</span> <span class="ss">reason:</span> <span class="ss">:invalid_format</span>
+    <span class="p">(</span><span class="n">elixir</span> <span class="m">1.11</span><span class="o">.</span><span class="m">2</span><span class="p">)</span> <span class="n">lib</span><span class="o">/</span><span class="n">kernel</span><span class="o">.</span><span class="ss">ex:</span><span class="m">5501</span><span class="p">:</span> <span class="no">Kernel</span><span class="o">.</span><span class="n">maybe_raise!</span><span class="o">/</span><span class="m">4</span>
+    <span class="p">(</span><span class="n">elixir</span> <span class="m">1.11</span><span class="o">.</span><span class="m">2</span><span class="p">)</span> <span class="n">lib</span><span class="o">/</span><span class="n">kernel</span><span class="o">.</span><span class="ss">ex:</span><span class="m">5480</span><span class="p">:</span> <span class="no">Kernel</span><span class="o">.</span><span class="n">parse_with_calendar!</span><span class="o">/</span><span class="m">3</span>
+    <span class="p">(</span><span class="n">elixir</span> <span class="m">1.11</span><span class="o">.</span><span class="m">2</span><span class="p">)</span> <span class="n">expanding</span> <span class="ss">macro:</span> <span class="no">Kernel</span><span class="o">.</span><span class="n">sigil_T</span><span class="o">/</span><span class="m">2</span>
+    <span class="ss">iex:</span><span class="m">1</span><span class="p">:</span> <span class="p">(</span><span class="n">file</span><span class="p">)</span>
+</code></pre></div></div>
+
+<p>Oh, looks like we can’t create a <code class="highlighter-rouge">Time</code> with minute precision, event though thats what we wanted. We have to specify the second and milliseconds even though thats not the precision we are after.</p>
+
+<p>Let’s try again:</p>
+
+<div class="language-elixir highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">iex</span><span class="o">&gt;</span> <span class="no">Enum</span><span class="o">.</span><span class="n">map</span> <span class="sx">~T[11:00:00]</span><span class="p">,</span> <span class="o">&amp;</span><span class="no">IO</span><span class="o">.</span><span class="n">puts</span><span class="o">/</span><span class="m">1</span>
+<span class="o">**</span> <span class="p">(</span><span class="no">Protocol</span><span class="o">.</span><span class="no">UndefinedError</span><span class="p">)</span> <span class="n">protocol</span> <span class="no">Enumerable</span> <span class="ow">not</span> <span class="n">implemented</span> <span class="n">for</span> <span class="sx">~T[11:00:00]</span> <span class="n">of</span> <span class="n">type</span> <span class="no">Time</span> <span class="p">(</span><span class="n">a</span> <span class="n">struct</span><span class="p">)</span><span class="o">.</span> <span class="no">This</span> <span class="n">protocol</span> <span class="n">is</span> <span class="n">implemented</span> <span class="n">for</span> <span class="n">the</span> <span class="n">following</span> <span class="n">type</span><span class="p">(</span><span class="n">s</span><span class="p">):</span> <span class="no">HashSet</span><span class="p">,</span> <span class="no">Range</span><span class="p">,</span> <span class="no">Map</span><span class="p">,</span> <span class="no">Function</span><span class="p">,</span> <span class="no">List</span><span class="p">,</span> <span class="no">Stream</span><span class="p">,</span> <span class="no">Date</span><span class="o">.</span><span class="no">Range</span><span class="p">,</span> <span class="no">HashDict</span><span class="p">,</span> <span class="no">GenEvent</span><span class="o">.</span><span class="no">Stream</span><span class="p">,</span> <span class="no">MapSet</span><span class="p">,</span> <span class="no">File</span><span class="o">.</span><span class="no">Stream</span><span class="p">,</span> <span class="no">IO</span><span class="o">.</span><span class="no">Stream</span>
+    <span class="p">(</span><span class="n">elixir</span> <span class="m">1.11</span><span class="o">.</span><span class="m">2</span><span class="p">)</span> <span class="n">lib</span><span class="o">/</span><span class="n">enum</span><span class="o">.</span><span class="ss">ex:</span><span class="m">1</span><span class="p">:</span> <span class="no">Enumerable</span><span class="o">.</span><span class="n">impl_for!</span><span class="o">/</span><span class="m">1</span>
+    <span class="p">(</span><span class="n">elixir</span> <span class="m">1.11</span><span class="o">.</span><span class="m">2</span><span class="p">)</span> <span class="n">lib</span><span class="o">/</span><span class="n">enum</span><span class="o">.</span><span class="ss">ex:</span><span class="m">141</span><span class="p">:</span> <span class="no">Enumerable</span><span class="o">.</span><span class="n">reduce</span><span class="o">/</span><span class="m">3</span>
+    <span class="p">(</span><span class="n">elixir</span> <span class="m">1.11</span><span class="o">.</span><span class="m">2</span><span class="p">)</span> <span class="n">lib</span><span class="o">/</span><span class="n">enum</span><span class="o">.</span><span class="ss">ex:</span><span class="m">3461</span><span class="p">:</span> <span class="no">Enum</span><span class="o">.</span><span class="n">map</span><span class="o">/</span><span class="m">2</span>
+</code></pre></div></div>
+
+<p>No, can’t do that either. <code class="highlighter-rouge">Time</code> is also a scalar.</p>
+
+<h3 id="the-story-so-far">The story so far</h3>
+
+<p>In this short story we have considered that:</p>
+
+<ol>
+  <li>
+    <p><code class="highlighter-rouge">Date</code> and <code class="highlighter-rouge">Time</code> are representations of the same idea - moments of time. Albeit with different levels of precision (date with a precision of day and time with a precision of milliseconds..microseconds in Elixir).</p>
+  </li>
+  <li>
+    <p><code class="highlighter-rouge">Date</code> establishes a concrete moment in time, it is anchored on the universal timeline. <code class="highlighter-rouge">Time</code> establishes a moment of time within any <code class="highlighter-rouge">Date</code> and is therefore a set of moments.</p>
+  </li>
+  <li>
+    <p><code class="highlighter-rouge">Date</code> and <code class="highlighter-rouge">Time</code> in Elixir (and other languages) are represented as moments of time. Humans are more likely to think of them as <code class="highlighter-rouge">periods of time</code> rather than <code class="highlighter-rouge">moments</code> of time.</p>
+  </li>
+</ol>
+
+<h3 id="introducing-tempo">Introducing Tempo</h3>
+
+<p>I’ve started a new project, <a href="https://github.com/kipcole9/tempo">Tempo</a> that is experimentally implementing a unified <code class="highlighter-rouge">Time</code> type with the following characteristics:</p>
+
+<ul>
+  <li>
+    <p><code class="highlighter-rouge">Time</code> is always an interval, with a given precision.  A date, therefore, is a a time interval with a precision of one day. <code class="highlighter-rouge">11:00</code> is a time interval with a precision of one minute.</p>
+  </li>
+  <li>
+    <p><code class="highlighter-rouge">Time</code> can be anchored or not anchored.  A date is anchored since it can be uniquely identified on the universal timeline. A time is not anchored since without knowing the date, we cannot position it on the timeline.</p>
+  </li>
+  <li>
+    <p><code class="highlighter-rouge">Time</code> is a unified structure able to represent the current Elixir <code class="highlighter-rouge">Date</code>, <code class="highlighter-rouge">Time</code> and <code class="highlighter-rouge">DateTime</code> structures. The differences are, after all, only two:  the precision of the time, and the anchor point of the time (dates being anchored, time being not anchored).</p>
+  </li>
+  <li>
+    <p><code class="highlighter-rouge">Time</code> can always be enumerated since it is an interval with a precision.</p>
+  </li>
+  <li>
+    <p>Any form of time can be represented, not just <code class="highlighter-rouge">Date</code>, <code class="highlighter-rouge">Time</code> and <code class="highlighter-rouge">DateTime</code>. For example, it can represent “February 3rd” or even just “February”. If you’ve made it this far then you may be thinking “hold on, you can’t enumerate February without knowing if its a leap year or not!”. True, <code class="highlighter-rouge">February</code> would first need to be composed with <code class="highlighter-rouge">2021</code> before enumeration.</p>
+  </li>
+  <li>
+    <p><code class="highlighter-rouge">Time</code>s can be composed.  So a time of <code class="highlighter-rouge">2021</code> (a year) can be composed with <code class="highlighter-rouge">February</code> to represent <code class="highlighter-rouge">February, 2021</code>.</p>
+  </li>
+</ul>
+
+<p><code class="highlighter-rouge">Tempo</code> will also include full support for <code class="highlighter-rouge">ISO8601-1</code> and <code class="highlighter-rouge">ISO8601-2</code> times; <a href="https://en.wikipedia.org/wiki/Allen%27s_interval_algebra">interval algebra</a>; recurring times and more.</p>
+
+<p>It’s quite a large undertaking expected to take most of 2021 to complete.  On this blog I’ll update progress and experiments.</p>
+
+<h3 id="references">References</h3>
+
+<ul>
+  <li>
+    <p>Considering time as an interval rather than a moment is not a new idea. I recommend watching <a href="https://www.youtube.com/watch?v=Zm95cYAtAa8">Exploring Time by Eric Evans</a>.</p>
+  </li>
+  <li>
+    <p>Intervals in Elixir are partially implemented by <a href="https://hexdocs.pm/elixir/Date.Range.html">Date.Range</a>.</p>
+  </li>
+  <li>
+    <p>The excellent <a href="https://github.com/wojtekmach/calendar_interval">calendar_interval</a> library by <a href="https://twitter.com/wojtekmach?lang=en">@wojtekmach</a> implements calendar intervals.</p>
+  </li>
+</ul>
+
+
+      </article>
+
+      
+
+      
+        <!-- Check if any share-links are active -->
+
+
+
+
+<section id = "social-share-section">
+  <span class="sr-only">Share: </span>
+
+  
+  <!--- Share on Twitter -->
+    <a href="https://twitter.com/intent/tweet?text=Thinking+differently+about+time+in+Elixir&url=http%3A%2F%2Flocalhost%3A4000%2F2021-01-03-its-about-time%2F"
+      class="btn btn-social-icon btn-twitter" title="Share on Twitter">
+      <span class="fab fa-fw fa-twitter" aria-hidden="true"></span>
+      <span class="sr-only">Twitter</span>
+    </a>
+  
+
+  
+
+  
+
+</section>
+
+
+
+      
+
+      <ul class="pager blog-pager">
+        
+        
+      </ul>
+	          
+  
+  
+  
+
+  
+
+
+
+    </div>
+  </div>
+</div>
+
+
+    <footer>
+  <div class="container beautiful-jekyll-footer">
+    <div class="row">
+      <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+        <ul class="list-inline text-center footer-links"><li>
+              <a href="/feed.xml" title="RSS">
+                <span class="fa-stack fa-lg" aria-hidden="true">
+                  <i class="fas fa-circle fa-stack-2x"></i>
+                  <i class="fas fa-rss fa-stack-1x fa-inverse"></i>
+                </span>
+                <span class="sr-only">RSS</span>
+              </a>
+            </li><li>
+              <a href="https://github.com/kipcole9" title="GitHub">
+                <span class="fa-stack fa-lg" aria-hidden="true">
+                  <i class="fas fa-circle fa-stack-2x"></i>
+                  <i class="fab fa-github fa-stack-1x fa-inverse"></i>
+                </span>
+                <span class="sr-only">GitHub</span>
+              </a>
+            </li><li>
+              <a href="https://twitter.com/kipcole9" title="Twitter">
+                <span class="fa-stack fa-lg" aria-hidden="true">
+                  <i class="fas fa-circle fa-stack-2x"></i>
+                  <i class="fab fa-twitter fa-stack-1x fa-inverse"></i>
+                </span>
+                <span class="sr-only">Twitter</span>
+              </a>
+            </li></ul>
+      <p class="copyright text-muted">
+      Kip Cole
+      &nbsp;&bull;&nbsp;
+      2021
+
+      
+
+      
+      </p>
+          <!-- Please don't remove this, keep my open source work credited :) -->
+    <p class="theme-by text-muted">
+      Theme by
+      <a href="https://deanattali.com/beautiful-jekyll/">beautiful-jekyll</a>
+    </p>
+      </div>
+    </div>
+  </div>
+</footer>
+
+  
+    
+
+
+  
+    <!-- doing something a bit funky here because I want to be careful not to include JQuery twice! -->
+    
+      <script>
+      	if (typeof jQuery == 'undefined') {
+          document.write('<script src="/js/jquery-1.11.2.min.js"></scr' + 'ipt>');
+      	}
+      </script>
+    
+  
+    <!-- doing something a bit funky here because I want to be careful not to include JQuery twice! -->
+    
+      <script src="/js/bootstrap.min.js"></script>
+    
+  
+    <!-- doing something a bit funky here because I want to be careful not to include JQuery twice! -->
+    
+      <script src="/js/main.js"></script>
+    
+  
+
+
+
+
+
+
+  
+  </body>
+</html>
