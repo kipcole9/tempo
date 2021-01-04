@@ -29,18 +29,14 @@ defmodule Tempo.Iso8601.Parser.Grammar do
     choice([
       explicit_date(),
       implicit_date_x(),
-      implicit_date(),
-      ordinal_date_x(),
-      ordinal_date(),
-      implicit_week_date_x(),
-      implicit_week_date()
+      implicit_date()
     ])
   end
 
   def time do
     choice([
       explicit_time_of_day(),
-      time_of_day_x(),
+      time_of_day_x() |> eos(),
       time_of_day()
     ])
   end
@@ -61,19 +57,22 @@ defmodule Tempo.Iso8601.Parser.Grammar do
     choice([
       implicit_year() |> concat(implicit_month()) |> concat(implicit_day_of_month()),
       implicit_year() |> ignore(dash()) |> concat(implicit_month()),
+      implicit_week_date(),
       implicit_year(),
       implicit_decade(),
-      implicit_century()
+      implicit_century() |> time_or_eos()
     ])
   end
 
   def implicit_date_x do
     choice([
       implicit_year() |> ignore(dash()) |> concat(implicit_month()) |> ignore(dash()) |> concat(implicit_day_of_month()),
-      implicit_year() |> ignore(dash()) |> concat(implicit_month()) |> concat(time_or_eos()),
-      implicit_year() |> concat(time_or_eos()),
-      implicit_decade() |> concat(time_or_eos()),
-      implicit_century() |> concat(time_or_eos())
+      implicit_year() |> ignore(dash()) |> concat(implicit_month()) |> time_or_eos(),
+      implicit_week_date_x() |> time_or_eos(),
+      ordinal_date_x() |> time_or_eos(),
+      implicit_year() |> time_or_eos(),
+      implicit_decade() |> time_or_eos(),
+      implicit_century() |> time_or_eos()
     ])
   end
 
@@ -81,6 +80,8 @@ defmodule Tempo.Iso8601.Parser.Grammar do
     choice([
       explicit_year() |> concat(explicit_month()) |> concat(explicit_day_of_month()),
       explicit_year() |> ignore(dash()) |> concat(explicit_month()),
+      explicit_week_date(),
+      ordinal_date(),
       explicit_year(),
       explicit_decade(),
       explicit_century()
@@ -106,6 +107,13 @@ defmodule Tempo.Iso8601.Parser.Grammar do
     choice([
       implicit_year() |> ignore(dash()) |> concat(implicit_week()) |> ignore(dash()) |> concat(implicit_day_of_week()),
       implicit_year() |> ignore(dash()) |> concat(implicit_week())
+    ])
+  end
+
+  def explicit_week_date do
+    choice([
+      explicit_year() |> concat(explicit_week()) |> concat(explicit_day_of_week()),
+      explicit_year() |> concat(explicit_week())
     ])
   end
 

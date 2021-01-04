@@ -138,8 +138,9 @@ defmodule Tempo.Iso8601.Parser.Helpers do
     ascii_char([?-])
   end
 
-  def time_or_eos do
-    choice([
+  def time_or_eos(combinator \\ empty()) do
+    combinator
+    |> choice([
       ascii_char([?T, ?/]),
       eos()
     ])
