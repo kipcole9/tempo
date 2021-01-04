@@ -1,10 +1,14 @@
 # Tempo
 
-A Date and Time library based upon conceptualizing time as intervals rather than instants.
+A Time library based upon conceptualizing time as intervals rather than instants.  A blog of the ideas behind this library is at [https://kipcole9.github.io/tempo/](https://kipcole9.github.io/tempo/).
+
+There is nothing to see here yet, the current work is on implementing full suport for ISO8601 dates/times (both part 1 and part 2).
 
 ## Installation
 
-Tempo can be installed by adding `tempo` to your list of dependencies in `mix.exs`:
+Tempo is not yet available for installation.
+
+Tempo will be installable by adding `tempo` to your list of dependencies in `mix.exs`:
 
 ```elixir
 def deps do
@@ -14,5 +18,5 @@ def deps do
 end
 ```
 
-The docs can be found at [https://hexdocs.pm/tempo](https://hexdocs.pm/tempo).
+The docs will be found at [https://hexdocs.pm/tempo](https://hexdocs.pm/tempo).
 

@@ -39,7 +39,7 @@ Depending on how the invitation was written, you may also need to ask the questi
 Since the call starts at `11:30` for 30 minutes can we enumerate those minutes?  Lets check:
 
 ```elixir
-iex(1)> Enum.map ~T[11:00], &IO.puts/1
+iex> Enum.map ~T[11:00], &IO.puts/1
 ** (ArgumentError) cannot parse "11:00" as Time for Calendar.ISO, reason: :invalid_format
     (elixir 1.11.2) lib/kernel.ex:5501: Kernel.maybe_raise!/4
     (elixir 1.11.2) lib/kernel.ex:5480: Kernel.parse_with_calendar!/3
