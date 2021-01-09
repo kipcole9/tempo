@@ -42,6 +42,20 @@ defmodule Tempo.Iso8601.Parser.Helpers do
     |> reduce(:detect_sign)
   end
 
+  def maybe_negative_integer do
+    optional(ascii_char([?-]))
+    |> integer(min: 1)
+    |> reduce(:form_integer)
+  end
+
+  def form_integer([?-, int]) do
+    -int
+  end
+
+  def form_integer([int]) do
+    int
+  end
+
   def fraction do
     ignore(decimal_separator()) |> times(ascii_char([?0..?9]), min: 1)
     |> reduce({List, :to_integer, []})

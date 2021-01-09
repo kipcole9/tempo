@@ -10,9 +10,8 @@ defmodule Tempo.Iso8601.Parser.Grammar do
 
   def iso8601_parser do
     choice([
-     parsec(:datetime),
-     parsec(:date),
-     parsec(:time),
+     parsec(:interval),
+     parsec(:datetime_or_date_or_time),
      parsec(:duration),
      parsec(:group)
     ])
@@ -35,9 +34,9 @@ defmodule Tempo.Iso8601.Parser.Grammar do
       implicit_year() |> concat(implicit_month()) |> concat(implicit_day_of_month()),
       implicit_year() |> ignore(dash()) |> concat(implicit_month()),
       implicit_week_date(),
+      ordinal_date(),
       implicit_year(),
-      implicit_decade(),
-      implicit_century() |> time_or_eos()
+      implicit_day_of_month()
     ])
   end
 
@@ -48,20 +47,28 @@ defmodule Tempo.Iso8601.Parser.Grammar do
       implicit_week_date_x() |> time_or_eos(),
       ordinal_date_x() |> time_or_eos(),
       implicit_year() |> time_or_eos(),
-      implicit_decade() |> time_or_eos(),
-      implicit_century() |> time_or_eos()
+      implicit_day_of_month() |> time_or_eos()
     ])
   end
 
   def explicit_date do
     choice([
-      explicit_year() |> concat(explicit_month()) |> concat(explicit_day_of_month()),
-      explicit_year() |> concat(explicit_month()),
-      explicit_week_date(),
+      explicit_century_decade_or_year() |> concat(explicit_month()) |> concat(explicit_day_of_month()),
+      explicit_century_decade_or_year() |> concat(explicit_week()) |> concat(explicit_day_of_month()),
+      explicit_century_decade_or_year() |> concat(explicit_month()),
+      explicit_century_decade_or_year() |> concat(explicit_week()),
       explicit_ordinal_date(),
+      explicit_century_decade_or_year(),
+      explicit_month(),
+      explicit_day_of_month()
+    ])
+  end
+
+  def explicit_century_decade_or_year do
+    choice([
       explicit_year(),
-      explicit_decade(),
-      explicit_century()
+      explicit_century(),
+      explicit_decade()
     ])
   end
 
@@ -93,8 +100,8 @@ defmodule Tempo.Iso8601.Parser.Grammar do
 
   def explicit_week_date do
     choice([
-      explicit_year() |> concat(explicit_week()) |> concat(explicit_day_of_week()),
-      explicit_year() |> concat(explicit_week())
+      explicit_century_decade_or_year() |> concat(explicit_week()) |> concat(explicit_day_of_week()),
+      explicit_century_decade_or_year() |> concat(explicit_week())
     ])
   end
 
@@ -140,8 +147,23 @@ defmodule Tempo.Iso8601.Parser.Grammar do
     ])
   end
 
+  def duration_element do
+    choice([
+      maybe_negative_integer() |> ignore(string("C")) |> unwrap_and_tag(:century),
+      maybe_negative_integer() |> ignore(string("J")) |> unwrap_and_tag(:century),
+      maybe_negative_integer() |> ignore(string("Y")) |> unwrap_and_tag(:year),
+      maybe_negative_integer() |> ignore(string("M")) |> unwrap_and_tag(:month),
+      maybe_negative_integer() |> ignore(string("W")) |> unwrap_and_tag(:week),
+      maybe_negative_integer() |> ignore(string("D")) |> unwrap_and_tag(:day),
+      maybe_negative_integer() |> ignore(string("H")) |> unwrap_and_tag(:hour),
+      maybe_negative_integer() |> ignore(string("M")) |> unwrap_and_tag(:minute),
+      maybe_negative_integer() |> ignore(string("S")) |> unwrap_and_tag(:second)
+    ])
+  end
+
   # Individual date and time components
   # Note that any component can be alternatively a group
+
   def implicit_year do
     choice([parsec(:group), integer_or_unknown_year(4)])
     |> unwrap_and_tag(:year)
