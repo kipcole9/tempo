@@ -29,5 +29,46 @@ defmodule Tempo.Iso8601.ParserTest do
       assert {:ok, [duration: [hour: 24]], "", _, _, _} = Parser.iso8601("PT24H")
       assert {:ok, [duration: [day: 1, hour: 3]], "", _, _, _} = Parser.iso8601("P1DT3H")
     end
+
+    test "parsing simple iso intervals" do
+      assert {:ok,
+              [
+                interval: [
+                  date: [year: 2020, month: 11, day_of_month: 14],
+                  date: [year: 2020, month: 11, day_of_month: 17]
+                ]
+              ], "", _, _, _} = Parser.iso8601("2020-11-14/2020-11-17")
+
+      assert {:ok,
+              [
+                interval: [
+                  datetime: [
+                    year: 2020,
+                    month: 11,
+                    day_of_month: 14,
+                    hour: 10,
+                    minute: 11,
+                    second: 12
+                  ],
+                  date: [year: 2020, month: 11, day_of_month: 17]
+                ]
+              ], "", _, _, _} = Parser.iso8601("2020-11-14T10:11:12/2020-11-17")
+
+      assert {:ok,
+              [
+                interval: [
+                  date: [year: 2020, month: 11, day_of_month: 14],
+                  duration: [day: 1]
+                ]
+              ], "", _, _, _} = Parser.iso8601("2020-11-14/P1D")
+
+      assert {:ok,
+              [
+                interval: [
+                  duration: [day: 1],
+                  date: [year: 2020, month: 11, day_of_month: 14]
+                ]
+              ], "", _, _, _} = Parser.iso8601("P1D/2020-11-14")
+    end
   end
 end
