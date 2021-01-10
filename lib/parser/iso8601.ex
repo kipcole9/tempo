@@ -55,6 +55,6 @@ defmodule Tempo.Iso8601.Parser do
   defcombinator :duration,
     optional(negative() |> replace({:direction, :negative}))
     |> ignore(string("P"))
-    |> times(duration_element(), min: 1)
+    |> concat(duration_elements())
     |> tag(:duration)
 end

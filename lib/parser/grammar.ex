@@ -149,14 +149,35 @@ defmodule Tempo.Iso8601.Parser.Grammar do
     ])
   end
 
-  def duration_element do
+  def duration_elements do
+    choice([
+      concat(duration_date_elements(), duration_time_elements()),
+      duration_date_elements(),
+      duration_time_elements()
+    ])
+  end
+
+  def duration_date_elements do
+    times(duration_date_element(), min: 1)
+  end
+
+  def duration_time_elements do
+    ignore(string("T")) |> times(duration_time_element(), min: 1)
+  end
+
+  def duration_date_element do
     choice([
       maybe_negative_integer() |> ignore(string("C")) |> unwrap_and_tag(:century),
       maybe_negative_integer() |> ignore(string("J")) |> unwrap_and_tag(:century),
       maybe_negative_integer() |> ignore(string("Y")) |> unwrap_and_tag(:year),
       maybe_negative_integer() |> ignore(string("M")) |> unwrap_and_tag(:month),
       maybe_negative_integer() |> ignore(string("W")) |> unwrap_and_tag(:week),
-      maybe_negative_integer() |> ignore(string("D")) |> unwrap_and_tag(:day),
+      maybe_negative_integer() |> ignore(string("D")) |> unwrap_and_tag(:day)
+    ])
+  end
+
+  def duration_time_element do
+    choice([
       maybe_negative_integer() |> ignore(string("H")) |> unwrap_and_tag(:hour),
       maybe_negative_integer() |> ignore(string("M")) |> unwrap_and_tag(:minute),
       maybe_negative_integer() |> ignore(string("S")) |> unwrap_and_tag(:second)
