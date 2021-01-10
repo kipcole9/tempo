@@ -158,5 +158,6 @@ defmodule Tempo.Iso8601.Parser.Helpers do
       ascii_char([?T, ?/]),
       eos()
     ])
+    |> lookahead
   end
 end

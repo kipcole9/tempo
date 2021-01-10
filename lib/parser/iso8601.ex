@@ -7,6 +7,7 @@ defmodule Tempo.Iso8601.Parser do
 
   defcombinator :interval,
     choice([
+      parsec(:datetime_or_date_or_time) |> ignore(string("/")) |> parsec(:datetime_or_date_or_time),
       parsec(:datetime_or_date_or_time) |> ignore(string("/")) |> parsec(:duration),
       parsec(:duration) |> ignore(string("/")) |> parsec(:datetime_or_date_or_time)
     ])
@@ -25,7 +26,7 @@ defmodule Tempo.Iso8601.Parser do
       date_time_x(),
       date_time()
     ])
-    |> tag(:dattime)
+    |> tag(:datetime)
 
   defcombinator :date,
     choice([

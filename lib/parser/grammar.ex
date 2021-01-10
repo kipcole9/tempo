@@ -33,10 +33,11 @@ defmodule Tempo.Iso8601.Parser.Grammar do
     choice([
       implicit_year() |> concat(implicit_month()) |> concat(implicit_day_of_month()),
       implicit_year() |> ignore(dash()) |> concat(implicit_month()),
+      implicit_month() |> ignore(dash()) |> concat(implicit_day_of_month()),
       implicit_week_date(),
       ordinal_date(),
       implicit_year(),
-      implicit_day_of_month()
+      implicit_month()
     ])
   end
 
@@ -44,10 +45,11 @@ defmodule Tempo.Iso8601.Parser.Grammar do
     choice([
       implicit_year() |> ignore(dash()) |> concat(implicit_month()) |> ignore(dash()) |> concat(implicit_day_of_month()),
       implicit_year() |> ignore(dash()) |> concat(implicit_month()) |> time_or_eos(),
+      implicit_month() |> ignore(dash()) |> concat(implicit_day_of_month()) |> time_or_eos(),
       implicit_week_date_x() |> time_or_eos(),
       ordinal_date_x() |> time_or_eos(),
       implicit_year() |> time_or_eos(),
-      implicit_day_of_month() |> time_or_eos()
+      implicit_month() |> time_or_eos()
     ])
   end
 
