@@ -1,0 +1,49 @@
+name: Elixir
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  MIX_ENV: test
+
+jobs:
+  test:
+
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        elixir: [
+          1.11.3
+        ]
+        otp: [
+          23.2
+          #, 22.3
+        ]
+
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Setup elixir
+      uses: actions/setup-elixir@v1
+      with:
+        elixir-version: ${{ matrix.elixir }}
+        otp-version: ${{ matrix.otp }}
+
+    - name: Retrieve Mix Dependencies Cache
+      uses: actions/cache@v2
+      with:
+        path: deps
+        key: ${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-mix-${{ hashFiles(format('{0}{1}', github.workspace, '/mix.lock')) }}
+        restore-keys: |
+          ${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-mix-
+
+    - name: Install Dependencies
+      run: mix deps.get
+
+    - name: Run Tests
+      run: mix test
