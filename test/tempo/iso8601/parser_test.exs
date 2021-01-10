@@ -6,7 +6,7 @@ defmodule Tempo.Iso8601.ParserTest do
     test "parsing simple iso dates" do
       assert {:ok,
               [
-                dattime: [
+                datetime: [
                   year: 2020,
                   month: 11,
                   day_of_month: 14,
