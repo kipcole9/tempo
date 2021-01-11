@@ -184,6 +184,37 @@ defmodule Tempo.Iso8601.Parser.Grammar do
     ])
   end
 
+  def integer_or_set_all do
+    ignore(string("{"))
+    |> list_of_integer_or_range()
+    |> ignore(string("}"))
+    |> reduce({List, :to_tuple, []})
+    |> unwrap_and_tag(:set)
+  end
+
+  def integer_or_set_one do
+    ignore(string("["))
+    |> list_of_integer_or_range()
+    |> ignore(string("]"))
+    |> tag(:set)
+  end
+
+  def list_of_integer_or_range(combinator \\ empty()) do
+    combinator
+    |> integer_or_range()
+    |> repeat(ignore(string(",")) |> integer_or_range())
+    |> label("list of integers or ranges")
+  end
+
+  def integer_or_range(combinator \\ empty()) do
+    combinator
+    |> choice([
+      integer(min: 1) |> ignore(string("..")) |> integer(min: 1) |> wrap(),
+      integer(min: 1)
+    ])
+    |> label("integer or range")
+  end
+
   # Individual date and time components
   # Note that any component can be alternatively a group
 

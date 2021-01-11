@@ -57,4 +57,13 @@ defmodule Tempo.Iso8601.Parser do
     |> ignore(string("P"))
     |> concat(duration_elements())
     |> tag(:duration)
+
+  defcombinator :integer_or_set,
+    choice([
+      integer(min: 1),
+      integer_or_set_all(),
+      integer_or_set_one()
+    ])
+    |> label("integer or set")
+
 end
