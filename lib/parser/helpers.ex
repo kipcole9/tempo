@@ -7,7 +7,7 @@ defmodule Tempo.Iso8601.Parser.Helpers do
   def integer_or_unknown(combinator, n) when is_integer(n) do
     combinator
     |> choice([
-      integer(n) |> reduce(:detect_sign),
+      integer(n),
       ascii_char([?0..?9, ?X]) |> times(n)
     ])
     |> reduce(:detect_unknown)
@@ -17,7 +17,7 @@ defmodule Tempo.Iso8601.Parser.Helpers do
   def integer_or_unknown(combinator, opts) do
     combinator
     |> choice([
-      integer(opts) |> reduce(:detect_sign),
+      integer(opts),
       string("X*"),
       ascii_char([?0..?9, ?X]) |> times(opts)
     ])
@@ -77,10 +77,6 @@ defmodule Tempo.Iso8601.Parser.Helpers do
     -integer
   end
 
-  def detect_sign([?+, integer]) do
-    integer
-  end
-
   def detect_sign([integer]) when is_integer(integer) do
     integer
   end
@@ -109,7 +105,7 @@ defmodule Tempo.Iso8601.Parser.Helpers do
   # detected
 
   def detect_unknown(["X*"]) do
-    [:undefined]
+    :unspecified
   end
 
   def detect_unknown([integer]) when is_integer(integer) do
@@ -123,7 +119,7 @@ defmodule Tempo.Iso8601.Parser.Helpers do
   def detect_unknown(chars) when is_list(chars) do
     Enum.map chars, fn
       char when char in ?0..?9 -> char - ?0
-      ?X -> :undefined
+      ?X -> :unspecified
     end
   end
 
