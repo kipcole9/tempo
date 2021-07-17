@@ -3,6 +3,19 @@ defmodule Tempo.Iso8601.Parser do
   import Tempo.Iso8601.Parser.Grammar
   import Tempo.Iso8601.Parser.Helpers
 
+  def parse(string) do
+    case iso8601(string) do
+      {:ok, tokens, "", %{}, {_, _}, _} ->
+        {:ok, tokens}
+
+      {:ok, _tokens, remaining, _, {_line, _}, _char} ->
+        {:error, "Could not parse #{inspect string}. Error detected at #{inspect remaining}"}
+
+      {:error, message, detected_at, _, _, _} ->
+        {:error, String.capitalize(message) <> ". Error deteted at #{inspect detected_at}"}
+    end
+  end
+
   defparsec :iso8601, iso8601_parser()
 
   defcombinator :interval,
