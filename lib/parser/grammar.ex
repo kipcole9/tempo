@@ -10,11 +10,50 @@ defmodule Tempo.Iso8601.Parser.Grammar do
 
   def iso8601_parser do
     choice([
-     parsec(:interval),
-     parsec(:datetime_or_date_or_time),
-     parsec(:duration),
-     parsec(:group)
+      parsec(:set),
+      interval_or_time_or_duration()
     ])
+  end
+
+  def interval_or_time_or_duration(combinator \\ empty()) do
+    combinator
+    |> choice([
+      parsec(:interval),
+      parsec(:datetime_or_date_or_time),
+      parsec(:duration)
+    ])
+  end
+
+  def set_all do
+    ignore(string("{"))
+    |> list_of_time_or_range()
+    |> ignore(string("}"))
+    |> tag(:Set_all_of)
+  end
+
+  def set_one do
+    ignore(string("["))
+    |> list_of_time_or_range()
+    |> ignore(string("]"))
+    |> tag(:set_one_of)
+  end
+
+  def list_of_time_or_range(combinator \\ empty()) do
+    combinator
+    |> time_or_range()
+    |> repeat(ignore(string(",")) |> time_or_range())
+    |> label("list of times or ranges")
+  end
+
+  def time_or_range(combinator \\ empty()) do
+    combinator
+    |> choice([
+      interval_or_time_or_duration() |> ignore(string("..")) |> interval_or_time_or_duration() |> wrap(),
+      replace(string(".."), :undefined) |> interval_or_time_or_duration() |> wrap(),
+      interval_or_time_or_duration() |> replace(string(".."), :undefined) |>  wrap(),
+      interval_or_time_or_duration()
+    ])
+    |> label("date, time, interval, duration or range")
   end
 
   def date_time do
@@ -149,6 +188,9 @@ defmodule Tempo.Iso8601.Parser.Grammar do
     ])
   end
 
+  # Parsing of durations
+  # Does not current support fractional elements
+
   def duration_elements do
     choice([
       concat(duration_date_elements(), duration_time_elements()),
@@ -162,13 +204,14 @@ defmodule Tempo.Iso8601.Parser.Grammar do
   end
 
   def duration_time_elements do
-    ignore(string("T")) |> times(duration_time_element(), min: 1)
+    ignore(string("T"))
+    |> times(duration_time_element(), min: 1)
   end
 
   def duration_date_element do
     choice([
       maybe_negative_integer() |> ignore(string("C")) |> unwrap_and_tag(:century),
-      maybe_negative_integer() |> ignore(string("J")) |> unwrap_and_tag(:century),
+      maybe_negative_integer() |> ignore(string("J")) |> unwrap_and_tag(:decade),
       maybe_negative_integer() |> ignore(string("Y")) |> unwrap_and_tag(:year),
       maybe_negative_integer() |> ignore(string("M")) |> unwrap_and_tag(:month),
       maybe_negative_integer() |> ignore(string("W")) |> unwrap_and_tag(:week),
@@ -184,19 +227,20 @@ defmodule Tempo.Iso8601.Parser.Grammar do
     ])
   end
 
-  def integer_or_set_all do
+  # Parsing of integer sets
+
+  def integer_set_all do
     ignore(string("{"))
     |> list_of_integer_or_range()
     |> ignore(string("}"))
-    |> reduce({List, :to_tuple, []})
-    |> unwrap_and_tag(:set)
+    |> tag(:integer_set_all_of)
   end
 
-  def integer_or_set_one do
+  def integer_set_one do
     ignore(string("["))
     |> list_of_integer_or_range()
     |> ignore(string("]"))
-    |> tag(:set)
+    |> tag(:integer_set_one_of)
   end
 
   def list_of_integer_or_range(combinator \\ empty()) do

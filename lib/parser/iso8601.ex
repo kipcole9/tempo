@@ -5,6 +5,14 @@ defmodule Tempo.Iso8601.Parser do
 
   defparsec :iso8601, iso8601_parser()
 
+  defcombinator :set,
+    choice([
+      set_all(),
+      set_one(),
+      parsec(:interval),
+      parsec(:datetime_or_date_or_time)
+    ])
+
   defcombinator :interval,
     choice([
       parsec(:datetime_or_date_or_time) |> ignore(string("/")) |> parsec(:datetime_or_date_or_time),
@@ -45,7 +53,8 @@ defmodule Tempo.Iso8601.Parser do
     |> tag(:time)
 
   defcombinator :group,
-    optional(integer(min: 1) |> tag(:nth))
+    integer(min: 1)
+    |> unwrap_and_tag(:nth)
     |> ignore(string("G"))
     |> optional(explicit_date())
     |> optional(explicit_time())
@@ -58,12 +67,12 @@ defmodule Tempo.Iso8601.Parser do
     |> concat(duration_elements())
     |> tag(:duration)
 
-  defcombinator :integer_or_set,
+  defcombinator :integer_or_integer_set,
     choice([
       integer(min: 1),
-      integer_or_set_all(),
-      integer_or_set_one()
+      integer_set_all(),
+      integer_set_one()
     ])
-    |> label("integer or set")
+    |> label("integer or integer set")
 
 end
