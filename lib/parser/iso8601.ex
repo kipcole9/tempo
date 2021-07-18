@@ -5,19 +5,25 @@ defmodule Tempo.Iso8601.Parser do
 
   def date(string) do
     string
-    |> date_parser
+    |> date_parser()
     |> return(string)
   end
 
   def time(string) do
     string
-    |> time_parser
+    |> time_parser()
     |> return(string)
   end
 
   def date_time(string) do
     string
-    |> datetime_parser
+    |> datetime_parser()
+    |> return(string)
+  end
+
+  def interval(string) do
+    string
+    |> interval_parser()
     |> return(string)
   end
 
@@ -41,11 +47,11 @@ defmodule Tempo.Iso8601.Parser do
     choice([
       set_all(),
       set_one(),
-      parsec(:interval),
+      parsec(:interval_parser),
       parsec(:datetime_or_date_or_time)
     ])
 
-  defcombinator :interval,
+  defparsec :interval_parser,
     choice([
       parsec(:datetime_or_date_or_time) |> ignore(string("/")) |> parsec(:datetime_or_date_or_time),
       parsec(:datetime_or_date_or_time) |> ignore(string("/")) |> parsec(:duration),

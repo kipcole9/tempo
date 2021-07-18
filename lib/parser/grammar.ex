@@ -18,7 +18,7 @@ defmodule Tempo.Iso8601.Parser.Grammar do
   def interval_or_time_or_duration(combinator \\ empty()) do
     combinator
     |> choice([
-      parsec(:interval),
+      parsec(:interval_parser),
       parsec(:datetime_or_date_or_time),
       parsec(:duration)
     ])
