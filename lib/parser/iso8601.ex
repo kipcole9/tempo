@@ -3,12 +3,31 @@ defmodule Tempo.Iso8601.Parser do
   import Tempo.Iso8601.Parser.Grammar
   import Tempo.Iso8601.Parser.Helpers
 
-  def parse(string) do
-    case iso8601(string) do
+  def date(string) do
+    string
+    |> date_parser
+    |> return(string)
+  end
+
+  def time(string) do
+    string
+    |> time_parser
+    |> return(string)
+  end
+
+  def date_time(string) do
+    string
+    |> datetime_parser
+    |> return(string)
+  end
+
+  defp return(result, string) do
+    case result do
       {:ok, tokens, "", %{}, {_, _}, _} ->
         {:ok, tokens}
 
-      {:ok, _tokens, remaining, _, {_line, _}, _char} ->
+      {:ok, tokens, remaining, _, {_line, _}, _char} ->
+        IO.inspect tokens
         {:error, "Could not parse #{inspect string}. Error detected at #{inspect remaining}"}
 
       {:error, message, detected_at, _, _, _} ->
@@ -36,20 +55,20 @@ defmodule Tempo.Iso8601.Parser do
 
   defcombinator :datetime_or_date_or_time,
     choice([
-      parsec(:datetime),
-      parsec(:date),
-      parsec(:time)
+      parsec(:datetime_parser),
+      parsec(:date_parser),
+      parsec(:time_parser)
     ])
 
-  defcombinator :datetime,
+  defparsec :datetime_parser,
     choice([
       explicit_date_time(),
-      date_time_x(),
-      date_time()
+      implicit_date_time_x(),
+      implicit_date_time()
     ])
     |> tag(:datetime)
 
-  defcombinator :date,
+  defparsec :date_parser,
     choice([
       explicit_date(),
       implicit_date_x(),
@@ -57,20 +76,20 @@ defmodule Tempo.Iso8601.Parser do
     ])
     |> tag(:date)
 
-  defcombinator :time,
+  defparsec :time_parser,
     choice([
       explicit_time_of_day(),
-      time_of_day_x(),
-      time_of_day()
+      implicit_time_of_day_x(),
+      implicit_time_of_day()
     ])
-    |> tag(:time)
+    |> tag(:time_of_day)
 
   defcombinator :group,
     integer(min: 1)
     |> unwrap_and_tag(:nth)
     |> ignore(string("G"))
     |> optional(explicit_date())
-    |> optional(explicit_time())
+    |> optional(explicit_time_of_day())
     |> ignore(string("U"))
     |> tag(:group)
 

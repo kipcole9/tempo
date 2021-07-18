@@ -56,12 +56,12 @@ defmodule Tempo.Iso8601.Parser.Grammar do
     |> label("date, time, interval, duration or range")
   end
 
-  def date_time do
-    implicit_date() |> concat(time_of_day())
+  def implicit_date_time do
+    implicit_date() |> concat(implicit_time_of_day())
   end
 
-  def date_time_x do
-    implicit_date_x() |> concat(time_of_day_x())
+  def implicit_date_time_x do
+    implicit_date_x() |> concat(implicit_time_of_day_x())
   end
 
   def explicit_date_time do
@@ -70,25 +70,24 @@ defmodule Tempo.Iso8601.Parser.Grammar do
 
   def implicit_date do
     choice([
-      implicit_year() |> concat(implicit_month()) |> concat(implicit_day_of_month()),
-      implicit_year() |> ignore(dash()) |> concat(implicit_month()),
-      implicit_month() |> ignore(dash()) |> concat(implicit_day_of_month()),
       implicit_week_date(),
-      ordinal_date(),
+      implicit_year() |> concat(implicit_month()) |> concat(implicit_day_of_month()),
+      implicit_ordinal_date(),
+      implicit_year() |> concat(implicit_month()),
       implicit_year(),
-      implicit_month()
+      implicit_decade(),
+      implicit_century(),
+      implicit_month() |> concat(implicit_day_of_month()),
     ])
   end
 
   def implicit_date_x do
     choice([
+      implicit_week_date_x(),
+      implicit_ordinal_date_x(),
       implicit_year() |> ignore(dash()) |> concat(implicit_month()) |> ignore(dash()) |> concat(implicit_day_of_month()),
-      implicit_year() |> ignore(dash()) |> concat(implicit_month()) |> time_or_eos(),
-      implicit_month() |> ignore(dash()) |> concat(implicit_day_of_month()) |> time_or_eos(),
-      implicit_week_date_x() |> time_or_eos(),
-      ordinal_date_x() |> time_or_eos(),
-      implicit_year() |> time_or_eos(),
-      implicit_month() |> time_or_eos()
+      implicit_year() |> ignore(dash()) |> concat(implicit_month()),
+      implicit_month() |> ignore(dash()) |> concat(implicit_day_of_month())
     ])
   end
 
@@ -101,6 +100,13 @@ defmodule Tempo.Iso8601.Parser.Grammar do
       explicit_ordinal_date(),
       explicit_century_decade_or_year(),
       explicit_month(),
+
+      # Can create ambiguity with implicit week dates so care is required
+      # This should also cater for looking ahead for interval separators
+      # an probably other tokens
+      explicit_week() |> concat(explicit_day_of_week()),
+      explicit_week() |> eos(),
+
       explicit_day_of_month()
     ])
   end
@@ -113,11 +119,11 @@ defmodule Tempo.Iso8601.Parser.Grammar do
     ])
   end
 
-  def ordinal_date do
+  def implicit_ordinal_date do
     implicit_year() |> concat(implicit_day_of_year())
   end
 
-  def ordinal_date_x do
+  def implicit_ordinal_date_x do
     implicit_year() |> ignore(dash()) |> concat(implicit_day_of_year())
   end
 
@@ -128,7 +134,8 @@ defmodule Tempo.Iso8601.Parser.Grammar do
   def implicit_week_date do
     choice([
       implicit_year() |> concat(implicit_week()) |> concat(implicit_day_of_week()),
-      implicit_year() |> concat(implicit_week())
+      implicit_year() |> concat(implicit_week()),
+      implicit_week()
     ])
   end
 
@@ -142,12 +149,14 @@ defmodule Tempo.Iso8601.Parser.Grammar do
   def explicit_week_date do
     choice([
       explicit_century_decade_or_year() |> concat(explicit_week()) |> concat(explicit_day_of_week()),
-      explicit_century_decade_or_year() |> concat(explicit_week())
+      explicit_century_decade_or_year() |> concat(explicit_week()),
+      explicit_week() |> concat(explicit_day_of_week()),
+      explicit_week()
     ])
   end
 
-  def time_of_day do
-    ignore(string("T"))
+  def implicit_time_of_day do
+    ignore(optional(string("T")))
     |> choice([
       implicit_hour() |> concat(implicit_minute()) |> concat(implicit_second()),
       implicit_hour() |> concat(implicit_minute()),
@@ -157,19 +166,18 @@ defmodule Tempo.Iso8601.Parser.Grammar do
     |> optional(time_shift())
   end
 
-  def time_of_day_x do
+  def implicit_time_of_day_x do
     ignore(optional(string("T")))
     |> choice([
       implicit_hour() |> ignore(colon()) |> concat(implicit_minute()) |> ignore(colon()) |> concat(implicit_second()),
       implicit_hour() |> ignore(colon()) |> concat(implicit_minute()),
-      implicit_hour()
     ])
     |> optional(fraction())
     |> optional(time_shift_x())
   end
 
   def explicit_time_of_day do
-    ignore(string("T"))
+    ignore(optional(string("T")))
     |> choice([
       explicit_hour() |> concat(explicit_minute()) |> concat(explicit_second()),
       explicit_hour() |> concat(explicit_minute()),
@@ -177,15 +185,6 @@ defmodule Tempo.Iso8601.Parser.Grammar do
     ])
     |> optional(fraction())
     |> optional(time_shift())
-  end
-
-  def explicit_time do
-    ignore(string("T"))
-    |> choice([
-      explicit_hour() |> concat(explicit_minute()) |> concat(explicit_second()),
-      explicit_hour() |> concat(explicit_minute()),
-      explicit_hour()
-    ])
   end
 
   # Parsing of durations
@@ -456,7 +455,10 @@ defmodule Tempo.Iso8601.Parser.Grammar do
   end
 
   def implicit_second do
-    integer_or_unknown(2)
+    choice([
+      parsec(:group),
+      integer_or_unknown(2)
+    ])
     |> unwrap_and_tag(:second)
   end
 
@@ -494,11 +496,11 @@ defmodule Tempo.Iso8601.Parser.Grammar do
   end
 
   def resolve_shift([{:sign, ?+} | rest]) do
-    [{:sign, :postitive} | rest]
+    [{:sign, :positive} | rest]
   end
 
   def resolve_shift([?Z | rest]) do
-    [{:sign, :postitive}, {:hour, 0} | rest]
+    [{:sign, :positive}, {:hour, 0} | rest]
   end
 
 end
