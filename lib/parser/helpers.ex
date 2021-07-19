@@ -1,9 +1,12 @@
 defmodule Tempo.Iso8601.Parser.Helpers do
   import NimbleParsec
 
-  def integer_or_unknown(combinator \\ empty(), opts)
+  def recur([]), do: :infinity
+  def recur([other]), do: other
 
   # Used parsing implicit forms
+  def integer_or_unknown(combinator \\ empty(), opts)
+
   def integer_or_unknown(combinator, n) when is_integer(n) do
     combinator
     |> choice([
@@ -11,9 +14,10 @@ defmodule Tempo.Iso8601.Parser.Helpers do
       ascii_char([?0..?9, ?X]) |> times(n)
     ])
     |> reduce(:detect_unknown)
+    |> label("integer with maybe unknown digits")
   end
 
-  # Used parsing explicit forms
+  # Used for implicit forms
   def integer_or_unknown(combinator, opts) do
     combinator
     |> choice([
@@ -22,6 +26,32 @@ defmodule Tempo.Iso8601.Parser.Helpers do
       ascii_char([?0..?9, ?X]) |> times(opts)
     ])
     |> reduce(:detect_unknown)
+    |> label("integer with maybe unknown digits")
+  end
+
+  # Used parsing explicit forms
+  def maybe_negative_integer_or_unknown(combinator \\ empty(), opts)
+
+  # Its either `n` digit integer or a combination of 0..9 and X
+  # representing "unknown"
+  def maybe_negative_integer_or_unknown(combinator, n) when is_integer(n) do
+    combinator
+    |> choice([
+      maybe_negative_integer(n),
+      ascii_char([?0..?9, ?X]) |> times(n)
+    ])
+    |> reduce(:detect_unknown)
+    |> label("potentially negative integer with maybe unknown digits")
+  end
+
+  def maybe_negative_integer_or_unknown(combinator, opts) do
+    combinator
+    |> choice([
+      string("X*"),
+      optional(ascii_char([?-])) |> times(ascii_char([?0..?9, ?X]), opts)
+    ])
+    |> reduce(:detect_unknown)
+    |> label("potentially negative integer with maybe unknown digits")
   end
 
   def integer_or_unknown_year(combinator \\ empty(), opts) do
@@ -32,20 +62,24 @@ defmodule Tempo.Iso8601.Parser.Helpers do
       ascii_char([?0..?9, ?X]) |> times(opts)
     ])
     |> reduce(:detect_unknown)
+    |> label("potentially negative year with maybe unknown digits")
   end
 
-  def maybe_exponent_integer(opts) do
-    optional(negative())
-    |> integer(opts)
+  def maybe_exponent_integer(combinator \\ empty(), opts) do
+    combinator
+    |> optional(negative())
+    |> ascii_char([?0..?9, ?X]) |> times(opts)
     |> optional(string("E") |> integer(min: 1))
     |> optional(string("S") |> integer(min: 1))
-    |> reduce(:detect_sign)
+    |> reduce(:form_exponent_integer)
+    |> label("integer with exponent")
   end
 
-  def maybe_negative_integer do
-    optional(ascii_char([?-]))
-    |> integer(min: 1)
+  def maybe_negative_integer(opts \\ [min: 1]) do
+    optional(negative())
+    |> integer(opts)
     |> reduce(:form_integer)
+    |> label("potentially negative integer")
   end
 
   def form_integer([?-, int]) do
@@ -60,6 +94,7 @@ defmodule Tempo.Iso8601.Parser.Helpers do
     ignore(decimal_separator()) |> times(ascii_char([?0..?9]), min: 1)
     |> reduce({List, :to_integer, []})
     |> unwrap_and_tag(:fraction)
+    |> label("fraction")
   end
 
   def decimal_separator do
@@ -70,33 +105,33 @@ defmodule Tempo.Iso8601.Parser.Helpers do
     ascii_char([?-])
   end
 
-  # Detect is a sign was presented in which case
-  # apply it.
+  # Convert a charlist to an integer if all the character
+  # are integers, otherwise if they have unknowns leave it
+  # unchanged.  Then detect
 
-  def detect_sign([?-, integer]) do
-    -integer
+  def form_exponent_integer([?- | [_|_] = number]) do
+    if Enum.any?(number, &(&1 in [?X, ?S, ?E)) do
+
+    else
+      List.to_integer(number)
+    end
   end
 
-  def detect_sign([integer]) when is_integer(integer) do
-    integer
-  end
-
-  def detect_sign([?- | rest]) do
-    case detect_sign(rest) do
+    case form_exponent_integer(number) do
       int when is_integer(int) -> -int
       {int, significance} -> {-int, significance}
     end
   end
 
-  def detect_sign([int, "E", exp]) do
+  def form_exponent_integer([int, "E", exp]) do
     int * :math.pow(10, exp) |> trunc
   end
 
-  def detect_sign([int, "S", significance]) do
+  def form_exponent_integer([int, "S", significance]) do
     {int, significance}
   end
 
-  def detect_sign([int, "E", exp, "S", significance]) do
+  def form_exponent_integer([int, "E", exp, "S", significance]) do
     {int * :math.pow(10, exp) |> trunc, significance}
   end
 
@@ -120,10 +155,11 @@ defmodule Tempo.Iso8601.Parser.Helpers do
     Enum.map chars, fn
       char when char in ?0..?9 -> char - ?0
       ?X -> :unspecified
+      ?- -> :negative
     end
   end
 
-  def convert_bc(["B", int]) do
+  def convert_bc([int, "B"]) do
     -(int - 1)
   end
 

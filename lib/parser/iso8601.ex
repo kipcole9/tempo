@@ -27,17 +27,22 @@ defmodule Tempo.Iso8601.Parser do
     |> return(string)
   end
 
+  def duration(string) do
+    string
+    |> duration_parser()
+    |> return(string)
+  end
+
   defp return(result, string) do
     case result do
       {:ok, tokens, "", %{}, {_, _}, _} ->
         {:ok, tokens}
 
-      {:ok, tokens, remaining, _, {_line, _}, _char} ->
-        IO.inspect tokens
+      {:ok, _tokens, remaining, _, {_line, _}, _char} ->
         {:error, "Could not parse #{inspect string}. Error detected at #{inspect remaining}"}
 
       {:error, message, detected_at, _, _, _} ->
-        {:error, String.capitalize(message) <> ". Error deteted at #{inspect detected_at}"}
+        {:error, String.capitalize(message) <> ". Error detected at #{inspect detected_at}"}
     end
   end
 
@@ -52,12 +57,14 @@ defmodule Tempo.Iso8601.Parser do
     ])
 
   defparsec :interval_parser,
-    choice([
+    optional(recurrence())
+    |> choice([
       parsec(:datetime_or_date_or_time) |> ignore(string("/")) |> parsec(:datetime_or_date_or_time),
-      parsec(:datetime_or_date_or_time) |> ignore(string("/")) |> parsec(:duration),
-      parsec(:duration) |> ignore(string("/")) |> parsec(:datetime_or_date_or_time)
+      parsec(:datetime_or_date_or_time) |> ignore(string("/")) |> parsec(:duration_parser),
+      parsec(:duration_parser) |> ignore(string("/")) |> parsec(:datetime_or_date_or_time)
     ])
     |> tag(:interval)
+    |> label("interval")
 
   defcombinator :datetime_or_date_or_time,
     choice([
@@ -77,10 +84,11 @@ defmodule Tempo.Iso8601.Parser do
   defparsec :date_parser,
     choice([
       explicit_date(),
-      implicit_date_x(),
-      implicit_date()
+      implicit_date_x() |> optional(time_shift_x()),
+      implicit_date() |> optional(time_shift())
     ])
     |> tag(:date)
+    |> label("date")
 
   defparsec :time_parser,
     choice([
@@ -89,6 +97,7 @@ defmodule Tempo.Iso8601.Parser do
       implicit_time_of_day()
     ])
     |> tag(:time_of_day)
+    |> label("time of day")
 
   defcombinator :group,
     integer(min: 1)
@@ -98,12 +107,14 @@ defmodule Tempo.Iso8601.Parser do
     |> optional(explicit_time_of_day())
     |> ignore(string("U"))
     |> tag(:group)
+    |> label("group")
 
-  defcombinator :duration,
+  defparsec :duration_parser,
     optional(negative() |> replace({:direction, :negative}))
     |> ignore(string("P"))
     |> concat(duration_elements())
     |> tag(:duration)
+    |> label("duration")
 
   defcombinator :integer_or_integer_set,
     choice([

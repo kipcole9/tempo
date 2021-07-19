@@ -25,6 +25,37 @@ defmodule Tempo.Parser.DatesTimes.Test do
     assert Parser.date("W03") == {:ok, [date: [week: 3]]}
   end
 
+  test "Additional Explicit Forms section 4.3" do
+    assert Parser.date("01M") == {:ok, [date: [month: 1]]}
+    assert Parser.date("0001M") == {:ok, [date: [month: 1]]}
+    assert Parser.date("1K") == {:ok, [date: [day_of_week: 1]]}
+    assert Parser.date("350O") == {:ok, [date: [day_of_year: 350]]}
+    assert Parser.date("16C") == {:ok, [date: [century: 16]]}
+    assert Parser.date("-1985Y") == {:ok, [date: [year: -1985]]}
+    assert Parser.date("1YB") == {:ok, [date: [year: 0]]}
+    assert Parser.date("12YB") == {:ok, [date: [year: -11]]}
+    assert Parser.date("-5D") == {:ok, [date: [day_of_month: -5]]}
+    assert Parser.date("-3W") == {:ok, [date: [week: -3]]}
+    assert Parser.date("-7O") == {:ok, [date: [day_of_year: -7]]}
+    assert Parser.date("-306O") == {:ok, [date: [day_of_year: -306]]}
+    assert Parser.date("-019") == {:ok, [date: [decade: -19]]}
+    assert Parser.date("-1985") == {:ok, [date: [year: -1985]]}
+    assert Parser.date("-12J") == {:ok, [date: [decade: -12]]}
+    assert Parser.date("-19") == {:ok, [date: [century: -19]]}
+    assert Parser.date("-12C") == {:ok, [date: [century: -12]]}
+    assert Parser.date("-00") == {:ok, [date: [century: 0]]}
+  end
+
+  test "Exponential values section 4.4.2" do
+    assert Parser.date("1230S2") == {:ok, [date: [year: {1230, 2}]]}
+    assert Parser.date("3E3Y") == {:ok, [date: [year: 3000]]}
+  end
+
+  test "Unspecified digits section 4.6.2" do
+    assert Parser.date("1390YXXM") == {:ok, [date: [year: 1390, month: [:unspecified, :unspecified]]]}
+
+  end
+
   test "Time Without Zone Parsing" do
     assert Parser.time("T23:20:50") == {:ok, [time_of_day: [hour: 23, minute: 20, second: 50]]}
     assert Parser.time("T23:20") == {:ok, [time_of_day: [hour: 23, minute: 20]]}
