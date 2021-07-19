@@ -29,7 +29,8 @@ jobs:
     - uses: actions/checkout@v2
 
     - name: Setup elixir
-      uses: actions/setup-elixir@v1
+      id: setup-beam
+      uses: erlef/setup-beam@v1
       with:
         elixir-version: ${{ matrix.elixir }}
         otp-version: ${{ matrix.otp }}
@@ -37,10 +38,16 @@ jobs:
     - name: Retrieve Mix Dependencies Cache
       uses: actions/cache@v2
       with:
-        path: deps
-        key: ${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-mix-${{ hashFiles(format('{0}{1}', github.workspace, '/mix.lock')) }}
+        path: |
+          deps
+          _build
+        # cache key is hierarchical: OS, otp-version, elixir-version, mix.lock
+        key: ${{ runner.os }}-mix-${{ steps.setup-beam.outputs.otp-version }}-${{ steps.setup-beam.outputs.elixir-version }}-${{ hashFiles('**/mix.lock') }}
+        # restore keys are tried on cache misses, and only match the key prefix
         restore-keys: |
-          ${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-mix-
+          ${{ runner.os }}-mix-${{ steps.setup-beam.outputs.otp-version }}-${{ steps.setup-beam.outputs.elixir-version }}-
+          ${{ runner.os }}-mix-${{ steps.setup-beam.outputs.otp-version }}-
+          ${{ runner.os }}-mix-
 
     - name: Install Dependencies
       run: mix deps.get
