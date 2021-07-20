@@ -119,7 +119,7 @@ defmodule Tempo.Iso8601.Parser.Grammar do
       explicit_week() |> concat(explicit_day_of_week()),
       explicit_ordinal_date(),
       explicit_century_decade_or_year(),
-      explicit_month(),
+      explicit_month() |> lookahead_not(explicit_time_of_day()),
 
       # Can create ambiguity with implicit week dates so care is required
       # This should also cater for looking ahead for interval separators

@@ -107,12 +107,7 @@ defmodule Tempo.Parser.Set.Test do
        ]}
 
     assert Parser.parse("{1M2S..1M5S}") ==
-      {:ok,
-       [
-         all_of: [
-           [datetime: [month: 1, second: 2], datetime: [month: 1, second: 5]]
-         ]
-       ]}
+      {:ok, [all_of: [[time_of_day: [minute: 1, second: 2], time_of_day: [minute: 1, second: 5]]]]}
   end
 
   test "Group sets" do
