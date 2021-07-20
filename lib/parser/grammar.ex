@@ -40,14 +40,14 @@ defmodule Tempo.Iso8601.Parser.Grammar do
     ignore(string("{"))
     |> list_of_time_or_range()
     |> ignore(string("}"))
-    |> tag(:set_all_of)
+    |> tag(:all_of)
   end
 
   def set_one do
     ignore(string("["))
     |> list_of_time_or_range()
     |> ignore(string("]"))
-    |> tag(:set_one_of)
+    |> tag(:one_of)
   end
 
   def list_of_time_or_range(combinator \\ empty()) do
@@ -68,6 +68,8 @@ defmodule Tempo.Iso8601.Parser.Grammar do
     |> label("date, time, interval, duration or range")
   end
 
+  # Date Time
+
   def implicit_date_time do
     implicit_date() |> concat(implicit_time_of_day())
   end
@@ -79,6 +81,8 @@ defmodule Tempo.Iso8601.Parser.Grammar do
   def explicit_date_time do
     explicit_date() |> concat(explicit_time_of_day())
   end
+
+  # Date
 
   def implicit_date do
     choice([
@@ -174,6 +178,8 @@ defmodule Tempo.Iso8601.Parser.Grammar do
     ])
   end
 
+  # Time
+
   def implicit_time_of_day do
     ignore(optional(string("T")))
     |> choice([
@@ -189,7 +195,7 @@ defmodule Tempo.Iso8601.Parser.Grammar do
     ignore(optional(string("T")))
     |> choice([
       implicit_hour() |> ignore(colon()) |> concat(implicit_minute()) |> ignore(colon()) |> concat(implicit_second()),
-      implicit_hour() |> ignore(colon()) |> concat(implicit_minute()),
+      implicit_hour() |> ignore(colon()) |> concat(implicit_minute())
     ])
     |> optional(fraction())
     |> optional(time_shift_x())
@@ -200,9 +206,11 @@ defmodule Tempo.Iso8601.Parser.Grammar do
     |> choice([
       explicit_hour() |> concat(explicit_minute()) |> concat(explicit_second()),
       explicit_hour() |> concat(explicit_minute()),
-      explicit_hour()
+      explicit_minute() |> concat(explicit_second()),
+      explicit_hour(),
+      explicit_minute(),
+      explicit_second()
     ])
-    |> optional(fraction())
     |> optional(time_shift())
   end
 
@@ -249,18 +257,27 @@ defmodule Tempo.Iso8601.Parser.Grammar do
 
   # Parsing of integer sets
 
+  def integer_or_integer_set do
+    choice([
+      integer(min: 1) |> unwrap_and_tag(:nth),
+      integer_set_all(),
+      integer_set_one()
+    ])
+    |> label("integer or integer set")
+  end
+
   def integer_set_all do
     ignore(string("{"))
     |> list_of_integer_or_range()
     |> ignore(string("}"))
-    |> tag(:integer_set_all_of)
+    |> tag(:all_of)
   end
 
   def integer_set_one do
     ignore(string("["))
     |> list_of_integer_or_range()
     |> ignore(string("]"))
-    |> tag(:integer_set_one_of)
+    |> tag(:one_of)
   end
 
   def list_of_integer_or_range(combinator \\ empty()) do

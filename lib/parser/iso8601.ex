@@ -107,8 +107,7 @@ defmodule Tempo.Iso8601.Parser do
     |> label("time of day")
 
   defcombinator :group,
-    integer(min: 1)
-    |> unwrap_and_tag(:nth)
+    integer_or_integer_set()
     |> ignore(string("G"))
     |> duration_elements()
     # |> choice([
@@ -126,13 +125,5 @@ defmodule Tempo.Iso8601.Parser do
     |> concat(duration_elements())
     |> tag(:duration)
     |> label("duration")
-
-  defcombinator :integer_or_integer_set,
-    choice([
-      integer(min: 1),
-      integer_set_all(),
-      integer_set_one()
-    ])
-    |> label("integer or integer set")
 
 end
