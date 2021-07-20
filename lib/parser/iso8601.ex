@@ -1,5 +1,6 @@
 defmodule Tempo.Iso8601.Parser do
   import NimbleParsec
+  import Tempo.Iso8601.Parser.Numbers
   import Tempo.Iso8601.Parser.Grammar
   import Tempo.Iso8601.Parser.Helpers
 

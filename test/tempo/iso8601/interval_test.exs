@@ -1,5 +1,5 @@
 defmodule Tempo.Parser.Interval.Test do
-  use ExUnit.Case
+  use ExUnit.Case, async: true
 
   alias Tempo.Iso8601.Parser
 

@@ -1,5 +1,5 @@
 defmodule Tempo.Parser.DatesTimes.Test do
-  use ExUnit.Case
+  use ExUnit.Case, async: true
 
   alias Tempo.Iso8601.Parser
 
@@ -52,7 +52,7 @@ defmodule Tempo.Parser.DatesTimes.Test do
   end
 
   test "Unspecified digits section 4.6.2" do
-    assert Parser.date("1390YXXM") == {:ok, [date: [year: 1390, month: [:unspecified, :unspecified]]]}
+    assert Parser.date("1390YXXM") == {:ok, [date: [year: 1390, month: 'XX']]}
 
   end
 
