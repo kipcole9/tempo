@@ -34,6 +34,12 @@ defmodule Tempo.Iso8601.Parser do
     |> return(string)
   end
 
+  def parse(string) do
+    string
+    |> iso8601()
+    |> return(string)
+  end
+
   defp return(result, string) do
     case result do
       {:ok, tokens, "", %{}, {_, _}, _} ->
@@ -104,8 +110,12 @@ defmodule Tempo.Iso8601.Parser do
     integer(min: 1)
     |> unwrap_and_tag(:nth)
     |> ignore(string("G"))
-    |> optional(explicit_date())
-    |> optional(explicit_time_of_day())
+    |> duration_elements()
+    # |> choice([
+    #   explicit_date() |> concat(explicit_time_of_day()),
+    #   explicit_time_of_day(),
+    #   explicit_date()
+    # ])
     |> ignore(string("U"))
     |> tag(:group)
     |> label("group")
