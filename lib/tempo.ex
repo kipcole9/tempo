@@ -12,5 +12,4 @@ defmodule Tempo do
       {:error, _message, _rest, %{}, _line, _char} -> {:error, :invalid_format}
     end
   end
-
 end

@@ -62,7 +62,10 @@ defmodule Tempo.Iso8601.Parser.Numbers do
   def positive_number(combinator, opts) do
     combinator
     |> choice([
-      integer(opts) |> lookahead_not(unknown()) |> optional(exponent()) |> optional(significant()),
+      integer(opts)
+      |> lookahead_not(unknown())
+      |> optional(exponent())
+      |> optional(significant()),
       digit_or_unknown() |> times(opts)
     ])
     |> reduce(:form_number)
@@ -98,7 +101,7 @@ defmodule Tempo.Iso8601.Parser.Numbers do
   end
 
   def form_number([integer, {:exponent, exponent} | rest]) do
-    form_number([integer * :math.pow(10, exponent) |> trunc | rest])
+    form_number([(integer * :math.pow(10, exponent)) |> trunc | rest])
   end
 
   def form_number([integer, {:significant, significant}]) do
@@ -118,10 +121,10 @@ defmodule Tempo.Iso8601.Parser.Numbers do
   end
 
   def fraction do
-    ignore(decimal_separator()) |> times(ascii_char([?0..?9]), min: 1)
+    ignore(decimal_separator())
+    |> times(ascii_char([?0..?9]), min: 1)
     |> reduce({List, :to_integer, []})
     |> unwrap_and_tag(:fraction)
     |> label("fraction")
   end
-
 end

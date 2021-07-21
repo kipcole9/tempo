@@ -30,7 +30,7 @@ defmodule Tempo.Iso8601.Parser.Helpers do
   end
 
   def digit do
-     ascii_char([?0..?9])
+    ascii_char([?0..?9])
   end
 
   def unknown do
