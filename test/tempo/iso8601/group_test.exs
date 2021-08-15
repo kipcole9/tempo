@@ -4,7 +4,7 @@ defmodule Tempo.Parser.Group.Test do
   alias Tempo.Iso8601.Parser
 
   test "Group formation section 5" do
-    assert Parser.date("2018-2G3MU") ==
+    assert Parser.parse("2018-2G3MU") ==
              {:ok, [date: [year: 2018, month: {:group, [nth: 2, month: 3]}]]}
 
     # Note that in secrion 5.4 Example 2 is shows
@@ -31,7 +31,7 @@ defmodule Tempo.Parser.Group.Test do
     assert Parser.parse("2018-03-3G10DU") ==
              {:ok, [date: [year: 2018, month: 3, day_of_month: {:group, [nth: 3, day: 10]}]]}
 
-    assert Parser.time("16:1GT15MU") ==
+    assert Parser.parse("16:1GT15MU") ==
              {:ok, [time_of_day: [hour: 16, minute: {:group, [nth: 1, minute: 15]}]]}
 
     assert Parser.parse("2018-1G6MU") ==
@@ -46,8 +46,8 @@ defmodule Tempo.Parser.Group.Test do
     assert Parser.parse("1543Y1M3G5DU") ==
              {:ok, [date: [year: 1543, month: 1, day_of_month: {:group, [nth: 3, day: 5]}]]}
 
-    assert Parser.time("6GT2HU") ==
-             {:ok, [time_of_day: [hour: {:group, [nth: 6, hour: 2]}]]}
+    assert Parser.parse("6GT2HU") ==
+             {:ok, [date: [year: {:group, [nth: 6, hour: 2]}]]}
 
     assert Parser.parse("110Y2G3MU") ==
              {:ok, [date: [year: 110, month: {:group, [nth: 2, month: 3]}]]}
@@ -72,10 +72,10 @@ defmodule Tempo.Parser.Group.Test do
   end
 
   test "Group formation special tests" do
-    assert Parser.date("5G10DU") ==
+    assert Parser.parse("5G10DU") ==
              {:ok, [date: [year: {:group, [nth: 5, day: 10]}]]}
 
-    assert Parser.date("1G2DT6HU") ==
+    assert Parser.parse("1G2DT6HU") ==
              {:ok, [date: [year: {:group, [nth: 1, day: 2, hour: 6]}]]}
 
     assert Parser.parse("2018Y4G60DU6D") ==

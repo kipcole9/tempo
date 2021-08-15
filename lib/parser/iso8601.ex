@@ -4,35 +4,35 @@ defmodule Tempo.Iso8601.Parser do
   import Tempo.Iso8601.Parser.Grammar
   import Tempo.Iso8601.Parser.Helpers
 
-  def date(string) do
-    string
-    |> date_parser()
-    |> return(string)
-  end
-
-  def time(string) do
-    string
-    |> time_parser()
-    |> return(string)
-  end
-
-  def date_time(string) do
-    string
-    |> datetime_parser()
-    |> return(string)
-  end
-
-  def interval(string) do
-    string
-    |> interval_parser()
-    |> return(string)
-  end
-
-  def duration(string) do
-    string
-    |> duration_parser()
-    |> return(string)
-  end
+  # def date(string) do
+  #   string
+  #   |> date_parser()
+  #   |> return(string)
+  # end
+  #
+  # def time(string) do
+  #   string
+  #   |> time_parser()
+  #   |> return(string)
+  # end
+  #
+  # def date_time(string) do
+  #   string
+  #   |> datetime_parser()
+  #   |> return(string)
+  # end
+  #
+  # def interval(string) do
+  #   string
+  #   |> interval_parser()
+  #   |> return(string)
+  # end
+  #
+  # def duration(string) do
+  #   string
+  #   |> duration_parser()
+  #   |> return(string)
+  # end
 
   def parse(string) do
     string
@@ -77,7 +77,7 @@ defmodule Tempo.Iso8601.Parser do
             |> tag(:interval)
             |> label("interval")
 
-  defcombinator :datetime_or_date_or_time,
+  defparsec :datetime_or_date_or_time,
                 choice([
                   parsec(:datetime_parser),
                   parsec(:date_parser),

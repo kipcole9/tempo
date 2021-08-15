@@ -510,6 +510,7 @@ defmodule Tempo.Iso8601.Parser.Grammar do
 
   def implicit_century do
     maybe_negative_number(2)
+    |> lookahead_not(colon())
     |> unwrap_and_tag(:century)
   end
 

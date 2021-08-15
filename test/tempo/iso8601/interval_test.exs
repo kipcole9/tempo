@@ -4,7 +4,7 @@ defmodule Tempo.Parser.Interval.Test do
   alias Tempo.Iso8601.Parser
 
   test "Intervals" do
-    assert Parser.interval("2018-01-15/02-20") ==
+    assert Parser.parse("2018-01-15/02-20") ==
              {:ok,
               [
                 interval: [
@@ -13,7 +13,7 @@ defmodule Tempo.Parser.Interval.Test do
                 ]
               ]}
 
-    assert Parser.interval("2018-01-15/2018-02-20") ==
+    assert Parser.parse("2018-01-15/2018-02-20") ==
              {:ok,
               [
                 interval: [
@@ -22,7 +22,7 @@ defmodule Tempo.Parser.Interval.Test do
                 ]
               ]}
 
-    assert Parser.interval("2018-01-15+05:00/2018-02-20") ==
+    assert Parser.parse("2018-01-15+05:00/2018-02-20") ==
              {:ok,
               [
                 interval: [
@@ -36,7 +36,7 @@ defmodule Tempo.Parser.Interval.Test do
                 ]
               ]}
 
-    assert Parser.interval("19850412T232050/19850625T103000") ==
+    assert Parser.parse("19850412T232050/19850625T103000") ==
              {:ok,
               [
                 interval: [
@@ -59,7 +59,7 @@ defmodule Tempo.Parser.Interval.Test do
                 ]
               ]}
 
-    assert Parser.interval("1985-04-12T23:20:50/1985-06-25T10:30:00") ==
+    assert Parser.parse("1985-04-12T23:20:50/1985-06-25T10:30:00") ==
              {:ok,
               [
                 interval: [
@@ -82,7 +82,7 @@ defmodule Tempo.Parser.Interval.Test do
                 ]
               ]}
 
-    assert Parser.interval("19850412T232050/P1Y2M15DT12H30M0S") ==
+    assert Parser.parse("19850412T232050/P1Y2M15DT12H30M0S") ==
              {:ok,
               [
                 interval: [
@@ -98,7 +98,7 @@ defmodule Tempo.Parser.Interval.Test do
                 ]
               ]}
 
-    assert Parser.interval("1985-04-12T23:20:50/P1Y2M15DT12H30M0S") ==
+    assert Parser.parse("1985-04-12T23:20:50/P1Y2M15DT12H30M0S") ==
              {:ok,
               [
                 interval: [
@@ -114,7 +114,7 @@ defmodule Tempo.Parser.Interval.Test do
                 ]
               ]}
 
-    assert Parser.interval("P1Y2M15DT12H30M0S/19850412T232050") ==
+    assert Parser.parse("P1Y2M15DT12H30M0S/19850412T232050") ==
              {:ok,
               [
                 interval: [
@@ -130,7 +130,7 @@ defmodule Tempo.Parser.Interval.Test do
                 ]
               ]}
 
-    assert Parser.interval("P1Y2M15DT12H30M0S/1985-04-12T23:20:50") ==
+    assert Parser.parse("P1Y2M15DT12H30M0S/1985-04-12T23:20:50") ==
              {:ok,
               [
                 interval: [
@@ -148,7 +148,7 @@ defmodule Tempo.Parser.Interval.Test do
   end
 
   test "Interval with recurrence" do
-    assert Parser.interval("R12/19850412T232050/19850625T103000") ==
+    assert Parser.parse("R12/19850412T232050/19850625T103000") ==
              {:ok,
               [
                 interval: [
@@ -172,7 +172,7 @@ defmodule Tempo.Parser.Interval.Test do
                 ]
               ]}
 
-    assert Parser.interval("R/19850412T232050/19850625T103000") ==
+    assert Parser.parse("R/19850412T232050/19850625T103000") ==
              {:ok,
               [
                 interval: [
@@ -198,7 +198,7 @@ defmodule Tempo.Parser.Interval.Test do
   end
 
   test "Intervals where trailing century should be month" do
-    assert Parser.interval("2018-01/02") ==
+    assert Parser.parse("2018-01/02") ==
              {:ok, [interval: [date: [year: 2018, month: 1], date: [month: 2]]]}
   end
 end
