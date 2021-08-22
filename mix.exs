@@ -24,7 +24,7 @@ defmodule Tempo.MixProject do
     [
       {:nimble_parsec, "~> 1.0"},
       {:ex_cldr_calendars, "~> 1.15"},
-      {:astro, path: "../astro"},
+      {:astro, github: "kipcole9/astro", branch: "lunar"},
       {:ex_doc, "~> 0.21", runtime: false}
     ]
   end
