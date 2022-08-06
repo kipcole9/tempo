@@ -33,3 +33,6 @@
 * `to_date`, `to_time`, to_date_time`_ work as expected, `to_calendar` makes the best decision it can about whether to format a date, a time or a datetime
 
 
+
+We can `trunc` and `round` which reduces resolution.
+The opposite would be `resolve`? `extend`?
