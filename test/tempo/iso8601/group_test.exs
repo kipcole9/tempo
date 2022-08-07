@@ -8,12 +8,11 @@ defmodule Tempo.Parser.Group.Test do
              {:ok, [date: [year: 2018, month: {:group, [nth: 2, month: 3]}]]}
 
     # Note that in secrion 5.4 Example 2 it shows
-    # 2018Y9M2DT3GT8HU0H30M (Note the added 0H). The example
-    # notes that the 0H *may* be omitted.  In this implementation
-    # it *must* be omitted since the group occupies the `hour`
-    # slot
+    # 2018Y9M2DT3GT8HU0H30M (Note the added 0H). In this implementation
+    # the `H` is optional but there may not be any numbers between the
+    # group and the `H`.
 
-    assert Tokenizer.tokenize("2018Y9M2DT3GT8HU30M") ==
+    assert Tokenizer.tokenize("2018Y9M2DT3GT8HUH30M") ==
              {:ok,
               [
                 datetime: [
@@ -75,10 +74,10 @@ defmodule Tempo.Parser.Group.Test do
     assert Tokenizer.tokenize("5G10DU") ==
              {:ok, [date: [year: {:group, [nth: 5, day: 10]}]]}
 
-    # assert Tokenizer.tokenize("1G2DT6HU") ==
-    #          {:ok, [date: [year: {:group, [nth: 1, day: 2, hour: 6]}]]}
+    assert Tokenizer.tokenize("1G2DT6HU") ==
+             {:ok, [date: [year: {:group, [nth: 1, day: 2, hour: 6]}]]}
 
-    # assert Tokenizer.tokenize("2018Y4G60DU6D") ==
-    #          {:ok, [date: [year: 2018, month: {:group, [nth: 4, day: 60]}, day_of_month: 6]]}
+    assert Tokenizer.tokenize("2018Y4G60DU6D") ==
+             {:ok, [date: [year: 2018, month: {:group, [nth: 4, day: 60]}, day_of_month: 6]]}
   end
 end

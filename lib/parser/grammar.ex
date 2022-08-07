@@ -365,7 +365,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
 
   def explicit_year_with_sign do
     choice([
-      parsec(:group),
+      parsec(:group) |> ignore(optional(string("Y"))),
       parsec(:integer_set_all) |> ignore(string("Y")),
       maybe_negative_number(min: 1) |> ignore(string("Y"))
     ])
@@ -375,7 +375,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
 
   def explicit_year_bc do
     choice([
-      parsec(:group),
+      parsec(:group) |> ignore(optional(string("Y"))),
       parsec(:integer_set_all) |> ignore(string("Y")),
       maybe_negative_number(min: 1) |> ignore(string("Y"))
     ])
@@ -396,7 +396,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
 
   def explicit_month do
     choice([
-      parsec(:group),
+      parsec(:group) |> ignore(optional(string("M"))),
       parsec(:integer_set_all) |> ignore(string("M")),
       maybe_negative_number(min: 1) |> ignore(string("M"))
     ])
@@ -417,8 +417,11 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
   # if there is one so this doesn't attempt
   # the impossible - no group can be here
   def explicit_week do
-    maybe_negative_number(min: 1)
-    |> ignore(string("W"))
+    choice([
+      parsec(:group) |> ignore(optional(string("W"))),
+      parsec(:integer_set_all) |> ignore(string("W")),
+      maybe_negative_number(min: 1) |> ignore(string("W"))
+    ])
     |> unwrap_and_tag(:week)
   end
 
@@ -433,7 +436,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
 
   def explicit_day_of_month do
     choice([
-      parsec(:group),
+      parsec(:group) |> ignore(optional(string("D"))),
       parsec(:integer_set_all) |> ignore(string("D")),
       maybe_negative_number(min: 1) |> ignore(string("D"))
     ])
@@ -478,7 +481,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
 
   def explicit_day_of_year do
     choice([
-      parsec(:group),
+      parsec(:group) |> ignore(optional(string("O"))),
       parsec(:integer_set_all) |> ignore(string("O")),
       maybe_negative_number(min: 1) |> ignore(string("O"))
     ])
@@ -525,7 +528,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
 
   def explicit_hour do
     choice([
-      parsec(:group),
+      parsec(:group)  |> ignore(optional(string("H"))),
       parsec(:integer_set_all) |> ignore(string("H")),
       maybe_negative_number(min: 1) |> ignore(string("H"))
     ])
@@ -543,7 +546,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
 
   def explicit_minute do
     choice([
-      parsec(:group),
+      parsec(:group)  |> ignore(optional(string("M"))),
       parsec(:integer_set_all) |> ignore(string("M")),
       maybe_negative_number(min: 1) |> ignore(string("M"))
     ])
@@ -561,7 +564,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
 
   def explicit_second do
     choice([
-      parsec(:group),
+      parsec(:group) |> ignore(optional(string("S"))),
       parsec(:integer_set_all) |> ignore(string("S")),
       maybe_negative_number(min: 1) |> ignore(string("S"))
     ])
