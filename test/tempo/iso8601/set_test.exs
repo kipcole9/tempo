@@ -109,11 +109,11 @@ defmodule Tempo.Parser.Set.Test do
               [
                 date: [
                   year: 2018,
-                  month: {:group, [all_of: [1, 3, 5], month: 2]}
+                  month: {:group, [i: 0, all_of: [1, 3, 5], month: 2]}
                 ]
               ]}
 
     assert Tokenizer.tokenize("2018-[2,4]G3MU") ==
-             {:ok, [date: [year: 2018, month: {:group, [one_of: [2, 4], month: 3]}]]}
+             {:ok, [date: [year: 2018, month: {:group, [i: 0, one_of: [2, 4], month: 3]}]]}
   end
 end

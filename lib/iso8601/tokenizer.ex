@@ -124,6 +124,8 @@ defmodule Tempo.Iso8601.Tokenizer do
             ])
             |> tag(:datetime)
 
+  defparsec :edate, explicit_date()
+
   defparsec :date_parser,
             choice([
               explicit_date(),
@@ -146,11 +148,6 @@ defmodule Tempo.Iso8601.Tokenizer do
                 parsec(:integer_or_integer_set)
                 |> ignore(string("G"))
                 |> duration_elements()
-                # |> choice([
-                #   explicit_date() |> concat(explicit_time_of_day()),
-                #   explicit_time_of_day(),
-                #   explicit_date()
-                # ])
                 |> ignore(string("U"))
                 |> tag(:group)
                 |> label("group")

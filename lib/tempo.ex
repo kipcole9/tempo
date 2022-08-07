@@ -103,10 +103,12 @@ defmodule Tempo do
 
   """
 
-  alias Tempo.Iso8601.Tokenizer
+  alias Tempo.Iso8601.{Tokenizer, Parser}
 
   def from_iso8601(string) do
-    Tokenizer.tokenize(string)
+    string
+    |> Tokenizer.tokenize()
+    |> Parser.parse()
   end
 
 end
