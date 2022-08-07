@@ -1,4 +1,4 @@
-defmodule Tempo.Iso8601.Parser.Helpers do
+defmodule Tempo.Iso8601.Tokenizer.Helpers do
   import NimbleParsec
 
   def recur([]), do: :infinity

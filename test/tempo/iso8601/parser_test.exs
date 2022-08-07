@@ -1,6 +1,6 @@
 defmodule Tempo.Iso8601.ParserTest do
   use ExUnit.Case, async: true
-  alias Tempo.Iso8601.Parser
+  alias Tempo.Iso8601.Tokenizer
 
   describe "iso8601/1" do
     test "parsing simple iso dates" do
@@ -14,20 +14,20 @@ defmodule Tempo.Iso8601.ParserTest do
                   minute: 11,
                   second: 12
                 ]
-              ], "", _, _, _} = Parser.iso8601("2020-11-14T10:11:12")
+              ], "", _, _, _} = Tokenizer.iso8601("2020-11-14T10:11:12")
 
-      assert {:ok, [date: [year: 2020, week: 28]], "", _, _, _} = Parser.iso8601("2020W28")
+      assert {:ok, [date: [year: 2020, week: 28]], "", _, _, _} = Tokenizer.iso8601("2020W28")
 
       assert {:ok, [date: [year: 2020, day_of_year: 193]], "", _, _, _} =
-               Parser.iso8601("2020193")
+               Tokenizer.iso8601("2020193")
 
-      assert {:ok, [date: [year: 2020, month: 11]], "", _, _, _} = Parser.iso8601("2020-11")
+      assert {:ok, [date: [year: 2020, month: 11]], "", _, _, _} = Tokenizer.iso8601("2020-11")
     end
 
     test "parsing simple iso durations" do
-      assert {:ok, [duration: [day: 1]], "", _, _, _} = Parser.iso8601("P1D")
-      assert {:ok, [duration: [hour: 24]], "", _, _, _} = Parser.iso8601("PT24H")
-      assert {:ok, [duration: [day: 1, hour: 3]], "", _, _, _} = Parser.iso8601("P1DT3H")
+      assert {:ok, [duration: [day: 1]], "", _, _, _} = Tokenizer.iso8601("P1D")
+      assert {:ok, [duration: [hour: 24]], "", _, _, _} = Tokenizer.iso8601("PT24H")
+      assert {:ok, [duration: [day: 1, hour: 3]], "", _, _, _} = Tokenizer.iso8601("P1DT3H")
     end
 
     test "parsing simple iso intervals" do
@@ -37,7 +37,7 @@ defmodule Tempo.Iso8601.ParserTest do
                   date: [year: 2020, month: 11, day_of_month: 14],
                   date: [year: 2020, month: 11, day_of_month: 17]
                 ]
-              ], "", _, _, _} = Parser.iso8601("2020-11-14/2020-11-17")
+              ], "", _, _, _} = Tokenizer.iso8601("2020-11-14/2020-11-17")
 
       assert {:ok,
               [
@@ -52,7 +52,7 @@ defmodule Tempo.Iso8601.ParserTest do
                   ],
                   date: [year: 2020, month: 11, day_of_month: 17]
                 ]
-              ], "", _, _, _} = Parser.iso8601("2020-11-14T10:11:12/2020-11-17")
+              ], "", _, _, _} = Tokenizer.iso8601("2020-11-14T10:11:12/2020-11-17")
 
       assert {:ok,
               [
@@ -60,7 +60,7 @@ defmodule Tempo.Iso8601.ParserTest do
                   date: [year: 2020, month: 11, day_of_month: 14],
                   duration: [day: 1]
                 ]
-              ], "", _, _, _} = Parser.iso8601("2020-11-14/P1D")
+              ], "", _, _, _} = Tokenizer.iso8601("2020-11-14/P1D")
 
       assert {:ok,
               [
@@ -68,7 +68,7 @@ defmodule Tempo.Iso8601.ParserTest do
                   duration: [day: 1],
                   date: [year: 2020, month: 11, day_of_month: 14]
                 ]
-              ], "", _, _, _} = Parser.iso8601("P1D/2020-11-14")
+              ], "", _, _, _} = Tokenizer.iso8601("P1D/2020-11-14")
     end
   end
 end

@@ -43,8 +43,9 @@ defmodule Tempo.Component do
   # We use Allens interval algebra
   # Each list is assumed to be sorted. This is
   # guaranteed for all parse results
-  # exceot for groups and durations
+  # except for groups and durations
   # so they need sorting before comparison
+
   def compare([{u1, _v1} | _] = l1, [{u2, _v2} | _] = l2) when u1 in @units and u2 in @units do
     {l1_start, l1_finish} = list_bounds(l1)
     {l2_start, l2_finish} = list_bounds(l2)

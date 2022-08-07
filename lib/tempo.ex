@@ -103,14 +103,10 @@ defmodule Tempo do
 
   """
 
-  alias Tempo.Iso8601.Parser
+  alias Tempo.Iso8601.Tokenizer
 
   def from_iso8601(string) do
-    case Parser.iso8601(string) do
-      {:ok, parsed, "", %{}, _line, _char} -> {:ok, parsed}
-      {:ok, _parsed, _rest, %{}, _line, _char} -> {:error, :invalid_format}
-      {:error, _message, _rest, %{}, _line, _char} -> {:error, :invalid_format}
-    end
+    Tokenizer.tokenize(string)
   end
 
 end

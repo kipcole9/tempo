@@ -1,4 +1,4 @@
-defmodule Tempo.Iso8601.Parser.Numbers do
+defmodule Tempo.Iso8601.Tokenizer.Numbers do
   @moduledoc """
   Numbers aren't just numbers in ISO8601 when considering
   the extension formats. In some situations they may:
@@ -45,14 +45,14 @@ defmodule Tempo.Iso8601.Parser.Numbers do
 
   """
   import NimbleParsec
-  import Tempo.Iso8601.Parser.Helpers
+  import Tempo.Iso8601.Tokenizer.Helpers
 
   def positive_number(combinator \\ empty(), opts)
 
   def positive_number(combinator, n) when is_integer(n) do
     combinator
     |> choice([
-      integer(n) |> optional(exponent()) |> optional(significant()),
+      integer(n) |> optional(fraction()) |> optional(exponent()) |> optional(significant()),
       digit_or_unknown() |> times(n)
     ])
     |> reduce(:form_number)
@@ -64,6 +64,7 @@ defmodule Tempo.Iso8601.Parser.Numbers do
     |> choice([
       integer(opts)
       |> lookahead_not(unknown())
+      |> optional(fraction())
       |> optional(exponent())
       |> optional(significant()),
       digit_or_unknown() |> times(opts)
@@ -72,12 +73,45 @@ defmodule Tempo.Iso8601.Parser.Numbers do
     |> label("positive number")
   end
 
+  def positive_integer(combinator \\ empty(), opts)
+
+  def positive_integer(combinator, n) when is_integer(n) do
+    combinator
+    |> choice([
+      integer(n) |> optional(exponent()) |> optional(significant()),
+      digit_or_unknown() |> times(n)
+    ])
+    |> reduce(:form_number)
+    |> label("positive integer")
+  end
+
+  def positive_integer(combinator, opts) do
+    combinator
+    |> choice([
+      integer(opts)
+      |> lookahead_not(unknown())
+      |> optional(exponent())
+      |> optional(significant()),
+      digit_or_unknown() |> times(opts)
+    ])
+    |> reduce(:form_number)
+    |> label("positive integer")
+  end
+
   def maybe_negative_number(combinator \\ empty(), opts) do
     combinator
     |> optional(negative())
     |> positive_number(opts)
     |> reduce(:form_number)
     |> label("maybe negative number")
+  end
+
+  def maybe_negative_integer(combinator \\ empty(), opts) do
+    combinator
+    |> optional(negative())
+    |> positive_integer(opts)
+    |> reduce(:form_number)
+    |> label("maybe negative integer")
   end
 
   def exponent do
@@ -96,8 +130,20 @@ defmodule Tempo.Iso8601.Parser.Numbers do
     integer
   end
 
+  def form_number([?-, integer, {:fraction, fraction} | rest]) when is_integer(integer) and is_integer(fraction) do
+    digits = Cldr.Digits.number_of_integer_digits(fraction)
+    number = integer + (fraction / :math.pow(10, digits))
+    form_number([-number | rest])
+  end
+
   def form_number([?-, integer | rest]) when is_integer(integer) do
     form_number([-integer | rest])
+  end
+
+  def form_number([integer, {:fraction, fraction} | rest]) when is_integer(integer) and is_integer(fraction) do
+    digits = Cldr.Digits.number_of_integer_digits(fraction)
+    number = integer + (fraction / :math.pow(10, digits))
+    form_number([number | rest])
   end
 
   def form_number([integer, {:exponent, exponent} | rest]) do
@@ -125,6 +171,5 @@ defmodule Tempo.Iso8601.Parser.Numbers do
     |> times(ascii_char([?0..?9]), min: 1)
     |> reduce({List, :to_integer, []})
     |> unwrap_and_tag(:fraction)
-    |> label("fraction")
   end
 end

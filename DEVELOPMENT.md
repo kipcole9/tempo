@@ -19,6 +19,8 @@
 
 * Negative time units are fine, they accumulate from the smallest time unit to the largest
 
+* 
+
 ------
 
 ## Definitions
@@ -31,8 +33,4 @@
 * `anchor`ing is the function to place a time on the timeline by filling in the higher order time units.
 * The `resolution` of a Tempo.t is the smallest known time unit
 * `to_date`, `to_time`, to_date_time`_ work as expected, `to_calendar` makes the best decision it can about whether to format a date, a time or a datetime
-
-
-
-We can `trunc` and `round` which reduces resolution.
-The opposite would be `resolve`? `extend`?
+* We can `trunc` and `round` which reduces resolution. The opposite would be `expand`? `extend`?

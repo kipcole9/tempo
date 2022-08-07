@@ -1,8 +1,8 @@
-defmodule Tempo.Iso8601.Parser do
+defmodule Tempo.Iso8601.Tokenizer do
   import NimbleParsec
-  import Tempo.Iso8601.Parser.Numbers
-  import Tempo.Iso8601.Parser.Grammar
-  import Tempo.Iso8601.Parser.Helpers
+  import Tempo.Iso8601.Tokenizer.Numbers
+  import Tempo.Iso8601.Tokenizer.Grammar
+  import Tempo.Iso8601.Tokenizer.Helpers
 
   # def date(string) do
   #   string
@@ -34,7 +34,7 @@ defmodule Tempo.Iso8601.Parser do
   #   |> return(string)
   # end
 
-  def parse(string) do
+  def tokenize(string) do
     string
     |> iso8601()
     |> return(string)
@@ -53,15 +53,47 @@ defmodule Tempo.Iso8601.Parser do
     end
   end
 
-  defparsec :iso8601, iso8601_parser()
+  defparsec :iso8601, iso8601_tokenizer()
 
   defcombinator :set,
                 choice([
-                  set_all(),
-                  set_one(),
+                  parsec(:set_all),
+                  parsec(:set_one),
                   parsec(:interval_parser),
                   parsec(:datetime_or_date_or_time)
                 ])
+
+  defparsec :integer_or_integer_set,
+    choice([
+      integer(min: 1) |> unwrap_and_tag(:nth),
+      parsec(:integer_set_all),
+      parsec(:integer_set_one)
+    ])
+    |> label("integer or integer set")
+
+  defparsec :set_all,
+    ignore(string("{"))
+    |> list_of_time_or_range()
+    |> ignore(string("}"))
+    |> tag(:all_of)
+
+  defparsec :set_one,
+    ignore(string("["))
+    |> list_of_time_or_range()
+    |> ignore(string("]"))
+    |> tag(:one_of)
+
+  defparsec :integer_set_all,
+    ignore(string("{"))
+    |> list_of_integer_or_range()
+    |> ignore(string("}"))
+    |> tag(:all_of)
+
+  defparsec :integer_set_one,
+    ignore(string("["))
+    |> list_of_integer_or_range()
+    |> ignore(string("]"))
+    |> tag(:one_of)
 
   defparsec :interval_parser,
             optional(recurrence())
@@ -111,7 +143,7 @@ defmodule Tempo.Iso8601.Parser do
             |> label("time of day")
 
   defcombinator :group,
-                integer_or_integer_set()
+                parsec(:integer_or_integer_set)
                 |> ignore(string("G"))
                 |> duration_elements()
                 # |> choice([

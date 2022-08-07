@@ -1,7 +1,7 @@
-defmodule Tempo.Iso8601.Parser.Grammar do
+defmodule Tempo.Iso8601.Tokenizer.Grammar do
   import NimbleParsec
-  import Tempo.Iso8601.Parser.Numbers
-  import Tempo.Iso8601.Parser.Helpers
+  import Tempo.Iso8601.Tokenizer.Numbers
+  import Tempo.Iso8601.Tokenizer.Helpers
 
   # NOTES
 
@@ -9,10 +9,10 @@ defmodule Tempo.Iso8601.Parser.Grammar do
   # since elixir does not support the idea of -0.
   # See ISO8601 4.4.1.7 and 4.4.1.8
 
-  def iso8601_parser do
+  def iso8601_tokenizer do
     choice([
-      parsec(:set),
-      interval_or_time_or_duration()
+      interval_or_time_or_duration(),
+      parsec(:set)
     ])
     |> label("ISO8601 interval, duration, date, time or datetime")
   end
@@ -36,20 +36,6 @@ defmodule Tempo.Iso8601.Parser.Grammar do
     |> label("recurrence")
   end
 
-  def set_all do
-    ignore(string("{"))
-    |> list_of_time_or_range()
-    |> ignore(string("}"))
-    |> tag(:all_of)
-  end
-
-  def set_one do
-    ignore(string("["))
-    |> list_of_time_or_range()
-    |> ignore(string("]"))
-    |> tag(:one_of)
-  end
-
   def list_of_time_or_range(combinator \\ empty()) do
     combinator
     |> time_or_range()
@@ -63,16 +49,37 @@ defmodule Tempo.Iso8601.Parser.Grammar do
       interval_or_time_or_duration()
       |> ignore(string(".."))
       |> interval_or_time_or_duration()
-      |> wrap(),
+      |> reduce(:range),
       replace(string(".."), :undefined)
       |> interval_or_time_or_duration()
-      |> wrap(),
+      |> reduce(:range),
       interval_or_time_or_duration()
       |> replace(string(".."), :undefined)
-      |> wrap(),
+      |> reduce(:range),
       interval_or_time_or_duration()
     ])
     |> label("date, time, interval, duration or range")
+  end
+
+  def range([date: [{element, first}], date: [{element, last}]])
+      when is_integer(first) and is_integer(last) do
+    {element, first..last}
+  end
+
+  def range([[first, "..", last]]) when is_integer(first) and is_integer(last) do
+    first..last
+  end
+
+  def range([:undefined, {_type, other}]) do
+    {:range, [:undefined, other]}
+  end
+
+  def range([{_type, other}, :undefined]) do
+    {:range, [other, :undefined]}
+  end
+
+  def range([left, right]) do
+    {:range, [left, right]}
   end
 
   # Date Time
@@ -314,31 +321,6 @@ defmodule Tempo.Iso8601.Parser.Grammar do
     ])
   end
 
-  # Parsing of integer sets
-
-  def integer_or_integer_set do
-    choice([
-      integer(min: 1) |> unwrap_and_tag(:nth),
-      integer_set_all(),
-      integer_set_one()
-    ])
-    |> label("integer or integer set")
-  end
-
-  def integer_set_all do
-    ignore(string("{"))
-    |> list_of_integer_or_range()
-    |> ignore(string("}"))
-    |> tag(:all_of)
-  end
-
-  def integer_set_one do
-    ignore(string("["))
-    |> list_of_integer_or_range()
-    |> ignore(string("]"))
-    |> tag(:one_of)
-  end
-
   def list_of_integer_or_range(combinator \\ empty()) do
     combinator
     |> integer_or_range()
@@ -349,19 +331,25 @@ defmodule Tempo.Iso8601.Parser.Grammar do
   def integer_or_range(combinator \\ empty()) do
     combinator
     |> choice([
-      integer(min: 1) |> ignore(string("..")) |> integer(min: 1) |> wrap(),
-      integer(min: 1)
+      maybe_negative_integer(min: 1)
+      |> string("..")
+      |> maybe_negative_integer(min: 1)
+      |> reduce(:range),
+      maybe_negative_integer(min: 1)
     ])
     |> label("integer or range")
   end
 
   # Individual date and time components
   # Note that any component can be alternatively a group
+  # or set
 
   def implicit_year do
     choice([
       parsec(:group),
-      ignore(optional(string("Y"))) |> maybe_negative_number(4)
+      parsec(:integer_set_all),
+      ignore(string("Y")) |> maybe_negative_number(4),
+      maybe_negative_integer(4),
     ])
     |> unwrap_and_tag(:year)
     |> label("implicit year")
@@ -378,9 +366,10 @@ defmodule Tempo.Iso8601.Parser.Grammar do
   def explicit_year_with_sign do
     choice([
       parsec(:group),
+      parsec(:integer_set_all),
       maybe_negative_number(min: 1)
-      |> ignore(string("Y"))
     ])
+          |> ignore(string("Y"))
     |> unwrap_and_tag(:year)
     |> label("explicit year with sign")
   end
@@ -388,10 +377,11 @@ defmodule Tempo.Iso8601.Parser.Grammar do
   def explicit_year_bc do
     choice([
       parsec(:group),
+      parsec(:integer_set_all),
       maybe_negative_number(min: 1)
-      |> ignore(string("Y"))
-      |> optional(string("B"))
     ])
+    |> ignore(string("Y"))
+    |> optional(string("B"))
     |> reduce(:convert_bc)
     |> unwrap_and_tag(:year)
     |> label("explicit year BC")
@@ -400,7 +390,8 @@ defmodule Tempo.Iso8601.Parser.Grammar do
   def implicit_month do
     choice([
       parsec(:group),
-      positive_number(2)
+      parsec(:integer_set_all),
+      positive_integer(2)
     ])
     |> unwrap_and_tag(:month)
   end
@@ -408,9 +399,10 @@ defmodule Tempo.Iso8601.Parser.Grammar do
   def explicit_month do
     choice([
       parsec(:group),
+      parsec(:integer_set_all),
       maybe_negative_number(min: 1)
-      |> ignore(string("M"))
     ])
+    |> ignore(string("M"))
     |> unwrap_and_tag(:month)
   end
 
@@ -418,7 +410,8 @@ defmodule Tempo.Iso8601.Parser.Grammar do
     ignore(string("W"))
     |> choice([
       parsec(:group),
-      positive_number(2)
+      parsec(:integer_set_all),
+      positive_integer(2)
     ])
     |> unwrap_and_tag(:week)
   end
@@ -435,7 +428,8 @@ defmodule Tempo.Iso8601.Parser.Grammar do
   def implicit_day_of_month do
     choice([
       parsec(:group),
-      positive_number(2)
+      parsec(:integer_set_all),
+      positive_integer(2)
     ])
     |> unwrap_and_tag(:day_of_month)
   end
@@ -443,15 +437,17 @@ defmodule Tempo.Iso8601.Parser.Grammar do
   def explicit_day_of_month do
     choice([
       parsec(:group),
+      parsec(:integer_set_all),
       maybe_negative_number(min: 1)
-      |> ignore(string("D"))
     ])
+    |> ignore(string("D"))
     |> unwrap_and_tag(:day_of_month)
   end
 
   def implicit_day_of_week do
     choice([
       parsec(:group),
+      parsec(:integer_set_all),
       choice([
         ascii_char([?1..?7])
         |> reduce({List, :to_integer, []}),
@@ -464,6 +460,7 @@ defmodule Tempo.Iso8601.Parser.Grammar do
   def explicit_day_of_week do
     choice([
       parsec(:group),
+      parsec(:integer_set_all),
       choice([
         day_of_week()
         |> reduce({List, :to_integer, []}),
@@ -477,7 +474,8 @@ defmodule Tempo.Iso8601.Parser.Grammar do
   def implicit_day_of_year do
     choice([
       parsec(:group),
-      positive_number(3)
+      parsec(:integer_set_all),
+      positive_integer(3)
     ])
     |> unwrap_and_tag(:day_of_year)
   end
@@ -485,20 +483,21 @@ defmodule Tempo.Iso8601.Parser.Grammar do
   def explicit_day_of_year do
     choice([
       parsec(:group),
+      parsec(:integer_set_all),
       maybe_negative_number(min: 1)
-      |> ignore(string("O"))
     ])
+    |> ignore(string("O"))
     |> unwrap_and_tag(:day_of_year)
   end
 
   # Decade and century, like week, cannot
   # ever encounter a group because the
   # Year combinator will consume it first since
-  # Year has priority order over centure and
+  # Year has priority order over century and
   # decade
 
   def implicit_decade do
-    maybe_negative_number(3)
+    maybe_negative_integer(3)
     |> unwrap_and_tag(:decade)
   end
 
@@ -509,7 +508,7 @@ defmodule Tempo.Iso8601.Parser.Grammar do
   end
 
   def implicit_century do
-    maybe_negative_number(2)
+    maybe_negative_integer(2)
     |> lookahead_not(colon())
     |> unwrap_and_tag(:century)
   end
@@ -523,7 +522,8 @@ defmodule Tempo.Iso8601.Parser.Grammar do
   def implicit_hour do
     choice([
       parsec(:group),
-      positive_number(2)
+      parsec(:integer_set_all),
+      positive_integer(2)
     ])
     |> unwrap_and_tag(:hour)
   end
@@ -531,16 +531,18 @@ defmodule Tempo.Iso8601.Parser.Grammar do
   def explicit_hour do
     choice([
       parsec(:group),
+      parsec(:integer_set_all),
       maybe_negative_number(min: 1)
-      |> ignore(string("H"))
     ])
+    |> ignore(string("H"))
     |> unwrap_and_tag(:hour)
   end
 
   def implicit_minute do
     choice([
       parsec(:group),
-      positive_number(2)
+      parsec(:integer_set_all),
+      positive_integer(2)
     ])
     |> unwrap_and_tag(:minute)
   end
@@ -548,16 +550,18 @@ defmodule Tempo.Iso8601.Parser.Grammar do
   def explicit_minute do
     choice([
       parsec(:group),
+      parsec(:integer_set_all),
       maybe_negative_number(min: 1)
-      |> ignore(string("M"))
     ])
+    |> ignore(string("M"))
     |> unwrap_and_tag(:minute)
   end
 
   def implicit_second do
     choice([
       parsec(:group),
-      positive_number(2)
+      parsec(:integer_set_all),
+      positive_integer(2)
     ])
     |> unwrap_and_tag(:second)
   end
@@ -565,9 +569,10 @@ defmodule Tempo.Iso8601.Parser.Grammar do
   def explicit_second do
     choice([
       parsec(:group),
+      parsec(:integer_set_all),
       maybe_negative_number(min: 1)
-      |> ignore(string("S"))
     ])
+    |> ignore(string("S"))
     |> unwrap_and_tag(:second)
   end
 
