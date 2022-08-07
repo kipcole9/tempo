@@ -308,7 +308,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
       concat(duration_date_elements(), duration_time_elements()),
       duration_date_elements(),
       duration_time_elements(),
-      # parsec(:datetime_or_date_or_time)
+      parsec(:datetime_or_date_or_time)
     ])
   end
 

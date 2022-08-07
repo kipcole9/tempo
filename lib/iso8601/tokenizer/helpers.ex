@@ -41,13 +41,6 @@ defmodule Tempo.Iso8601.Tokenizer.Helpers do
     string("X*")
   end
 
-  def digit_or_unknown do
-    choice([
-      digit(),
-      unknown()
-    ])
-  end
-
   def day_of_week do
     ascii_char([?1..?7])
   end

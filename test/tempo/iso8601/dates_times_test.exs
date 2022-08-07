@@ -52,7 +52,12 @@ defmodule Tempo.Parser.DatesTimes.Test do
   end
 
   test "Unspecified digits section 4.6.2" do
-    assert Tokenizer.tokenize("1390YXXM") == {:ok, [date: [year: 1390, month: 'XX']]}
+    assert Tokenizer.tokenize("1390YXXM") ==
+      {:ok, [date: [year: 1390, month: {:mask, [:X, :X]}]]}
+    assert Tokenizer.tokenize("13{00..90}YXXM") ==
+      {:ok, [date: [year: {:mask, [1, 3, [0..90]]}, month: {:mask, [:X, :X]}]]}
+    assert Tokenizer.tokenize("13X{0..9}YXXM") ==
+      {:ok, [date: [year: {:mask, [1, 3, :X, [0..9]]}, month: {:mask, [:X, :X]}]]}
   end
 
   test "Time Without Zone Parsing" do

@@ -39,6 +39,10 @@ defmodule Tempo.Iso8601.Parser do
     [{component, reduce_list(list)} | parse_date(rest)]
   end
 
+  def parse_date([{component, {:mask, list}} | rest]) when is_list(list) do
+    [{component, {:mask, reduce_list(list)}} | parse_date(rest)]
+  end
+
   def parse_date([h | t]) do
     [h | parse_date(t)]
   end
@@ -79,6 +83,14 @@ defmodule Tempo.Iso8601.Parser do
 
   # Duration
 
+  def parse_duration([datetime: tokens]) do
+    parse_duration(tokens)
+  end
+
+  def parse_duration([date: tokens]) do
+    parse_duration(tokens)
+  end
+
   def parse_duration([h | t]) do
     [h | parse_duration(t)]
   end
@@ -94,14 +106,39 @@ defmodule Tempo.Iso8601.Parser do
     list
   end
 
+  # The list has a set in it, we need to reduce
+  # the set
+  def reduce_list([first | rest]) when is_list(first) do
+    [reduce_list(first) | reduce_list(rest)]
+  end
+
+  # The "unknown" marker
+  def reduce_list([:X | rest]) do
+    [:X | reduce_list(rest)]
+  end
+
   # Number or range list
-  def reduce_list(list) do
+  def reduce_list(list) when is_list(list) do
     list
+    |> IO.inspect
     |> Enum.sort_by(fn
       a when is_integer(a) -> a
       %Range{} = a -> a.first
     end)
     |> consolidate_ranges()
+  end
+
+  def reduce_list([]) do
+    []
+  end
+
+  # Consolidate overlapping, adjacent and enclosing
+  # ranges. Remove integers that fit within or are
+  # adjancent to ranges. Collapse sequences of integers
+  # into a range.
+
+  def consolidate_ranges([]) do
+    []
   end
 
   def consolidate_ranges([h]) do
@@ -110,6 +147,10 @@ defmodule Tempo.Iso8601.Parser do
 
   def consolidate_ranges([a, a | rest]) do
     consolidate_ranges([a | rest])
+  end
+
+  def consolidate_ranges([a, b | rest]) when a + 1 == b do
+    consolidate_ranges([a..b | rest])
   end
 
   def consolidate_ranges([a, b | rest]) when is_integer(a) and is_integer(b) do
@@ -121,17 +162,20 @@ defmodule Tempo.Iso8601.Parser do
       a >= first && a <= last ->
         consolidate_ranges([range | rest])
       a + 1 == first ->
-        consolidate_ranges([range | rest])
+        consolidate_ranges([%{range | first: a} | rest])
       true ->
         [a | consolidate_ranges([range | rest])]
     end
   end
 
   def consolidate_ranges([%Range{last: last} = range, b | rest]) when is_integer(b) do
-    if b <= last do
-      consolidate_ranges([range | rest])
-    else
-      [range | consolidate_ranges([b | rest])]
+    cond do
+      b <= last ->
+        consolidate_ranges([range | rest])
+      last + 1 == b ->
+        consolidate_ranges([%{range | last: b} | rest])
+      true ->
+        [range | consolidate_ranges([b | rest])]
     end
   end
 

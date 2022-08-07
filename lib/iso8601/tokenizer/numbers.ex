@@ -52,10 +52,17 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
   def positive_number(combinator, n) when is_integer(n) do
     combinator
     |> choice([
-      integer(n) |> optional(fraction()) |> optional(exponent()) |> optional(significant()),
-      digit_or_unknown() |> times(n)
+      integer(n)
+      |> optional(fraction())
+      |> optional(exponent())
+      |> optional(significant())
+      |> lookahead_not(unknown_or_set())
+      |> reduce(:form_number),
+      digit_or_unknown()
+      |> times(n)
+      |> reduce(:normalize_mask)
+      |> unwrap_and_tag(:mask)
     ])
-    |> reduce(:form_number)
     |> label("positive number")
   end
 
@@ -63,11 +70,16 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
     combinator
     |> choice([
       integer(opts)
-      |> lookahead_not(unknown())
       |> optional(fraction())
       |> optional(exponent())
-      |> optional(significant()),
-      digit_or_unknown() |> times(opts)
+      |> optional(significant())
+      |> lookahead_not(unknown_or_set())
+      |> reduce(:form_number),
+      all_unknown(),
+      digit_or_unknown()
+      |> times(opts)
+      |> reduce(:normalize_mask)
+      |> unwrap_and_tag(:mask)
     ])
     |> reduce(:form_number)
     |> label("positive number")
@@ -78,10 +90,16 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
   def positive_integer(combinator, n) when is_integer(n) do
     combinator
     |> choice([
-      integer(n) |> optional(exponent()) |> optional(significant()),
-      digit_or_unknown() |> times(n)
+      integer(n)
+      |> optional(exponent())
+      |> optional(significant())
+      |> lookahead_not(unknown_or_set())
+      |> reduce(:form_number),
+      digit_or_unknown()
+      |> times(n)
+      |> reduce(:normalize_mask)
+      |> unwrap_and_tag(:mask)
     ])
-    |> reduce(:form_number)
     |> label("positive integer")
   end
 
@@ -91,10 +109,14 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
       integer(opts)
       |> lookahead_not(unknown())
       |> optional(exponent())
-      |> optional(significant()),
-      digit_or_unknown() |> times(opts)
+      |> optional(significant())
+      |> lookahead_not(unknown_or_set())
+      |> reduce(:form_number),
+      digit_or_unknown()
+      |> times(opts)
+      |> reduce(:normalize_mask)
+      |> unwrap_and_tag(:mask)
     ])
-    |> reduce(:form_number)
     |> label("positive integer")
   end
 
@@ -124,6 +146,28 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
     ignore(string("S"))
     |> integer(min: 1)
     |> unwrap_and_tag(:significant)
+  end
+
+  def fraction do
+    ignore(decimal_separator())
+    |> times(ascii_char([?0..?9]), min: 1)
+    |> reduce({List, :to_integer, []})
+    |> unwrap_and_tag(:fraction)
+  end
+
+  def digit_or_unknown do
+    choice([
+      digit(),
+      unknown(),
+      parsec(:integer_set_all)
+    ])
+  end
+
+  def unknown_or_set() do
+    choice([
+      unknown(),
+      ascii_char([?{])
+    ])
   end
 
   def form_number([integer]) when is_integer(integer) do
@@ -158,18 +202,25 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
     tuple
   end
 
-  def form_number([list]) when is_list(list) do
-    list
-  end
-
   def form_number(other) do
     other
   end
 
-  def fraction do
-    ignore(decimal_separator())
-    |> times(ascii_char([?0..?9]), min: 1)
-    |> reduce({List, :to_integer, []})
-    |> unwrap_and_tag(:fraction)
+  def normalize_mask([]) do
+    []
   end
+
+  # Masks are
+  def normalize_mask([{:all_of, list} | t]) do
+    [list | normalize_mask(t)]
+  end
+
+  def normalize_mask([?X | t]) do
+    [:X | normalize_mask(t)]
+  end
+
+  def normalize_mask([digit | t]) when digit in ?0..?9 do
+    [digit - ?0 | normalize_mask(t)]
+  end
+
 end
