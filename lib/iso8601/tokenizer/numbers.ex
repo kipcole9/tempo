@@ -170,8 +170,8 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
     ])
   end
 
-  def form_number([integer]) when is_integer(integer) do
-    integer
+  def form_number([number]) when is_number(number) do
+    number
   end
 
   def form_number([?-, integer, {:fraction, fraction} | rest]) when is_integer(integer) and is_integer(fraction) do

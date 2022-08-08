@@ -64,25 +64,27 @@ defmodule Tempo.Parser.DatesTimes.Test do
     assert Tokenizer.tokenize("T23:20:50") == {:ok, [time_of_day: [hour: 23, minute: 20, second: 50]]}
     assert Tokenizer.tokenize("T23:20") == {:ok, [time_of_day: [hour: 23, minute: 20]]}
     assert Tokenizer.tokenize("T23") == {:ok, [time_of_day: [hour: 23]]}
-    assert Tokenizer.tokenize("T23.3") == {:ok, [time_of_day: [hour: 23, fraction: 3]]}
+    assert Tokenizer.tokenize("T23.3") == {:ok, [time_of_day: [hour: 23.3]]}
     assert Tokenizer.tokenize("T00:00:00") == {:ok, [time_of_day: [hour: 0, minute: 0, second: 0]]}
     assert Tokenizer.tokenize("23:20") == {:ok, [time_of_day: [hour: 23, minute: 20]]}
-
-    assert Tokenizer.tokenize("23:20:30.5") ==
-             {:ok, [time_of_day: [hour: 23, minute: 20, second: 30, fraction: 5]]}
-
     assert Tokenizer.tokenize("6H") == {:ok, [time_of_day: [hour: 6]]}
     assert Tokenizer.tokenize("T232050") == {:ok, [time_of_day: [hour: 23, minute: 20, second: 50]]}
     assert Tokenizer.tokenize("T2320") == {:ok, [time_of_day: [hour: 23, minute: 20]]}
+  end
 
+  test "Time with fractions" do
     assert Tokenizer.tokenize("T232030,5") ==
-             {:ok, [time_of_day: [hour: 23, minute: 20, second: 30, fraction: 5]]}
+             {:ok, [time_of_day: [hour: 23, minute: 20, second: 30.5]]}
 
     assert Tokenizer.tokenize("T232030.5") ==
-             {:ok, [time_of_day: [hour: 23, minute: 20, second: 30, fraction: 5]]}
+             {:ok, [time_of_day: [hour: 23, minute: 20, second: 30.5]]}
 
-    assert Tokenizer.tokenize("T2320,8") == {:ok, [time_of_day: [hour: 23, minute: 20, fraction: 8]]}
-    assert Tokenizer.tokenize("T2320.8") == {:ok, [time_of_day: [hour: 23, minute: 20, fraction: 8]]}
+
+    assert Tokenizer.tokenize("23:20:30.5") ==
+             {:ok, [time_of_day: [hour: 23, minute: 20, second: 30.5]]}
+
+    assert Tokenizer.tokenize("T2320,8") == {:ok, [time_of_day: [hour: 23, minute: 20.8]]}
+    assert Tokenizer.tokenize("T2320.8") == {:ok, [time_of_day: [hour: 23, minute: 20.8]]}
     assert Tokenizer.tokenize("T000000") == {:ok, [time_of_day: [hour: 0, minute: 0, second: 0]]}
   end
 

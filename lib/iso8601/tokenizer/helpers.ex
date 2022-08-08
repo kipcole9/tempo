@@ -43,6 +43,7 @@ defmodule Tempo.Iso8601.Tokenizer.Helpers do
 
   def day_of_week do
     ascii_char([?1..?7])
+    |> reduce({List, :to_integer, []})
   end
 
   def convert_bc([int, "B"]) do

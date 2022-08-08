@@ -124,8 +124,6 @@ defmodule Tempo.Iso8601.Tokenizer do
             ])
             |> tag(:datetime)
 
-  defparsec :edate, explicit_date()
-
   defparsec :date_parser,
             choice([
               explicit_date(),

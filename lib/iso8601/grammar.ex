@@ -484,8 +484,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
       parsec(:group) |> reduce(:group),
       parsec(:integer_set_all),
       choice([
-        ascii_char([?1..?7])
-        |> reduce({List, :to_integer, []}),
+        day_of_week(),
         ascii_char([?X])
       ])
     ])
@@ -497,8 +496,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
       parsec(:group) |> reduce(:group),
       parsec(:integer_set_all),
       choice([
-        day_of_week()
-        |> reduce({List, :to_integer, []}),
+        day_of_week(),
         unknown()
       ])
       |> ignore(string("K"))
@@ -555,11 +553,13 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
     |> unwrap_and_tag(:century)
   end
 
+  # Time
+
   def implicit_hour do
     choice([
       parsec(:group) |> reduce(:group),
       parsec(:integer_set_all),
-      positive_integer(2)
+      positive_number(2)
     ])
     |> unwrap_and_tag(:hour)
   end
@@ -577,7 +577,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
     choice([
       parsec(:group) |> reduce(:group),
       parsec(:integer_set_all),
-      positive_integer(2)
+      positive_number(2)
     ])
     |> unwrap_and_tag(:minute)
   end
@@ -595,7 +595,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
     choice([
       parsec(:group) |> reduce(:group),
       parsec(:integer_set_all),
-      positive_integer(2)
+      positive_number(2)
     ])
     |> unwrap_and_tag(:second)
   end

@@ -13,7 +13,7 @@ defmodule Tempo.Iso8601.Parser do
     {:ok, parse_date(tokens)}
   end
 
-  def parse([time: tokens]) do
+  def parse([time_of_day: tokens]) do
     parse_time(tokens)
   end
 
