@@ -30,7 +30,7 @@ defmodule Tempo.Parser.Interval.Test do
                     year: 2018,
                     month: 1,
                     day_of_month: 15,
-                    time_shift: [sign: :positive, hour: 5, minute: 0]
+                    time_shift: [hour: 5, minute: 0]
                   ],
                   date: [year: 2018, month: 2, day_of_month: 20]
                 ]

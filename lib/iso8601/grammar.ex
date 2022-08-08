@@ -418,7 +418,8 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
     choice([
       parsec(:group) |> reduce(:group),
       parsec(:integer_set_all),
-      positive_integer(2)
+      positive_integer(2),
+      quarter()
     ])
     |> unwrap_and_tag(:month)
   end
@@ -427,7 +428,8 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
     choice([
       parsec(:group) |> maybe_nth("M"),
       parsec(:integer_set_all) |> ignore(string("M")),
-      maybe_negative_number(min: 1) |> ignore(string("M"))
+      maybe_negative_number(min: 1) |> ignore(string("M")),
+      quarter()
     ])
     |> unwrap_and_tag(:month)
   end
@@ -646,15 +648,15 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
     |> reduce(:group)
   end
 
-  def resolve_shift([{:sign, ?-} | rest]) do
-    [{:sign, :negative} | rest]
+  def resolve_shift([{:sign, ?-}, {component, value} | rest]) do
+    [{component, -value} | rest]
   end
 
   def resolve_shift([{:sign, ?+} | rest]) do
-    [{:sign, :positive} | rest]
+    rest
   end
 
-  def resolve_shift([?Z | rest]) do
-    [{:sign, :positive}, {:hour, 0} | rest]
+  def resolve_shift([?Z]) do
+    [{:hour, 0}]
   end
 end

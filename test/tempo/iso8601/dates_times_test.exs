@@ -88,17 +88,17 @@ defmodule Tempo.Parser.DatesTimes.Test do
     assert Tokenizer.tokenize("T000000") == {:ok, [time_of_day: [hour: 0, minute: 0, second: 0]]}
   end
 
+  # This is not valid in ISO8601 but it makes quarter handling
+  # easier to understand
+
+  test "Quarters in the month position" do
+    assert Tempo.Iso8601.Tokenizer.tokenize("13X{0..9}Y1Q") ==
+      {:ok, [date: [year: {:mask, [1, 3, :X, [0..9]]}, month: 33]]}
+  end
+
   test "Time With Zone Parsing" do
     assert Tokenizer.tokenize("T23:20:30Z") ==
-             {:ok,
-              [
-                time_of_day: [
-                  hour: 23,
-                  minute: 20,
-                  second: 30,
-                  time_shift: [sign: :positive, hour: 0]
-                ]
-              ]}
+        {:ok, [time_of_day: [hour: 23, minute: 20, second: 30, time_shift: [hour: 0]]]}
 
     assert Tokenizer.tokenize("T232030Z") ==
              {:ok,
@@ -107,7 +107,7 @@ defmodule Tempo.Parser.DatesTimes.Test do
                   hour: 23,
                   minute: 20,
                   second: 30,
-                  time_shift: [sign: :positive, hour: 0]
+                  time_shift: [hour: 0]
                 ]
               ]}
 
@@ -118,7 +118,7 @@ defmodule Tempo.Parser.DatesTimes.Test do
                   hour: 15,
                   minute: 27,
                   second: 46,
-                  time_shift: [sign: :positive, hour: 1, minute: 0]
+                  time_shift: [hour: 1, minute: 0]
                 ]
               ]}
 
@@ -129,7 +129,7 @@ defmodule Tempo.Parser.DatesTimes.Test do
                   hour: 15,
                   minute: 27,
                   second: 46,
-                  time_shift: [sign: :negative, hour: 5, minute: 0]
+                  time_shift: [hour: -5, minute: 0]
                 ]
               ]}
 
@@ -140,7 +140,7 @@ defmodule Tempo.Parser.DatesTimes.Test do
                   hour: 15,
                   minute: 27,
                   second: 46,
-                  time_shift: [sign: :negative, hour: 5]
+                  time_shift: [hour: -5]
                 ]
               ]}
 
@@ -151,7 +151,7 @@ defmodule Tempo.Parser.DatesTimes.Test do
                   hour: 15,
                   minute: 27,
                   second: 46,
-                  time_shift: [sign: :positive, hour: 1, minute: 0]
+                  time_shift: [hour: 1, minute: 0]
                 ]
               ]}
 
@@ -162,7 +162,7 @@ defmodule Tempo.Parser.DatesTimes.Test do
                   hour: 15,
                   minute: 27,
                   second: 46,
-                  time_shift: [sign: :positive, hour: 1]
+                  time_shift: [hour: 1]
                 ]
               ]}
 
@@ -173,7 +173,7 @@ defmodule Tempo.Parser.DatesTimes.Test do
                   hour: 15,
                   minute: 27,
                   second: 46,
-                  time_shift: [sign: :negative, hour: 5]
+                  time_shift: [hour: -5]
                 ]
               ]}
   end
@@ -202,7 +202,7 @@ defmodule Tempo.Parser.DatesTimes.Test do
                   hour: 23,
                   minute: 20,
                   second: 30,
-                  time_shift: [sign: :positive, hour: 0]
+                  time_shift: [hour: 0]
                 ]
               ]}
 
@@ -217,7 +217,7 @@ defmodule Tempo.Parser.DatesTimes.Test do
          hour: 23,
          minute: 20,
          second: 30,
-         time_shift: [sign: :positive, hour: 4, minute: 0]
+         time_shift: [hour: 4, minute: 0]
        ]
      ]}
 
@@ -246,7 +246,7 @@ defmodule Tempo.Parser.DatesTimes.Test do
          hour: 23,
          minute: 20,
          second: 30,
-         time_shift: [sign: :positive, hour: 0]
+         time_shift: [hour: 0]
        ]
      ]}
 
@@ -261,7 +261,7 @@ defmodule Tempo.Parser.DatesTimes.Test do
          hour: 23,
          minute: 20,
          second: 30,
-         time_shift: [sign: :positive, hour: 4, minute: 0]
+         time_shift: [hour: 4, minute: 0]
        ]
      ]}
 
@@ -276,7 +276,7 @@ defmodule Tempo.Parser.DatesTimes.Test do
          hour: 23,
          minute: 20,
          second: 30,
-         time_shift: [sign: :positive, hour: 4]
+         time_shift: [hour: 4]
        ]
      ]}
 
@@ -292,7 +292,7 @@ defmodule Tempo.Parser.DatesTimes.Test do
                   hour: 23,
                   minute: 20,
                   second: 30,
-                  time_shift: [sign: :positive, hour: 0]
+                  time_shift: [hour: 0]
                 ]
               ]}
 
@@ -305,7 +305,7 @@ defmodule Tempo.Parser.DatesTimes.Test do
                   hour: 23,
                   minute: 20,
                   second: 30,
-                  time_shift: [sign: :positive, hour: 4, minute: 0]
+                  time_shift: [hour: 4, minute: 0]
                 ]
               ]}
 
@@ -318,7 +318,7 @@ defmodule Tempo.Parser.DatesTimes.Test do
                   hour: 23,
                   minute: 20,
                   second: 30,
-                  time_shift: [sign: :positive, hour: 4]
+                  time_shift: [hour: 4]
                 ]
               ]}
 
@@ -345,7 +345,7 @@ defmodule Tempo.Parser.DatesTimes.Test do
                   hour: 23,
                   minute: 20,
                   second: 30,
-                  time_shift: [sign: :positive, hour: 0]
+                  time_shift: [hour: 0]
                 ]
               ]}
 
@@ -359,7 +359,7 @@ defmodule Tempo.Parser.DatesTimes.Test do
                   hour: 23,
                   minute: 20,
                   second: 30,
-                  time_shift: [sign: :positive, hour: 4, minute: 0]
+                  time_shift: [hour: 4, minute: 0]
                 ]
               ]}
 
@@ -386,7 +386,7 @@ defmodule Tempo.Parser.DatesTimes.Test do
                   hour: 23,
                   minute: 20,
                   second: 30,
-                  time_shift: [sign: :positive, hour: 0]
+                  time_shift: [hour: 0]
                 ]
               ]}
 
@@ -400,7 +400,7 @@ defmodule Tempo.Parser.DatesTimes.Test do
                   hour: 23,
                   minute: 20,
                   second: 30,
-                  time_shift: [sign: :positive, hour: 4, minute: 0]
+                  time_shift: [hour: 4, minute: 0]
                 ]
               ]}
 
@@ -414,7 +414,7 @@ defmodule Tempo.Parser.DatesTimes.Test do
                   hour: 23,
                   minute: 20,
                   second: 30,
-                  time_shift: [sign: :positive, hour: 4]
+                  time_shift: [hour: 4]
                 ]
               ]}
 
@@ -432,7 +432,7 @@ defmodule Tempo.Parser.DatesTimes.Test do
                   day_of_year: 102,
                   hour: 10,
                   minute: 15,
-                  time_shift: [sign: :positive, hour: 0]
+                  time_shift: [hour: 0]
                 ]
               ]}
 
@@ -445,7 +445,7 @@ defmodule Tempo.Parser.DatesTimes.Test do
          day_of_year: 102,
          hour: 10,
          minute: 15,
-         time_shift: [sign: :positive, hour: 0]
+         time_shift: [hour: 0]
        ]
      ]}
 
@@ -458,7 +458,7 @@ defmodule Tempo.Parser.DatesTimes.Test do
                   day_of_week: 5,
                   hour: 10,
                   minute: 15,
-                  time_shift: [sign: :positive, hour: 4, minute: 0]
+                  time_shift: [hour: 4, minute: 0]
                 ]
               ]}
 
@@ -471,7 +471,7 @@ defmodule Tempo.Parser.DatesTimes.Test do
                   day_of_week: 5,
                   hour: 10,
                   minute: 15,
-                  time_shift: [sign: :positive, hour: 4]
+                  time_shift: [hour: 4]
                 ]
               ]}
   end

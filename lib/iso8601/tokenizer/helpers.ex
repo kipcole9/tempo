@@ -1,4 +1,6 @@
 defmodule Tempo.Iso8601.Tokenizer.Helpers do
+  @doc false
+
   import NimbleParsec
 
   def recur([]), do: :infinity
@@ -44,6 +46,18 @@ defmodule Tempo.Iso8601.Tokenizer.Helpers do
   def day_of_week do
     ascii_char([?1..?7])
     |> reduce({List, :to_integer, []})
+  end
+
+  def quarter do
+    ascii_char([?1..?4])
+    |> ascii_char([?Q])
+    |> reduce(:reduce_quarter)
+  end
+
+  # Converts quarters to the ISO Standard quarters
+  # which are "months" of 33, 34, 35, 36
+  def reduce_quarter([int, ?Q]) do
+    82 - int
   end
 
   def convert_bc([int, "B"]) do
