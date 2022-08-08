@@ -52,6 +52,7 @@ defmodule Tempo.Iso8601.Tokenizer.Helpers do
     ascii_char([?1..?4])
     |> ascii_char([?Q])
     |> reduce(:reduce_quarter)
+    |> unwrap_and_tag(:month)
   end
 
   # Converts quarters to the ISO Standard quarters
