@@ -263,7 +263,6 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
       implicit_hour()
     ])
     |> optional(fraction())
-    |> optional(implicit_time_shift())
   end
 
   def implicit_time_of_day_x do
@@ -279,7 +278,6 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
       |> concat(implicit_minute())
     ])
     |> optional(fraction())
-    |> optional(implicit_time_shift_x())
   end
 
   def explicit_time_of_day do
@@ -296,7 +294,6 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
       explicit_minute(),
       explicit_second()
     ])
-    |> optional(explicit_time_shift())
   end
 
   # Parsing of durations
@@ -611,44 +608,63 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
     |> unwrap_and_tag(:second)
   end
 
+  # Time Shift
+
+  # A sign is required if no Z indicator
+  # A sign is optional if there is a Z indicator
+
   def implicit_time_shift do
-    choice([
-      sign()
-      |> concat(implicit_hour())
+    shift_indicator()
+    |> choice([
+      implicit_hour()
       |> concat(implicit_minute()),
-      sign()
-      |> concat(implicit_hour()),
-      zulu()
+
+      implicit_hour(),
+
+      eos()
     ])
-    |> reduce({:resolve_shift, []})
+    |> reduce(:resolve_shift)
     |> unwrap_and_tag(:time_shift)
   end
 
   def implicit_time_shift_x do
-    choice([
-      sign()
-      |> concat(implicit_hour())
-      |> ignore(colon()) |> concat(implicit_minute()),
-      sign()
-      |> concat(implicit_hour()),
-      zulu()
+    shift_indicator()
+    |> choice([
+      implicit_hour()
+      |> ignore(colon())
+      |> concat(implicit_minute()),
+
+      implicit_hour(),
+
+      eos()
     ])
-    |> reduce({:resolve_shift, []})
+    |> reduce(:resolve_shift)
     |> unwrap_and_tag(:time_shift)
   end
 
   def explicit_time_shift do
-    choice([
-      sign()
-      |> concat(explicit_hour())
+    shift_indicator()
+    |> choice([
+      explicit_hour()
       |> concat(explicit_minute()),
-      sign()
-      |> concat(explicit_hour()),
-      zulu()
+
+      explicit_hour(),
+
+      eos()
     ])
-    |> reduce({:resolve_shift, []})
+    |> reduce(:resolve_shift)
     |> unwrap_and_tag(:time_shift)
   end
+
+  def shift_indicator do
+    choice([
+      ignore(zulu()) |> concat(sign()) |> lookahead_not(eos()),
+      sign() |> lookahead_not(eos()),
+      zulu()
+    ])
+  end
+
+  ## Helpers
 
   # Need to have a number + character, or optonal character
   def maybe_nth(combinator, component) do
@@ -671,5 +687,13 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
 
   def resolve_shift([?Z]) do
     [{:hour, 0}]
+  end
+
+  def resolve_shift([?Z | rest]) do
+    resolve_shift(rest)
+  end
+
+  def resolve_shift(other) do
+    other
   end
 end

@@ -118,9 +118,9 @@ defmodule Tempo.Iso8601.Tokenizer do
 
   defparsec :datetime_parser,
             choice([
-              explicit_date_time(),
-              implicit_date_time_x(),
-              implicit_date_time()
+              explicit_date_time() |> optional(explicit_time_shift()),
+              implicit_date_time_x() |> optional(implicit_time_shift_x()),
+              implicit_date_time() |> optional(implicit_time_shift())
             ])
             |> tag(:datetime)
 
@@ -135,9 +135,9 @@ defmodule Tempo.Iso8601.Tokenizer do
 
   defparsec :time_parser,
             choice([
-              explicit_time_of_day(),
-              implicit_time_of_day_x(),
-              implicit_time_of_day()
+              explicit_time_of_day() |> optional(explicit_time_shift()),
+              implicit_time_of_day_x() |> optional(implicit_time_shift_x()),
+              implicit_time_of_day() |> optional(implicit_time_shift())
             ])
             |> tag(:time_of_day)
             |> label("time of day")

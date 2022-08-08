@@ -476,6 +476,12 @@ defmodule Tempo.Parser.DatesTimes.Test do
               ]}
   end
 
+  test "Date with timezone (but no time)" do
+    assert Tokenizer.tokenize("2018Y3G60DU6DZ8H") ==
+      {:ok, [date: [year: 2018, day_of_month: {:group, [i: 6, nth: 3, day: 60]}, time_shift: [hour: 8]]]}
+    assert Tokenizer.tokenize("2018Y1G60DUZ-5H") == :ok
+  end
+
   test "Date Error parsing" do
     # Extended format
     assert Tokenizer.tokenize("+0019850412")
