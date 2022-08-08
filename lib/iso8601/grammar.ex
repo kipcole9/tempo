@@ -263,7 +263,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
       implicit_hour()
     ])
     |> optional(fraction())
-    |> optional(time_shift())
+    |> optional(implicit_time_shift())
   end
 
   def implicit_time_of_day_x do
@@ -279,24 +279,24 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
       |> concat(implicit_minute())
     ])
     |> optional(fraction())
-    |> optional(time_shift_x())
+    |> optional(implicit_time_shift_x())
   end
 
   def explicit_time_of_day do
     ignore(optional(string("T")))
     |> choice([
       explicit_hour()
-      |> concat(explicit_minute())
-      |> concat(explicit_second()),
-      explicit_hour()
-      |> concat(explicit_minute()),
+      |> optional(explicit_minute())
+      |> optional(explicit_second()),
+
       explicit_minute()
-      |> concat(explicit_second()),
+      |> optional(explicit_second()),
+
       explicit_hour(),
       explicit_minute(),
       explicit_second()
     ])
-    |> optional(time_shift())
+    |> optional(explicit_time_shift())
   end
 
   # Parsing of durations
@@ -611,7 +611,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
     |> unwrap_and_tag(:second)
   end
 
-  def time_shift do
+  def implicit_time_shift do
     choice([
       sign()
       |> concat(implicit_hour())
@@ -624,13 +624,26 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
     |> unwrap_and_tag(:time_shift)
   end
 
-  def time_shift_x do
+  def implicit_time_shift_x do
     choice([
       sign()
       |> concat(implicit_hour())
       |> ignore(colon()) |> concat(implicit_minute()),
       sign()
       |> concat(implicit_hour()),
+      zulu()
+    ])
+    |> reduce({:resolve_shift, []})
+    |> unwrap_and_tag(:time_shift)
+  end
+
+  def explicit_time_shift do
+    choice([
+      sign()
+      |> concat(explicit_hour())
+      |> concat(explicit_minute()),
+      sign()
+      |> concat(explicit_hour()),
       zulu()
     ])
     |> reduce({:resolve_shift, []})
