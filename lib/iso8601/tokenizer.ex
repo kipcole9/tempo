@@ -150,6 +150,14 @@ defmodule Tempo.Iso8601.Tokenizer do
                 |> tag(:group)
                 |> label("group")
 
+  # defcombinator :selection,
+  #               |> ignore(string("L"))
+  #               |> selection_elements()
+  #               |> optionsa(selection_instance())
+  #               |> ignore(string("N"))
+  #               |> tag(:selection)
+  #               |> label("selection")
+
   defparsec :duration_parser,
             optional(negative() |> replace({:direction, :negative}))
             |> ignore(string("P"))

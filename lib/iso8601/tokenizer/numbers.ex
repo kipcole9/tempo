@@ -136,6 +136,46 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
     |> label("maybe negative integer")
   end
 
+  def positive_number_or_integer_set(indicator, tag, opts) do
+    choice([
+      parsec(:integer_set_all),
+      positive_number(opts)
+    ])
+    |> ignore(string(indicator)) |> unwrap_and_tag(tag)
+  end
+
+  def maybe_negative_number_or_integer_set(indicator, tag, opts) do
+    choice([
+      parsec(:integer_set_all),
+      maybe_negative_number(opts)
+    ])
+    |> ignore(string(indicator)) |> unwrap_and_tag(tag)
+  end
+
+  def positive_integer_or_integer_set(tag, opts) do
+    choice([
+      parsec(:integer_set_all),
+      positive_integer(opts)
+    ])
+    |> unwrap_and_tag(tag)
+  end
+
+  def positive_integer_or_integer_set(indicator, tag, opts) do
+    choice([
+      parsec(:integer_set_all),
+      positive_integer(opts)
+    ])
+    |> ignore(string(indicator)) |> unwrap_and_tag(tag)
+  end
+
+  def maybe_negative_integer_or_integer_set(indicator, tag, opts) do
+    choice([
+      parsec(:integer_set_all),
+      maybe_negative_integer(opts)
+    ])
+    |> ignore(string(indicator)) |> unwrap_and_tag(tag)
+  end
+
   def exponent do
     ignore(string("E"))
     |> integer(min: 1)
