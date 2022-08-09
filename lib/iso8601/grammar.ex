@@ -297,7 +297,6 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
   end
 
   # Parsing of durations
-  # Does not current support fractional elements
 
   def duration_elements(combinator \\ empty()) do
     combinator

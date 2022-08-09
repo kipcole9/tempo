@@ -1,4 +1,6 @@
 defmodule Tempo.Iso8601.Parser do
+  alias Tempo.Iso8601.Unit
+
   def parse({:error, _reason} = return) do
     return
   end
@@ -14,11 +16,11 @@ defmodule Tempo.Iso8601.Parser do
   end
 
   def parse([time_of_day: tokens]) do
-    parse_time(tokens)
+    parse_date(tokens)
   end
 
   def parse([datetime: tokens]) do
-    parse_datetime(tokens)
+    parse_date(tokens)
   end
 
   def parse([interval: tokens]) do
@@ -30,6 +32,26 @@ defmodule Tempo.Iso8601.Parser do
   end
 
   # Date
+
+  def parse_date([{unit_1, value_1}, {:group, group} | rest]) do
+    {min, _max} = group_min_max(group)
+
+    if Unit.compare(unit_1, min) == :lt do
+      raise Tempo.ParseError, "#{inspect unit_1} is less than group min of #{inspect min}"
+    else
+      [{unit_1, value_1} | parse_date([{:group, group} | rest])]
+    end
+  end
+
+  def parse_date([{:group, group}, {unit_2, value_2} | rest]) do
+    {_min, max} = group_min_max(group)
+
+    if Unit.compare(unit_2, max) == :gt do
+      raise Tempo.ParseError, "#{inspect unit_2} is greater than group max of #{inspect max}"
+    else
+      [{:group, group} | parse_date([{unit_2, value_2} | rest])]
+    end
+  end
 
   def parse_date([{component, {:all_of, list}} | rest]) do
     parse_date([{component, list} | rest])
@@ -101,6 +123,11 @@ defmodule Tempo.Iso8601.Parser do
 
   # Helpers
 
+  def group_min_max(group) do
+    sorted = Unit.sort(Keyword.delete(group, :nth))
+    {elem(List.last(sorted), 0), elem(List.first(sorted), 0)}
+  end
+
   # Keyword list
   def reduce_list([{key, _value} | _rest] = list) when is_atom(key) do
     list
@@ -120,7 +147,6 @@ defmodule Tempo.Iso8601.Parser do
   # Number or range list
   def reduce_list(list) when is_list(list) do
     list
-    |> IO.inspect
     |> Enum.sort_by(fn
       a when is_integer(a) -> a
       %Range{} = a -> a.first
