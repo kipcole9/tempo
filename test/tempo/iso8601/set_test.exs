@@ -5,7 +5,7 @@ defmodule Tempo.Parser.Set.Test do
 
   test "Set expressions: all of" do
     assert Tokenizer.tokenize("{1960,1961,1962}") ==
-             {:ok, [date: [day_of_week: {:all_of, [1960, 1961, 1962]}]]}
+             {:ok, [date: [year: {:all_of, [1960, 1961, 1962]}]]}
 
     assert Tokenizer.tokenize("{1960,1961-12}") ==
              {:ok, [all_of: [date: [year: 1960], date: [year: 1961, month: 12]]]}

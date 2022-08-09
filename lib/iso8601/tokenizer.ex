@@ -4,36 +4,6 @@ defmodule Tempo.Iso8601.Tokenizer do
   import Tempo.Iso8601.Tokenizer.Grammar
   import Tempo.Iso8601.Tokenizer.Helpers
 
-  # def date(string) do
-  #   string
-  #   |> date_parser()
-  #   |> return(string)
-  # end
-  #
-  # def time(string) do
-  #   string
-  #   |> time_parser()
-  #   |> return(string)
-  # end
-  #
-  # def date_time(string) do
-  #   string
-  #   |> datetime_parser()
-  #   |> return(string)
-  # end
-  #
-  # def interval(string) do
-  #   string
-  #   |> interval_parser()
-  #   |> return(string)
-  # end
-  #
-  # def duration(string) do
-  #   string
-  #   |> duration_parser()
-  #   |> return(string)
-  # end
-
   def tokenize(string) do
     string
     |> iso8601()
@@ -142,21 +112,21 @@ defmodule Tempo.Iso8601.Tokenizer do
             |> tag(:time_of_day)
             |> label("time of day")
 
-  defcombinator :group,
-                parsec(:integer_or_integer_set)
-                |> ignore(string("G"))
-                |> duration_elements()
-                |> ignore(string("U"))
-                |> tag(:group)
-                |> label("group")
+  defparsec :group,
+            parsec(:integer_or_integer_set)
+            |> ignore(string("G"))
+            |> duration_elements()
+            |> ignore(string("U"))
+            |> tag(:group)
+            |> label("group")
 
-  # defcombinator :selection,
-  #               |> ignore(string("L"))
-  #               |> selection_elements()
-  #               |> optionsa(selection_instance())
-  #               |> ignore(string("N"))
-  #               |> tag(:selection)
-  #               |> label("selection")
+  defparsec :selection,
+            ignore(string("L"))
+            |> selection_elements()
+            |> optional(selection_instance())
+            |> ignore(string("N"))
+            |> tag(:selection)
+            |> label("selection")
 
   defparsec :duration_parser,
             optional(negative() |> replace({:direction, :negative}))

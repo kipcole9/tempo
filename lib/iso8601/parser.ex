@@ -12,7 +12,7 @@ defmodule Tempo.Iso8601.Parser do
   end
 
   def parse([date: tokens]) do
-    {:ok, parse_date(tokens)}
+    parse_date(tokens)
   end
 
   def parse([time_of_day: tokens]) do
@@ -33,6 +33,11 @@ defmodule Tempo.Iso8601.Parser do
 
   # Date
 
+  def parse_date([{:date, date} | rest]) do
+    [{:date, parse_date(date)} | parse_date(rest)]
+  end
+
+  # TODO what is prior unit is a selection or a group
   def parse_date([{unit_1, value_1}, {:group, group} | rest]) do
     {min, _max} = group_min_max(group)
 
@@ -43,6 +48,7 @@ defmodule Tempo.Iso8601.Parser do
     end
   end
 
+  # TODO what is successor unit is a selection or a group
   def parse_date([{:group, group}, {unit_2, value_2} | rest]) do
     {_min, max} = group_min_max(group)
 
@@ -51,6 +57,13 @@ defmodule Tempo.Iso8601.Parser do
     else
       [{:group, group} | parse_date([{unit_2, value_2} | rest])]
     end
+  end
+
+  # TODO ensure selection time units are in order
+  # TODO ensure selection units are after previous and before after, like groups
+  def parse_date([{:selection, selection} | rest]) do
+    selection = parse_date(selection) |> reduce_list()
+    [{:selection, selection} | parse_date(rest)]
   end
 
   def parse_date([{component, {:all_of, list}} | rest]) do
@@ -95,6 +108,10 @@ defmodule Tempo.Iso8601.Parser do
 
   # Interval
 
+  def parse_interval([{:date, date} | t]) do
+    [{:date, parse_date(date)} | parse_interval(t)]
+  end
+
   def parse_interval([h | t]) do
     [h | parse_interval(t)]
   end
@@ -133,15 +150,19 @@ defmodule Tempo.Iso8601.Parser do
     list
   end
 
+  # The "unknown" marker
+  def reduce_list([:X | rest]) do
+    [:X | reduce_list(rest)]
+  end
+
+  def reduce_list(["X*"]) do
+    "X*"
+  end
+
   # The list has a set in it, we need to reduce
   # the set
   def reduce_list([first | rest]) when is_list(first) do
     [reduce_list(first) | reduce_list(rest)]
-  end
-
-  # The "unknown" marker
-  def reduce_list([:X | rest]) do
-    [:X | reduce_list(rest)]
   end
 
   # Number or range list
