@@ -438,25 +438,14 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
   def implicit_day_of_week do
     choice([
       parsec(:group),
-      parsec(:integer_set_all)  |> unwrap_and_tag(:day_of_week),
-      choice([
-        day_of_week(),
-        ascii_char([?X])
-      ])
-      |> unwrap_and_tag(:day_of_week)
+      positive_integer_or_integer_set(:day_of_week, 1),
     ])
   end
 
   def explicit_day_of_week do
     choice([
       parsec(:group),
-      parsec(:integer_set_all) |> unwrap_and_tag(:day_of_week),
-      choice([
-        day_of_week(),
-        unknown()
-      ])
-      |> ignore(string("K"))
-      |> unwrap_and_tag(:day_of_week)
+      maybe_negative_number_or_integer_set("K", :day_of_week, 1),
     ])
   end
 
