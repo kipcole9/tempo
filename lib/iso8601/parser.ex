@@ -12,29 +12,47 @@ defmodule Tempo.Iso8601.Parser do
   end
 
   def parse([date: tokens]) do
-    parse_date(tokens)
+    with parsed <- parse_date(tokens) do
+      Tempo.new(parsed)
+    end
   end
 
   def parse([time_of_day: tokens]) do
-    parse_date(tokens)
+    with parsed <- parse_date(tokens) do
+      Tempo.new(parsed)
+    end
   end
 
   def parse([datetime: tokens]) do
-    parse_date(tokens)
+    with parsed <- parse_date(tokens) do
+      Tempo.new(parsed)
+    end
   end
 
   def parse([interval: tokens]) do
-    parse_interval(tokens)
+    with parsed <- parse_date(tokens) do
+      Tempo.Interval.new(parsed)
+    end
   end
 
   def parse([duration: tokens]) do
-    parse_duration(tokens)
+    with parsed <- parse_date(tokens) do
+      Tempo.Duration.new(parsed)
+    end
   end
 
   # Date
 
   def parse_date([{:date, date} | rest]) do
     [{:date, parse_date(date)} | parse_date(rest)]
+  end
+
+  def parse_date([{:century, century} | rest]) do
+    parse_date([{:year, [(century * 100)..(century + 1) * 100 - 1]} | rest])
+  end
+
+  def parse_date([{:decade, century} | rest]) do
+    parse_date([{:year, [(century * 10)..(century + 1) * 10 - 1]} | rest])
   end
 
   # TODO what is prior unit is a selection or a group
@@ -64,6 +82,11 @@ defmodule Tempo.Iso8601.Parser do
   def parse_date([{:selection, selection} | rest]) do
     selection = parse_date(selection) |> reduce_list()
     [{:selection, selection} | parse_date(rest)]
+  end
+
+  def parse_date([{:interval, interval} | rest]) do
+    interval = parse([{:interval, interval}])
+    [interval, parse_date(rest)]
   end
 
   def parse_date([{component, {:all_of, list}} | rest]) do
@@ -171,12 +194,13 @@ defmodule Tempo.Iso8601.Parser do
     |> Enum.sort_by(fn
       a when is_integer(a) -> a
       %Range{} = a -> a.first
+      other -> other
     end)
     |> consolidate_ranges()
   end
 
-  def reduce_list([]) do
-    []
+  def reduce_list(other) do
+    other
   end
 
   # Consolidate overlapping, adjacent and enclosing
@@ -243,5 +267,9 @@ defmodule Tempo.Iso8601.Parser do
       true ->
         [r1 | consolidate_ranges([r2 | rest])]
     end
+  end
+
+  def consolidate_ranges([struct | rest]) when is_struct(struct) do
+    [struct | consolidate_ranges(rest)]
   end
 end

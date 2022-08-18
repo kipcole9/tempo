@@ -105,6 +105,12 @@ defmodule Tempo do
 
   alias Tempo.Iso8601.{Tokenizer, Parser}
 
+  defstruct [:time]
+
+  def new(tokens) do
+    %__MODULE__{time: tokens}
+  end
+
   def from_iso8601(string) do
     string
     |> Tokenizer.tokenize()
