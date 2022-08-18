@@ -56,6 +56,7 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
       |> optional(fraction())
       |> optional(exponent())
       |> optional(significant())
+      |> optional(error_range())
       |> lookahead_not(unknown_or_set())
       |> reduce(:form_number),
       digit_or_unknown()
@@ -73,6 +74,7 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
       |> optional(fraction())
       |> optional(exponent())
       |> optional(significant())
+      |> optional(error_range())
       |> lookahead_not(unknown_or_set())
       |> reduce(:form_number),
       all_unknown(),
@@ -93,6 +95,7 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
       integer(n)
       |> optional(exponent())
       |> optional(significant())
+      |> optional(error_range())
       |> lookahead_not(unknown_or_set())
       |> reduce(:form_number),
       digit_or_unknown()
@@ -110,6 +113,7 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
       |> lookahead_not(unknown())
       |> optional(exponent())
       |> optional(significant())
+      |> optional(error_range())
       |> lookahead_not(unknown_or_set())
       |> reduce(:form_number),
       digit_or_unknown()
@@ -203,6 +207,14 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
     |> unwrap_and_tag(:fraction)
   end
 
+  def error_range do
+    ignore(string("±"))
+    |> integer(min: 1)
+    |> optional(exponent())
+    |> reduce(:form_number)
+    |> unwrap_and_tag(:margin_of_error)
+  end
+
   def digit_or_unknown do
     choice([
       digit(),
@@ -232,6 +244,10 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
     form_number([-integer | rest])
   end
 
+  def form_number([?-, {integer, options} | rest]) when is_integer(integer) do
+    form_number([{-integer, options} | rest])
+  end
+
   def form_number([integer, {:fraction, fraction} | rest]) when is_integer(integer) and is_integer(fraction) do
     digits = Cldr.Digits.number_of_integer_digits(fraction)
     number = integer + (fraction / :math.pow(10, digits))
@@ -243,7 +259,15 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
   end
 
   def form_number([integer, {:significant, significant}]) do
-    {integer, significant}
+    {integer, significant_digits: significant}
+  end
+
+  def form_number([integer, {:margin_of_error, error}]) do
+    {integer, margin_of_error: error}
+  end
+
+  def form_number([integer, {:significant, significant}, {:margin_of_error, error}]) do
+    {integer, significant_digits: significant, margin_of_error: error}
   end
 
   def form_number([tuple]) when is_tuple(tuple) do

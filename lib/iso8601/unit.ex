@@ -21,8 +21,8 @@ defmodule Tempo.Iso8601.Unit do
   # Sort a keyword list of duration elements
   # by the key
 
-  def sort(duration, direction \\ :asc) do
-    Enum.sort_by(duration, &sort_key(elem(&1, 0)), direction)
+  def sort([{_unit, _value} | _rest] = units, direction \\ :asc) do
+    Enum.sort_by(units, &sort_key(elem(&1, 0)), direction)
   end
 
   def compare(unit_1, unit_2) when is_atom(unit_1) and is_atom(unit_2) do
@@ -34,5 +34,33 @@ defmodule Tempo.Iso8601.Unit do
       u1 > u2 -> :gt
       true -> :eq
     end
+  end
+
+  def ordered?([unit, :group | rest]) when is_atom(unit) do
+    ordered?([unit | rest])
+  end
+
+  def ordered?([unit, :select | rest]) when is_atom(unit) do
+    ordered?([unit | rest])
+  end
+
+  def ordered?([unit, {:group, _value} | rest]) do
+    ordered?([unit | rest])
+  end
+
+  def ordered?([unit, {:select, _value} | rest]) do
+    ordered?([unit | rest])
+  end
+
+  def ordered?([unit_1, unit_2 | rest]) when is_atom(unit_1) do
+    if compare(unit_1, unit_2) == :gt, do: ordered?([unit_2 | rest]), else: false
+  end
+
+  def ordered?([{unit_1, _value_1}, {unit_2, _value_2} | rest]) do
+    if compare(unit_1, unit_2) == :gt, do: ordered?([unit_2 | rest]), else: false
+  end
+
+  def ordered?([_unit]) do
+    true
   end
 end

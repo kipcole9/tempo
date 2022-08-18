@@ -74,9 +74,18 @@ defmodule Tempo.Iso8601.Tokenizer do
               parsec(:datetime_or_date_or_time)
               |> ignore(string("/"))
               |> parsec(:duration_parser),
-              parsec(:duration_parser) |> ignore(string("/")) |> parsec(:datetime_or_date_or_time)
+              parsec(:duration_parser)
+              |> ignore(string("/"))
+              |> parsec(:datetime_or_date_or_time),
+              parsec(:datetime_or_date_or_time)
+              |> ignore(string("/"))
+              |> replace(string(".."), :undefined),
+              replace(string(".."), :undefined)
+              |> ignore(string("/"))
+              |> parsec(:datetime_or_date_or_time)
             ])
-            |> tag(:interval)
+            |> reduce(:adjust_interval)
+            |> unwrap_and_tag(:interval)
             |> label("interval")
 
   defparsec :datetime_or_date_or_time,

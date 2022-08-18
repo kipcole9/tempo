@@ -9,9 +9,11 @@
 * When parsing an interval some heuristic is required to resolve some forms like:
   * 2020-01-01/02 would parse the "02" as a month when it needs to be interpreted as a day. This may be the other exception? - update: probably should always be the largest time unit if its ambiguous
 
-* Support of fractional components in duration? (section 11.4 in Part 2) - update: yes, but resolved at the next lower time unit
+* [*] Support of fractional components in duration? (section 11.4 in Part 2) - update: yes, but resolved at the next lower time unit
 
-* Add significant digits / error / approximation
+* [*] Add significant digits
+
+* [ ] Add approximation
 
 * Parse season names as well as the fake months
 
@@ -38,3 +40,10 @@
 ## On accuracy, precision and resolution
 
 * https://control.com/technical-articles/what-is-the-difference-between-accuracy-precision-and-resolution/
+
+
+## Priorities
+
+1. Enumeration
+2. Comparison
+3. Arithmetic

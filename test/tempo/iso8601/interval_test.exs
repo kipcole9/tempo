@@ -197,10 +197,30 @@ defmodule Tempo.Parser.Interval.Test do
               ]}
   end
 
-  # FIXME
+  test "Intervals with undefined beginning or end" do
+    assert Tokenizer.tokenize("-13.787E9S4±20E6Y/..") ==
+      {:ok,
+       [
+         interval: [
+           {:date,
+            [year: {-13787000000, [significant_digits: 4, margin_of_error: 20000000]}]},
+           :undefined
+         ]
+       ]}
 
-  # test "Intervals where trailing century should be month" do
-  #   assert Tokenizer.tokenize("2018-01/02") ==
-  #            {:ok, [interval: [date: [year: 2018, month: 1], date: [month: 2]]]}
-  # end
+     assert Tokenizer.tokenize("../13.787E9S4±20E6Y") ==
+       {:ok,
+        [
+          interval: [
+            :undefined,
+            {:date,
+             [year: {13787000000, [significant_digits: 4, margin_of_error: 20000000]}]}
+          ]
+        ]}
+  end
+
+  test "Intervals where trailing century should be month" do
+    assert Tokenizer.tokenize("2018-01/02") ==
+             {:ok, [interval: [date: [year: 2018, month: 1], date: [month: 2]]]}
+  end
 end

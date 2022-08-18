@@ -322,7 +322,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
       maybe_negative_integer_or_integer_set("H", :hour, min: 1),
       maybe_negative_integer_or_integer_set("M", :minute, min: 1),
       maybe_negative_integer_or_integer_set("S", :second, min: 1),
-      parsec(:selection) |> ignore(string("/")) |> parsec(:duration_parser),
+      ignore(string("L")) |> parsec(:interval_parser) |> ignore(string("N")),
       parsec(:selection)
     ])
   end
@@ -694,6 +694,14 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
   end
 
   def resolve_shift(other) do
+    other
+  end
+
+  def adjust_interval([date: [year: year, month: month], date: [century: century]]) do
+    [date: [year: year, month: month], date: [month: century]]
+  end
+
+  def adjust_interval(other) do
     other
   end
 end

@@ -47,7 +47,7 @@ defmodule Tempo.Parser.DatesTimes.Test do
   end
 
   test "Exponential values section 4.4.2" do
-    assert Tokenizer.tokenize("1230S2") == {:ok, [date: [year: {1230, 2}]]}
+    assert Tokenizer.tokenize("1230S2") == {:ok, [date: [year: {1230, significant_digits: 2}]]}
     assert Tokenizer.tokenize("3E3Y") == {:ok, [date: [year: 3000]]}
   end
 
@@ -482,6 +482,19 @@ defmodule Tempo.Parser.DatesTimes.Test do
 
     assert Tokenizer.tokenize("2018Y1G60DUZ-5H") ==
       {:ok, [date: [year: 2018, group: [nth: 1, day: 60], time_shift: [hour: -5]]]}
+  end
+
+  test "Date with margin of error" do
+    assert Tokenizer.tokenize("-13.787E9±20E6Y") ==
+      {:ok, [date: [year: {-13787000000, [margin_of_error: 20000000]}]]}
+
+    assert Tokenizer.tokenize("-13.787E9S4±20E6Y") ==
+      {:ok,
+       [
+         date: [
+           year: {-13787000000, [significant_digits: 4, margin_of_error: 20000000]}
+         ]
+       ]}
   end
 
   test "Date Error parsing" do
