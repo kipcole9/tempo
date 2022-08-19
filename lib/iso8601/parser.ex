@@ -55,7 +55,18 @@ defmodule Tempo.Iso8601.Parser do
     parse_date([{:year, [(century * 10)..(century + 1) * 10 - 1]} | rest])
   end
 
-  # TODO what is prior unit is a selection or a group
+  # TODO what if prior unit is a selection
+  def parse_date([{:group, group_1}, {:group, group_2} | rest]) do
+    {_min_1, max_1} = group_min_max(group_1)
+    {min_2, _max} = group_min_max(group_1)
+
+    if Unit.compare(max_1, min_2) == :lt do
+      raise Tempo.ParseError, "Group max of #{inspect group_1} is less than group min of #{inspect group_2}"
+    else
+      [{:group, group_1} | parse_date([{:group, group_2} | rest])]
+    end
+  end
+
   def parse_date([{unit_1, value_1}, {:group, group} | rest]) do
     {min, _max} = group_min_max(group)
 

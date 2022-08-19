@@ -35,16 +35,16 @@ defmodule Tempo.Parser.Group.Test do
              {:ok, [date: [year: 110, group: [nth: 2, month: 3]]]}
 
     assert Tokenizer.tokenize("2018Y3G60DU6D") ==
-            {:ok, [date: [year: 2018, group: [nth: 3, day: 60], day_of_month: 6]]}
+            {:ok, [date: [year: 2018, group: [nth: 3, day: 60], day: 6]]}
 
     assert Tokenizer.tokenize("2018Y20GT12HU3H") ==
              {:ok, [datetime: [year: 2018, group: [nth: 20, hour: 12], hour: 3]]}
 
     assert Tokenizer.tokenize("2018Y1G2MU30D") ==
-             {:ok, [date: [year: 2018, group: [nth: 1, month: 2], day_of_month: 30]]}
+             {:ok, [date: [year: 2018, group: [nth: 1, month: 2], day: 30]]}
 
     assert Tokenizer.tokenize("2018Y1G2MU60D") ==
-             {:ok, [date: [year: 2018, group: [nth: 1, month: 2], day_of_month: 60]]}
+             {:ok, [date: [year: 2018, group: [nth: 1, month: 2], day: 60]]}
 
     assert Tokenizer.tokenize("2018Y9M4G8DU") ==
              {:ok, [date: [year: 2018, month: 9, group: [nth: 4, day: 8]]]}
@@ -61,7 +61,7 @@ defmodule Tempo.Parser.Group.Test do
       {:ok, [date: [group: [nth: 1, day: 2, hour: 6]]]}
 
     assert Tokenizer.tokenize("2018Y4G60DU6D") ==
-      {:ok, [date: [year: 2018, group: [{:nth, 4}, {:day, 60}], day_of_month: 6]]}
+      {:ok, [date: [year: 2018, group: [{:nth, 4}, {:day, 60}], day: 6]]}
 
     # Note that in secrion 5.4 Example 2 it shows
     # 2018Y9M2DT3GT8HU0H30M (Note the added 0H). In this implementation
@@ -74,7 +74,7 @@ defmodule Tempo.Parser.Group.Test do
           datetime: [
             year: 2018,
             month: 9,
-            day_of_month: 2,
+            day: 2,
             group: [nth: 3, hour: 8],
             minute: 30
           ]

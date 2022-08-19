@@ -11,7 +11,7 @@ defmodule Tempo.Parser.Duration.Test do
                   datetime: [
                     year: 2,
                     month: 1,
-                    day_of_month: 10,
+                    day: 10,
                     hour: 22,
                     minute: 33,
                     second: 55
@@ -26,7 +26,7 @@ defmodule Tempo.Parser.Duration.Test do
                   datetime: [
                     year: 2,
                     month: 1,
-                    day_of_month: 10,
+                    day: 10,
                     hour: 22,
                     minute: 33,
                     second: 55

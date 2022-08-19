@@ -4,24 +4,24 @@ defmodule Tempo.Parser.DatesTimes.Test do
   alias Tempo.Iso8601.Tokenizer
 
   test "Date Parsing" do
-    assert Tokenizer.tokenize("2018-08-01") == {:ok, [date: [year: 2018, month: 8, day_of_month: 1]]}
+    assert Tokenizer.tokenize("2018-08-01") == {:ok, [date: [year: 2018, month: 8, day: 1]]}
     assert Tokenizer.tokenize("1985") == {:ok, [date: [year: 1985]]}
     assert Tokenizer.tokenize("12Y") == {:ok, [date: [year: 12]]}
     assert Tokenizer.tokenize("8M") == {:ok, [date: [month: 8]]}
-    assert Tokenizer.tokenize("25D") == {:ok, [date: [day_of_month: 25]]}
+    assert Tokenizer.tokenize("25D") == {:ok, [date: [day: 25]]}
     assert Tokenizer.tokenize("10W") == {:ok, [date: [week: 10]]}
-    assert Tokenizer.tokenize("19850412") == {:ok, [date: [year: 1985, month: 4, day_of_month: 12]]}
-    assert Tokenizer.tokenize("1985-04-12") == {:ok, [date: [year: 1985, month: 4, day_of_month: 12]]}
+    assert Tokenizer.tokenize("19850412") == {:ok, [date: [year: 1985, month: 4, day: 12]]}
+    assert Tokenizer.tokenize("1985-04-12") == {:ok, [date: [year: 1985, month: 4, day: 12]]}
     assert Tokenizer.tokenize("1985-04") == {:ok, [date: [year: 1985, month: 4]]}
     assert Tokenizer.tokenize("1985") == {:ok, [date: [year: 1985]]}
-    assert Tokenizer.tokenize("1985102") == {:ok, [date: [year: 1985, day_of_year: 102]]}
+    assert Tokenizer.tokenize("1985102") == {:ok, [date: [year: 1985, day: 102]]}
     assert Tokenizer.tokenize("1985W155") == {:ok, [date: [year: 1985, week: 15, day_of_week: 5]]}
     assert Tokenizer.tokenize("1985W15") == {:ok, [date: [year: 1985, week: 15]]}
     assert Tokenizer.tokenize("19") == {:ok, [date: [century: 19]]}
     assert Tokenizer.tokenize("198") == {:ok, [date: [decade: 198]]}
     assert Tokenizer.tokenize("1985-W15-1") == {:ok, [date: [year: 1985, week: 15, day_of_week: 1]]}
     assert Tokenizer.tokenize("1985-W15") == {:ok, [date: [year: 1985, week: 15]]}
-    assert Tokenizer.tokenize("1985-102") == {:ok, [date: [year: 1985, day_of_year: 102]]}
+    assert Tokenizer.tokenize("1985-102") == {:ok, [date: [year: 1985, day: 102]]}
     assert Tokenizer.tokenize("W03") == {:ok, [date: [week: 3]]}
   end
 
@@ -29,15 +29,15 @@ defmodule Tempo.Parser.DatesTimes.Test do
     assert Tokenizer.tokenize("01M") == {:ok, [date: [month: 1]]}
     assert Tokenizer.tokenize("0001M") == {:ok, [date: [month: 1]]}
     assert Tokenizer.tokenize("1K") == {:ok, [date: [day_of_week: 1]]}
-    assert Tokenizer.tokenize("350O") == {:ok, [date: [day_of_year: 350]]}
+    assert Tokenizer.tokenize("350O") == {:ok, [date: [day: 350]]}
     assert Tokenizer.tokenize("16C") == {:ok, [date: [century: 16]]}
     assert Tokenizer.tokenize("-1985Y") == {:ok, [date: [year: -1985]]}
     assert Tokenizer.tokenize("1YB") == {:ok, [date: [year: 0]]}
     assert Tokenizer.tokenize("12YB") == {:ok, [date: [year: -11]]}
-    assert Tokenizer.tokenize("-5D") == {:ok, [date: [day_of_month: -5]]}
+    assert Tokenizer.tokenize("-5D") == {:ok, [date: [day: -5]]}
     assert Tokenizer.tokenize("-3W") == {:ok, [date: [week: -3]]}
-    assert Tokenizer.tokenize("-7O") == {:ok, [date: [day_of_year: -7]]}
-    assert Tokenizer.tokenize("-306O") == {:ok, [date: [day_of_year: -306]]}
+    assert Tokenizer.tokenize("-7O") == {:ok, [date: [day: -7]]}
+    assert Tokenizer.tokenize("-306O") == {:ok, [date: [day: -306]]}
     assert Tokenizer.tokenize("-019") == {:ok, [date: [decade: -19]]}
     assert Tokenizer.tokenize("-1985") == {:ok, [date: [year: -1985]]}
     assert Tokenizer.tokenize("-12J") == {:ok, [date: [decade: -12]]}
@@ -185,7 +185,7 @@ defmodule Tempo.Parser.DatesTimes.Test do
                 datetime: [
                   year: 1985,
                   month: 4,
-                  day_of_month: 12,
+                  day: 12,
                   hour: 23,
                   minute: 20,
                   second: 30
@@ -198,7 +198,7 @@ defmodule Tempo.Parser.DatesTimes.Test do
                 datetime: [
                   year: 1985,
                   month: 4,
-                  day_of_month: 12,
+                  day: 12,
                   hour: 23,
                   minute: 20,
                   second: 30,
@@ -213,7 +213,7 @@ defmodule Tempo.Parser.DatesTimes.Test do
        datetime: [
          year: 1985,
          month: 4,
-         day_of_month: 12,
+         day: 12,
          hour: 23,
          minute: 20,
          second: 30,
@@ -228,7 +228,7 @@ defmodule Tempo.Parser.DatesTimes.Test do
        datetime: [
          year: 1985,
          month: 4,
-         day_of_month: 12,
+         day: 12,
          hour: 23,
          minute: 20,
          second: 30
@@ -242,7 +242,7 @@ defmodule Tempo.Parser.DatesTimes.Test do
        datetime: [
          year: 1985,
          month: 4,
-         day_of_month: 12,
+         day: 12,
          hour: 23,
          minute: 20,
          second: 30,
@@ -257,7 +257,7 @@ defmodule Tempo.Parser.DatesTimes.Test do
        datetime: [
          year: 1985,
          month: 4,
-         day_of_month: 12,
+         day: 12,
          hour: 23,
          minute: 20,
          second: 30,
@@ -272,7 +272,7 @@ defmodule Tempo.Parser.DatesTimes.Test do
        datetime: [
          year: 1985,
          month: 4,
-         day_of_month: 12,
+         day: 12,
          hour: 23,
          minute: 20,
          second: 30,
@@ -281,14 +281,14 @@ defmodule Tempo.Parser.DatesTimes.Test do
      ]}
 
     assert Tokenizer.tokenize("1985102T232030") ==
-             {:ok, [datetime: [year: 1985, day_of_year: 102, hour: 23, minute: 20, second: 30]]}
+             {:ok, [datetime: [year: 1985, day: 102, hour: 23, minute: 20, second: 30]]}
 
     assert Tokenizer.tokenize("1985102T232030Z") ==
              {:ok,
               [
                 datetime: [
                   year: 1985,
-                  day_of_year: 102,
+                  day: 102,
                   hour: 23,
                   minute: 20,
                   second: 30,
@@ -301,7 +301,7 @@ defmodule Tempo.Parser.DatesTimes.Test do
               [
                 datetime: [
                   year: 1985,
-                  day_of_year: 102,
+                  day: 102,
                   hour: 23,
                   minute: 20,
                   second: 30,
@@ -314,7 +314,7 @@ defmodule Tempo.Parser.DatesTimes.Test do
               [
                 datetime: [
                   year: 1985,
-                  day_of_year: 102,
+                  day: 102,
                   hour: 23,
                   minute: 20,
                   second: 30,
@@ -419,17 +419,17 @@ defmodule Tempo.Parser.DatesTimes.Test do
               ]}
 
     assert Tokenizer.tokenize("19850412T1015") ==
-             {:ok, [datetime: [year: 1985, month: 4, day_of_month: 12, hour: 10, minute: 15]]}
+             {:ok, [datetime: [year: 1985, month: 4, day: 12, hour: 10, minute: 15]]}
 
     assert Tokenizer.tokenize("1985-04-12T10:15") ==
-             {:ok, [datetime: [year: 1985, month: 4, day_of_month: 12, hour: 10, minute: 15]]}
+             {:ok, [datetime: [year: 1985, month: 4, day: 12, hour: 10, minute: 15]]}
 
     assert Tokenizer.tokenize("1985102T1015Z") ==
              {:ok,
               [
                 datetime: [
                   year: 1985,
-                  day_of_year: 102,
+                  day: 102,
                   hour: 10,
                   minute: 15,
                   time_shift: [hour: 0]
@@ -442,7 +442,7 @@ defmodule Tempo.Parser.DatesTimes.Test do
      [
        datetime: [
          year: 1985,
-         day_of_year: 102,
+         day: 102,
          hour: 10,
          minute: 15,
          time_shift: [hour: 0]
@@ -478,7 +478,7 @@ defmodule Tempo.Parser.DatesTimes.Test do
 
   test "Date with timezone (but no time)" do
     assert Tokenizer.tokenize("2018Y3G60DU6DZ8H") ==
-      {:ok, [date: [year: 2018, group: [nth: 3, day: 60], day_of_month: 6, time_shift: [hour: 8]]]}
+      {:ok, [date: [year: 2018, group: [nth: 3, day: 60], day: 6, time_shift: [hour: 8]]]}
 
     assert Tokenizer.tokenize("2018Y1G60DUZ-5H") ==
       {:ok, [date: [year: 2018, group: [nth: 1, day: 60], time_shift: [hour: -5]]]}

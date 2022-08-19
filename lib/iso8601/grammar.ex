@@ -309,8 +309,8 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
       maybe_negative_integer_or_integer_set("Y", :year, min: 1),
       maybe_negative_integer_or_integer_set("M", :month, min: 1),
       maybe_negative_integer_or_integer_set("W", :week, min: 1),
-      maybe_negative_integer_or_integer_set("O", :day_of_year, min: 1),
-      maybe_negative_integer_or_integer_set("D", :day_of_month, min: 1),
+      maybe_negative_integer_or_integer_set("O", :day, min: 1),
+      maybe_negative_integer_or_integer_set("D", :day, min: 1),
       maybe_negative_integer_or_integer_set("K", :day_of_week, min: 1),
       ignore(string("L")) |> parsec(:interval_parser) |> ignore(string("N")),
       parsec(:selection)
@@ -420,7 +420,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
   def implicit_day_of_month do
     choice([
       parsec(:group),
-      positive_integer_or_integer_set(:day_of_month, 2),
+      positive_integer_or_integer_set(:day, 2),
     ])
   end
 
@@ -428,7 +428,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
     choice([
       parsec(:group),
       parsec(:selection),
-      maybe_negative_number_or_integer_set("D", :day_of_month, min: 1),
+      maybe_negative_number_or_integer_set("D", :day, min: 1),
     ])
   end
 
@@ -454,8 +454,8 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
   def implicit_day_of_year do
     choice([
       parsec(:group),
-      parsec(:integer_set_all) |> unwrap_and_tag(:day_of_year),
-      positive_integer(3) |> unwrap_and_tag(:day_of_year)
+      parsec(:integer_set_all) |> unwrap_and_tag(:day),
+      positive_integer(3) |> unwrap_and_tag(:day)
     ])
   end
 
@@ -463,7 +463,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
     choice([
       parsec(:group),
       parsec(:selection),
-      maybe_negative_number_or_integer_set("O", :day_of_year, min: 1),
+      maybe_negative_number_or_integer_set("O", :day, min: 1),
     ])
   end
 

@@ -51,7 +51,7 @@ defmodule Tempo.Parser.Set.Test do
              {:ok, [one_of: [{:range, [:undefined, [year: 1984, month: 10]]}]]}
 
     assert Tokenizer.tokenize("[..1760-12-03]") ==
-             {:ok, [one_of: [{:range, [:undefined, [year: 1760, month: 12, day_of_month: 3]]}]]}
+             {:ok, [one_of: [{:range, [:undefined, [year: 1760, month: 12, day: 3]]}]]}
 
     assert Tokenizer.tokenize("[1984..]") ==
              {:ok, [one_of: [{:range, [[year: 1984], :undefined]}]]}
@@ -60,7 +60,7 @@ defmodule Tempo.Parser.Set.Test do
              {:ok, [one_of: [{:range, [[year: 1760, month: 12], :undefined]}]]}
 
     assert Tokenizer.tokenize("[1984-10-10..]") ==
-             {:ok, [one_of: [{:range, [[year: 1984, month: 10, day_of_month: 10], :undefined]}]]}
+             {:ok, [one_of: [{:range, [[year: 1984, month: 10, day: 10], :undefined]}]]}
 
     assert Tokenizer.tokenize("[1670..1673]") ==
              {:ok, [one_of: [{:year, 1670..1673}]]}
@@ -70,7 +70,7 @@ defmodule Tempo.Parser.Set.Test do
       :ok,
       [
         one_of: [
-          {:range, [date: [year: 1984, month: 10, day_of_month: 10], date: [year: 1984, month: 11, day_of_month: 1]]}
+          {:range, [date: [year: 1984, month: 10, day: 10], date: [year: 1984, month: 11, day: 1]]}
         ]
       ]
     }
@@ -80,9 +80,9 @@ defmodule Tempo.Parser.Set.Test do
       :ok,
       [
         all_of: [
-          {:range, [:undefined, [year: 1983, month: 12, day_of_month: 31]]},
-          {:range, [date: [year: 1984, month: 10, day_of_month: 10], date: [year: 1984, month: 11, day_of_month: 1]]},
-          {:range, [[year: 1984, month: 11, day_of_month: 5], :undefined]}
+          {:range, [:undefined, [year: 1983, month: 12, day: 31]]},
+          {:range, [date: [year: 1984, month: 10, day: 10], date: [year: 1984, month: 11, day: 1]]},
+          {:range, [[year: 1984, month: 11, day: 5], :undefined]}
         ]
       ]
     }

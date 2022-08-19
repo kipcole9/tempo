@@ -13,7 +13,7 @@ defmodule Tempo.Parser.Selection.Test do
     # First instance of February 29th in the years 2018..2022
     assert Tempo.from_iso8601("{2018,2019,2020,2021,2022}YL2M29D1IN") ==
       {:ok,
-        %Tempo{time: [year: [2018..2022], selection: [month: 2, day_of_month: 29, instance: 1]]}}
+        %Tempo{time: [year: [2018..2022], selection: [month: 2, day: 29, instance: 1]]}}
 
     # Second Sunday in May
     assert Tempo.from_iso8601("L5M7K2IN") ==
@@ -35,7 +35,7 @@ defmodule Tempo.Parser.Selection.Test do
        %Tempo{time: [
          selection: [
            month: 4,
-           day_of_month: [19..26],
+           day: [19..26],
            day_of_week: 4,
            instance: 1
          ]
@@ -106,7 +106,7 @@ defmodule Tempo.Parser.Selection.Test do
       %Tempo{
         time: [
           selection: [
-            %Tempo.Interval{from: %Tempo{time: [month: 4, day_of_month: 4]}, to: nil, duration: %Tempo.Duration{time: [direction: :negative, day: 20]}},
+            %Tempo.Interval{from: %Tempo{time: [month: 4, day: 4]}, to: nil, duration: %Tempo.Duration{time: [direction: :negative, day: 20]}},
             [day_of_week: 7, instance: -2]
           ]
         ]

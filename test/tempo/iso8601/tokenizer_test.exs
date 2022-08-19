@@ -9,7 +9,7 @@ defmodule Tempo.Iso8601.ParserTest do
                 datetime: [
                   year: 2020,
                   month: 11,
-                  day_of_month: 14,
+                  day: 14,
                   hour: 10,
                   minute: 11,
                   second: 12
@@ -18,7 +18,7 @@ defmodule Tempo.Iso8601.ParserTest do
 
       assert {:ok, [date: [year: 2020, week: 28]], "", _, _, _} = Tokenizer.iso8601("2020W28")
 
-      assert {:ok, [date: [year: 2020, day_of_year: 193]], "", _, _, _} =
+      assert {:ok, [date: [year: 2020, day: 193]], "", _, _, _} =
                Tokenizer.iso8601("2020193")
 
       assert {:ok, [date: [year: 2020, month: 11]], "", _, _, _} = Tokenizer.iso8601("2020-11")
@@ -34,8 +34,8 @@ defmodule Tempo.Iso8601.ParserTest do
       assert {:ok,
               [
                 interval: [
-                  date: [year: 2020, month: 11, day_of_month: 14],
-                  date: [year: 2020, month: 11, day_of_month: 17]
+                  date: [year: 2020, month: 11, day: 14],
+                  date: [year: 2020, month: 11, day: 17]
                 ]
               ], "", _, _, _} = Tokenizer.iso8601("2020-11-14/2020-11-17")
 
@@ -45,19 +45,19 @@ defmodule Tempo.Iso8601.ParserTest do
                   datetime: [
                     year: 2020,
                     month: 11,
-                    day_of_month: 14,
+                    day: 14,
                     hour: 10,
                     minute: 11,
                     second: 12
                   ],
-                  date: [year: 2020, month: 11, day_of_month: 17]
+                  date: [year: 2020, month: 11, day: 17]
                 ]
               ], "", _, _, _} = Tokenizer.iso8601("2020-11-14T10:11:12/2020-11-17")
 
       assert {:ok,
               [
                 interval: [
-                  date: [year: 2020, month: 11, day_of_month: 14],
+                  date: [year: 2020, month: 11, day: 14],
                   duration: [day: 1]
                 ]
               ], "", _, _, _} = Tokenizer.iso8601("2020-11-14/P1D")
@@ -66,7 +66,7 @@ defmodule Tempo.Iso8601.ParserTest do
               [
                 interval: [
                   duration: [day: 1],
-                  date: [year: 2020, month: 11, day_of_month: 14]
+                  date: [year: 2020, month: 11, day: 14]
                 ]
               ], "", _, _, _} = Tokenizer.iso8601("P1D/2020-11-14")
     end

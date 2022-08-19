@@ -8,8 +8,8 @@ defmodule Tempo.Parser.Interval.Test do
              {:ok,
               [
                 interval: [
-                  date: [year: 2018, month: 1, day_of_month: 15],
-                  date: [month: 2, day_of_month: 20]
+                  date: [year: 2018, month: 1, day: 15],
+                  date: [month: 2, day: 20]
                 ]
               ]}
 
@@ -17,8 +17,8 @@ defmodule Tempo.Parser.Interval.Test do
              {:ok,
               [
                 interval: [
-                  date: [year: 2018, month: 1, day_of_month: 15],
-                  date: [year: 2018, month: 2, day_of_month: 20]
+                  date: [year: 2018, month: 1, day: 15],
+                  date: [year: 2018, month: 2, day: 20]
                 ]
               ]}
 
@@ -29,10 +29,10 @@ defmodule Tempo.Parser.Interval.Test do
                   date: [
                     year: 2018,
                     month: 1,
-                    day_of_month: 15,
+                    day: 15,
                     time_shift: [hour: 5, minute: 0]
                   ],
-                  date: [year: 2018, month: 2, day_of_month: 20]
+                  date: [year: 2018, month: 2, day: 20]
                 ]
               ]}
 
@@ -43,7 +43,7 @@ defmodule Tempo.Parser.Interval.Test do
                   datetime: [
                     year: 1985,
                     month: 4,
-                    day_of_month: 12,
+                    day: 12,
                     hour: 23,
                     minute: 20,
                     second: 50
@@ -51,7 +51,7 @@ defmodule Tempo.Parser.Interval.Test do
                   datetime: [
                     year: 1985,
                     month: 6,
-                    day_of_month: 25,
+                    day: 25,
                     hour: 10,
                     minute: 30,
                     second: 0
@@ -66,7 +66,7 @@ defmodule Tempo.Parser.Interval.Test do
                   datetime: [
                     year: 1985,
                     month: 4,
-                    day_of_month: 12,
+                    day: 12,
                     hour: 23,
                     minute: 20,
                     second: 50
@@ -74,7 +74,7 @@ defmodule Tempo.Parser.Interval.Test do
                   datetime: [
                     year: 1985,
                     month: 6,
-                    day_of_month: 25,
+                    day: 25,
                     hour: 10,
                     minute: 30,
                     second: 0
@@ -89,7 +89,7 @@ defmodule Tempo.Parser.Interval.Test do
                   datetime: [
                     year: 1985,
                     month: 4,
-                    day_of_month: 12,
+                    day: 12,
                     hour: 23,
                     minute: 20,
                     second: 50
@@ -105,7 +105,7 @@ defmodule Tempo.Parser.Interval.Test do
                   datetime: [
                     year: 1985,
                     month: 4,
-                    day_of_month: 12,
+                    day: 12,
                     hour: 23,
                     minute: 20,
                     second: 50
@@ -122,7 +122,7 @@ defmodule Tempo.Parser.Interval.Test do
                   datetime: [
                     year: 1985,
                     month: 4,
-                    day_of_month: 12,
+                    day: 12,
                     hour: 23,
                     minute: 20,
                     second: 50
@@ -138,7 +138,7 @@ defmodule Tempo.Parser.Interval.Test do
                   datetime: [
                     year: 1985,
                     month: 4,
-                    day_of_month: 12,
+                    day: 12,
                     hour: 23,
                     minute: 20,
                     second: 50
@@ -156,7 +156,7 @@ defmodule Tempo.Parser.Interval.Test do
                   datetime: [
                     year: 1985,
                     month: 4,
-                    day_of_month: 12,
+                    day: 12,
                     hour: 23,
                     minute: 20,
                     second: 50
@@ -164,7 +164,7 @@ defmodule Tempo.Parser.Interval.Test do
                   datetime: [
                     year: 1985,
                     month: 6,
-                    day_of_month: 25,
+                    day: 25,
                     hour: 10,
                     minute: 30,
                     second: 0
@@ -180,7 +180,7 @@ defmodule Tempo.Parser.Interval.Test do
                   datetime: [
                     year: 1985,
                     month: 4,
-                    day_of_month: 12,
+                    day: 12,
                     hour: 23,
                     minute: 20,
                     second: 50
@@ -188,7 +188,7 @@ defmodule Tempo.Parser.Interval.Test do
                   datetime: [
                     year: 1985,
                     month: 6,
-                    day_of_month: 25,
+                    day: 25,
                     hour: 10,
                     minute: 30,
                     second: 0
