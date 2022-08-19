@@ -48,11 +48,11 @@ defmodule Tempo.Iso8601.Parser do
   end
 
   def parse_date([{:century, century} | rest]) do
-    parse_date([{:year, [(century * 100)..(century + 1) * 100 - 1]} | rest])
+    parse_date([{:year, (century * 100)..(century + 1) * 100 - 1} | rest])
   end
 
   def parse_date([{:decade, century} | rest]) do
-    parse_date([{:year, [(century * 10)..(century + 1) * 10 - 1]} | rest])
+    parse_date([{:year, (century * 10)..(century + 1) * 10 - 1} | rest])
   end
 
   # TODO what if prior unit is a selection
