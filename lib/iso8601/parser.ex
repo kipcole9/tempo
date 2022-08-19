@@ -37,7 +37,9 @@ defmodule Tempo.Iso8601.Parser do
 
   def parse([duration: tokens]) do
     with parsed <- parse_date(tokens) do
-      Tempo.Duration.new(parsed)
+      parsed
+      |> adjust_for_direction()
+      |> Tempo.Duration.new()
     end
   end
 
@@ -97,7 +99,12 @@ defmodule Tempo.Iso8601.Parser do
 
   def parse_date([{:interval, interval} | rest]) do
     interval = parse([{:interval, interval}])
-    [interval, parse_date(rest)]
+    [{:interval, interval} | parse_date(rest)]
+  end
+
+  def parse_date([{:duration, duration} | rest]) do
+    duration = adjust_for_direction(duration)
+    [{:duration, duration} | parse_date(rest)]
   end
 
   def parse_date([{component, {:all_of, list}} | rest]) do
@@ -184,6 +191,10 @@ defmodule Tempo.Iso8601.Parser do
     list
   end
 
+  def reduce_list([struct | _rest] = list) when is_struct(struct) do
+    list
+  end
+
   # The "unknown" marker
   def reduce_list([:X | rest]) do
     [:X | reduce_list(rest)]
@@ -205,7 +216,6 @@ defmodule Tempo.Iso8601.Parser do
     |> Enum.sort_by(fn
       a when is_integer(a) -> a
       %Range{} = a -> a.first
-      other -> other
     end)
     |> consolidate_ranges()
   end
@@ -282,5 +292,16 @@ defmodule Tempo.Iso8601.Parser do
 
   def consolidate_ranges([struct | rest]) when is_struct(struct) do
     [struct | consolidate_ranges(rest)]
+  end
+
+  # If the duratation direction is negative, negate all the
+  # units
+
+  def adjust_for_direction([{:direction, :negative} | rest]) do
+    Enum.map(rest, fn {k, v} -> {k, -v} end)
+  end
+
+  def adjust_for_direction(other) do
+    other
   end
 end

@@ -50,8 +50,9 @@ defmodule Tempo.Parser.Selection.Test do
             year: {:mask, [:X, :X, :X, [0, 2, 4, 6, 8]]},
             month: 11,
             selection: [
-              %Tempo.Interval{from: %Tempo{time: [selection: [day_of_week: 1, instance: 1]]}, to: nil, duration: %Tempo.Duration{time: [day: 9]}},
-              [day_of_week: 2, instance: 1]
+              interval: %Tempo.Interval{from: %Tempo{time: [selection: [day_of_week: 1, instance: 1]]}, to: nil, duration: %Tempo.Duration{time: [day: 9]}},
+              day_of_week: 2,
+              instance: 1
             ]
           ]
         }
@@ -106,8 +107,9 @@ defmodule Tempo.Parser.Selection.Test do
       %Tempo{
         time: [
           selection: [
-            %Tempo.Interval{from: %Tempo{time: [month: 4, day: 4]}, to: nil, duration: %Tempo.Duration{time: [direction: :negative, day: 20]}},
-            [day_of_week: 7, instance: -2]
+            interval: %Tempo.Interval{from: %Tempo{time: [month: 4, day: 4]}, to: nil, duration: %Tempo.Duration{time: [day: -20]}},
+            day_of_week: 7,
+            instance: -2
           ]
         ]
       }
