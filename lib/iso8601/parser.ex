@@ -43,7 +43,7 @@ defmodule Tempo.Iso8601.Parser do
     end
   end
 
-  # Date
+  # Time parsing
 
   def parse_date([{:date, date} | rest]) do
     [{:date, parse_date(date)} | parse_date(rest)]

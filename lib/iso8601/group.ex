@@ -31,67 +31,13 @@ defmodule Tempo.Iso8601.Group do
     {:ok, nil}
   end
 
-  # For simple groups of a single unit
-  def expand_groups([{:year, year}, {:group, [{:nth, nth}, {:month, value}]} | rest], calendar)
-      when is_integer(year) do
-    months_in_year = calendar.months_in_year(year)
-    first = (nth - 1) * value + 1
-    last = nth * value
+  # Reformat quarters as groups of months
+  def expand_groups([{:month, month} | rest], calendar) when month in 33..36 do
+    quarter = month - 32
+    start = (quarter - 1) * 3 + 1
+    finish = start + 2
 
-    if first <= months_in_year do
-      last = min(last, months_in_year)
-      expand_groups([{:year, year}, {:month, first..last} | rest])
-    else
-      {:error,
-        "Group would resolve to the range of months #{inspect first..last} which " <>
-        "is outside the number of months for the year #{inspect year} in the " <>
-        "calendar #{inspect calendar}."
-      }
-    end
-  end
-
-  def expand_groups([{:year, year}, {:month, month}, {:group, [{:nth, nth}, {:day, value}]} | rest], calendar)
-      when is_integer(year) and is_integer(month) do
-    days_in_month = calendar.days_in_month(year, month)
-    first = (nth - 1) * value + 1
-    last = nth * value
-
-    if first <= days_in_month do
-      last = min(last, days_in_month)
-      expand_groups([{:year, year}, {:month, month}, {:day, first..last} | rest])
-    else
-      {:error,
-        "Group would resolve to the range of days #{inspect first..last} which " <>
-        "is outside the number of days for the month #{inspect year}-#{inspect month} in the " <>
-        "calendar #{inspect calendar}."
-      }
-    end
-  end
-
-  def expand_groups([{:year, year}, {:group, [{:nth, nth}, {:day, value}]} | rest], calendar)
-      when is_integer(year) do
-    days_in_year = calendar.days_in_year(year)
-    first = (nth - 1) * value + 1
-    last = nth * value
-
-    if first <= days_in_year do
-      last = min(last, days_in_year)
-      expand_groups([{:year, year}, {:day, first..last} | rest])
-    else
-      {:error,
-        "Group would resolve to the range of days #{inspect first..last} which " <>
-        "is outside the number of days for the year #{inspect year} in the " <>
-        "calendar #{inspect calendar}."
-      }
-    end
-  end
-
-  def expand_groups([{:year, year}, {:month, month}, {:group, [{:nth, nth}, {:day, value}]} | rest], _calendar)
-      when is_integer(year) do
-    first = (nth - 1) * value + 1
-    last = nth * value
-
-    expand_groups([{:year, year}, {:month, month}, {:day, first..last} | rest])
+    expand_groups([{:month, start..finish} | rest], calendar)
   end
 
   def expand_groups([{:group, [{:nth, nth}, {unit, value}]} | rest], calendar) do

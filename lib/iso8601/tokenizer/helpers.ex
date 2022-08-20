@@ -58,7 +58,7 @@ defmodule Tempo.Iso8601.Tokenizer.Helpers do
   # Converts quarters to the ISO Standard quarters
   # which are "months" of 33, 34, 35, 36
   def reduce_quarter([int, ?Q]) do
-    82 - int
+    int - 16
   end
 
   def convert_bc([int, "B"]) do

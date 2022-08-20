@@ -104,6 +104,7 @@ defmodule Tempo do
   """
 
   alias Tempo.Iso8601.{Tokenizer, Parser, Group}
+  alias Tempo.Validation
 
   defstruct [:time]
 
@@ -116,6 +117,7 @@ defmodule Tempo do
     |> Tokenizer.tokenize()
     |> Parser.parse()
     |> Group.expand_groups()
+    |> Validation.validate()
   end
 
 end
