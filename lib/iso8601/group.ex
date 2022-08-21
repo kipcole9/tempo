@@ -27,6 +27,11 @@ defmodule Tempo.Iso8601.Group do
     {:ok, %{tempo | from: from, to: to, duration: duration}}
   end
 
+  def expand_groups(%Tempo.Set{set: set} = tempo, calendar) do
+    set = Enum.map(set, &expand_groups(&1, calendar))
+    {:ok, %{tempo | set: set}}
+  end
+
   def expand_groups(nil, _calendar) do
     {:ok, nil}
   end
@@ -45,6 +50,14 @@ defmodule Tempo.Iso8601.Group do
     last = nth * value
 
     expand_groups([{unit, first..last} | rest], calendar)
+  end
+
+  def expand_groups([{:group, [{:all_of, set}, other]} | rest], calendar) do
+    [{:group, [{:all_of, set}, other]} | expand_groups(rest, calendar)]
+  end
+
+  def expand_groups([{:group, [{:one_of, set}, other]} | rest], calendar) do
+    [{:group, [{:one_of, set}, other]} | expand_groups(rest, calendar)]
   end
 
   def expand_groups([{:group, group} | _rest], _calendar) do

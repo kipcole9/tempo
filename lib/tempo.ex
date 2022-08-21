@@ -112,12 +112,12 @@ defmodule Tempo do
     %__MODULE__{time: tokens}
   end
 
-  def from_iso8601(string) do
+  def from_iso8601(string, calendar \\ Cldr.Calendar.Gregorian) do
     string
     |> Tokenizer.tokenize()
     |> Parser.parse()
     |> Group.expand_groups()
-    |> Validation.validate()
+    |> Validation.validate(calendar)
   end
 
 end

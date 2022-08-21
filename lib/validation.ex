@@ -1,4 +1,5 @@
 defmodule Tempo.Validation do
+  @days_in_week 7
   @hours_per_day 24
   # @minutes_per_hour 60
   # @seconds_per_minute 60
@@ -18,6 +19,21 @@ defmodule Tempo.Validation do
     duration = resolve(tempo.duration, calendar)
 
     {:ok, %{tempo | from: from, to: to, duration: duration}}
+  end
+
+  def validate({:ok, %Tempo.Set{set: set} = tempo}, calendar) do
+    validated =
+      Enum.reduce_while set, [], fn elem, acc ->
+        case resolve(elem, calendar) do
+          {:error, reason} -> {:halt, {:error, reason}}
+          other -> {:cont, [other | acc]}
+        end
+      end
+
+    case validated do
+      {:error, reason} -> {:error, reason}
+      resolved -> {:ok, %{tempo | set: Enum.reverse(resolved)}}
+    end
   end
 
   def validate({:error, reason}, _calendar) do
@@ -73,6 +89,46 @@ defmodule Tempo.Validation do
       {:error,
         "#{inspect abs(day)} is greater than #{inspect days_in_group} which " <>
          "is the number of days in the group of months #{inspect months} for the calendar #{inspect calendar}"
+      }
+    end
+  end
+
+  def resolve([{:year, year}, {:week, week}, {:day_of_week, day} | rest], calendar)
+      when is_integer(year) and is_integer(week) and is_integer(day) do
+    weeks_in_year = calendar.weeks_in_year(year)
+    week = if week < 0, do: weeks_in_year + week - 1, else: week
+    day = if day < 0, do: @days_in_week + day - 1, else: day
+
+    if week <= weeks_in_year do
+      if calendar.calendar_base == :month do
+        %Date.Range{first: start_of_week} = calendar.week(year, week)
+        iso_days = Cldr.Calendar.date_to_iso_days(start_of_week) + day - 1
+        {year, month, day} = calendar.date_from_iso_days(iso_days)
+        [{:year, year} | resolve([{:month, month}, {:day, day} | rest], calendar)]
+      else
+        [{:year, year} | resolve([{:week, week}, {:day, day} | rest], calendar)]
+      end
+    else
+      {:error,
+        "#{inspect abs(week)} is greater than #{inspect weeks_in_year} which " <>
+         "is the number of weeks in #{inspect year} for the calendar #{inspect calendar}"
+      }
+    end
+  end
+
+  def resolve([{:year, year}, {:day, day_of_year} | rest], calendar)
+      when is_integer(year) and is_integer(day_of_year) do
+    days_in_year = calendar.days_in_year(year)
+    day_of_year = if day_of_year < 0, do: days_in_year + day_of_year + 1, else: day_of_year
+    day_of_year = min(day_of_year, days_in_year)
+
+    if day_of_year <= days_in_year do
+      %{year: year, month: month, day: day} = Cldr.Calendar.date_from_day_of_year(year, day_of_year, calendar)
+      resolve([{:year, year}, {:month, month}, {:day, day} | rest], calendar)
+    else
+      {:error,
+        "#{inspect abs(day_of_year)} is outside the #{inspect days_in_year} days of the year #{inspect year} " <>
+         "for the calendar #{inspect calendar}"
       }
     end
   end

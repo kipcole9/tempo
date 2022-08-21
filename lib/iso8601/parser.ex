@@ -43,7 +43,31 @@ defmodule Tempo.Iso8601.Parser do
     end
   end
 
-  # Time parsing
+  def parse([all_of: tokens]) do
+    tokens
+    |> parse_set
+    |> Tempo.Set.new(:all)
+  end
+
+  def parse([one_of: tokens]) do
+    tokens
+    |> parse_set
+    |> Tempo.Set.new(:one)
+  end
+
+  def parse_set(set) do
+    Enum.map(set, fn
+      {:range, [{_, from}, {_, to}]} ->
+        {:range, [parse_date(from), parse_date(to)]}
+
+      tempo ->
+        tempo
+        |> elem(1)
+        |> parse_date()
+    end)
+  end
+
+  # Date and time parsing
 
   def parse_date([{:date, date} | rest]) do
     [{:date, parse_date(date)} | parse_date(rest)]
@@ -65,7 +89,7 @@ defmodule Tempo.Iso8601.Parser do
     if Unit.compare(max_1, min_2) == :lt do
       raise Tempo.ParseError, "Group max of #{inspect group_1} is less than group min of #{inspect group_2}"
     else
-      [{:group, group_1} | parse_date([{:group, group_2} | rest])]
+      [{:group, parse_date(group_1)} | parse_date([{:group, group_2} | rest])]
     end
   end
 
@@ -86,7 +110,7 @@ defmodule Tempo.Iso8601.Parser do
     if Unit.compare(unit_2, max) == :gt do
       raise Tempo.ParseError, "#{inspect unit_2} is greater than group max of #{inspect max}"
     else
-      [{:group, group} | parse_date([{unit_2, value_2} | rest])]
+      [{:group, parse_date(group)} | parse_date([{unit_2, value_2} | rest])]
     end
   end
 
@@ -105,6 +129,10 @@ defmodule Tempo.Iso8601.Parser do
   def parse_date([{:duration, duration} | rest]) do
     duration = adjust_for_direction(duration)
     [{:duration, duration} | parse_date(rest)]
+  end
+
+  def parse_date([{:group, group} | rest]) do
+    [{:group, parse_date(group)} | parse_date(rest)]
   end
 
   def parse_date([{component, {:all_of, list}} | rest]) do
@@ -182,7 +210,8 @@ defmodule Tempo.Iso8601.Parser do
   # Helpers
 
   def group_min_max(group) do
-    sorted = Unit.sort(Keyword.delete(group, :nth))
+    group = Keyword.delete(group, :nth) |> Keyword.delete(:all_of) |> Keyword.delete(:one_of)
+    sorted = Unit.sort(group)
     {elem(List.last(sorted), 0), elem(List.first(sorted), 0)}
   end
 
@@ -191,7 +220,7 @@ defmodule Tempo.Iso8601.Parser do
     list
   end
 
-  def reduce_list([struct | _rest] = list) when is_struct(struct) do
+  def reduce_list([%module{} | _rest] = list) when module != Range do
     list
   end
 

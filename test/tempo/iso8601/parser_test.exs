@@ -105,4 +105,80 @@ defmodule Tempo.Iso8601.Parser.Test do
     assert Tempo.from_iso8601("2G2DT6HU") ==
       {:error, "Complex groupings not yet supported. Found [nth: 2, day: 2, hour: 6]"}
   end
+
+  test "Section 6 Sets" do
+    # Section 6.1 Example 1
+    assert Tempo.from_iso8601("{1960,1961,1962,1963}") ==
+      {:ok, %Tempo{time: [year: [1960..1963]]}}
+
+    # Section 6.1 Example 2
+    assert Tempo.from_iso8601("{1960,1961-12}")
+      {:ok, %Tempo.Set{type: :all, set: [[year: 1960], [year: 1961, month: 12]]}}
+
+    # Section 6.2 Example 1
+    assert Tempo.from_iso8601("[1984,1986,1988]")
+      {:ok, %Tempo.Set{type: :one, set: [[year: 1984], [year: 1986], [year: 1988]]}}
+
+    # Section 6.2 Example 2
+    assert Tempo.from_iso8601("[1667,1760-12]")
+      {:ok, %Tempo.Set{type: :one, set: [[year: 1667], [year: 1760, month: 12]]}}
+
+    # Section 6.4 Example 1
+    assert Tempo.from_iso8601("{1667,1668,1670..1672}") ==
+      {:ok, %Tempo{time: [year: [1667..1668, 1670..1672]]}}
+
+    # Section 6.4 Example 2
+    assert Tempo.from_iso8601("[1760-01,1760-02,1760-12..]")
+      {:ok,
+       %Tempo.Set{
+         type: :one,
+         set: [
+           [year: 1760, month: 1],
+           [year: 1760, month: 2],
+           [[year: 1760, month: 12], :undefined]
+         ]
+       }}
+
+    # Section 6.4 Example 3
+    assert Tempo.from_iso8601("{1M2S..1M5S}") ==
+      {:ok,
+       %Tempo.Set{
+         type: :all,
+         set: [range: [[minute: 1, second: 2], [minute: 1, second: 5]]]
+       }}
+
+    # Section 6.4 Example 4
+    assert Tempo.from_iso8601("[1M2S,1M3S]") ==
+      {:ok,
+        %Tempo.Set{type: :one, set: [[minute: 1, second: 2], [minute: 1, second: 3]]}}
+
+    # Section 6.6 Example 3
+    assert Tempo.from_iso8601("2018-{1,3,5}G2MU") ==
+      {:ok, %Tempo{time: [year: 2018, group: [all_of: [1, 3, 5], month: 2]]}}
+
+  end
+
+  test "Section 7 Dates" do
+    # Section 7.2.3 Example 1
+    assert Tempo.from_iso8601("1985Y102O") ==
+      {:ok, %Tempo{time: [year: 1985, month: 4, day: 12]}}
+
+    # Section 7.2.4 Example 1 with month based calendar
+    assert Tempo.from_iso8601("1985Y15W7K") ==
+      {:ok, %Tempo{time: [year: 1985, month: 4, day: 14]}}
+
+    # Section 7.2.4 Example 1 with week based calendar
+    assert Tempo.from_iso8601("1985Y15W7K", Cldr.Calendar.ISOWeek) ==
+      {:ok, %Tempo{time: [year: 1985, week: 15, day: 7]}}
+  end
+
+  test "Section 7.3 Time" do
+    # Section 7.3.1 Example 1
+    assert Tempo.from_iso8601("T23H20M50S") ==
+      {:ok, %Tempo{time: [hour: 23, minute: 20, second: 50]}}
+
+    # Section 7.3.1 Example 2
+    assert Tempo.from_iso8601("T23H20M") ==
+      {:ok, %Tempo{time: [hour: 23, minute: 20]}}
+  end
 end
