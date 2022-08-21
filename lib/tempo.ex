@@ -106,10 +106,11 @@ defmodule Tempo do
   alias Tempo.Iso8601.{Tokenizer, Parser, Group}
   alias Tempo.Validation
 
-  defstruct [:time]
+  defstruct [:time, :shift]
 
   def new(tokens) do
-    %__MODULE__{time: tokens}
+    {shift, time} = Keyword.pop(tokens, :time_shift)
+    %__MODULE__{time: time, shift: shift}
   end
 
   def from_iso8601(string, calendar \\ Cldr.Calendar.Gregorian) do

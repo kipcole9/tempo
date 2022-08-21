@@ -1,5 +1,5 @@
 defmodule TempoTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: true
 
   doctest Tempo
 

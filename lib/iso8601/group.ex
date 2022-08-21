@@ -36,6 +36,10 @@ defmodule Tempo.Iso8601.Group do
     {:ok, nil}
   end
 
+  def expand_groups(:undefined, _calendar) do
+    {:ok, :undefined}
+  end
+
   # Reformat quarters as groups of months
   def expand_groups([{:month, month} | rest], calendar) when month in 33..36 do
     quarter = month - 32

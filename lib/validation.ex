@@ -6,10 +6,10 @@ defmodule Tempo.Validation do
 
   def validate(tempo, calendar \\ Cldr.Calendar.Gregorian)
 
-  def validate({:ok, %Tempo{time: units}}, calendar) do
+  def validate({:ok, %Tempo{time: units} = tempo}, calendar) do
     case resolve(units, calendar) do
       {:error, reason} -> {:error, reason}
-      other -> {:ok, %Tempo{time: other}}
+      other -> {:ok, %{tempo | time: other}}
     end
   end
 
@@ -208,6 +208,36 @@ defmodule Tempo.Validation do
          "is the number of months in #{inspect year} for the calendar #{inspect calendar}"
       }
     end
+  end
+
+  def resolve([{:hour, hour}], _calendar) when is_float(hour) do
+    int_hour = trunc(hour)
+    fraction_of_hour = hour - int_hour
+
+    if fraction_of_hour == 0 do
+      [{:hour, int_hour}]
+    else
+      minutes = 60 * fraction_of_hour
+      minutes = if trunc(minutes) == minutes, do: trunc(minutes), else: minutes
+      [{:hour, int_hour}, {:minute, minutes}]
+    end
+  end
+
+  def resolve([{:minute, minute}], _calendar) when is_float(minute) do
+    int_minute = trunc(minute)
+    fraction_of_minute = minute - int_minute
+
+    if fraction_of_minute == 0 do
+      [{:minute, int_minute}]
+    else
+      seconds = 60 * fraction_of_minute
+      seconds = if trunc(seconds) == seconds, do: trunc(seconds), else: seconds
+      [{:minute, int_minute}, {:second, seconds}]
+    end
+  end
+
+  def resolve([first | rest], calendar) do
+    [resolve(first, calendar) | resolve(rest, calendar)]
   end
 
   def resolve(other, _calendar) do

@@ -89,11 +89,11 @@ defmodule Tempo.Iso8601.Parser.Test do
 
     # 5.4.4 Example 1
     assert Tempo.from_iso8601("2018Y3G60DU6DZ-5H") ==
-      {:ok, %Tempo{time: [year: 2018, month: 5, day: 6, time_shift: [hour: -5]]}}
+      {:ok, %Tempo{time: [year: 2018, month: 5, day: 6], shift: [hour: -5]}}
 
     # 5.4.4 Example 2
     assert Tempo.from_iso8601("2018Y3G60DU6DZ8H") ==
-      {:ok, %Tempo{time: [year: 2018, month: 5, day: 6, time_shift: [hour: 8]]}}
+      {:ok, %Tempo{time: [year: 2018, month: 5, day: 6], shift: [hour: 8]}}
 
     # 5.4.5.2 Example
     assert Tempo.from_iso8601("2018Y9M4G8DU") ==
@@ -187,63 +187,63 @@ defmodule Tempo.Iso8601.Parser.Test do
 
     # Section 7.4 Example 1
     assert Tempo.from_iso8601("Z-5H") ==
-      {:ok, %Tempo{time: [time_shift: [hour: -5]]}}
+      {:ok, %Tempo{time: [], shift: [hour: -5]}}
 
     # Section 7.4 Example 2
     assert Tempo.from_iso8601("Z8H") ==
-      {:ok, %Tempo{time: [time_shift: [hour: 8]]}}
+      {:ok, %Tempo{time: [], shift: [hour: 8]}}
 
     # Section 7.4 Example 3
     assert Tempo.from_iso8601("Z28H") ==
-      {:ok, %Tempo{time: [time_shift: [hour: 28]]}}
+      {:ok, %Tempo{time: [], shift: [hour: 28]}}
 
     # Section 7.4 Example 4
     assert Tempo.from_iso8601("Z6H0M") ==
-      {:ok, %Tempo{time: [time_shift: [hour: 6, minute: 0]]}}
+      {:ok, %Tempo{time: [], shift: [hour: 6, minute: 0]}}
 
     # Section 7.4 Example 5
     assert Tempo.from_iso8601("Z7H33M14S") ==
-      {:ok, %Tempo{time: [time_shift: [hour: 7, minute: 33, second: 14]]}}
+      {:ok, %Tempo{time: [], shift: [hour: 7, minute: 33, second: 14]}}
 
     # Section 7.4 Example 6
     assert Tempo.from_iso8601("Z") ==
-      {:ok, %Tempo{time: [time_shift: [hour: 0]]}}
+      {:ok, %Tempo{time: [], shift: [hour: 0]}}
 
     # Section 7.4 Example 7
     assert Tempo.from_iso8601("Z0H0M") ==
-      {:ok, %Tempo{time: [time_shift: [hour: 0, minute: 0]]}}
+      {:ok, %Tempo{time: [], shift: [hour: 0, minute: 0]}}
 
     # Section 7.4 Example 8
     assert Tempo.from_iso8601("Z0S")
-      {:ok, %Tempo{time: [time_shift: [second: 0]]}}
+      {:ok, %Tempo{time: [], shift: [second: 0]}}
 
   end
 
   test "Section 7.5 Date Shift" do
     # Section 7.5 Example 1
     assert Tempo.from_iso8601("1985Y4M12DZ-5H") ==
-      {:ok, %Tempo{time: [year: 1985, month: 4, day: 12, time_shift: [hour: -5]]}}
+      {:ok, %Tempo{time: [year: 1985, month: 4, day: 12], shift: [hour: -5]}}
 
     # Section 7.5 Example 2
     assert Tempo.from_iso8601("2018Y9M12DZ8H") ==
-      {:ok, %Tempo{time: [year: 2018, month: 9, day: 12, time_shift: [hour: 8]]}}
+      {:ok, %Tempo{time: [year: 2018, month: 9, day: 12], shift: [hour: 8]}}
   end
 
   test "Section 7.6 Time with Time Shift" do
     # Section 7.6 Example 1
     assert Tempo.from_iso8601("T23H20M50SZ")
-     {:ok, %Tempo{time: [hour: 23, minute: 20, second: 50, time_shift: [hour: 0]]}}
+     {:ok, %Tempo{time: [hour: 23, minute: 20, second: 50], shift: [hour: 0]}}
 
     # Section 7.6 Example 2
     assert Tempo.from_iso8601("T23H20M50SZ-5H0M") ==
      {:ok,
       %Tempo{
-        time: [hour: 23, minute: 20, second: 50, time_shift: [hour: -5, minute: 0]]
+        time: [hour: 23, minute: 20, second: 50], shift: [hour: -5, minute: 0]
       }}
 
     # Section 7.6 Example 3
     assert Tempo.from_iso8601("T23H20M50SZ8H") ==
-      {:ok, %Tempo{time: [hour: 23, minute: 20, second: 50, time_shift: [hour: 8]]}}
+      {:ok, %Tempo{time: [hour: 23, minute: 20, second: 50], shift: [hour: 8]}}
   end
 
   test "Section 7.7 Date and Time of Day" do
@@ -262,9 +262,9 @@ defmodule Tempo.Iso8601.Parser.Test do
            day: 12,
            hour: 23,
            minute: 20,
-           second: 30,
-           time_shift: [hour: 8]
-         ]
+           second: 30
+          ],
+        shift: [hour: 8]
        }}
   end
 
@@ -286,5 +286,33 @@ defmodule Tempo.Iso8601.Parser.Test do
     # Section 7.9 Example 2
     assert Tempo.from_iso8601("3C") ==
       {:ok, %Tempo{time: [year: 300..399]}}
+  end
+
+  test "Section 7.12 Fractions for time" do
+    # Section 7.12 Example 1
+    assert Tempo.from_iso8601("2018Y8M8DT0,5H") ==
+      {:ok, %Tempo{time: [year: 2018, month: 8, day: 8, hour: 0, minute: 30]}}
+
+    # Section 7.12 Example 2
+    assert Tempo.from_iso8601("2018Y8M8DT10H30.5M") ==
+      {:ok, %Tempo{time: [year: 2018, month: 8, day: 8, hour: 10, minute: 30, second: 30]}}
+
+    # Section 7.12 Example 3
+    assert Tempo.from_iso8601("2018Y8M8DT10H30M15,3S") ==
+      {:ok,
+       %Tempo{
+         time: [year: 2018, month: 8, day: 8, hour: 10, minute: 30, second: 15.3]
+       }}
+  end
+
+  test "The universe - big bang to big crunch" do
+    assert Tempo.from_iso8601("R/-13.787E9±20E6Y/..") ==
+      {:ok,
+       %Tempo.Interval{
+         recurrence: :infinity,
+         from: %Tempo{time: [year: {-13787000000, [margin_of_error: 20000000]}]},
+         to: :undefined,
+         duration: nil
+       }}
   end
 end

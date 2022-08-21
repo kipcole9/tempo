@@ -25,9 +25,9 @@ defmodule Tempo.Parser.Selection.Test do
        %Tempo{time: [
          year: ["X*"],
          selection: [month: 11, day_of_week: 4, instance: 4],
-         hour: 17,
-         time_shift: [hour: -5]
-       ]}}
+         hour: 17],
+         shift: [hour: -5]
+       }}
 
     # first Thursday after April 18th
     assert Tempo.from_iso8601("L4M{19..26}D4K1IN") ==
