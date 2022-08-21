@@ -580,14 +580,10 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
 
   def explicit_time_shift do
     shift_indicator()
-    |> choice([
-      explicit_hour()
-      |> concat(explicit_minute()),
-
-      explicit_hour(),
-
-      eos()
-    ])
+    |> optional(explicit_hour())
+    |> optional(explicit_minute())
+    |> optional(explicit_second())
+    |> eos()
     |> reduce(:resolve_shift)
     |> unwrap_and_tag(:time_shift)
   end
