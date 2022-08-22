@@ -36,6 +36,9 @@ defmodule Tempo.Iso8601.Unit do
     end
   end
 
+  # Returns a boolean depending on whether the units are
+  # in an appropriate order of increasing resolution
+
   def ordered?([unit, :group | rest]) when is_atom(unit) do
     ordered?([unit | rest])
   end

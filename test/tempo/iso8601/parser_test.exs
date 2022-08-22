@@ -323,25 +323,61 @@ defmodule Tempo.Iso8601.Parser.Test do
     assert Tempo.from_iso8601("1985Y2.5M1D") ==
       {:error,
          "A fractional unit can only be used for the highest resolution unit (smallest time unit)"}
+
+    assert Tempo.from_iso8601("1985Y1M5.5D") ==
+      {:ok,
+        %Tempo{
+          time: [year: 1985, month: 1, day: 5, hour: 12],
+          shift: nil,
+          calendar: Cldr.Calendar.Gregorian
+        }
+      }
+
+    assert Tempo.from_iso8601("1985Y1M5.6D") ==
+      {:ok,
+        %Tempo{
+          time: [year: 1985, month: 1, day: 5, hour: 14, minute: 24],
+          shift: nil,
+          calendar: Cldr.Calendar.Gregorian
+        }
+      }
+
+    assert Tempo.from_iso8601("1985.5Y") ==
+      {:ok,
+        %Tempo{
+          time: [year: 1985, month: 7, day: 1, hour: 12],
+          shift: nil,
+          calendar: Cldr.Calendar.Gregorian
+        }
+      }
+
+    assert Tempo.from_iso8601("1985Y2.5M") ==
+      {:ok,
+          %Tempo{
+          time: [year: 1985, month: 2, day: 14],
+          shift: nil,
+          calendar: Cldr.Calendar.Gregorian
+        }
+      }
   end
-  
+
   test "Negative days and months" do
     import Tempo.Sigil
-    
+
     assert ~o"1985Y-10M" ==
       %Tempo{
         time: [year: 1985, month: 3],
         shift: nil,
         calendar: Cldr.Calendar.Gregorian
       }
-      
+
     assert ~o"1985Y-11M-1D" ==
       %Tempo{
         time: [year: 1985, month: 2, day: 28],
         shift: nil,
         calendar: Cldr.Calendar.Gregorian
       }
-      
+
     assert ~o"2000Y-11M-1D" ==
       %Tempo{
         time: [year: 2000, month: 2, day: 29],
