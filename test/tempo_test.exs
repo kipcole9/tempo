@@ -28,7 +28,7 @@ defmodule TempoTest do
   # 5.4.2 Group Example 8
   test "times that are two following groups of the same unit" do
     assert Tempo.from_iso8601("201J2G5YU3DT10H0S") ==
-      {:ok, %Tempo{time: [year: [2015..2019], day: 3, hour: 10, second: 0]}}
+      {:ok, %Tempo{time: [year: [2015..2019], day: 3, hour: 10, minute: 0, second: 0]}}
 
   end
 end

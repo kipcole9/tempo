@@ -236,6 +236,15 @@ defmodule Tempo.Validation do
     end
   end
 
+  # Fill in the blanks with default unit values
+  def resolve([{unit_1, value_1}, {:minute, minute} | rest], calendar) when unit_1 != :hour do
+    resolve([{unit_1, value_1}, {:hour, 0}, {:minute, minute} | rest], calendar)
+  end
+
+  def resolve([{unit_1, value_1}, {:second, second} | rest], calendar) when unit_1 != :minute do
+    resolve([{unit_1, value_1}, {:minute, 0}, {:second, second} | rest], calendar)
+  end
+
   def resolve([first | rest], calendar) do
     [resolve(first, calendar) | resolve(rest, calendar)]
   end
@@ -243,6 +252,8 @@ defmodule Tempo.Validation do
   def resolve(other, _calendar) do
     other
   end
+
+  ### Helpers
 
   def year_and_month(years, month, calendar) do
     return =

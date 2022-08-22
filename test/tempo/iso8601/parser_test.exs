@@ -67,7 +67,7 @@ defmodule Tempo.Iso8601.Parser.Test do
 
     # 5.4.2 Example 8
     assert Tempo.from_iso8601("201J2G5YU3DT10H0S") ==
-      {:ok, %Tempo{time: [year: [2015..2019], day: 3, hour: 10, second: 0]}}
+      {:ok, %Tempo{time: [year: [2015..2019], day: 3, hour: 10, minute: 0, second: 0]}}
 
     # 5.4.2 Example 9
     assert Tempo.from_iso8601("2018Y3G60DU6D") ==
