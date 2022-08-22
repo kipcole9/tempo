@@ -12,6 +12,7 @@ defmodule Tempo.Iso8601.Group do
   def expand_groups(%Tempo{time: time} = tempo, calendar) do
     case expand_groups(time, calendar) do
       {:error, reason} -> {:error, reason}
+      %Tempo.Interval{} = interval -> {:ok, interval}
       time -> {:ok, %{tempo | time: time}}
     end
   end
@@ -44,64 +45,42 @@ defmodule Tempo.Iso8601.Group do
     {:ok, :undefined}
   end
 
+  # Seasons:  These are meteorological seasons, not
+  # astronomical
+  # TODO implement astronomical seasons as an option
+
   # Northern Spring March-May
-  def expand_groups([{:month, 25} | rest], calendar) do
+  # Southern Autumn - March-May
+  def expand_groups([{:month, month} | rest], calendar) when month in [25, 31] do
     expand_groups([{:month, 3..5} | rest], calendar)
   end
 
   # Northern Summer June-August
-  def expand_groups([{:month, 26} | rest], calendar) do
+  # Southern Winter - June-August
+  def expand_groups([{:month, month} | rest], calendar) when month in [26, 32] do
     expand_groups([{:month, 6..8} | rest], calendar)
   end
 
   # Northern Autumn September-November
-  def expand_groups([{:month, 27} | rest], calendar) do
+  # Southern Spring - September-November
+  def expand_groups([{:month, month} | rest], calendar) when month in [27, 29] do
     expand_groups([{:month, 9..11} | rest], calendar)
   end
 
   # Northern Winter Jan-Feb and December (of the previous year)
-  # Convert to an interval
-  # FIXME Seasons are groups, not ranges or intervals. Need to offset rest from the start
-  def expand_groups([{:year, year}, {:month, 28} | rest], calendar) do
-    [
-      interval: [
-        datetime: [{:year, year - 1}, {:month, 12} | rest],
-        datetime: [{:year, year}, {:month, 2} | rest]
-      ]
-    ]
-    |> Tempo.Iso8601.Parser.parse()
-    |> Tempo.Iso8601.Group.expand_groups(calendar)
-    |> elem(1)
-  end
-
-  # Southern Spring - September-November
-  def expand_groups([{:month, 29} | rest], calendar) do
-    expand_groups([{:month, 9..11} | rest], calendar)
-  end
-
   # Southern Summer - December, January-February (of the next year)
-  # Convert to interval
-  # FIXME Seasons are groups, not ranges or intervals. Need to offset rest from the start
-  def expand_groups([{:year, year}, {:month, 30} | rest], calendar) do
-    [
-      interval: [
-        datetime: [{:year, year - 1}, {:month, 12} | rest],
-        datetime: [{:year, year}, {:month, 2} | rest]
+  def expand_groups([{:year, year}, {:month, month} | rest], calendar) when month in [28, 30] do
+    {:ok, interval} =
+      [
+        interval: [
+          datetime: [{:year, year - 1}, {:month, 12}],
+          datetime: [{:year, year}, {:month, 2}]
+        ]
       ]
-    ]
-    |> Tempo.Iso8601.Parser.parse()
-    |> Tempo.Iso8601.Group.expand_groups(calendar)
-    |> elem(1)
-  end
+      |> Tempo.Iso8601.Parser.parse()
+      |> Tempo.Iso8601.Group.expand_groups(calendar)
 
-  # Southern Autumn - March-May
-  def expand_groups([{:month, 31} | rest], calendar) do
-    expand_groups([{:month, 3..5} | rest], calendar)
-  end
-
-  # Southern Winter - June-August
-  def expand_groups([{:month, 32} | rest], calendar) do
-    expand_groups([{:month, 6..8} | rest], calendar)
+    expand_groups([{:group, interval} | rest], calendar)
   end
 
   # Reformat quarters as groups of months
