@@ -106,19 +106,54 @@ defmodule Tempo do
   alias Tempo.Iso8601.{Tokenizer, Parser, Group}
   alias Tempo.Validation
 
-  defstruct [:time, :shift]
+  defstruct [:time, :shift, :calendar]
 
-  def new(tokens) do
+  def new(tokens, calendar \\ Cldr.Calendar.Gregorian) do
     {shift, time} = Keyword.pop(tokens, :time_shift)
-    %__MODULE__{time: time, shift: shift}
+    %__MODULE__{time: time, shift: shift, calendar: calendar}
   end
 
   def from_iso8601(string, calendar \\ Cldr.Calendar.Gregorian) do
     string
     |> Tokenizer.tokenize()
     |> Parser.parse()
+    |> put_calendar(calendar)
     |> Group.expand_groups()
     |> Validation.validate(calendar)
   end
 
+  def from_date(%{year: year, month: month, day: day, calendar: calendar}) do
+    new([year: year, month: month, day: day, calendar: calendar])
+  end
+
+  def resolution(%__MODULE__{time: units}) do
+    case hd(Enum.reverse(units)) do
+      {:group, group} -> group
+      {unit, _value} -> unit
+    end
+  end
+
+  defp put_calendar({:ok, %__MODULE__{} = tempo}, calendar) do
+    {:ok, put_calendar(tempo, calendar)}
+  end
+
+  defp put_calendar(%__MODULE__{} = tempo, calendar) do
+    %{tempo | calendar: calendar}
+  end
+
+  defp put_calendar(nil, _calendar) do
+    nil
+  end
+
+  defp put_calendar({:ok, %Tempo.Interval{} = interval}, calendar) do
+    {:ok, put_calendar(interval, calendar)}
+  end
+
+  defp put_calendar(%Tempo.Interval{from: from, to: to} = interval, calendar) do
+    %{interval | from: put_calendar(from, calendar), to: put_calendar(to, calendar)}
+  end
+
+  defp put_calendar(other, _calendar) do
+    other
+  end
 end

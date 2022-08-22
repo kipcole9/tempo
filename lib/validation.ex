@@ -4,21 +4,35 @@ defmodule Tempo.Validation do
   # @minutes_per_hour 60
   # @seconds_per_minute 60
 
-  def validate(tempo, calendar \\ Cldr.Calendar.Gregorian)
+  def validate(tempo, calendar)
 
-  def validate({:ok, %Tempo{time: units} = tempo}, calendar) do
+  def validate({:ok, %Tempo{} = tempo}, calendar) do
+    validate(tempo, calendar)
+  end
+
+  def validate(%Tempo{time: units} = tempo, calendar) do
     case resolve(units, calendar) do
       {:error, reason} -> {:error, reason}
       other -> {:ok, %{tempo | time: other}}
     end
   end
 
+  # TODO Check that the second time is after the first (ISO expectation)
+  # TODO Adjust the second time if its time shift is different to the first
   def validate({:ok, %Tempo.Interval{} = tempo}, calendar) do
-    from = resolve(tempo.from, calendar)
-    to = resolve(tempo.to, calendar)
-    duration = resolve(tempo.duration, calendar)
+    with {:ok, from} <- validate(tempo.from, calendar),
+         {:ok, to} <- validate(tempo.to, calendar),
+         {:ok, duration} <- validate(tempo.duration, calendar) do
+      {:ok, %{tempo | from: from, to: to, duration: duration}}
+    end
+  end
 
-    {:ok, %{tempo | from: from, to: to, duration: duration}}
+  def validate({:ok, %Tempo.Duration{} = duration}, calendar) do
+    validate(duration, calendar)
+  end
+
+  def validate(%Tempo.Duration{} = duration, _calendar) do
+    {:ok, duration}
   end
 
   def validate({:ok, %Tempo.Set{set: set} = tempo}, calendar) do
@@ -26,7 +40,7 @@ defmodule Tempo.Validation do
       Enum.reduce_while set, [], fn elem, acc ->
         case resolve(elem, calendar) do
           {:error, reason} -> {:halt, {:error, reason}}
-          other -> {:cont, [other | acc]}
+          units -> {:cont, [units | acc]}
         end
       end
 
@@ -34,6 +48,14 @@ defmodule Tempo.Validation do
       {:error, reason} -> {:error, reason}
       resolved -> {:ok, %{tempo | set: Enum.reverse(resolved)}}
     end
+  end
+
+  def validate(nil, _calendar) do
+    {:ok, nil}
+  end
+
+  def validate(:undefined, _calendar) do
+    {:ok, :undefined}
   end
 
   def validate({:error, reason}, _calendar) do
@@ -245,8 +267,16 @@ defmodule Tempo.Validation do
     resolve([{unit_1, value_1}, {:minute, 0}, {:second, second} | rest], calendar)
   end
 
-  def resolve([first | rest], calendar) do
-    [resolve(first, calendar) | resolve(rest, calendar)]
+  # Make sure only the last element is a fraction
+  def resolve([{_unit, fraction}, {_unit_2, _value} | _rest], _calendar) when is_float(fraction) do
+    {:error, "A fractional unit can only be used for the highest resolution unit (smallest time unit)"}
+  end
+
+  def resolve([{unit, _value} = first | rest], calendar) do
+   with {^unit, _} = first <- resolve(first, calendar),
+        rest when is_list(rest) <- resolve(rest, calendar) do
+      [first | rest]
+    end
   end
 
   def resolve(other, _calendar) do
