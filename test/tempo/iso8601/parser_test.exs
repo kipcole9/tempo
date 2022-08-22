@@ -324,4 +324,29 @@ defmodule Tempo.Iso8601.Parser.Test do
       {:error,
          "A fractional unit can only be used for the highest resolution unit (smallest time unit)"}
   end
+  
+  test "Negative days and months" do
+    import Tempo.Sigil
+    
+    assert ~o"1985Y-10M" ==
+      %Tempo{
+        time: [year: 1985, month: 3],
+        shift: nil,
+        calendar: Cldr.Calendar.Gregorian
+      }
+      
+    assert ~o"1985Y-11M-1D" ==
+      %Tempo{
+        time: [year: 1985, month: 2, day: 28],
+        shift: nil,
+        calendar: Cldr.Calendar.Gregorian
+      }
+      
+    assert ~o"2000Y-11M-1D" ==
+      %Tempo{
+        time: [year: 2000, month: 2, day: 29],
+        shift: nil,
+        calendar: Cldr.Calendar.Gregorian
+      }
+  end
 end
