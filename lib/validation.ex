@@ -66,7 +66,7 @@ defmodule Tempo.Validation do
     days_in_week = calendar.days_in_week()
     day = if day < 0, do: days_in_week + day + 1, else: day
 
-    if abs(day) <= days_in_week do
+    if abs(day) in 1..days_in_week do
       [{:day_of_week, day} | resolve(rest, calendar)]
     else
       {:error,
@@ -81,7 +81,7 @@ defmodule Tempo.Validation do
   def resolve([{unit, %Range{} = range1}, {unit, %Range{} = range2} | rest], calendar) do
     first = range1.first + range2.first - 1
 
-    if first <= range1.last do
+    if first in 1..range1.last do
       last = min(range1.last, first + range2.last - range2.first)
       resolve([{unit, [first..last]} | rest], calendar)
     else
@@ -98,7 +98,7 @@ defmodule Tempo.Validation do
       |> Enum.map(&calendar.months_in_year/1)
       |> Enum.sum()
 
-    if abs(month) <= months_in_group do
+    if abs(month) in 1..months_in_group do
       month = if month < 0, do: months_in_group + month + 1, else: month
       {:ok, year, month} = year_and_month(years, month, calendar)
       resolve([{:year, year}, {:month, month} | rest], calendar)
@@ -117,7 +117,7 @@ defmodule Tempo.Validation do
       |> Enum.map(&calendar.days_in_month(year, &1))
       |> Enum.sum()
 
-    if abs(day) <= days_in_group do
+    if abs(day) in 1..days_in_group do
       day = if day < 0, do: days_in_group + day + 1, else: day
       {:ok, month, day} = month_and_day(year, months, day, calendar)
       resolve([{:year, year}, {:month, month}, {:day, day} | rest], calendar)
@@ -135,7 +135,7 @@ defmodule Tempo.Validation do
     week = if week < 0, do: weeks_in_year + week - 1, else: week
 
     with [day_of_week: day] <- resolve([day_of_week: day], calendar) do
-      if week <= weeks_in_year do
+      if week in 1..weeks_in_year do
         if calendar.calendar_base == :month do
           %Date.Range{first: start_of_week} = calendar.week(year, week)
           iso_days = Cldr.Calendar.date_to_iso_days(start_of_week) + day - 1
@@ -159,7 +159,7 @@ defmodule Tempo.Validation do
     day_of_year = if day_of_year < 0, do: days_in_year + day_of_year + 1, else: day_of_year
     day_of_year = min(day_of_year, days_in_year)
 
-    if day_of_year <= days_in_year do
+    if day_of_year in 1..days_in_year do
       %{year: year, month: month, day: day} = Cldr.Calendar.date_from_day_of_year(year, day_of_year, calendar)
       resolve([{:year, year}, {:month, month}, {:day, day} | rest], calendar)
     else
@@ -177,7 +177,7 @@ defmodule Tempo.Validation do
     last = min(last, days_in_year)
     day = if day < 0, do: last + day + 1, else: first + day - 1
 
-    if first <= days_in_year and day <= last do
+    if first in 1..days_in_year and day <= last do
       %{year: year, month: month, day: day} = Cldr.Calendar.date_from_day_of_year(year, day, calendar)
       resolve([{:year, year}, {:month, month}, {:day, day} | rest], calendar)
     else
@@ -195,7 +195,7 @@ defmodule Tempo.Validation do
     last = min(last, hours_in_year)
     hour = if hour < 0, do: last + hour + 1, else: first + hour - 1
 
-    if first <= hours_in_year and hour <= last do
+    if first in 1..hours_in_year and hour <= last do
       day = div(hour, @hours_per_day) + 1
       hour = rem(hour, @hours_per_day)
       %{year: year, month: month, day: day} = Cldr.Calendar.date_from_day_of_year(year, day, calendar)
@@ -209,20 +209,22 @@ defmodule Tempo.Validation do
   end
 
   def resolve([{:year, year}, {:month, month}, {:day, day} | rest], calendar)
-      when is_integer(year) and is_integer(month) and month > 0 and is_integer(day) and day < 0 do
-    days_in_month = calendar.days_in_month(year, month)
-    day = days_in_month + day + 1
+      when is_integer(year) and is_integer(month) and is_integer(day) do
+    with [{:year, year}, {:month, month}] <- resolve([{:year, year}, {:month, month}], calendar) do
+      days_in_month = calendar.days_in_month(year, month)
+      day = if day < 0, do: days_in_month + day + 1, else: day
 
-    if day <= days_in_month do
-      case resolve(rest, calendar) do
-        {:error, reason} -> {:error, reason}
-        other -> [{:year, year}, {:month, month}, {:day, day} | other]
+      if day in 1..days_in_month do
+        case resolve(rest, calendar) do
+          {:error, reason} -> {:error, reason}
+          other -> [{:year, year}, {:month, month}, {:day, day} | other]
+        end
+      else
+        {:error,
+          "#{inspect day} is greater than #{inspect days_in_month} which " <>
+           "is the number of days in #{inspect year}-#{inspect month} for the calendar #{inspect calendar}"
+        }
       end
-    else
-      {:error,
-        "#{inspect day} is greater than #{inspect days_in_month} which " <>
-         "is the number of days in #{inspect year}-#{inspect month} for the calendar #{inspect calendar}"
-      }
     end
   end
 
@@ -237,11 +239,26 @@ defmodule Tempo.Validation do
       when is_integer(year) and is_integer(month) and month < 0 do
     months_in_year = calendar.months_in_year(year)
 
-    if abs(month) <= months_in_year do
+    if abs(month) in 1..months_in_year do
       resolve([{:year, year}, {:month, months_in_year + month + 1} | rest], calendar)
     else
       {:error,
         "#{inspect abs(month)} is greater than #{inspect months_in_year} which " <>
+         "is the number of months in #{inspect year} for the calendar #{inspect calendar}"
+      }
+    end
+  end
+
+  def resolve([{:year, year}, {:month, requested_month} | rest], calendar)
+      when is_integer(year) and is_integer(requested_month) do
+    months_in_year = calendar.months_in_year(year)
+    month = if requested_month < 0, do: months_in_year + requested_month + 1, else: requested_month
+
+    if month in 1..months_in_year do
+       [{:year, year} | resolve([{:month, month} | rest], calendar)]
+    else
+      {:error,
+        "#{inspect abs(requested_month)} is greater than #{inspect months_in_year} which " <>
          "is the number of months in #{inspect year} for the calendar #{inspect calendar}"
       }
     end

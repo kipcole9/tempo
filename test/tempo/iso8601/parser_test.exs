@@ -384,6 +384,14 @@ defmodule Tempo.Iso8601.Parser.Test do
         shift: nil,
         calendar: Cldr.Calendar.Gregorian
       }
+
+    assert Tempo.from_iso8601("2022Y-13M31D") ==
+      {:error,
+       "13 is greater than 12 which is the number of months in 2022 for the calendar Cldr.Calendar.Gregorian"}
+
+    assert Tempo.from_iso8601("2022Y-13M") ==
+      {:error,
+       "13 is greater than 12 which is the number of months in 2022 for the calendar Cldr.Calendar.Gregorian"}
   end
 
   test "Day of week adheres to calendar limit" do
@@ -416,7 +424,7 @@ defmodule Tempo.Iso8601.Parser.Test do
        "8 is greater than 7 which is the number of days in a week for the calendar Cldr.Calendar.ISOWeek"}
   end
 
-  test "Quarters and Semestrals" do
+  test "Quarters, Quadrimesters and Semestrals" do
     assert Tempo.from_iso8601("2022Y1Q") ==
       {:ok,
         %Tempo{time: [month: 1..3], shift: nil, calendar: Cldr.Calendar.Gregorian}}
@@ -432,6 +440,18 @@ defmodule Tempo.Iso8601.Parser.Test do
     assert Tempo.from_iso8601("2022Y4Q") ==
       {:ok,
         %Tempo{time: [month: 10..12], shift: nil, calendar: Cldr.Calendar.Gregorian}}
+
+    assert Tempo.from_iso8601("2022Y37M") ==
+      {:ok,
+       %Tempo{time: [month: 1..4], shift: nil, calendar: Cldr.Calendar.Gregorian}}
+
+    assert Tempo.from_iso8601("2022Y38M") ==
+      {:ok,
+       %Tempo{time: [month: 5..8], shift: nil, calendar: Cldr.Calendar.Gregorian}}
+
+    assert Tempo.from_iso8601("2022Y39M") ==
+      {:ok,
+       %Tempo{time: [month: 9..12], shift: nil, calendar: Cldr.Calendar.Gregorian}}
 
     assert Tempo.from_iso8601("2022Y1H") ==
       {:ok,

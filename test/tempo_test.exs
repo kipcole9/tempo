@@ -4,9 +4,6 @@ defmodule TempoTest do
   doctest Tempo
 
   test "times with groups that can be expanded and resolved" do
-    assert Tempo.from_iso8601("2018Y9M4G8DU") ==
-      {:ok, %Tempo{calendar: Cldr.Calendar.Gregorian, time: [year: 2018, month: 9, day: 25..30]}}
-
     assert Tempo.from_iso8601("2018Y1G6MU") ==
       {:ok, %Tempo{calendar: Cldr.Calendar.Gregorian, time: [year: 2018, month: 1..6]}}
 

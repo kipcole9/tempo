@@ -1,5 +1,6 @@
 defmodule Tempo.Iso8601.Group do
   @quarters_in_year 4
+  @quadrimesters_in_year 3
   @semestrals_in_year 2
 
   def expand_groups(tempo, calendar \\ Cldr.Calendar.Gregorian)
@@ -43,6 +44,66 @@ defmodule Tempo.Iso8601.Group do
     {:ok, :undefined}
   end
 
+  # Northern Spring March-May
+  def expand_groups([{:month, 25} | rest], calendar) do
+    expand_groups([{:month, 3..5} | rest], calendar)
+  end
+
+  # Northern Summer June-August
+  def expand_groups([{:month, 26} | rest], calendar) do
+    expand_groups([{:month, 6..8} | rest], calendar)
+  end
+
+  # Northern Autumn September-November
+  def expand_groups([{:month, 27} | rest], calendar) do
+    expand_groups([{:month, 9..11} | rest], calendar)
+  end
+
+  # Northern Winter Jan-Feb and December (of the previous year)
+  # Convert to an interval
+  # FIXME Seasons are groups, not ranges or intervals. Need to offset rest from the start
+  def expand_groups([{:year, year}, {:month, 28} | rest], calendar) do
+    [
+      interval: [
+        datetime: [{:year, year - 1}, {:month, 12} | rest],
+        datetime: [{:year, year}, {:month, 2} | rest]
+      ]
+    ]
+    |> Tempo.Iso8601.Parser.parse()
+    |> Tempo.Iso8601.Group.expand_groups(calendar)
+    |> elem(1)
+  end
+
+  # Southern Spring - September-November
+  def expand_groups([{:month, 29} | rest], calendar) do
+    expand_groups([{:month, 9..11} | rest], calendar)
+  end
+
+  # Southern Summer - December, January-February (of the next year)
+  # Convert to interval
+  # FIXME Seasons are groups, not ranges or intervals. Need to offset rest from the start
+  def expand_groups([{:year, year}, {:month, 30} | rest], calendar) do
+    [
+      interval: [
+        datetime: [{:year, year - 1}, {:month, 12} | rest],
+        datetime: [{:year, year}, {:month, 2} | rest]
+      ]
+    ]
+    |> Tempo.Iso8601.Parser.parse()
+    |> Tempo.Iso8601.Group.expand_groups(calendar)
+    |> elem(1)
+  end
+
+  # Southern Autumn - March-May
+  def expand_groups([{:month, 31} | rest], calendar) do
+    expand_groups([{:month, 3..5} | rest], calendar)
+  end
+
+  # Southern Winter - June-August
+  def expand_groups([{:month, 32} | rest], calendar) do
+    expand_groups([{:month, 6..8} | rest], calendar)
+  end
+
   # Reformat quarters as groups of months
   def expand_groups([{:year, year}, {:month, month} | rest], calendar)
       when is_integer(year) and month in 33..36 do
@@ -56,7 +117,20 @@ defmodule Tempo.Iso8601.Group do
     expand_groups([{:month, start..finish} | rest], calendar)
   end
 
-  # Reformat semestrals as groups of months
+  # Reformat quadrimester (third of a year) as groups of months
+  def expand_groups([{:year, year}, {:month, month} | rest], calendar)
+      when is_integer(year) and month in 37..39 do
+    months_in_year = calendar.months_in_year(year)
+    months_in_quadrimester = div(months_in_year, @quadrimesters_in_year)
+
+    quadrimester = month - 36
+    start = (quadrimester - 1) * months_in_quadrimester + 1
+    finish = if quadrimester == @quadrimesters_in_year, do: months_in_year, else: start + months_in_quadrimester - 1
+
+    expand_groups([{:month, start..finish} | rest], calendar)
+  end
+
+  # Reformat semestrals (half a year) as groups of months
   def expand_groups([{:year, year}, {:month, month} | rest], calendar)
       when is_integer(year) and month in 40..41 do
     months_in_year = calendar.months_in_year(year)
