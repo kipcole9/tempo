@@ -311,11 +311,11 @@ defmodule Tempo.Iso8601.Parser.Test do
   test "The universe - big bang to big crunch" do
     assert Tempo.from_iso8601("R/-13.787E9±20E6Y/..") ==
       {:ok,
-       %Tempo.Interval{
-         recurrence: :infinity,
-         from: %Tempo{calendar: Cldr.Calendar.Gregorian, time: [year: {-13787000000, [margin_of_error: 20000000]}]},
-         to: :undefined,
-         duration: nil
+        %Tempo.Interval{
+          recurrence: :infinity,
+          from: %Tempo{calendar: Cldr.Calendar.Gregorian, time: [year: {-13787000000, [margin_of_error: 20000000]}]},
+          to: :undefined,
+          duration: nil
        }}
   end
 
@@ -384,5 +384,35 @@ defmodule Tempo.Iso8601.Parser.Test do
         shift: nil,
         calendar: Cldr.Calendar.Gregorian
       }
+  end
+
+  test "Day of week adheres to calendar limit" do
+    assert Tempo.from_iso8601("2022Y1W-7K") ==
+      {:ok,
+       %Tempo{
+         time: [year: 2021, month: 12, day: 27],
+         shift: nil,
+         calendar: Cldr.Calendar.Gregorian
+       }}
+
+    assert Tempo.from_iso8601("2022Y1W7K") ==
+      {:ok,
+       %Tempo{
+         time: [year: 2022, month: 1, day: 2],
+         shift: nil,
+         calendar: Cldr.Calendar.Gregorian
+       }}
+
+    assert Tempo.from_iso8601("2022Y1W7K", Cldr.Calendar.ISOWeek) ==
+      {:ok,
+       %Tempo{
+         time: [year: 2022, week: 1, day: 7],
+         shift: nil,
+         calendar: Cldr.Calendar.ISOWeek
+       }}
+
+    assert Tempo.from_iso8601("2022Y1W8K", Cldr.Calendar.ISOWeek) ==
+      {:error,
+       "8 is greater than 7 which is the number of days in a week for the calendar Cldr.Calendar.ISOWeek"}
   end
 end

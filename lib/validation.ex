@@ -1,5 +1,4 @@
 defmodule Tempo.Validation do
-  @days_in_week 7
   @hours_per_day 24
   # @minutes_per_hour 60
   # @seconds_per_minute 60
@@ -63,6 +62,20 @@ defmodule Tempo.Validation do
     {:error, reason}
   end
 
+  def resolve([{:day_of_week, day} | rest], calendar) do
+    days_in_week = calendar.days_in_week()
+    day = if day < 0, do: days_in_week + day + 1, else: day
+
+    if abs(day) <= days_in_week do
+      [{:day_of_week, day} | resolve(rest, calendar)]
+    else
+      {:error,
+        "#{inspect abs(day)} is greater than #{days_in_week} which is the number " <>
+         "of days in a week for the calendar #{inspect calendar}"
+      }
+    end
+  end
+
   # When a group of years succeeds a century or decade
   # Here we merge into a set
   def resolve([{unit, %Range{} = range1}, {unit, %Range{} = range2} | rest], calendar) do
@@ -120,22 +133,23 @@ defmodule Tempo.Validation do
       when is_integer(year) and is_integer(week) and is_integer(day) do
     weeks_in_year = calendar.weeks_in_year(year)
     week = if week < 0, do: weeks_in_year + week - 1, else: week
-    day = if day < 0, do: @days_in_week + day - 1, else: day
 
-    if week <= weeks_in_year do
-      if calendar.calendar_base == :month do
-        %Date.Range{first: start_of_week} = calendar.week(year, week)
-        iso_days = Cldr.Calendar.date_to_iso_days(start_of_week) + day - 1
-        {year, month, day} = calendar.date_from_iso_days(iso_days)
-        [{:year, year} | resolve([{:month, month}, {:day, day} | rest], calendar)]
+    with [day_of_week: day] <- resolve([day_of_week: day], calendar) do
+      if week <= weeks_in_year do
+        if calendar.calendar_base == :month do
+          %Date.Range{first: start_of_week} = calendar.week(year, week)
+          iso_days = Cldr.Calendar.date_to_iso_days(start_of_week) + day - 1
+          {year, month, day} = calendar.date_from_iso_days(iso_days)
+          [{:year, year} | resolve([{:month, month}, {:day, day} | rest], calendar)]
+        else
+          [{:year, year} | resolve([{:week, week}, {:day, day} | rest], calendar)]
+        end
       else
-        [{:year, year} | resolve([{:week, week}, {:day, day} | rest], calendar)]
+        {:error,
+          "#{inspect abs(week)} is greater than #{inspect weeks_in_year} which " <>
+           "is the number of weeks in #{inspect year} for the calendar #{inspect calendar}"
+        }
       end
-    else
-      {:error,
-        "#{inspect abs(week)} is greater than #{inspect weeks_in_year} which " <>
-         "is the number of weeks in #{inspect year} for the calendar #{inspect calendar}"
-      }
     end
   end
 
