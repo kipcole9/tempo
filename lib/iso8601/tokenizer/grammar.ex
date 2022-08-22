@@ -379,7 +379,8 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
     choice([
       parsec(:group),
       positive_integer_or_integer_set(:month, 2),
-      quarter()
+      quarter(),
+      half()
     ])
 
   end
@@ -389,7 +390,8 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
       parsec(:group),
       parsec(:selection),
       maybe_negative_number_or_integer_set("M", :month, min: 1),
-      quarter()
+      quarter(),
+      half()
     ])
   end
 

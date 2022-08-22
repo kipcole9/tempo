@@ -1,4 +1,7 @@
 defmodule Tempo.Iso8601.Group do
+  @quarters_in_year 4
+  @semestrals_in_year 2
+
   def expand_groups(tempo, calendar \\ Cldr.Calendar.Gregorian)
 
   def expand_groups({:ok, tempo}, calendar) do
@@ -41,10 +44,27 @@ defmodule Tempo.Iso8601.Group do
   end
 
   # Reformat quarters as groups of months
-  def expand_groups([{:month, month} | rest], calendar) when month in 33..36 do
+  def expand_groups([{:year, year}, {:month, month} | rest], calendar)
+      when is_integer(year) and month in 33..36 do
+    months_in_year = calendar.months_in_year(year)
+    months_in_quarter = div(months_in_year, @quarters_in_year)
+
     quarter = month - 32
-    start = (quarter - 1) * 3 + 1
-    finish = start + 2
+    start = (quarter - 1) * months_in_quarter + 1
+    finish = if quarter == @quarters_in_year, do: months_in_year, else: start + months_in_quarter - 1
+
+    expand_groups([{:month, start..finish} | rest], calendar)
+  end
+
+  # Reformat semestrals as groups of months
+  def expand_groups([{:year, year}, {:month, month} | rest], calendar)
+      when is_integer(year) and month in 40..41 do
+    months_in_year = calendar.months_in_year(year)
+    months_in_semestral = div(months_in_year, @semestrals_in_year)
+
+    semestral = month - 39
+    start = (semestral - 1) * months_in_semestral + 1
+    finish = if semestral == @semestrals_in_year, do: months_in_year, else: start + months_in_semestral - 1
 
     expand_groups([{:month, start..finish} | rest], calendar)
   end

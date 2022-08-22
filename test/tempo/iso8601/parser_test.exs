@@ -415,4 +415,30 @@ defmodule Tempo.Iso8601.Parser.Test do
       {:error,
        "8 is greater than 7 which is the number of days in a week for the calendar Cldr.Calendar.ISOWeek"}
   end
+
+  test "Quarters and Semestrals" do
+    assert Tempo.from_iso8601("2022Y1Q") ==
+      {:ok,
+        %Tempo{time: [month: 1..3], shift: nil, calendar: Cldr.Calendar.Gregorian}}
+
+    assert Tempo.from_iso8601("2022Y2Q") ==
+      {:ok,
+        %Tempo{time: [month: 4..6], shift: nil, calendar: Cldr.Calendar.Gregorian}}
+
+    assert Tempo.from_iso8601("2022Y3Q") ==
+      {:ok,
+        %Tempo{time: [month: 7..9], shift: nil, calendar: Cldr.Calendar.Gregorian}}
+
+    assert Tempo.from_iso8601("2022Y4Q") ==
+      {:ok,
+        %Tempo{time: [month: 10..12], shift: nil, calendar: Cldr.Calendar.Gregorian}}
+
+    assert Tempo.from_iso8601("2022Y1H") ==
+      {:ok,
+        %Tempo{time: [month: 1..6], shift: nil, calendar: Cldr.Calendar.Gregorian}}
+
+    assert Tempo.from_iso8601("2022Y2H") ==
+      {:ok,
+        %Tempo{time: [month: 7..12], shift: nil, calendar: Cldr.Calendar.Gregorian}}
+  end
 end

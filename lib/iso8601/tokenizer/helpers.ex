@@ -55,10 +55,23 @@ defmodule Tempo.Iso8601.Tokenizer.Helpers do
     |> unwrap_and_tag(:month)
   end
 
+  def half do
+    ascii_char([?1..?2])
+    |> ascii_char([?H])
+    |> reduce(:reduce_half)
+    |> unwrap_and_tag(:month)
+  end
+
   # Converts quarters to the ISO Standard quarters
   # which are "months" of 33, 34, 35, 36
   def reduce_quarter([int, ?Q]) do
     int - 16
+  end
+
+  # Converts semestral (half) to the ISO Standard semestrals
+  # which are "months" of 40 and 41
+  def reduce_half([int, ?H]) do
+    int - 9
   end
 
   def convert_bc([int, "B"]) do
