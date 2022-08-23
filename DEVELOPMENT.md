@@ -41,9 +41,14 @@
 
 * https://control.com/technical-articles/what-is-the-difference-between-accuracy-precision-and-resolution/
 
-
 ## Priorities
 
 1. Enumeration
 2. Comparison
 3. Arithmetic
+
+### Operations
+
+* merge -> two become one, changes the span of the interval potentially. Overwrites.
+* blend -> two become one, changes the span of the interval potentially, does not overwrite.
+* zoom -> changes resolution with no change to the interval

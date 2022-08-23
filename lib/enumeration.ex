@@ -1,5 +1,7 @@
 defimpl Enumerable, for: Tempo do
   alias Tempo.Algebra
+  alias Tempo.Validation
+
 
   # Count can be calculated from ranges/sets in all
   # cases except where there is groupgin involved and therefore
@@ -30,8 +32,16 @@ defimpl Enumerable, for: Tempo do
   @impl Enumerable
   def reduce(enum, {:cont, acc}, fun) do
     case Algebra.next(enum) do
-      nil -> {:done, acc}
-      next -> reduce(next, fun.(Algebra.collect(next), acc), fun)
+      nil ->
+        {:done, acc}
+
+      next ->
+        {:ok, tempo} =
+          next
+          |> Algebra.collect()
+          |> Validation.validate(next.calendar)
+
+        reduce(next, fun.(tempo, acc), fun)
     end
   end
 
