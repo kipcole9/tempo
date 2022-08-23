@@ -3,11 +3,11 @@ defmodule Tempo.Iso8601.Parser.Test do
 
   test "Parsing centuries and decades resolves to a year group" do
     assert Tempo.from_iso8601("20C") ==
-      {:ok, Tempo.new([year: 2000..2099])}
+      {:ok, Tempo.new([year: {:group, 2000..2099}])}
     assert Tempo.from_iso8601("200J") ==
-      {:ok, Tempo.new([year: 2000..2009])}
+      {:ok, Tempo.new([year: {:group, 2000..2009}])}
     assert Tempo.from_iso8601("199J") ==
-      {:ok, Tempo.new([year: 1990..1999])}
+      {:ok, Tempo.new([year: {:group, 1990..1999}])}
     assert Tempo.from_iso8601("{1990..1999}Y") ==
       {:ok, Tempo.new([year: [1990..1999]])}
   end
@@ -15,11 +15,11 @@ defmodule Tempo.Iso8601.Parser.Test do
   test "Section 5: groups" do
     # 5.3 Example 1
     assert Tempo.from_iso8601("5G10DU") ==
-      {:ok, %Tempo{calendar: Cldr.Calendar.Gregorian, time: [day: 41..50]}}
+      {:ok, %Tempo{calendar: Cldr.Calendar.Gregorian, time: [day: {:group, 41..50}]}}
 
     # 5.3 Example 2
     assert Tempo.from_iso8601("20GT30MU") ==
-      {:ok, %Tempo{calendar: Cldr.Calendar.Gregorian, time: [minute: 571..600]}}
+      {:ok, %Tempo{calendar: Cldr.Calendar.Gregorian, time: [minute: {:group, 571..600}]}}
 
     # 5.4.1 Example 1
     assert Tempo.from_iso8601("2018Y4G60DU6D") ==
@@ -31,15 +31,15 @@ defmodule Tempo.Iso8601.Parser.Test do
 
     # 5.4.1 Example 4
     assert Tempo.from_iso8601("2018Y2M2G14DU") ==
-      {:ok, %Tempo{calendar: Cldr.Calendar.Gregorian, time: [year: 2018, month: 2, day: 15..28]}}
+      {:ok, %Tempo{calendar: Cldr.Calendar.Gregorian, time: [year: 2018, month: 2, day: {:group, 15..28}]}}
 
     # 5.4.1 Example 5
     assert Tempo.from_iso8601("T16H1GT15MU") ==
-      {:ok, %Tempo{calendar: Cldr.Calendar.Gregorian, time: [hour: 16, minute: 1..15]}}
+      {:ok, %Tempo{calendar: Cldr.Calendar.Gregorian, time: [hour: 16, minute: {:group, 1..15}]}}
 
     # 5.4.1 Example 6
     assert Tempo.from_iso8601("2018Y1G6MU") ==
-      {:ok, %Tempo{calendar: Cldr.Calendar.Gregorian, time: [year: 2018, month: 1..6]}}
+      {:ok, %Tempo{calendar: Cldr.Calendar.Gregorian, time: [year: 2018, month: {:group, 1..6}]}}
 
     # 5.4.2 Example 2
     assert Tempo.from_iso8601("10C5G20YU") ==
@@ -47,19 +47,19 @@ defmodule Tempo.Iso8601.Parser.Test do
 
     # 5.4.2 Example 3
     assert Tempo.from_iso8601("1933Y1G80DU") ==
-      {:ok, %Tempo{calendar: Cldr.Calendar.Gregorian, time: [year: 1933, day: 1..80]}}
+      {:ok, %Tempo{calendar: Cldr.Calendar.Gregorian, time: [year: 1933, day: {:group, 1..80}]}}
 
     # 5.4.2 Example 4
     assert Tempo.from_iso8601("1543Y1M3G5DU") ==
-      {:ok, %Tempo{calendar: Cldr.Calendar.Gregorian, time: [year: 1543, month: 1, day: 11..15]}}
+      {:ok, %Tempo{calendar: Cldr.Calendar.Gregorian, time: [year: 1543, month: 1, day: {:group, 11..15}]}}
 
     # 5.4.2 Example 5
     assert Tempo.from_iso8601("110Y2G3MU") ==
-      {:ok, %Tempo{calendar: Cldr.Calendar.Gregorian, time: [year: 110, month: 4..6]}}
+      {:ok, %Tempo{calendar: Cldr.Calendar.Gregorian, time: [year: 110, month: {:group, 4..6}]}}
 
     # 5.4.2 Example 6
     assert Tempo.from_iso8601("6GT2HU") ==
-      {:ok, %Tempo{calendar: Cldr.Calendar.Gregorian, time: [hour: 11..12]}}
+      {:ok, %Tempo{calendar: Cldr.Calendar.Gregorian, time: [hour: {:group, 11..12}]}}
 
     # 5.4.2 Example 7
     assert Tempo.from_iso8601("2018Y2G3MU50D") ==
@@ -97,7 +97,7 @@ defmodule Tempo.Iso8601.Parser.Test do
 
     # 5.4.5.2 Example
     assert Tempo.from_iso8601("2018Y9M4G8DU") ==
-      {:ok, %Tempo{calendar: Cldr.Calendar.Gregorian, time: [year: 2018, month: 9, day: 25..30]}}
+      {:ok, %Tempo{calendar: Cldr.Calendar.Gregorian, time: [year: 2018, month: 9, day: {:group, 25..30}]}}
   end
 
   test "todo tests" do
@@ -273,21 +273,21 @@ defmodule Tempo.Iso8601.Parser.Test do
   test "Section 7.8 Decades" do
     # Section 7.8 Example 1
     assert Tempo.from_iso8601("188J") ==
-      {:ok, %Tempo{calendar: Cldr.Calendar.Gregorian, time: [year: 1880..1889]}}
+      {:ok, %Tempo{calendar: Cldr.Calendar.Gregorian, time: [year: {:group, 1880..1889}]}}
 
     # Section 7.8 Example 2
     assert Tempo.from_iso8601("18J") ==
-      {:ok, %Tempo{calendar: Cldr.Calendar.Gregorian, time: [year: 180..189]}}
+      {:ok, %Tempo{calendar: Cldr.Calendar.Gregorian, time: [year: {:group, 180..189}]}}
   end
 
   test "Section 7.9 Centuries" do
     # Section 7.9 Example 1
     assert Tempo.from_iso8601("13C") ==
-      {:ok, %Tempo{calendar: Cldr.Calendar.Gregorian, time: [year: 1300..1399]}}
+      {:ok, %Tempo{calendar: Cldr.Calendar.Gregorian, time: [year: {:group, 1300..1399}]}}
 
     # Section 7.9 Example 2
     assert Tempo.from_iso8601("3C") ==
-      {:ok, %Tempo{calendar: Cldr.Calendar.Gregorian, time: [year: 300..399]}}
+      {:ok, %Tempo{calendar: Cldr.Calendar.Gregorian, time: [year: {:group, 300..399}]}}
   end
 
   test "Section 7.12 Fractions for time" do

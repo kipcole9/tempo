@@ -129,8 +129,18 @@ defmodule Tempo do
   def resolution(%__MODULE__{time: units}) do
     case hd(Enum.reverse(units)) do
       {:group, group} -> group
-      {unit, _value} -> unit
+      {unit, %Range{last: last}} -> {unit, last}
+      {unit, {_value, meta}} -> {unit, Keyword.get(meta, :margin_of_error, 1)}
+      {unit, _value} -> {unit, 1}
     end
+  end
+
+  def anchored?(%__MODULE__{time: [{:year, _year} | rest]}) do
+    true
+  end
+
+  def anchored?(%__MODULE__{}) do
+    false
   end
 
   defp put_calendar({:ok, %__MODULE__{} = tempo}, calendar) do

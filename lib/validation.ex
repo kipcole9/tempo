@@ -78,7 +78,7 @@ defmodule Tempo.Validation do
 
   # When a group of years succeeds a century or decade
   # Here we merge into a set
-  def resolve([{unit, %Range{} = range1}, {unit, %Range{} = range2} | rest], calendar) do
+  def resolve([{unit, {:group, %Range{} = range1}}, {unit, {:group, %Range{} = range2}} | rest], calendar) do
     first = range1.first + range2.first - 1
 
     if first in 1..range1.last do
@@ -92,7 +92,7 @@ defmodule Tempo.Validation do
     end
   end
 
-  def resolve([{:year, %Range{} = years}, {:month, month} | rest], calendar) when is_integer(month) do
+  def resolve([{:year, {:group, %Range{} = years}}, {:month, month} | rest], calendar) when is_integer(month) do
     months_in_group =
       years
       |> Enum.map(&calendar.months_in_year/1)
@@ -110,7 +110,7 @@ defmodule Tempo.Validation do
     end
   end
 
-  def resolve([{:year, year}, {:month, %Range{} = months}, {:day, day} | rest], calendar)
+  def resolve([{:year, year}, {:month, {:group, %Range{} = months}}, {:day, day} | rest], calendar)
       when is_integer(year) and is_integer(day) do
     days_in_group =
       months
@@ -170,7 +170,7 @@ defmodule Tempo.Validation do
     end
   end
 
-  def resolve([{:year, year}, {:day, %Range{} = days_of_year}, {:day, day} | rest], calendar)
+  def resolve([{:year, year}, {:day, {:group, %Range{} = days_of_year}}, {:day, day} | rest], calendar)
       when is_integer(year) and is_integer(day) do
     %{first: first, last: last} = days_of_year
     days_in_year = calendar.days_in_year(year)
@@ -188,7 +188,7 @@ defmodule Tempo.Validation do
     end
   end
 
-  def resolve([{:year, year}, {:hour, %Range{} = hours_of_year}, {:hour, hour} | rest], calendar)
+  def resolve([{:year, year}, {:hour, {:group, %Range{} = hours_of_year}}, {:hour, hour} | rest], calendar)
       when is_integer(year) and is_integer(hour) do
     %{first: first, last: last} = hours_of_year
     hours_in_year = calendar.days_in_year(year) * @hours_per_day
@@ -228,11 +228,11 @@ defmodule Tempo.Validation do
     end
   end
 
-  def resolve([{:year, year}, {:month, month}, {:day, %Range{} = days} | rest], calendar)
+  def resolve([{:year, year}, {:month, month}, {:day, {:group, %Range{} = days}} | rest], calendar)
       when is_integer(year) and is_integer(month) do
 
     max_days = calendar.days_in_month(year, month)
-    [{:year, year}, {:month, month}, {:day, %{days | last: min(max_days, days.last)}} | resolve(rest, calendar)]
+    [{:year, year}, {:month, month}, {:day, {:group, %{days | last: min(max_days, days.last)}}} | resolve(rest, calendar)]
   end
 
   def resolve([{:year, year}, {:month, month} | rest], calendar)

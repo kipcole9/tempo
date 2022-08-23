@@ -126,7 +126,7 @@ defmodule Tempo.Iso8601.Group do
     first = (nth - 1) * value + 1
     last = nth * value
 
-    expand_groups([{unit, first..last} | rest], calendar)
+    expand_groups([{unit, {:group, first..last}} | rest], calendar)
   end
 
   def expand_groups([{:group, [{:all_of, set}, other]} | rest], calendar) do
