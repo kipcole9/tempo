@@ -361,7 +361,7 @@ defmodule Tempo.Iso8601.Parser.Test do
       }
   end
 
-  test "Negative days and months" do
+  test "Negative seconds, minutes, hours, days and months" do
     import Tempo.Sigil
 
     assert ~o"1985Y-10M" ==
@@ -384,6 +384,22 @@ defmodule Tempo.Iso8601.Parser.Test do
         shift: nil,
         calendar: Cldr.Calendar.Gregorian
       }
+
+    assert Tempo.from_iso8601("T-1H") ==
+      {:ok, %Tempo{time: [hour: 23], shift: nil, calendar: Cldr.Calendar.Gregorian}}
+
+    assert Tempo.from_iso8601("T-1M") ==
+      {:ok, %Tempo{time: [minute: 59], shift: nil, calendar: Cldr.Calendar.Gregorian}}
+
+    assert Tempo.from_iso8601("T-1S") ==
+      {:ok, %Tempo{time: [second: 59], shift: nil, calendar: Cldr.Calendar.Gregorian}}
+
+    assert Tempo.from_iso8601("T-24H") ==
+      {:ok, %Tempo{time: [hour: 0], shift: nil, calendar: Cldr.Calendar.Gregorian}}
+
+    assert Tempo.from_iso8601("T-25H") ==
+      {:error,
+       "25 is greater than 24 which is the number of hours in a day for the calendar Cldr.Calendar.Gregorian"}
 
     assert Tempo.from_iso8601("2022Y-13M31D") ==
       {:error,

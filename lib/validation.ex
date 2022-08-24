@@ -1,6 +1,6 @@
 defmodule Tempo.Validation do
   @hours_per_day 24
-  # @minutes_per_hour 60
+  @minutes_per_hour 60
   # @seconds_per_minute 60
   @rounding_precision 10
 
@@ -360,6 +360,34 @@ defmodule Tempo.Validation do
   # Make sure only the last element is a fraction
   def resolve([{_unit, fraction}, {_unit_2, _value} | _rest], _calendar) when is_float(fraction) do
     {:error, "A fractional unit can only be used for the highest resolution unit (smallest time unit)"}
+  end
+
+  def resolve([{:hour, requested_hour} | rest], calendar) when is_integer(requested_hour) do
+    hour = if requested_hour < 0, do: @hours_per_day + requested_hour, else: requested_hour
+
+    if hour in 0..@hours_per_day - 1 do
+       [{:hour, hour} | resolve(rest, calendar)]
+    else
+      {:error,
+        "#{inspect abs(requested_hour)} is greater than #{inspect @hours_per_day} which " <>
+         "is the number of hours in a day for the calendar #{inspect calendar}"
+      }
+    end
+  end
+
+  def resolve([{unit, requested} | rest], calendar)
+      when unit in [:minute, :second] and is_integer(requested) do
+    part = if requested < 0, do: @minutes_per_hour + requested, else: requested
+
+    if part in 0..@minutes_per_hour - 1 do
+       [{unit, part} | resolve(rest, calendar)]
+    else
+      parent = if unit == :minute, do: "an hour", else: "a minute"
+      {:error,
+        "#{inspect abs(requested)} is greater than #{inspect @minutes_per_hour} which " <>
+         "is the number of #{unit}s in #{parent} for the calendar #{inspect calendar}"
+      }
+    end
   end
 
   def resolve([{unit, _value} = first | rest], calendar) do
