@@ -11,10 +11,14 @@ defmodule Tempo.Validation do
   end
 
   def validate(%Tempo{time: units} = tempo, calendar) do
-    case resolve(units, calendar) do
+    case validate(units, calendar) do
       {:error, reason} -> {:error, reason}
       other -> {:ok, %{tempo | time: other}}
     end
+  end
+
+  def validate(units, calendar) when is_list(units) do
+    resolve(units, calendar)
   end
 
   # TODO Check that the second time is after the first (ISO expectation)

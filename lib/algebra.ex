@@ -1,4 +1,5 @@
 defmodule Tempo.Algebra do
+  alias Tempo.Validation
 
   @doc """
   Expand a Tempo expression that might have
@@ -57,7 +58,7 @@ defmodule Tempo.Algebra do
     end
   end
 
-  def do_next([]) do
+  def do_next([], _previous) do
     []
   end
 
@@ -66,7 +67,7 @@ defmodule Tempo.Algebra do
   # end
 
   def do_next([{unit, h} | t], previous) when is_atom(unit) and is_list(h) do
-    [{unit, cycle(h, previous)} | List.wrap(do_next(t, [h | previous]))]
+    [{unit, cycle(h, unit, previous)} | List.wrap(do_next(t, [{unit, h} | previous]))]
   end
 
   # def do_next([h | t]) when is_list(h) do
@@ -83,7 +84,7 @@ defmodule Tempo.Algebra do
   end
 
   def do_next([{unit, {acc, fun}} | t], previous) when is_atom(unit) and is_function(fun) do
-    case do_next(t) do
+    case do_next(t, previous) do
       {state, list} when state in [:rollover, :no_cycles] ->
         case fun.(previous) do
           {{:rollover, acc}, fun} ->
@@ -127,52 +128,72 @@ defmodule Tempo.Algebra do
   the rollover.
 
   """
-  def cycle(source, previous) when is_list(source) do
-    cycle(source, source, previous)
+  def cycle(source, unit, previous) when is_list(source) do
+    cycle(source, source, unit, previous)
   end
 
-  def cycle(%Range{} = range, previous) do
-    cycle(range, range, previous)
-  end
+  # def cycle(%Range{} = range, unit, previous) do
+  #   cycle(range, range, unit, previous)
+  # end
 
-  defp cycle(source, list, previous) when is_list(list)do
+  defp cycle(source, list, unit, previous) when is_list(list)do
     case list do
       [] ->
-        rollover(source, previous)
+        rollover(source, unit, previous)
 
       [%Range{step: step} = range | tail] when step < 1 ->
-         %Range{first: first, last: last, step: step} = adjusted_range(range, previous)
-        {first, fn previous -> cycle(source, [(first + step)..last//step | tail], previous) end}
+        %Range{first: first, last: last, step: step} = adjusted_range(range, unit, previous)
+        {first, fn previous -> cycle(source, [(first + step)..last//step | tail], unit, previous) end}
 
       [%Range{first: first, last: last, step: step} | tail] when first <= last ->
-        {first, fn previous -> cycle(source, [(first + step)..last//step | tail], previous) end}
+        {first, fn previous -> cycle(source, [(first + step)..last//step | tail], unit, previous) end}
 
       [%Range{}] ->
-        rollover(source, previous)
+        rollover(source, unit, previous)
 
       [%Range{}, next | tail] ->
-        {next, fn previous -> cycle(source, tail, previous) end}
+        {next, fn previous -> cycle(source, tail, unit, previous) end}
 
       [head | tail] ->
-        {head, fn previous -> cycle(source, tail, previous) end}
+        {head, fn previous -> cycle(source, tail, unit, previous) end}
     end
   end
 
-  defp rollover([h | t] = source, previous) do
+  defp rollover([h | t] = source, unit, previous) do
     case h do
       %Range{step: step} = range when step < 1 ->
-        %Range{first: first, last: last, step: step} = adjusted_range(range, previous)
-        {{:rollover, first}, fn -> cycle(source, [(first + step)..last//step | t], previous) end}
+        %Range{first: first, last: last, step: step} = adjusted_range(range, unit, previous)
+        {{:rollover, first}, fn -> cycle(source, [(first + step)..last//step | t], unit, previous) end}
       %Range{first: first, last: last, step: step} ->
-        {{:rollover, first}, fn -> cycle(source, [(first + step)..last//step | t], previous) end}
+        {{:rollover, first}, fn -> cycle(source, [(first + step)..last//step | t], unit, previous) end}
       first ->
-        {{:rollover, first}, fn -> cycle(source, t, previous) end}
+        {{:rollover, first}, fn -> cycle(source, t, unit, previous) end}
     end
   end
 
-  defp adjusted_range(_range, _previous) do
-    1..2
+  defp adjusted_range(range, unit, previous) do
+    units = [{unit, range} | current_units(previous)] |> Enum.reverse()
+
+    {_unit, range} =
+      units
+      |> Validation.validate(Cldr.Calendar.Gregoriana)
+      |> Enum.reverse()
+      |> hd
+
+    range
   end
+
+  def current_units(units) do
+    Enum.map units, fn
+      {unit, list} when is_list(list) -> {unit, extract_first(list)}
+      {unit, {current, _fun}} -> {unit, current}
+      {:no_cycles, list} -> list
+      {unit, value} -> {unit, value}
+    end
+  end
+
+  def extract_first([%Range{first: first} | _rest]), do: first
+  def extract_first([first | _rest]), do: first
 
   @doc """
   Strips the functions from return tuples to produce
