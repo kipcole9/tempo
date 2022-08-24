@@ -461,4 +461,10 @@ defmodule Tempo.Iso8601.Parser.Test do
       {:ok,
         %Tempo{time: [month: 7..12], shift: nil, calendar: Cldr.Calendar.Gregorian}}
   end
+
+  test "Integer sets with negative bounds" do
+    assert Tempo.from_iso8601("T{-4..-1}H") ==
+      {:ok,
+        %Tempo{time: [hour: [-4..-1]], shift: nil, calendar: Cldr.Calendar.Gregorian}}
+  end
 end

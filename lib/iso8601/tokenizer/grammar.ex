@@ -644,6 +644,10 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
     first..last
   end
 
+  def range([[first, "..", ?-, last]]) when is_integer(first) and is_integer(last) do
+    first..-last
+  end
+
   def range([:undefined, {_type, other}]) do
     {:range, [:undefined, other]}
   end
