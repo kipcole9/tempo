@@ -50,7 +50,7 @@ defmodule Tempo.Algebra do
   end
 
   def next(list) when is_list(list) do
-    case do_next(list) do
+    case do_next(list, []) do
       {:rollover, _list} -> nil
       {:no_cycles, _list} -> nil
       list -> list
@@ -65,16 +65,16 @@ defmodule Tempo.Algebra do
   #   [cycle(h) | List.wrap(do_next(t))]
   # end
 
-  def do_next([{unit, h} | t]) when is_atom(unit) and is_list(h) do
-    [{unit, cycle(h)} | List.wrap(do_next(t))]
+  def do_next([{unit, h} | t], previous) when is_atom(unit) and is_list(h) do
+    [{unit, cycle(h, previous)} | List.wrap(do_next(t, [h | previous]))]
   end
 
   # def do_next([h | t]) when is_list(h) do
   #   [cycle(h) | List.wrap(do_next(t))]
   # end
 
-  def do_next([{unit, {_acc, fun}}]) when is_atom(unit) and is_function(fun) do
-    case fun.() do
+  def do_next([{unit, {_acc, fun}}], previous) when is_atom(unit) and is_function(fun) do
+    case fun.(previous) do
       {{:rollover, acc}, fun} ->
         {:rollover, [{unit, {acc, fun}}]}
       {acc, fun} ->
@@ -82,19 +82,10 @@ defmodule Tempo.Algebra do
     end
   end
 
-  # def do_next([{_acc, fun}]) when is_function(fun) do
-  #   case fun.() do
-  #     {{:rollover, acc}, fun} ->
-  #       {:rollover, [{acc, fun}]}
-  #     {acc, fun} ->
-  #       [{acc, fun}]
-  #   end
-  # end
-
-  def do_next([{unit, {acc, fun}} | t]) when is_atom(unit) and is_function(fun) do
+  def do_next([{unit, {acc, fun}} | t], previous) when is_atom(unit) and is_function(fun) do
     case do_next(t) do
       {state, list} when state in [:rollover, :no_cycles] ->
-        case fun.() do
+        case fun.(previous) do
           {{:rollover, acc}, fun} ->
             {:rollover, [{unit, {acc, fun}} | list]}
           {acc, fun} ->
@@ -106,31 +97,16 @@ defmodule Tempo.Algebra do
     end
   end
 
-  # def do_next([{acc, fun} | t]) when is_function(fun) do
-  #   case do_next(t) do
-  #     {state, list} when state in [:rollover, :no_cycles] ->
-  #       case fun.() do
-  #         {{:rollover, acc}, fun} ->
-  #           {:rollover, [{acc, fun} | list]}
-  #         {acc, fun} ->
-  #           [{acc, fun} | list]
-  #       end
-  #
-  #     list ->
-  #       [{acc, fun} | list]
-  #   end
-  # end
-
-  def do_next({:no_cycles, h}) do
+  def do_next({:no_cycles, h}, _previous) do
     {:no_cycles, h}
   end
 
-  def do_next([h]) do
+  def do_next([h], _previous) do
     {:no_cycles, [h]}
   end
 
-  def do_next([h | t]) do
-    case do_next(t) do
+  def do_next([h | t], previous) do
+    case do_next(t, previous) do
       {:no_cycles, list} ->
         {:no_cycles, [h | list]}
 
@@ -151,48 +127,51 @@ defmodule Tempo.Algebra do
   the rollover.
 
   """
-  def cycle(source) when is_list(source) do
-    cycle(source, source)
+  def cycle(source, previous) when is_list(source) do
+    cycle(source, source, previous)
   end
 
-  def cycle(%Range{} = range) do
-    cycle(range, range)
+  def cycle(%Range{} = range, previous) do
+    cycle(range, range, previous)
   end
 
-  defp cycle(source, list) when is_list(list)do
+  defp cycle(source, list, previous) when is_list(list)do
     case list do
       [] ->
-        rollover(source)
+        rollover(source, previous)
+
+      [%Range{step: step} = range | tail] when step < 1 ->
+         %Range{first: first, last: last, step: step} = adjusted_range(range, previous)
+        {first, fn previous -> cycle(source, [(first + step)..last//step | tail], previous) end}
 
       [%Range{first: first, last: last, step: step} | tail] when first <= last ->
-        {first, fn -> cycle(source, [(first + step)..last//step | tail]) end}
+        {first, fn previous -> cycle(source, [(first + step)..last//step | tail], previous) end}
 
       [%Range{}] ->
-        rollover(source)
+        rollover(source, previous)
 
       [%Range{}, next | tail] ->
-        {next, fn -> cycle(source, tail) end}
+        {next, fn previous -> cycle(source, tail, previous) end}
 
       [head | tail] ->
-        {head, fn -> cycle(source, tail) end}
+        {head, fn previous -> cycle(source, tail, previous) end}
     end
   end
 
-  defp cycle(source, %Range{first: first, last: last, step: step} = range) do
-    if range.first > source.last do
-      {{:rollover, source.first}, fn -> cycle(source, (source.first + source.step)..last//step) end}
-    else
-      {range.first, fn -> cycle(source, (first + step)..last//step) end}
-    end
-  end
-
-  defp rollover([h | t] = source) do
+  defp rollover([h | t] = source, previous) do
     case h do
-      %Range{first: first, step: step} = range ->
-        {{:rollover, first}, fn -> cycle(source, [%{range | first: first + step} | t]) end}
+      %Range{step: step} = range when step < 1 ->
+        %Range{first: first, last: last, step: step} = adjusted_range(range, previous)
+        {{:rollover, first}, fn -> cycle(source, [(first + step)..last//step | t], previous) end}
+      %Range{first: first, last: last, step: step} ->
+        {{:rollover, first}, fn -> cycle(source, [(first + step)..last//step | t], previous) end}
       first ->
-        {{:rollover, first}, fn -> cycle(source, t) end}
+        {{:rollover, first}, fn -> cycle(source, t, previous) end}
     end
+  end
+
+  defp adjusted_range(_range, _previous) do
+    1..2
   end
 
   @doc """
