@@ -1,12 +1,11 @@
 defmodule Tempo.Iso8601.Parser do
   alias Tempo.Iso8601.Unit
 
-  def parse({:error, _reason} = return) do
-    return
-  end
-
-  def parse({:ok, tokens}) do
-    {:ok, parse(tokens)}
+  def parse(tokens, calendar) do
+    tokens
+    |> parse()
+    |> put_calendar(calendar)
+    |> wrap(:ok)
   rescue e in Tempo.ParseError ->
     {:error, e.message}
   end
@@ -333,4 +332,23 @@ defmodule Tempo.Iso8601.Parser do
   def adjust_for_direction(other) do
     other
   end
+
+  defp put_calendar(%Tempo{} = tempo, calendar) do
+    %{tempo | calendar: calendar}
+  end
+
+  defp put_calendar(%Tempo.Interval{from: from, to: to} = interval, calendar) do
+    to = put_calendar(to, calendar)
+    from = put_calendar(from, calendar)
+    %{interval | from: from, to: to}
+  end
+
+  defp put_calendar(other, _calendar) do
+    other
+  end
+
+  def wrap(term, atom) do
+    {atom, term}
+  end
+
 end

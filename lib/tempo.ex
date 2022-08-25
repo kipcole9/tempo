@@ -114,12 +114,11 @@ defmodule Tempo do
   end
 
   def from_iso8601(string, calendar \\ Cldr.Calendar.Gregorian) do
-    string
-    |> Tokenizer.tokenize()
-    |> Parser.parse()
-    |> put_calendar(calendar)
-    |> Group.expand_groups()
-    |> Validation.validate(calendar)
+    with {:ok, tokens} <- Tokenizer.tokenize(string),
+         {:ok, parsed} <- Parser.parse(tokens, calendar),
+         {:ok, expanded} <- Group.expand_groups(parsed) do
+      Validation.validate(expanded, calendar)
+    end
   end
 
   def from_date(%{year: year, month: month, day: day, calendar: calendar}) do
@@ -135,7 +134,7 @@ defmodule Tempo do
     end
   end
 
-  def anchored?(%__MODULE__{time: [{:year, _year} | rest]}) do
+  def anchored?(%__MODULE__{time: [{:year, _year} | _rest]}) do
     true
   end
 
@@ -143,27 +142,4 @@ defmodule Tempo do
     false
   end
 
-  defp put_calendar({:ok, %__MODULE__{} = tempo}, calendar) do
-    {:ok, put_calendar(tempo, calendar)}
-  end
-
-  defp put_calendar(%__MODULE__{} = tempo, calendar) do
-    %{tempo | calendar: calendar}
-  end
-
-  defp put_calendar(nil, _calendar) do
-    nil
-  end
-
-  defp put_calendar({:ok, %Tempo.Interval{} = interval}, calendar) do
-    {:ok, put_calendar(interval, calendar)}
-  end
-
-  defp put_calendar(%Tempo.Interval{from: from, to: to} = interval, calendar) do
-    %{interval | from: put_calendar(from, calendar), to: put_calendar(to, calendar)}
-  end
-
-  defp put_calendar(other, _calendar) do
-    other
-  end
 end

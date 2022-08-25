@@ -4,26 +4,18 @@ defmodule Tempo.Validation do
   # @seconds_per_minute 60
   @rounding_precision 10
 
-  def validate(tempo, calendar)
-
-  def validate({:ok, %Tempo{} = tempo}, calendar) do
-    validate(tempo, calendar)
-  end
+  def validate(tempo, calendar \\ Cldr.Calendar.Gregorian)
 
   def validate(%Tempo{time: units} = tempo, calendar) do
-    case validate(units, calendar) do
+    case resolve(units, calendar) do
       {:error, reason} -> {:error, reason}
       other -> {:ok, %{tempo | time: other}}
     end
   end
 
-  def validate(units, calendar) when is_list(units) do
-    resolve(units, calendar)
-  end
-
   # TODO Check that the second time is after the first (ISO expectation)
   # TODO Adjust the second time if its time shift is different to the first
-  def validate({:ok, %Tempo.Interval{} = tempo}, calendar) do
+  def validate(%Tempo.Interval{} = tempo, calendar) do
     with {:ok, from} <- validate(tempo.from, calendar),
          {:ok, to} <- validate(tempo.to, calendar),
          {:ok, duration} <- validate(tempo.duration, calendar) do
@@ -31,15 +23,11 @@ defmodule Tempo.Validation do
     end
   end
 
-  def validate({:ok, %Tempo.Duration{} = duration}, calendar) do
-    validate(duration, calendar)
-  end
-
   def validate(%Tempo.Duration{} = duration, _calendar) do
     {:ok, duration}
   end
 
-  def validate({:ok, %Tempo.Set{set: set} = tempo}, calendar) do
+  def validate(%Tempo.Set{set: set} = tempo, calendar) do
     validated =
       Enum.reduce_while set, [], fn elem, acc ->
         case resolve(elem, calendar) do
@@ -60,10 +48,6 @@ defmodule Tempo.Validation do
 
   def validate(:undefined, _calendar) do
     {:ok, :undefined}
-  end
-
-  def validate({:error, reason}, _calendar) do
-    {:error, reason}
   end
 
   def resolve([{:day_of_week, day} | rest], calendar) do

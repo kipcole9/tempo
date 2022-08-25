@@ -5,10 +5,6 @@ defmodule Tempo.Iso8601.Group do
 
   def expand_groups(tempo, calendar \\ Cldr.Calendar.Gregorian)
 
-  def expand_groups({:ok, tempo}, calendar) do
-    expand_groups(tempo, calendar)
-  end
-
   def expand_groups(%Tempo{time: time} = tempo, calendar) do
     case expand_groups(time, calendar) do
       {:error, reason} -> {:error, reason}
