@@ -83,9 +83,7 @@ defmodule Tempo.Iso8601.Parser.Test do
 
     # 5.4.3 Example 2
     assert Tempo.from_iso8601("2018Y1G2MU60D") ==
-      {:error,
-        "60 is greater than 59 which is the number of days in the group of months 1..2 " <>
-        "for the calendar Cldr.Calendar.Gregorian"}
+      {:error, "60 is not valid. The valid values are 1..59"}
 
     # 5.4.4 Example 1
     assert Tempo.from_iso8601("2018Y3G60DU6DZ-5H") ==
@@ -398,16 +396,13 @@ defmodule Tempo.Iso8601.Parser.Test do
       {:ok, %Tempo{time: [hour: 0], shift: nil, calendar: Cldr.Calendar.Gregorian}}
 
     assert Tempo.from_iso8601("T-25H") ==
-      {:error,
-       "25 is greater than 24 which is the number of hours in a day for the calendar Cldr.Calendar.Gregorian"}
+      {:error, "-25 is not valid. The normalized value of -1 is outside the range 0..23"}
 
     assert Tempo.from_iso8601("2022Y-13M31D") ==
-      {:error,
-       "13 is greater than 12 which is the number of months in 2022 for the calendar Cldr.Calendar.Gregorian"}
+      {:error, "-13 is not valid. The normalized value of 0 is outside the range 1..12"}
 
     assert Tempo.from_iso8601("2022Y-13M") ==
-      {:error,
-       "13 is greater than 12 which is the number of months in 2022 for the calendar Cldr.Calendar.Gregorian"}
+      {:error, "-13 is not valid. The normalized value of 0 is outside the range 1..12"}
   end
 
   test "Day of week adheres to calendar limit" do
@@ -436,8 +431,7 @@ defmodule Tempo.Iso8601.Parser.Test do
        }}
 
     assert Tempo.from_iso8601("2022Y1W8K", Cldr.Calendar.ISOWeek) ==
-      {:error,
-       "8 is greater than 7 which is the number of days in a week for the calendar Cldr.Calendar.ISOWeek"}
+      {:error, "8 is not valid. The valid values are 1..7"}
   end
 
   test "Quarters, Quadrimesters and Semestrals" do

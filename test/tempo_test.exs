@@ -17,9 +17,7 @@ defmodule TempoTest do
 
   test "times with invalid groups" do
     assert Tempo.from_iso8601("2018Y1G2MU60D") ==
-      {:error,
-        "60 is greater than 59 which is the number of days in the group of months 1..2 for " <>
-        "the calendar Cldr.Calendar.Gregorian"}
+      {:error, "60 is not valid. The valid values are 1..59"}
   end
 
   # 5.4.2 Group Example 8
