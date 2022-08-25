@@ -2,7 +2,6 @@ defimpl Enumerable, for: Tempo do
   alias Tempo.Algebra
   alias Tempo.Validation
 
-
   # Count can be calculated from ranges/sets in all
   # cases except where there is groupgin involved and therefore
   # we would need to evaluate each date/time
