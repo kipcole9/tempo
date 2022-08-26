@@ -167,44 +167,47 @@ defmodule Tempo.Validation do
     end
   end
 
+  def resolve([{:year, year}, {:month, month}, {:day, {:group, %Range{} = days}} | rest], calendar)
+      when is_integer(year) and is_integer(month) do
+    months_in_year = calendar.months_in_year(year)
+
+    with {:ok, month} <- conform(month, 1..months_in_year) do
+      max_days = calendar.days_in_month(year, month)
+      [{:year, year}, {:month, month}, {:day, {:group, %{days | last: min(max_days, days.last)}}} |
+        resolve(rest, calendar)]
+      end
+  end
+
   def resolve([{:year, year}, {:month, month}, {:day, day} | rest], calendar)
-      when is_integer(year) and is_integer(month) and is_integer(day) do
+      when is_integer(year) and is_integer(month) do
     with [{:year, year}, {:month, month}] <- resolve([{:year, year}, {:month, month}], calendar) do
       days_in_month = calendar.days_in_month(year, month)
-      day = if day < 0, do: days_in_month + day + 1, else: day
 
       with {:ok, day} <- conform(day, 1..days_in_month) do
-        case resolve(rest, calendar) do
+        case resolve([{:day, day} | rest], calendar) do
           {:error, reason} -> {:error, reason}
-          other -> [{:year, year}, {:month, month}, {:day, day} | other]
+          other -> [{:year, year}, {:month, month} | other]
         end
       end
     end
   end
 
-  def resolve([{:year, year}, {:month, month}, {:day, {:group, %Range{} = days}} | rest], calendar)
-      when is_integer(year) and is_integer(month) do
-
-    max_days = calendar.days_in_month(year, month)
-    [{:year, year}, {:month, month}, {:day, {:group, %{days | last: min(max_days, days.last)}}} |
-      resolve(rest, calendar)]
-  end
-
-  def resolve([{:year, year}, {:month, month} | rest], calendar)
-      when is_integer(year) and is_integer(month) and month < 0 do
-    months_in_year = calendar.months_in_year(year)
-
-    with {:ok, month} <- conform(month, 1..months_in_year) do
-      resolve([{:year, year}, {:month, month} | rest], calendar)
+  def resolve([{:year, year}, {:month, month}, {:day, day} | rest], calendar)
+      when is_integer(year) and is_integer(month) or is_list(month) do
+    with [{:year, year}, {:month, month}] <- resolve([{:year, year}, {:month, month}], calendar) do
+      case resolve(rest, calendar) do
+        {:error, reason} -> {:error, reason}
+        other -> [{:year, year}, {:month, month}, {:day, day} | other]
+      end
     end
   end
 
-  def resolve([{:year, year}, {:month, month} | rest], calendar)
-      when is_integer(year) and is_integer(month) do
+  def resolve([{:year, year}, {:month, months}], calendar)
+      when is_integer(year) and (is_list(months) or is_integer(months)) do
     months_in_year = calendar.months_in_year(year)
 
-    with {:ok, month} <- conform(month, 1..months_in_year) do
-       [{:year, year} | resolve([{:month, month} | rest], calendar)]
+    with {:ok, month} <- conform(months, 1..months_in_year) do
+      [{:year, year}, {:month, month}]
     end
   end
 
@@ -373,6 +376,11 @@ defmodule Tempo.Validation do
     {:ok, integer}
   end
 
+  def conform(float, %Range{first: first, last: last})
+      when is_float(float) and float >= first and float <= last do
+    {:ok, float}
+  end
+
   def conform(integer, %Range{last: last} = range) when is_integer(integer) and integer < 0 do
     value = last + integer + 1
     case value >= 0 && conform(value, range) do
@@ -392,12 +400,20 @@ defmodule Tempo.Validation do
     {:ok, from}
   end
 
-  def conform(%Range{first: f1, last: t1, step: step}, %Range{} = to)
-      when (f1 >= 0 and t1 < 0) or (f1 < t1) do
+  def conform(%Range{first: f1, last: t1, step: step}, %Range{} = to) do
     with {:ok, from} <- conform(f1, to),
          {:ok, to} <- conform(t1, to) do
       {:ok, from..to//abs(step)}
     end
+  end
+
+  def conform(from, to) when is_list(from) do
+    Enum.reduce_while(from, {:ok, []}, fn unit, {:ok, acc} ->
+      case conform(unit, to) do
+        {:ok, conformed} -> {:cont, {:ok, [conformed | acc]}}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
   end
 
   def conform(from, to) do

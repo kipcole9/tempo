@@ -30,10 +30,11 @@ defmodule Tempo.Algebra do
 
   def do_next([{unit, value} | t], calendar, previous) when is_unit(unit, value) do
     [{unit, cycle(value, unit, calendar, previous)} |
-      List.wrap(do_next(t, [{unit, value} | previous], calendar))]
+      List.wrap(do_next(t, calendar, [{unit, value} | previous]))]
   end
 
-  def do_next([{unit, {_acc, fun}}], calendar, previous) when is_continuation(unit, fun) do
+  # We hit a continuation at the end of a list
+  def do_next([{unit, {_current, fun}}], calendar, previous) when is_continuation(unit, fun) do
     case fun.(calendar, previous) do
       {{:rollover, acc}, fun} ->
         {:rollover, [{unit, {acc, fun}}]}
@@ -42,8 +43,11 @@ defmodule Tempo.Algebra do
     end
   end
 
+  # We hit a continuation. We need to process it in the context of previous, and then process
+  # forward from there.
   def do_next([{unit, {current, fun}} | t], calendar, previous) when is_continuation(unit, fun) do
-    case do_next(t, calendar, previous) do
+    # IO.inspect {unit, current, t}, label: "Do Next"
+    case do_next(t, calendar, [{unit, {current, fun}} | previous]) do
       {state, list} when state in [:rollover, :no_cycles] ->
         case fun.(calendar, previous) do
           {{:rollover, current}, fun} ->
@@ -107,7 +111,7 @@ defmodule Tempo.Algebra do
 
       [%Range{step: step} = range | tail] when step < 1 ->
         %Range{first: first, last: last, step: step} = adjusted_range(range, unit, calendar, previous)
-        {first, fn previous -> cycle(source, [(first + step)..last//step | tail], unit, calendar, previous) end}
+        {first, fn calendar, previous -> cycle(source, [(first + step)..last//step | tail], unit, calendar, previous) end}
 
       [%Range{first: first, last: last, step: step} | rest] when first <= last ->
         {first, fn calendar, previous -> cycle(source, [(first + step)..last//step | rest], unit, calendar, previous) end}
@@ -130,26 +134,37 @@ defmodule Tempo.Algebra do
     case h do
       %Range{step: step} = range when step < 1 ->
         %Range{first: first, last: last, step: step} = adjusted_range(range, unit, calendar, previous)
-        {{:rollover, first}, fn -> cycle(source, [(first + step)..last//step | t], unit, calendar, previous) end}
+        {{:rollover, first}, fn calendar, previous ->
+            cycle(source, [(first + step)..last//step | t], unit, calendar, previous)
+          end}
+
       %Range{first: first, last: last, step: step} ->
-        {{:rollover, first}, fn calendar, previous -> cycle(source, [(first + step)..last//step | t], unit, calendar, previous) end}
+        {{:rollover, first}, fn calendar, previous ->
+          cycle(source, [(first + step)..last//step | t], unit, calendar, previous)
+        end}
+
       {unit, value} ->
         {unit, value}
+
       first ->
-        {{:rollover, first}, fn calendar, previous -> cycle(source, t, unit, calendar, previous) end}
+        {{:rollover, first}, fn calendar, previous ->
+          cycle(source, t, unit, calendar, previous)
+        end}
     end
   end
 
   defp adjusted_range(range, unit, calendar, previous) do
     units = [{unit, range} | current_units(previous)] |> Enum.reverse()
+    IO.inspect {range, unit, calendar, previous}, label: "Adjusting range"
+    IO.inspect units, label: "   Context for adjustment"
 
     {_unit, range} =
       units
-      |> Validation.validate(calendar)
+      |> Validation.resolve(calendar)
       |> Enum.reverse()
       |> hd
 
-    range
+    range |> IO.inspect(label: "   Adjusted")
   end
 
   def current_units(units) do
