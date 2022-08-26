@@ -24,10 +24,6 @@ defmodule Tempo.Algebra do
     end
   end
 
-  def do_next([], _calendar, _previous) do
-    []
-  end
-
   def do_next([{unit, value} | t], calendar, previous) when is_unit(unit, value) do
     [{unit, cycle(value, unit, calendar, previous)} |
       List.wrap(do_next(t, calendar, [{unit, value} | previous]))]
@@ -35,12 +31,16 @@ defmodule Tempo.Algebra do
 
   # We hit a continuation at the end of a list
   def do_next([{unit, {_current, fun}}], calendar, previous) when is_continuation(unit, fun) do
-    case fun.(calendar, previous) do
+    case fun.(calendar, previous, :continue) do
       {{:rollover, acc}, fun} ->
         {:rollover, [{unit, {acc, fun}}]}
       {acc, fun} ->
         [{unit, {acc, fun}}]
     end
+  end
+
+  def do_next([], _calendar, _previous) do
+    []
   end
 
   # We hit a continuation. We need to process it in the context of previous, and then process
@@ -57,7 +57,7 @@ defmodule Tempo.Algebra do
     case do_next(t, calendar, [{unit, {current, fun}} | previous]) do
       {:rollover, list} ->
         IO.inspect list, label: "Rollover"
-        case fun.(calendar, previous) do
+        case fun.(calendar, previous, :continue) do
           {{:rollover, current}, fun} ->
             {:rollover, [{unit, {current, fun}} | list]}
 
@@ -65,46 +65,10 @@ defmodule Tempo.Algebra do
             [{unit, {current, fun}} | list]
         end
 
-      # {:no_cycles, list} ->
-      #   case fun.(calendar, previous) do
-      #     {{:rollover, current}, fun} ->
-      #       IO.inspect current, label: "Rollover from no_cycles"
-      #       {:rollover, [{unit, {current, fun}} | list]}
-      #
-      #     {current, fun} ->
-      #       IO.inspect current, label: "Not rollover from no_cycles"
-      #       [{unit, {current, fun}} | list]
-      #   end
-
       tail ->
         [{unit, {current, fun}} | tail]
     end
   end
-
-  # def do_next({:no_cycles, h}, _calendar, _previous) do
-  #   {:no_cycles, h}
-  # end
-  #
-  # def do_next([{:no_cycles, h}], _calendar, _previous) do
-  #   {:no_cycles, List.wrap(h)}
-  # end
-  #
-  # def do_next([h], _calendar, _previous) do
-  #   {:no_cycles, [h]}
-  # end
-  #
-  # def do_next([h | t], calendar, previous) do
-  #   case do_next(t, calendar, previous) do
-  #     {:no_cycles, list} ->
-  #       {:no_cycles, [h | list]}
-  #
-  #     {:rollover, list} ->
-  #       {:rollover, [h | list]}
-  #
-  #     list ->
-  #       [h | list]
-  #   end
-  # end
 
   @doc """
   Returns a function that when called will return
@@ -130,57 +94,54 @@ defmodule Tempo.Algebra do
 
       [%Range{step: step} = range | rest] when step < 0 ->
         range = adjusted_range(range, unit, calendar, previous)
-        increment_range(source, range, unit, rest)
+        increment(source, range, unit, rest)
 
       [%Range{first: first, last: last} = range | rest] when first <= last ->
-        increment_range(source, range, unit, rest)
+        increment(source, range, unit, rest)
 
       [%Range{}] ->
         rollover(source, unit, calendar, previous)
 
       [%Range{}, next | rest] ->
-        {next, fn calendar, previous ->
-          cycle(source, rest, unit, calendar, previous)
-        end}
+        {next, continuation(source, rest, unit)}
 
       [next | rest] ->
-        {next, fn calendar, previous ->
-          cycle(source, rest, unit, calendar, previous)
-        end}
+        {next, continuation(source, rest, unit)}
 
       value when is_number(value) ->
         value
     end
   end
 
-  defp increment_range(source, %Range{first: first, last: last, step: step}, unit, rest) do
-    {first, fn calendar, previous ->
-      cycle(source, [(first + step)..last//step | rest], unit, calendar, previous)
-    end}
+  defp increment(source, %Range{first: first, last: last, step: step}, unit, rest) do
+    {first, continuation(source, [(first + step)..last//step | rest], unit)}
   end
 
+  def continuation(source, rest, unit) do
+    fn
+      calendar, previous, :continue ->
+        cycle(source, rest, unit, calendar, previous)
+
+      calendar, previous, :reset ->
+        cycle(source, rest, unit, calendar, previous)
+    end
+  end
 
   defp rollover([h | t] = source, unit, calendar, previous) do
     case h do
       %Range{} = range ->
-        %Range{first: first, last: last, step: step} = adjusted_range(range, unit, calendar, previous)
-        {{:rollover, first}, fn calendar, previous ->
-            cycle(source, [(first + step)..last//step | t], unit, calendar, previous)
-          end}
-
-      # {unit, value} ->
-      #   IO.inspect {unit, value}, label: "Rolling over unit and value"
-      #   {unit, value}
+        %Range{first: first, last: last, step: step} =
+          adjusted_range(range, unit, calendar, previous)
+        {{:rollover, first}, continuation(source, [(first + step)..last//step | t], unit)}
 
       value ->
-        {{:rollover, value}, fn calendar, previous ->
-          cycle(source, t, unit, calendar, previous)
-        end}
+        {{:rollover, value}, continuation(source, t, unit)}
     end
   end
 
-  defp adjusted_range(%Range{step: step} = range, _unit, _calendar, _previous) when step > 0 do
-    range
+  defp adjusted_range(%Range{first: first, last: last, step: step}, _unit, _calendar, _previous)
+      when first >= 0 and last >= first and step > 0 do
+    %Range{first: first, last: last, step: step}
   end
 
   defp adjusted_range(range, unit, calendar, previous) do
