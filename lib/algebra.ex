@@ -24,8 +24,13 @@ defmodule Tempo.Algebra do
   end
 
   def do_next([{unit, value} | t], calendar, previous) when is_unit(unit, value) do
-    [{unit, cycle(value, unit, calendar, previous)} |
-      List.wrap(do_next(t, calendar, [{unit, value} | previous]))]
+    cycle =
+      case cycle(value, unit, calendar, previous) do
+        {{:rollover, value}, continuation} when is_number(value) -> {value, continuation}
+        other -> other
+      end
+
+    [{unit, cycle} | List.wrap(do_next(t, calendar, [{unit, value} | previous]))]
   end
 
   # We hit a continuation at the end of a list
@@ -68,11 +73,11 @@ defmodule Tempo.Algebra do
 
   """
   def cycle(source, unit, calendar, previous) when is_number(source) do
-    cycle([source], [source], unit, calendar, previous)
+    cycle([source], [], unit, calendar, previous)
   end
 
   def cycle(source, unit, calendar, previous) do
-    cycle(source, source, unit, calendar, previous)
+    cycle(List.wrap(source), List.wrap(source), unit, calendar, previous)
   end
 
   def cycle(source, list, unit, calendar, previous) do
@@ -95,7 +100,7 @@ defmodule Tempo.Algebra do
       [next | rest] ->
         {next, continuation(source, rest, unit)}
 
-      value when is_number(value) ->
+      value ->
         value
     end
   end
@@ -113,24 +118,30 @@ defmodule Tempo.Algebra do
       previous
       |> Enum.reverse()
       |> do_next(calendar, previous)
-      |> Enum.reverse()
+
+    previous =
+      case previous do
+        {:rollover, list} -> Enum.reverse(list)
+        other -> Enum.reverse(other)
+      end
 
     range = adjusted_range(range, unit, calendar, previous)
-    increment(source, range, unit, rest)
+    increment(List.wrap(source), range, unit, rest)
   end
 
   defp rollover([h | t] = source, unit, calendar, previous) do
     case h do
+      %Range{first: first, last: last} = range when first >= 0 and last < 0 ->
+       {first, continuation} = reset(h, range, unit, calendar, previous, t)
+       {{:rollover, first}, continuation}
+
       %Range{} = range ->
         %Range{first: first, last: last, step: step} =
           adjusted_range(range, unit, calendar, previous)
         {{:rollover, first}, continuation(source, [(first + step)..last//step | t], unit)}
 
-      %Range{step: step} = range when step < 0 ->
-        {{:reset, range}, continuation(source, source, unit)}
-
-      value ->
-        {{:rollover, value}, continuation(source, source, unit)}
+      first ->
+        {{:rollover, first}, continuation(source, t, unit)}
     end
   end
 
@@ -155,7 +166,6 @@ defmodule Tempo.Algebra do
     Enum.map units, fn
       {unit, list} when is_list(list) -> {unit, extract_first(list)}
       {unit, {current, _fun}} -> {unit, current}
-      {:no_cycles, list} -> list
       {unit, value} -> {unit, value}
     end
   end

@@ -112,4 +112,35 @@ defmodule Tempo.Enumeration.Test do
       }
     ]
   end
+
+  test "Enumeration with negative range and cascading ranges" do
+    assert Enum.map(~o"2022Y{1,2}M{1..-28}D", &(&1)) ==
+    [
+      %Tempo{
+        time: [year: 2022, month: 1, day: 1],
+        shift: nil,
+        calendar: Cldr.Calendar.Gregorian
+      },
+      %Tempo{
+        time: [year: 2022, month: 1, day: 2],
+        shift: nil,
+        calendar: Cldr.Calendar.Gregorian
+      },
+      %Tempo{
+        time: [year: 2022, month: 1, day: 3],
+        shift: nil,
+        calendar: Cldr.Calendar.Gregorian
+      },
+      %Tempo{
+        time: [year: 2022, month: 1, day: 4],
+        shift: nil,
+        calendar: Cldr.Calendar.Gregorian
+      },
+      %Tempo{
+        time: [year: 2022, month: 2, day: 1],
+        shift: nil,
+        calendar: Cldr.Calendar.Gregorian
+      }
+    ]
+  end
 end
