@@ -315,6 +315,13 @@ defmodule Tempo.Validation do
     end
   end
 
+  def resolve([{:hour, %Range{first: first, last: last, step: step}} | rest], calendar)
+      when first > 0 and last < 0 do
+    with {:ok, last} <- conform(last, 0..@hours_per_day - 1) do
+      [{:hour, first..last//abs(step)} | resolve(rest, calendar)]
+    end
+  end
+
   def resolve([{unit, requested} | rest], calendar)
       when unit in [:minute, :second] and is_integer(requested) do
     with {:ok, part} <- conform(requested, 0..@minutes_per_hour - 1) do
