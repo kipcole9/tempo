@@ -30,6 +30,7 @@ defimpl Enumerable, for: Tempo do
 
   @impl Enumerable
   def reduce(enum, {:cont, acc}, fun) do
+    enum = Tempo.Algebra.maybe_add_implicit_enumeration(enum)
     case Algebra.next(enum) do
       nil ->
         {:done, acc}

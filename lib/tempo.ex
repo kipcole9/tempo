@@ -121,6 +121,13 @@ defmodule Tempo do
     end
   end
 
+  def from_iso8601!(string, calendar \\ Cldr.Calendar.Gregorian) do
+    case from_iso8601(string, calendar) do
+      {:ok, tempo} -> tempo
+      {:error, reason} -> raise Tempo.ParseError, reason
+    end
+  end
+
   def from_date(%{year: year, month: month, day: day, calendar: calendar}) do
     new([year: year, month: month, day: day, calendar: calendar])
   end
@@ -129,7 +136,8 @@ defmodule Tempo do
     case hd(Enum.reverse(units)) do
       {:group, group} -> group
       {unit, %Range{last: last}} -> {unit, last}
-      {unit, {_value, meta}} -> {unit, Keyword.get(meta, :margin_of_error, 1)}
+      {unit, {_value, meta}} when is_list(meta) -> {unit, Keyword.get(meta, :margin_of_error, 1)}
+      {unit, {_value, continuation}} when is_function(continuation)-> {unit, 1}
       {unit, _value} -> {unit, 1}
     end
   end

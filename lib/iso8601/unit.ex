@@ -14,6 +14,19 @@ defmodule Tempo.Iso8601.Unit do
     second: 5
   }
 
+  @unit_after %{
+    year: {:month, 1..-1},
+    month: {:day, 1..-1},
+    week: {:day_of_week, 1..7},
+    day: {:hour, 1..-1},
+    hour: {:minute, 0..59},
+    minute: {:second, 0..59},
+  }
+
+  def implicit_enumerator(unit) do
+    Map.get(@unit_after, unit)
+  end
+
   def sort_key(time_unit) do
     Map.fetch!(@sort_keys, time_unit)
   end

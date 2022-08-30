@@ -1,5 +1,6 @@
 defmodule Tempo.Algebra do
   alias Tempo.Validation
+  alias Tempo.Iso8601.Unit
 
   defguard is_continuation(unit, fun) when is_atom(unit) and is_function(fun)
   defguard is_unit(unit, value) when is_atom(unit) and is_list(value) or is_number(value)
@@ -203,5 +204,27 @@ defmodule Tempo.Algebra do
 
   def collect([h | t]) do
     [h | collect(t)]
+  end
+
+  def explicitly_enumerable?(%Tempo{time: time}) do
+    Enum.any?(time, fn
+      {_unit, value} when is_list(value) -> true
+      {_unit, {_value, continuation}} when is_function(continuation) -> true
+      _other -> false
+    end)
+  end
+
+  def add_implicit_enumeration(%Tempo{time: time} = tempo) do
+    {unit, _span} = Tempo.resolution(tempo)
+    {unit, range} = Unit.implicit_enumerator(unit)
+    %{tempo| time: time ++ [{unit, [range]}]}
+  end
+
+  def maybe_add_implicit_enumeration(%Tempo{} = tempo) do
+    unless explicitly_enumerable?(tempo) do
+      add_implicit_enumeration(tempo)
+    else
+      tempo
+    end
   end
 end
