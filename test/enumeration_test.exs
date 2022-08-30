@@ -143,4 +143,27 @@ defmodule Tempo.Enumeration.Test do
       }
     ]
   end
+  
+  test "Implicit Enumeration" do
+    assert Enum.map(~o"2022", &(&1)) ==
+      [~o"2022Y1M", ~o"2022Y2M", ~o"2022Y3M", ~o"2022Y4M", ~o"2022Y5M", ~o"2022Y6M",
+       ~o"2022Y7M", ~o"2022Y8M", ~o"2022Y9M", ~o"2022Y10M", ~o"2022Y11M",
+       ~o"2022Y12M"]
+    
+    assert Enum.map(~o"2022Y2M", &(&1)) ==
+      [~o"2022Y2M1D", ~o"2022Y2M2D", ~o"2022Y2M3D", ~o"2022Y2M4D", ~o"2022Y2M5D",
+       ~o"2022Y2M6D", ~o"2022Y2M7D", ~o"2022Y2M8D", ~o"2022Y2M9D", ~o"2022Y2M10D",
+       ~o"2022Y2M11D", ~o"2022Y2M12D", ~o"2022Y2M13D", ~o"2022Y2M14D", ~o"2022Y2M15D",
+       ~o"2022Y2M16D", ~o"2022Y2M17D", ~o"2022Y2M18D", ~o"2022Y2M19D", ~o"2022Y2M20D",
+       ~o"2022Y2M21D", ~o"2022Y2M22D", ~o"2022Y2M23D", ~o"2022Y2M24D", ~o"2022Y2M25D",
+       ~o"2022Y2M26D", ~o"2022Y2M27D", ~o"2022Y2M28D"]
+       
+    assert Enum.map(~o"2020Y2M", &(&1)) ==
+      [~o"2020Y2M1D", ~o"2020Y2M2D", ~o"2020Y2M3D", ~o"2020Y2M4D", ~o"2020Y2M5D",
+       ~o"2020Y2M6D", ~o"2020Y2M7D", ~o"2020Y2M8D", ~o"2020Y2M9D", ~o"2020Y2M10D",
+       ~o"2020Y2M11D", ~o"2020Y2M12D", ~o"2020Y2M13D", ~o"2020Y2M14D", ~o"2020Y2M15D",
+       ~o"2020Y2M16D", ~o"2020Y2M17D", ~o"2020Y2M18D", ~o"2020Y2M19D", ~o"2020Y2M20D",
+       ~o"2020Y2M21D", ~o"2020Y2M22D", ~o"2020Y2M23D", ~o"2020Y2M24D", ~o"2020Y2M25D",
+       ~o"2020Y2M26D", ~o"2020Y2M27D", ~o"2020Y2M28D", ~o"2020Y2M29D"]
+  end
 end

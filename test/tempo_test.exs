@@ -1,5 +1,6 @@
 defmodule TempoTest do
   use ExUnit.Case, async: true
+  import Tempo.Sigil
 
   doctest Tempo
 
@@ -25,5 +26,16 @@ defmodule TempoTest do
     assert Tempo.from_iso8601("201J2G5YU3DT10H0S") ==
       {:ok, %Tempo{calendar: Cldr.Calendar.Gregorian, time: [year: [2015..2019], day: 3, hour: 10, minute: 0, second: 0]}}
 
+  end
+
+  test "tempo truncation" do
+    assert Tempo.trunc(~o"12M31DT1H10M59S", :year)
+      {:error, "Truncation would result in no time resolution"}
+
+    assert Tempo.trunc(~o"12M31DT1H10M59S", :day)
+      ~o"12M31D"
+
+    assert Tempo.trunc(~o"12M31DT1H10M59S", :date)
+      {:error, "Invalid time unit :date"}
   end
 end

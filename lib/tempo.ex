@@ -103,7 +103,7 @@ defmodule Tempo do
 
   """
 
-  alias Tempo.Iso8601.{Tokenizer, Parser, Group}
+  alias Tempo.Iso8601.{Tokenizer, Parser, Group, Unit}
   alias Tempo.Validation
 
   defstruct [:time, :shift, :calendar]
@@ -142,6 +142,16 @@ defmodule Tempo do
     end
   end
 
+  @valid_units Unit.units()
+
+  def validate_unit(unit) when unit in @valid_units do
+    {:ok, unit}
+  end
+
+  def validate_unit(unit) do
+    {:error, "Invalid time unit #{inspect unit}"}
+  end
+
   def anchored?(%__MODULE__{time: [{:year, _year} | _rest]}) do
     true
   end
@@ -150,4 +160,30 @@ defmodule Tempo do
     false
   end
 
+  def trunc(%__MODULE__{time: time} = tempo, truncate_to \\ :day) do
+    with {:ok, truncate_to} <- validate_unit(truncate_to) do
+      case Enum.take_while(time, &Unit.compare(&1, truncate_to) in [:gt, :eq]) do
+        [] -> {:error, "Truncation would result in no time resolution"}
+        other -> %{tempo | time: other}
+      end
+    end
+  end
+
+  def round(%__MODULE__{time: time} = tempo, round_to \\ :day) do
+    with {:ok, truncate_to} <- validate_unit(round_to) do
+      case round(time, truncate_to) do
+        [] -> {:error, "Rounding would result in no time resolution"}
+        other -> %{tempo | time: other}
+      end
+    end
+  end
+
+  def make_enum(%__MODULE__{} = tempo) do
+    {:ok, tempo} =
+      tempo
+      |> Tempo.Algebra.maybe_add_implicit_enumeration()
+      |> Tempo.Validation.validate()
+
+    tempo
+  end
 end

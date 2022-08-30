@@ -1,9 +1,18 @@
 defmodule Tempo.Inspect do
   import Kernel, except: [inspect: 1]
 
-  def inspect(%Tempo{time: time, shift: shift, calendar: calendar}) do
-    ["Tempo.from_iso8601(\"", inspect(time), inspect_shift(shift), "\", ", Kernel.inspect(calendar), ?)]
+  def inspect(%Tempo{time: time, shift: shift, calendar: Cldr.Calendar.Gregorian}) do
+    ["~o\"", inspect(time), inspect_shift(shift), ?"]
     |> :erlang.iolist_to_binary()
+  end
+
+  def inspect(%Tempo{time: time, shift: shift, calendar: calendar}) do
+    ["Tempo.from_iso8601!(\"", inspect(time), inspect_shift(shift), "\", ", Kernel.inspect(calendar), ?)]
+    |> :erlang.iolist_to_binary()
+  end
+
+  def inspect([{unit, {:group, range}} | t]) do
+    [inspect_value({unit, {:group, range}}) | inspect(t)]
   end
 
   def inspect([{unit, _value1} = first, {time, _value2} = second | t])
@@ -33,6 +42,17 @@ defmodule Tempo.Inspect do
 
   def inspect_value(number) when is_number(number) do
     Kernel.inspect(number)
+  end
+
+  def inspect_value({value, continuation}) when is_function(continuation) do
+    Kernel.inspect(value)
+  end
+
+  def inspect_value({unit, {:group, range}}) do
+    group_size = range.last - range.first + 1
+    nth = div(range.first, range.last - range.first)
+    [_, key] = inspect_value({unit, 1})
+    [inspect_value(nth), ?G, inspect_value(group_size), key, ?U]
   end
 
   def inspect_value({:year, year}), do: [inspect_value(year), "Y"]

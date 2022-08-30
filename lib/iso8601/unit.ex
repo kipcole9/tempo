@@ -23,6 +23,12 @@ defmodule Tempo.Iso8601.Unit do
     minute: {:second, 0..59},
   }
 
+  @units Map.keys(@sort_keys)
+
+  def units do
+    @units
+  end
+
   def implicit_enumerator(unit) do
     Map.get(@unit_after, unit)
   end
@@ -47,6 +53,14 @@ defmodule Tempo.Iso8601.Unit do
       u1 > u2 -> :gt
       true -> :eq
     end
+  end
+
+  def compare({unit1, _value1}, {unit2, _value2}) do
+    compare(unit1, unit2)
+  end
+
+  def compare({unit1, _value1}, unit2) when is_atom(unit1) and is_atom(unit2) do
+    compare(unit1, unit2)
   end
 
   # Returns a boolean depending on whether the units are

@@ -210,6 +210,7 @@ defmodule Tempo.Algebra do
     Enum.any?(time, fn
       {_unit, value} when is_list(value) -> true
       {_unit, {_value, continuation}} when is_function(continuation) -> true
+      {_unit, continuation} when is_function(continuation) -> false
       _other -> false
     end)
   end
@@ -221,10 +222,10 @@ defmodule Tempo.Algebra do
   end
 
   def maybe_add_implicit_enumeration(%Tempo{} = tempo) do
-    unless explicitly_enumerable?(tempo) do
-      add_implicit_enumeration(tempo)
-    else
+    if explicitly_enumerable?(tempo) do
       tempo
+    else
+      add_implicit_enumeration(tempo)
     end
   end
 end
