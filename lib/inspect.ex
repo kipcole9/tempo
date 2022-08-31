@@ -11,6 +11,22 @@ defmodule Tempo.Inspect do
     |> :erlang.iolist_to_binary()
   end
 
+  def inspect(%Tempo.Set{type: type, set: set}) do
+    elements = Enum.map_join(set, ",", &inspect/1)
+    ["Tempo.from_iso8601!(\"", open(type), elements, close(type), ?", ?)]
+    |> :erlang.iolist_to_binary()
+  end
+
+  def inspect(%Tempo.Interval{recurrence: 1, from: from, to: to, duration: nil}) do
+    ["Tempo.from_iso8601!(\"", inspect(from.time), ?/, inspect(to.time), ?", ?)]
+    |> :erlang.iolist_to_binary()
+  end
+
+  def inspect(%Tempo.Duration{time: time}) do
+    ["Tempo.from_iso8601!(\"P", inspect(time), ?", ?)]
+    |> :erlang.iolist_to_binary()
+  end
+
   def inspect([{unit, {:group, range}} | t]) do
     [inspect_value({unit, {:group, range}}) | inspect(t)]
   end
@@ -76,4 +92,9 @@ defmodule Tempo.Inspect do
   def insert_time_marker([]) do
     []
   end
+
+  def open(:all), do: ?{
+  def open(:one), do: ?[
+  def close(:all), do: ?}
+  def close(:one), do: ?]
 end

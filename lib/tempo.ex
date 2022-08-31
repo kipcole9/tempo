@@ -186,4 +186,10 @@ defmodule Tempo do
 
     tempo
   end
+
+  def merge(%Tempo{} = base, %Tempo{} = from) do
+    units = Tempo.Algebra.merge(base.time, from.time)
+    shift = from.shift || base.shift
+    %{base | time: units, shift: shift}
+  end
 end

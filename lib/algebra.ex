@@ -228,4 +228,12 @@ defmodule Tempo.Algebra do
       add_implicit_enumeration(tempo)
     end
   end
+
+  def merge(base, from) do
+    Enum.reduce(from, base, fn {unit, value}, acc ->
+      Keyword.update(acc, unit, value, fn _existing -> value end)
+    end)
+    |> Unit.sort(:desc)
+  end
+
 end

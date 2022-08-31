@@ -40,7 +40,7 @@ defmodule Tempo.Iso8601.Unit do
   # Sort a keyword list of duration elements
   # by the key
 
-  def sort([{_unit, _value} | _rest] = units, direction \\ :asc) do
+  def sort([{_unit, _value} | _rest] = units, direction \\ :desc) do
     Enum.sort_by(units, &sort_key(elem(&1, 0)), direction)
   end
 
