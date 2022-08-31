@@ -22,8 +22,33 @@ defmodule Tempo.Inspect do
     |> :erlang.iolist_to_binary()
   end
 
+  def inspect(%Tempo.Interval{recurrence: 1, from: from, to: :undefined = to, duration: nil}) do
+    ["Tempo.from_iso8601!(\"", inspect(from.time), ?/, inspect_value(to), ?", ?)]
+    |> :erlang.iolist_to_binary()
+  end
+
+  def inspect(%Tempo.Interval{recurrence: 1, from: :undefined = from, to: to, duration: nil}) do
+    ["Tempo.from_iso8601!(\"", inspect_value(from), ?/, inspect(to.time), ?", ?)]
+    |> :erlang.iolist_to_binary()
+  end
+
   def inspect(%Tempo.Interval{recurrence: 1, from: from, to: to, duration: nil}) do
     ["Tempo.from_iso8601!(\"", inspect(from.time), ?/, inspect(to.time), ?", ?)]
+    |> :erlang.iolist_to_binary()
+  end
+
+  def inspect(%Tempo.Interval{recurrence: :infinity, from: from, to: :undefined = to, duration: nil}) do
+    ["Tempo.from_iso8601!(\"R/", inspect(from.time), ?/, inspect_value(to), ?", ?)]
+    |> :erlang.iolist_to_binary()
+  end
+
+  def inspect(%Tempo.Interval{recurrence: :infinity, from: :undefined = from, to: to, duration: nil}) do
+    ["Tempo.from_iso8601!(\"R/", inspect_value(from), ?/, inspect(to.time), ?", ?)]
+    |> :erlang.iolist_to_binary()
+  end
+
+  def inspect(%Tempo.Interval{recurrence: :infinity, from: from, to: to, duration: nil}) do
+    ["Tempo.from_iso8601!(\"R/", inspect(from.time), ?/, inspect(to.time), ?", ?)]
     |> :erlang.iolist_to_binary()
   end
 
@@ -65,8 +90,16 @@ defmodule Tempo.Inspect do
     Kernel.inspect(number)
   end
 
+  def inspect_value({number, [margin_of_error: margin]}) do
+    Kernel.inspect(number) <> "±" <> Kernel.inspect(margin)
+  end
+
   def inspect_value({value, continuation}) when is_function(continuation) do
     Kernel.inspect(value)
+  end
+
+  def inspect_value(:undefined) do
+    ".."
   end
 
   def inspect_value({unit, {:group, range}}) do

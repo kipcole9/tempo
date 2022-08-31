@@ -38,4 +38,13 @@ defmodule TempoTest do
     assert Tempo.trunc(~o"12M31DT1H10M59S", :date)
       {:error, "Invalid time unit :date"}
   end
+
+  test "tempo merging" do
+    assert Tempo.merge(~o"50M", ~o"2022Y") ==
+      {:error, "50 is not valid. The valid values are 1..12"}
+
+    assert Tempo.merge(~o"12M", ~o"2022Y") == ~o"2022Y12M"
+
+    assert Tempo.merge(~o"12M", ~o"2022Y1M") == ~o"2022Y1M"
+  end
 end

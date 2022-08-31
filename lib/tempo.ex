@@ -190,6 +190,29 @@ defmodule Tempo do
   def merge(%Tempo{} = base, %Tempo{} = from) do
     units = Tempo.Algebra.merge(base.time, from.time)
     shift = from.shift || base.shift
-    %{base | time: units, shift: shift}
+
+    case Validation.validate(%{base | time: units, shift: shift}) do
+      {:ok, tempo} -> tempo
+      other -> other
+    end
   end
+
+  def zoom(tempo, unit \\ nil)
+
+  def zoom(%Tempo{} = tempo, nil) do
+    tempo
+    |> Tempo.Algebra.add_implicit_enumeration()
+    |> Tempo.Validation.validate()
+  end
+
+  def zoom!(%Tempo{} = tempo, unit \\ nil) do
+    case zoom(tempo, unit) do
+      {:ok, zoomed} -> zoomed
+      {:error, reason} -> raise Tempo.ParseError, reason
+    end
+  end
+
+  # def compare(%Tempo{} = tempo1, %Tempo{} = tempo2) do
+  #   Tempo.Algebra.compare(tempo1.time, tempo1)
+  # end
 end

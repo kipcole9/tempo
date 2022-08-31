@@ -18,7 +18,7 @@ defmodule Tempo.Iso8601.Unit do
     year: {:month, 1..-1},
     month: {:day, 1..-1},
     week: {:day_of_week, 1..7},
-    day: {:hour, 1..-1},
+    day: {:hour, 0..23},
     hour: {:minute, 0..59},
     minute: {:second, 0..59},
   }
