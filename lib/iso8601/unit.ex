@@ -29,7 +29,15 @@ defmodule Tempo.Iso8601.Unit do
     @units
   end
 
-  def implicit_enumerator(unit) do
+  def implicit_enumerator(:year = unit, calendar) do
+    if calendar.calendar_base == :month do
+      Map.get(@unit_after, unit)
+    else
+      {:week, 1..-1}
+    end
+  end
+
+  def implicit_enumerator(unit, _calendar) do
     Map.get(@unit_after, unit)
   end
 

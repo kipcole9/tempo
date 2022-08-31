@@ -215,9 +215,9 @@ defmodule Tempo.Algebra do
     end)
   end
 
-  def add_implicit_enumeration(%Tempo{time: time} = tempo) do
+  def add_implicit_enumeration(%Tempo{time: time, calendar: calendar} = tempo) do
     {unit, _span} = Tempo.resolution(tempo)
-    {unit, range} = Unit.implicit_enumerator(unit)
+    {unit, range} = Unit.implicit_enumerator(unit, calendar)
     %{tempo| time: time ++ [{unit, [range]}]}
   end
 

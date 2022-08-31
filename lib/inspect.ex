@@ -6,6 +6,11 @@ defmodule Tempo.Inspect do
     |> :erlang.iolist_to_binary()
   end
 
+  def inspect(%Tempo{time: time, shift: shift, calendar: Cldr.Calendar.ISOWeek}) do
+    ["~o\"", inspect(time), inspect_shift(shift), ?", ?W]
+    |> :erlang.iolist_to_binary()
+  end
+
   def inspect(%Tempo{time: time, shift: shift, calendar: calendar}) do
     ["Tempo.from_iso8601!(\"", inspect(time), inspect_shift(shift), "\", ", Kernel.inspect(calendar), ?)]
     |> :erlang.iolist_to_binary()

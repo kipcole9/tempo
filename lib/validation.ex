@@ -211,6 +211,15 @@ defmodule Tempo.Validation do
     end
   end
 
+  def resolve([{:year, year}, {:week, weeks}], calendar)
+      when is_integer(year) and (is_list(weeks) or is_integer(weeks)) do
+    weeks_in_year = calendar.weeks_in_year(year)
+
+    with {:ok, weeks} <- conform(weeks, 1..weeks_in_year) do
+      [{:year, year}, {:week, weeks}]
+    end
+  end
+
   # Calculating the result of fractional time units
   # TODO Support negative time fractions
   def resolve([{:year, year}], calendar) when is_float(year) and year > 0 do
