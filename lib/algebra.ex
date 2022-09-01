@@ -95,6 +95,9 @@ defmodule Tempo.Algebra do
       [%Range{}] ->
         rollover(source, unit, calendar, previous)
 
+      [%Range{}, %Range{} = range | rest] ->
+        cycle(source, [range | rest], unit, calendar, previous)
+
       [%Range{}, next | rest] ->
         {next, continuation(source, rest, unit)}
 
