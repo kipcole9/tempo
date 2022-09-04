@@ -437,39 +437,39 @@ defmodule Tempo.Iso8601.Parser.Test do
   test "Quarters, Quadrimesters and Semestrals" do
     assert Tempo.from_iso8601("2022Y1Q") ==
       {:ok,
-        %Tempo{time: [month: 1..3], shift: nil, calendar: Cldr.Calendar.Gregorian}}
+        %Tempo{time: [year: 2022, month: {:group, 1..3}], shift: nil, calendar: Cldr.Calendar.Gregorian}}
 
     assert Tempo.from_iso8601("2022Y2Q") ==
       {:ok,
-        %Tempo{time: [month: 4..6], shift: nil, calendar: Cldr.Calendar.Gregorian}}
+        %Tempo{time: [year: 2022, month: {:group, 4..6}], shift: nil, calendar: Cldr.Calendar.Gregorian}}
 
     assert Tempo.from_iso8601("2022Y3Q") ==
       {:ok,
-        %Tempo{time: [month: 7..9], shift: nil, calendar: Cldr.Calendar.Gregorian}}
+        %Tempo{time: [year: 2022, month: {:group, 7..9}], shift: nil, calendar: Cldr.Calendar.Gregorian}}
 
     assert Tempo.from_iso8601("2022Y4Q") ==
       {:ok,
-        %Tempo{time: [month: 10..12], shift: nil, calendar: Cldr.Calendar.Gregorian}}
+        %Tempo{time: [year: 2022, month: {:group, 10..12}], shift: nil, calendar: Cldr.Calendar.Gregorian}}
 
     assert Tempo.from_iso8601("2022Y37M") ==
       {:ok,
-       %Tempo{time: [month: 1..4], shift: nil, calendar: Cldr.Calendar.Gregorian}}
+       %Tempo{time: [year: 2022, month: {:group, 1..4}], shift: nil, calendar: Cldr.Calendar.Gregorian}}
 
     assert Tempo.from_iso8601("2022Y38M") ==
       {:ok,
-       %Tempo{time: [month: 5..8], shift: nil, calendar: Cldr.Calendar.Gregorian}}
+       %Tempo{time: [year: 2022, month: {:group, 5..8}], shift: nil, calendar: Cldr.Calendar.Gregorian}}
 
     assert Tempo.from_iso8601("2022Y39M") ==
       {:ok,
-       %Tempo{time: [month: 9..12], shift: nil, calendar: Cldr.Calendar.Gregorian}}
+       %Tempo{time: [year: 2022, month: {:group, 9..12}], shift: nil, calendar: Cldr.Calendar.Gregorian}}
 
     assert Tempo.from_iso8601("2022Y1H") ==
       {:ok,
-        %Tempo{time: [month: 1..6], shift: nil, calendar: Cldr.Calendar.Gregorian}}
+        %Tempo{time: [year: 2022, month: {:group, 1..6}], shift: nil, calendar: Cldr.Calendar.Gregorian}}
 
     assert Tempo.from_iso8601("2022Y2H") ==
       {:ok,
-        %Tempo{time: [month: 7..12], shift: nil, calendar: Cldr.Calendar.Gregorian}}
+        %Tempo{time: [year: 2022, month: {:group, 7..12}], shift: nil, calendar: Cldr.Calendar.Gregorian}}
   end
 
   test "Integer sets with negative bounds" do

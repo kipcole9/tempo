@@ -89,7 +89,7 @@ defmodule Tempo.Iso8601.Group do
     start = (quarter - 1) * months_in_quarter + 1
     finish = if quarter == @quarters_in_year, do: months_in_year, else: start + months_in_quarter - 1
 
-    expand_groups([{:month, start..finish} | rest], calendar)
+    expand_groups([{:year, year}, {:month, {:group, start..finish}} | rest], calendar)
   end
 
   # Reformat quadrimester (third of a year) as groups of months
@@ -102,7 +102,7 @@ defmodule Tempo.Iso8601.Group do
     start = (quadrimester - 1) * months_in_quadrimester + 1
     finish = if quadrimester == @quadrimesters_in_year, do: months_in_year, else: start + months_in_quadrimester - 1
 
-    expand_groups([{:month, start..finish} | rest], calendar)
+    expand_groups([{:year, year}, {:month, {:group, start..finish}} | rest], calendar)
   end
 
   # Reformat semestrals (half a year) as groups of months
@@ -115,7 +115,7 @@ defmodule Tempo.Iso8601.Group do
     start = (semestral - 1) * months_in_semestral + 1
     finish = if semestral == @semestrals_in_year, do: months_in_year, else: start + months_in_semestral - 1
 
-    expand_groups([{:month, start..finish} | rest], calendar)
+    expand_groups([{:year, year}, {:month, {:group, start..finish}} | rest], calendar)
   end
 
   def expand_groups([{:group, [{:nth, nth}, {unit, value}]} | rest], calendar) do

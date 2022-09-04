@@ -104,7 +104,7 @@ defmodule Tempo.Inspect do
 
   def inspect_value({unit, {:group, range}}) do
     group_size = range.last - range.first + 1
-    nth = div(range.first, range.last - range.first)
+    nth = div(range.first, range.last - range.first) |> max(1)
     [_, key] = inspect_value({unit, 1})
     [inspect_value(nth), ?G, inspect_value(group_size), key, ?U]
   end
