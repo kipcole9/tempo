@@ -260,8 +260,9 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
     times(duration_date_element(), min: 1)
   end
 
-  def duration_time_elements do
-    ignore(string("T"))
+  def duration_time_elements(combinator \\ empty()) do
+    combinator
+    |> ignore(optional(string("T")))
     |> times(duration_time_element(), min: 1)
   end
 
@@ -502,14 +503,14 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
 
   def implicit_hour do
     choice([
-      parsec(:group),
+      parsec(:time_group),
       positive_number_or_integer_set(:hour, 2),
     ])
   end
 
   def explicit_hour do
     choice([
-      parsec(:group),
+      parsec(:time_group),
       parsec(:selection),
       maybe_negative_number_or_integer_set("H", :hour, min: 1),
     ])
@@ -518,14 +519,14 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
 
   def implicit_minute do
     choice([
-      parsec(:group),
+      parsec(:time_group),
       positive_number_or_integer_set(:minute, 2),
     ])
   end
 
   def explicit_minute do
     choice([
-      parsec(:group),
+      parsec(:time_group),
       parsec(:selection),
       maybe_negative_number_or_integer_set("M", :minute, min: 1),
     ])
@@ -533,14 +534,14 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
 
   def implicit_second do
     choice([
-      parsec(:group),
+      parsec(:time_group),
       positive_number_or_integer_set(:second, 2),
     ])
   end
 
   def explicit_second do
     choice([
-      parsec(:group),
+      parsec(:time_group),
       parsec(:selection),
       maybe_negative_number_or_integer_set("S", :second, min: 1),
     ])

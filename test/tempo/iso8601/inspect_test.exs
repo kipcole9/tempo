@@ -15,7 +15,7 @@ defmodule Tempo.Iso8601.InspectTest do
   end
 
   test "Inspect with other calendars" do
-    assert Tempo.from_iso8601!("2022T3G4DU", Cldr.Calendar.ISOWeek) ==
+    assert Tempo.from_iso8601!("2022Y3G4DU", Cldr.Calendar.ISOWeek) ==
      Tempo.from_iso8601!("2022Y3G4DU", Cldr.Calendar.ISOWeek)
    end
 

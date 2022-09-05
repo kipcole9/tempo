@@ -118,18 +118,7 @@ defmodule Tempo.Algebra do
   end
 
   def reset(source, range, unit, calendar, previous, rest) do
-    previous =
-      previous
-      |> Enum.reverse()
-      |> do_next(calendar, previous)
-
-    previous =
-      case previous do
-        {:rollover, list} -> Enum.reverse(list)
-        other -> Enum.reverse(other)
-      end
-
-    range = adjusted_range(range, unit, calendar, previous)
+    range = adjusted_range(range, unit, calendar, backtrack(previous, calendar))
     increment(List.wrap(source), range, unit, rest)
   end
 
@@ -146,6 +135,18 @@ defmodule Tempo.Algebra do
 
       first ->
         {{:rollover, first}, continuation(source, t, unit)}
+    end
+  end
+
+  def backtrack(previous, calendar) do
+    previous =
+      previous
+      |> Enum.reverse()
+      |> do_next(calendar, previous)
+
+    case previous do
+      {:rollover, list} -> Enum.reverse(list)
+      other -> Enum.reverse(other)
     end
   end
 

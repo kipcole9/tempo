@@ -132,6 +132,14 @@ defmodule Tempo.Iso8601.Tokenizer do
             |> tag(:group)
             |> label("group")
 
+  defparsec :time_group,
+            parsec(:integer_or_integer_set)
+            |> ignore(string("G"))
+            |> duration_time_elements()
+            |> ignore(string("U"))
+            |> tag(:group)
+            |> label("time group")
+
   defparsec :selection,
             ignore(string("L"))
             |> selection_elements()

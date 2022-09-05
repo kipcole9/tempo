@@ -48,19 +48,19 @@ defmodule Tempo.Iso8601.Group do
   # Northern Spring March-May
   # Southern Autumn - March-May
   def expand_groups([{:month, month} | rest], calendar) when month in [25, 31] do
-    expand_groups([{:month, 3..5} | rest], calendar)
+        expand_groups([{:month, {:group, 3..5}} | rest], calendar)
   end
 
   # Northern Summer June-August
   # Southern Winter - June-August
   def expand_groups([{:month, month} | rest], calendar) when month in [26, 32] do
-    expand_groups([{:month, 6..8} | rest], calendar)
+    expand_groups([{:month, {:group, 6..8}} | rest], calendar)
   end
 
   # Northern Autumn September-November
   # Southern Spring - September-November
   def expand_groups([{:month, month} | rest], calendar) when month in [27, 29] do
-    expand_groups([{:month, 9..11} | rest], calendar)
+    expand_groups([{:month, {:group, 9..11}} | rest], calendar)
   end
 
   # Northern Winter Jan-Feb and December (of the previous year)
