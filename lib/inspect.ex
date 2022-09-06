@@ -18,42 +18,42 @@ defmodule Tempo.Inspect do
 
   def inspect(%Tempo.Set{type: type, set: set}) do
     elements = Enum.map_join(set, ",", &inspect/1)
-    ["Tempo.from_iso8601!(\"", open(type), elements, close(type), ?", ?)]
+    ["~o\"", open(type), elements, close(type), ?"]
     |> :erlang.iolist_to_binary()
   end
 
   def inspect(%Tempo.Interval{recurrence: 1, from: from, to: :undefined = to, duration: nil}) do
-    ["Tempo.from_iso8601!(\"", inspect(from.time), ?/, inspect_value(to), ?", ?)]
+    ["~o\"", inspect(from.time), ?/, inspect_value(to), ?"]
     |> :erlang.iolist_to_binary()
   end
 
   def inspect(%Tempo.Interval{recurrence: 1, from: :undefined = from, to: to, duration: nil}) do
-    ["Tempo.from_iso8601!(\"", inspect_value(from), ?/, inspect(to.time), ?", ?)]
+    ["~o\"", inspect_value(from), ?/, inspect(to.time), ?"]
     |> :erlang.iolist_to_binary()
   end
 
   def inspect(%Tempo.Interval{recurrence: 1, from: from, to: to, duration: nil}) do
-    ["Tempo.from_iso8601!(\"", inspect(from.time), ?/, inspect(to.time), ?", ?)]
+    ["~o\"", inspect(from.time), ?/, inspect(to.time), ?"]
     |> :erlang.iolist_to_binary()
   end
 
   def inspect(%Tempo.Interval{recurrence: :infinity, from: from, to: :undefined = to, duration: nil}) do
-    ["Tempo.from_iso8601!(\"R/", inspect(from.time), ?/, inspect_value(to), ?", ?)]
+    ["~o\"R/", inspect(from.time), ?/, inspect_value(to), ?"]
     |> :erlang.iolist_to_binary()
   end
 
   def inspect(%Tempo.Interval{recurrence: :infinity, from: :undefined = from, to: to, duration: nil}) do
-    ["Tempo.from_iso8601!(\"R/", inspect_value(from), ?/, inspect(to.time), ?", ?)]
+    ["~o\"R/", inspect_value(from), ?/, inspect(to.time), ?"]
     |> :erlang.iolist_to_binary()
   end
 
   def inspect(%Tempo.Interval{recurrence: :infinity, from: from, to: to, duration: nil}) do
-    ["Tempo.from_iso8601!(\"R/", inspect(from.time), ?/, inspect(to.time), ?", ?)]
+    ["~o\"R/", inspect(from.time), ?/, inspect(to.time), ?"]
     |> :erlang.iolist_to_binary()
   end
 
   def inspect(%Tempo.Duration{time: time}) do
-    ["Tempo.from_iso8601!(\"P", inspect(time), ?", ?)]
+    ["~o\"P", inspect(time), ?"]
     |> :erlang.iolist_to_binary()
   end
 
@@ -106,8 +106,14 @@ defmodule Tempo.Inspect do
     group_size = last - first + 1
     nth =  div(last, group_size)
 
-    [_, key] = inspect_value({unit, 1})
-    [inspect_value(nth), ?G, inspect_value(group_size), key, ?U]
+    [_, unit_key] = inspect_value({unit, 1})
+    [inspect_value(nth), ?G, inspect_value(group_size), unit_key, ?U]
+  end
+
+  def inspect_value({unit, {:group, {set_type, set_values}}, value}) do
+    [_, unit_key] = inspect_value({unit, value})
+    elements = Enum.map_join(set_values, ",", &inspect_value/1)
+    [open(set_type), elements, close(set_type), ?G, inspect_value(value), unit_key, ?U]
   end
 
   def inspect_value({:year, year}), do: [inspect_value(year), "Y"]

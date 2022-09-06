@@ -152,7 +152,14 @@ defmodule Tempo.Iso8601.Parser.Test do
 
     # Section 6.6 Example 3
     assert Tempo.from_iso8601("2018-{1,3,5}G2MU") ==
-      {:ok, %Tempo{calendar: Cldr.Calendar.Gregorian, time: [year: 2018, group: [all_of: [1, 3, 5], month: 2]]}}
+      {
+        :ok,
+        %Tempo{
+          calendar: Cldr.Calendar.Gregorian,
+          shift: nil,
+          time: [{:year, 2018}, {:month, {:group, {:all, [1, 3, 5]}}, 2}]
+        }
+      }
 
   end
 
