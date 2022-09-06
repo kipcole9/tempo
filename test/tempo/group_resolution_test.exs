@@ -31,4 +31,11 @@ defmodule Tempo.GroupResolution.Test do
     assert Tempo.from_iso8601("T2G4MU240S") == {:error, "480 is not valid. The valid values are 240..479"}
   end
 
+  test "Seasons expanded to groups" do
+    assert ~o"2022Y25M" == ~o"2022Y3M/2022Y5M"
+    assert ~o"2022Y26M" == ~o"2022Y6M/2022Y8M"
+    assert ~o"2022Y27M" == ~o"2022Y9M/2022Y11M"
+    assert ~o"2022Y28M" == ~o"2021Y12M/2022Y2M"
+  end
+
 end

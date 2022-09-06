@@ -47,20 +47,50 @@ defmodule Tempo.Iso8601.Group do
 
   # Northern Spring March-May
   # Southern Autumn - March-May
-  def expand_groups([{:month, month} | rest], calendar) when month in [25, 31] do
-        expand_groups([{:month, {:group, 3..5}} | rest], calendar)
+  def expand_groups([{:year, year}, {:month, month} | rest], calendar) when month in [25, 31] do
+    {:ok, interval} =
+      [
+        interval: [
+          datetime: [{:year, year}, {:month, 3}] ++ rest,
+          datetime: [{:year, year}, {:month, 5}] ++ rest
+        ]
+      ]
+      |> Tempo.Iso8601.Parser.parse()
+      |> Tempo.Iso8601.Group.expand_groups(calendar)
+
+    interval
   end
 
   # Northern Summer June-August
   # Southern Winter - June-August
-  def expand_groups([{:month, month} | rest], calendar) when month in [26, 32] do
-    expand_groups([{:month, {:group, 6..8}} | rest], calendar)
+  def expand_groups([{:year, year}, {:month, month} | rest], calendar) when month in [26, 32] do
+    {:ok, interval} =
+      [
+        interval: [
+          datetime: [{:year, year}, {:month, 6}] ++ rest,
+          datetime: [{:year, year}, {:month, 8}] ++ rest
+        ]
+      ]
+      |> Tempo.Iso8601.Parser.parse()
+      |> Tempo.Iso8601.Group.expand_groups(calendar)
+
+    interval
   end
 
   # Northern Autumn September-November
   # Southern Spring - September-November
-  def expand_groups([{:month, month} | rest], calendar) when month in [27, 29] do
-    expand_groups([{:month, {:group, 9..11}} | rest], calendar)
+  def expand_groups([{:year, year}, {:month, month} | rest], calendar) when month in [27, 29] do
+    {:ok, interval} =
+      [
+        interval: [
+          datetime: [{:year, year}, {:month, 9}] ++ rest,
+          datetime: [{:year, year}, {:month, 11}] ++ rest
+        ]
+      ]
+      |> Tempo.Iso8601.Parser.parse()
+      |> Tempo.Iso8601.Group.expand_groups(calendar)
+
+    interval
   end
 
   # Northern Winter Jan-Feb and December (of the previous year)
@@ -69,14 +99,14 @@ defmodule Tempo.Iso8601.Group do
     {:ok, interval} =
       [
         interval: [
-          datetime: [{:year, year - 1}, {:month, 12}],
-          datetime: [{:year, year}, {:month, 2}]
+          datetime: [{:year, year - 1}, {:month, 12}] ++ rest,
+          datetime: [{:year, year}, {:month, 2}] ++ rest
         ]
       ]
       |> Tempo.Iso8601.Parser.parse()
       |> Tempo.Iso8601.Group.expand_groups(calendar)
 
-    expand_groups([{:group, interval} | rest], calendar)
+    interval
   end
 
   # Reformat quarters as groups of months
