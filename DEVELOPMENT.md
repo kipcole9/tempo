@@ -41,6 +41,8 @@ For Tempo we extend this somewhat in the following way:
 
 In the case where no calendar is specified by an extension, the calendar specified by `Cldr.get_locale/0` will be used. This is most commonly `Cldr.Calendar.Gregorian` which is a proleptic Gregorian calendar that is compatible with the Elixir standard `Calendar.ISO`.
 
+In effect, we merge the current locale (`Cldr.get_locale/`) with the data derived from the extensions, into an "effective locale" used for this date/time.
+
 ### Extension ABNF syntax
 
 ```
