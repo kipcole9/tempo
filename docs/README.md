@@ -1,4 +1,4 @@
-### Adventures in Internationalization and Localization
+### Tempo - a new way to think about time in computer languages
 
 Some thoughts on the nature of time for Elixir programmers.
 

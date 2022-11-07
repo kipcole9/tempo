@@ -89,7 +89,7 @@ I've started a new project, [Tempo](https://github.com/kipcole9/tempo) that is e
 
 `Tempo` will also include full support for `ISO8601-1` and `ISO8601-2` times; [interval algebra](https://en.wikipedia.org/wiki/Allen%27s_interval_algebra); recurring times and more.
 
-It's quite a large undertaking expected to take most of 2021 to complete.  On this blog I'll update progress and experiments.
+It's quite a large undertaking expected to take most of 2022 to complete.  On this blog I'll update progress and experiments.
 
 ### References
 
