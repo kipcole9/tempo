@@ -12,11 +12,11 @@ A talk that introduces a unified time type and builds on the idea of time as int
 
 ## Project status
 
-Whilst the commit volume is currently low, the mental effort going into the conceptual model is high. Expect more active progress in this repo during December 2022.  The primary effort for the next updates will be time math (which is importnat for calculating explicit intervals and time differences) and time comparison (which is created a very active discussion on the [elixir-lang core mailing list](https://groups.google.com/g/elixir-lang-core/c/W2TeQm5r1H4)).
+Whilst the commit volume is currently low, the mental effort going into the conceptual model is high. Expect more active progress in this repo during December 2022.  The primary effort for the next updates will be time math (which is important for calculating explicit intervals and time differences) and time comparison (which is creating a very active discussion on the [elixir-lang core mailing list](https://groups.google.com/g/elixir-lang-core/c/W2TeQm5r1H4)).
 
 ## Installation
 
-Tempo is not yet available for installation from `hex.pm`. And since it has basically no functional utility at the moment installing it would only be for experimentation and amusement.
+Tempo is not yet available for installation from `hex.pm`. And since it has basically no functional utility at the moment, installing it would only be for experimentation and amusement.
 
 ```elixir
 def deps do
