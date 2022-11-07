@@ -1,5 +1,5 @@
 %{
-  "astro": {:git, "https://github.com/kipcole9/astro.git", "80db5a51902d4739e87fc0d8b58f5e2a9f04614c", [branch: "lunar"]},
+  "astro": {:hex, :astro, "0.10.0", "40dbdb5a3c2bf8f630bfdb2ea2253f62a06e3b8865aaeb8fedc8ea93ecfe7148", [:mix], [{:geo, "~> 3.0", [hex: :geo, repo: "hexpm", optional: false]}, {:tz_world, "~> 1.0", [hex: :tz_world, repo: "hexpm", optional: false]}, {:tzdata, "~> 1.0", [hex: :tzdata, repo: "hexpm", optional: false]}], "hexpm", "721b292bbe78e5f6926be8062676c7a0fce1554a45feb4d86cac9316e069d1eb"},
   "certifi": {:hex, :certifi, "2.9.0", "6f2a475689dd47f19fb74334859d460a2dc4e3252a3324bd2111b8f0429e7e21", [:rebar3], [], "hexpm", "266da46bdb06d6c6d35fde799bcb28d36d985d424ad7c08b5bb48f5b5cdd4641"},
   "cldr_utils": {:hex, :cldr_utils, "2.19.1", "5a7bcd2f2fd432c548e494e850bba8a9e838f1b10202f682ea1d9809d74eff31", [:mix], [{:castore, "~> 0.1", [hex: :castore, repo: "hexpm", optional: true]}, {:certifi, "~> 2.5", [hex: :certifi, repo: "hexpm", optional: true]}, {:decimal, "~> 1.9 or ~> 2.0", [hex: :decimal, repo: "hexpm", optional: false]}], "hexpm", "fbd10f79363e70f3d893ab21e195f444ca87c2c80120b5911761491da4489620"},
   "decimal": {:hex, :decimal, "2.0.0", "a78296e617b0f5dd4c6caf57c714431347912ffb1d0842e998e9792b5642d697", [:mix], [], "hexpm", "34666e9c55dea81013e77d9d87370fe6cb6291d1ef32f46a1600230b1d44f577"},

@@ -23,7 +23,7 @@ defmodule Tempo.MixProject do
       {:nimble_parsec, "~> 1.0"},
       {:ex_cldr, "~> 2.34"},
       {:ex_cldr_calendars, github: "elixir-cldr/cldr_calendars", branch: "tempo", override: true},
-      {:astro, github: "kipcole9/astro", branch: "lunar"},
+      {:astro, "~> 0.10"},
       {:ex_doc, "~> 0.21", runtime: false}
     ]
   end
