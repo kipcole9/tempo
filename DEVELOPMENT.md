@@ -17,7 +17,7 @@ An implicit interval, such as `2022` is equalivent to the explicit interval `202
 ### Explicit intervals
 
 * Parsing should extend the end of the interal with the units of lower resolution in the beginning of the interval
-* Both parts of the interval should have the same resolution. When they are different, what is the treatment????  Looks like the standard says that the interval end inherits the higher resolution time units from the interval start.  But what if the interval end has higher resolution?
+* Both parts of the interval should have the same resolution. When they are different, what is the treatment????  Looks like the standard says that the interval end inherits the higher resolution time units from the interval start.  But what if the interval end has higher resolution? The standard appears silent on the topic so we will extend the interval start with higher resolution units from the interval end, but with initial values (ie 1 or 0)
 
 ### Timezones
 

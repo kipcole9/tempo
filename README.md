@@ -6,16 +6,22 @@ A Time library based upon conceptualizing time as intervals rather than instants
 
 **There is not much to see here yet, the current work is on implementing full suport for ISO8601 dates/times (both part 1 and part 2).**
 
+## ElixirConf 22 Video on Time Algebra
+
+A talk that introduces a unified time type and builds on the idea of time as intervals is [now on Youtube](https://www.youtube.com/watch?v=4VfPvCI901c).
+
+## Project status
+
+Whilst the commit volume is currently low, the mental effort going into the conceptual model is high. Expect more active progress in this repo during December 2022.  The primary effort for the next updates will be time math (which is importnat for calculating explicit intervals and time differences) and time comparison (which is created a very active discussion on the [elixir-lang core mailing list](https://groups.google.com/g/elixir-lang-core/c/W2TeQm5r1H4)).
+
 ## Installation
 
-Tempo is not yet available for installation.
-
-Tempo will be installable by adding `tempo` to your list of dependencies in `mix.exs`:
+Tempo is not yet available for installation from `hex.pm`. And since it has basically no functional utility at the moment installing it would only be for experimentation and amusement.
 
 ```elixir
 def deps do
   [
-    {:tempo, "~> 0.1.0"}
+    {:tempo, "~> 0.1.0", github: "kipcole9/tempo"}
   ]
 end
 ```
