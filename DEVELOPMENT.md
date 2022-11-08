@@ -4,28 +4,28 @@
 
 An implicit interval, such as `2022` is equalivent to the explicit interval `2022-01/12`. The transformation proceeds as follows:
 
-1. Enumeration for implicit intervals occurs at the next hightest zoom level (greater resolution). In this case is is months.
+1. Enumeration for implicit intervals occurs at the next highest zoom level (greater resolution). In this case is is months.
 2. The end of the interval is a closed at month 12.
 3. Therefore we can say the implicit interval is closed and equivalent to the set `{2022-01, 2022-02, ..., 2022-12}`
 
 ### On conversion between explicit and implicit intervals
 
 * Implicit intervals can always be converted to explicit intervals or a set of explicit intervals
-* Not all explcit intervals can be converted to implicit ones.
+* Not all explicit intervals can be converted to implicit ones.
 * The explicit interval for `2022` is `2022/2022` since it is a closed interval of `[2022]`
 
 ### Explicit intervals
 
-* Parsing should extend the end of the interal with the units of lower resolution in the beginning of the interval
+* Parsing should extend the end of the interval with the units of lower resolution in the beginning of the interval
 * Both parts of the interval should have the same resolution. When they are different, what is the treatment????  Looks like the standard says that the interval end inherits the higher resolution time units from the interval start.  But what if the interval end has higher resolution? The standard appears silent on the topic so we will extend the interval start with higher resolution units from the interval end, but with initial values (ie 1 or 0)
 
 ### Timezones
 
-A [proposed extension](https://datatracker.ietf.org/doc/draft-ietf-sedate-datetime-extended/) to [rfc3339](https://www.rfc-editor.org/rfc/rfc3339) specifies a mechanism to add metadata, including timezones, to a RFC3339 datetime.  RFC3339 is a profile of ISO8601 that is largely the "extended" syntax of ISO8601 limted to the capability of Part 1.  Therefore ISO8601 is a superset of RFC3339.
+A [proposed extension](https://datatracker.ietf.org/doc/draft-ietf-sedate-datetime-extended/) to [rfc3339](https://www.rfc-editor.org/rfc/rfc3339) specifies a mechanism to add metadata, including timezones, to a RFC3339 datetime.  RFC3339 is a profile of ISO8601 that is largely the "extended" syntax of ISO8601 limited to the capability of Part 1.  Therefore ISO8601 is a superset of RFC3339.
 
-The ABNF of the extension mechanism is described as follows and will be used for implementation in Tempo.  Since a timezone offset and a timezone extension name may be in conflict, the "Critical" flag is used to raise an exception if the explicit offset and the implcit offset (of the timezone name) do not match.
+The ABNF of the extension mechanism is described as follows and will be used for implementation in Tempo.  Since a timezone offset and a timezone extension name may be in conflict, the "Critical" flag is used to raise an exception if the explicit offset and the implicit offset (of the timezone name) do not match.
 
-If the Critical flag is not provided, then the policy will be that the time zone name will take precedence. The extension proposal explicity calls out that the policy to apply is implementation dependent, hence the clarity required here.
+If the Critical flag is not provided, then the policy will be that the time zone name will take precedence. The extension proposal explicitly calls out that the policy to apply is implementation dependent, hence the clarity required here.
 
 ### Extensions
 
