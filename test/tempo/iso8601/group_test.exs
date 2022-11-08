@@ -63,7 +63,7 @@ defmodule Tempo.Parser.Group.Test do
     assert Tokenizer.tokenize("2018Y4G60DU6D") ==
       {:ok, [date: [year: 2018, group: [{:nth, 4}, {:day, 60}], day: 6]]}
 
-    # Note that in secrion 5.4 Example 2 it shows
+    # Note that in section 5.4 Example 2 it shows
     # 2018Y9M2DT3GT8HU0H30M (Note the added 0H). In this implementation
     # the `H` is optional but there may not be any numbers between the
     # group and the `H`.

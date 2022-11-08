@@ -254,7 +254,7 @@ defmodule Tempo.Iso8601.Parser do
 
   # Consolidate overlapping, adjacent and enclosing
   # ranges. Remove integers that fit within or are
-  # adjancent to ranges. Collapse sequences of integers
+  # adjacent to ranges. Collapse sequences of integers
   # into a range.
 
   def consolidate_ranges([]) do
