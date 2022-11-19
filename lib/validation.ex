@@ -284,6 +284,15 @@ defmodule Tempo.Validation do
     end
   end
 
+  def resolve([{:month, month}, {:day, days} | _rest], calendar) when is_integer(month) and is_list(days) do
+    with days_in_month when is_integer(days_in_month) <- calendar.days_in_month(month),
+         {:ok, days} <- conform(days, 1..days_in_month) do
+      [{:month, month}, {:day, days}]
+    else
+      {:error, :unresolved} -> {:error, "Cannot resolve days in month #{month} without knowing the year"}
+    end
+  end
+
   # Calculating the result of fractional time units
   # TODO Support negative time fractions
   def resolve([{:year, year}], calendar) when is_float(year) and year > 0 do

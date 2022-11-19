@@ -21,6 +21,12 @@ defmodule TempoTest do
       {:error, "60 is not valid. The valid values are 1..59"}
   end
 
+  test "time with month and day but no year" do
+    assert Tempo.from_iso8601("4M{1..-1}D") == {:ok, ~o"4M{1..30}D"}
+    assert Tempo.from_iso8601("1M{1..-1}D") == {:ok, ~o"1M{1..31}D"}
+    assert Tempo.from_iso8601("2M{1..-1}D") == {:error, "Cannot resolve days in month 2 without knowing the year"}
+  end
+
   # 5.4.2 Group Example 8
   test "times that are two following groups of the same unit" do
     assert Tempo.from_iso8601("201J2G5YU3DT10H0S") ==
