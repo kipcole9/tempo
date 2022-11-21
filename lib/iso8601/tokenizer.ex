@@ -34,36 +34,36 @@ defmodule Tempo.Iso8601.Tokenizer do
                 ])
 
   defparsec :integer_or_integer_set,
-    choice([
-      integer(min: 1) |> unwrap_and_tag(:nth),
-      parsec(:integer_set_all),
-      parsec(:integer_set_one)
-    ])
-    |> label("integer or integer set")
+            choice([
+              integer(min: 1) |> unwrap_and_tag(:nth),
+              parsec(:integer_set_all),
+              parsec(:integer_set_one)
+            ])
+            |> label("integer or integer set")
 
   defparsec :set_all,
-    ignore(string("{"))
-    |> list_of_time_or_range()
-    |> ignore(string("}"))
-    |> tag(:all_of)
+            ignore(string("{"))
+            |> list_of_time_or_range()
+            |> ignore(string("}"))
+            |> tag(:all_of)
 
   defparsec :set_one,
-    ignore(string("["))
-    |> list_of_time_or_range()
-    |> ignore(string("]"))
-    |> tag(:one_of)
+            ignore(string("["))
+            |> list_of_time_or_range()
+            |> ignore(string("]"))
+            |> tag(:one_of)
 
   defparsec :integer_set_all,
-    ignore(string("{"))
-    |> list_of_integer_or_range()
-    |> ignore(string("}"))
-    |> tag(:all_of)
+            ignore(string("{"))
+            |> list_of_integer_or_range()
+            |> ignore(string("}"))
+            |> tag(:all_of)
 
   defparsec :integer_set_one,
-    ignore(string("["))
-    |> list_of_integer_or_range()
-    |> ignore(string("]"))
-    |> tag(:one_of)
+            ignore(string("["))
+            |> list_of_integer_or_range()
+            |> ignore(string("]"))
+            |> tag(:one_of)
 
   defparsec :interval_parser,
             optional(recurrence())
@@ -89,11 +89,11 @@ defmodule Tempo.Iso8601.Tokenizer do
             |> label("interval")
 
   defparsec :datetime_or_date_or_time,
-                choice([
-                  parsec(:datetime_parser),
-                  parsec(:date_parser),
-                  parsec(:time_parser)
-                ])
+            choice([
+              parsec(:datetime_parser),
+              parsec(:date_parser),
+              parsec(:time_parser)
+            ])
 
   defparsec :datetime_parser,
             choice([

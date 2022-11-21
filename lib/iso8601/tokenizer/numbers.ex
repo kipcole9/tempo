@@ -145,7 +145,8 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
       parsec(:integer_set_all),
       positive_number(opts)
     ])
-    |> ignore(string(indicator)) |> unwrap_and_tag(tag)
+    |> ignore(string(indicator))
+    |> unwrap_and_tag(tag)
   end
 
   def positive_number_or_integer_set(tag, opts) do
@@ -161,7 +162,8 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
       parsec(:integer_set_all),
       maybe_negative_number(opts)
     ])
-    |> ignore(string(indicator)) |> unwrap_and_tag(tag)
+    |> ignore(string(indicator))
+    |> unwrap_and_tag(tag)
   end
 
   def positive_integer_or_integer_set(tag, opts) do
@@ -177,7 +179,8 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
       parsec(:integer_set_all),
       positive_integer(opts)
     ])
-    |> ignore(string(indicator)) |> unwrap_and_tag(tag)
+    |> ignore(string(indicator))
+    |> unwrap_and_tag(tag)
   end
 
   def maybe_negative_integer_or_integer_set(indicator, tag, opts) do
@@ -185,7 +188,8 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
       parsec(:integer_set_all),
       maybe_negative_integer(opts)
     ])
-    |> ignore(string(indicator)) |> unwrap_and_tag(tag)
+    |> ignore(string(indicator))
+    |> unwrap_and_tag(tag)
   end
 
   def exponent do
@@ -234,9 +238,10 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
     number
   end
 
-  def form_number([?-, integer, {:fraction, fraction} | rest]) when is_integer(integer) and is_integer(fraction) do
+  def form_number([?-, integer, {:fraction, fraction} | rest])
+      when is_integer(integer) and is_integer(fraction) do
     digits = Cldr.Digits.number_of_integer_digits(fraction)
-    number = integer + (fraction / :math.pow(10, digits))
+    number = integer + fraction / :math.pow(10, digits)
     form_number([-number | rest])
   end
 
@@ -248,9 +253,10 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
     form_number([{-integer, options} | rest])
   end
 
-  def form_number([integer, {:fraction, fraction} | rest]) when is_integer(integer) and is_integer(fraction) do
+  def form_number([integer, {:fraction, fraction} | rest])
+      when is_integer(integer) and is_integer(fraction) do
     digits = Cldr.Digits.number_of_integer_digits(fraction)
-    number = integer + (fraction / :math.pow(10, digits))
+    number = integer + fraction / :math.pow(10, digits)
     form_number([number | rest])
   end
 
@@ -294,5 +300,4 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
   def normalize_mask([digit | t]) when digit in ?0..?9 do
     [digit - ?0 | normalize_mask(t)]
   end
-
 end

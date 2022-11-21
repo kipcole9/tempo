@@ -3,7 +3,7 @@ defmodule Tempo.Algebra do
   alias Tempo.Iso8601.Unit
 
   defguard is_continuation(unit, fun) when is_atom(unit) and is_function(fun)
-  defguard is_unit(unit, value) when is_atom(unit) and is_list(value) or is_number(value)
+  defguard is_unit(unit, value) when (is_atom(unit) and is_list(value)) or is_number(value)
 
   @doc """
   Get the next "odomoter reading" list of integers and ranges
@@ -39,6 +39,7 @@ defmodule Tempo.Algebra do
     case fun.(calendar, previous) do
       {{:rollover, acc}, fun} ->
         {:rollover, [{unit, {acc, fun}}]}
+
       {acc, fun} ->
         [{unit, {acc, fun}}]
     end
@@ -125,12 +126,13 @@ defmodule Tempo.Algebra do
   defp rollover([h | t] = source, unit, calendar, previous) do
     case h do
       %Range{first: first, last: last} = range when first >= 0 and last < 0 ->
-       {first, continuation} = reset(h, range, unit, calendar, previous, t)
-       {{:rollover, first}, continuation}
+        {first, continuation} = reset(h, range, unit, calendar, previous, t)
+        {{:rollover, first}, continuation}
 
       %Range{} = range ->
         %Range{first: first, last: last, step: step} =
           adjusted_range(range, unit, calendar, previous)
+
         {{:rollover, first}, continuation(source, [(first + step)..last//step | t], unit)}
 
       first ->
@@ -151,7 +153,7 @@ defmodule Tempo.Algebra do
   end
 
   defp adjusted_range(%Range{first: first, last: last, step: step}, _unit, _calendar, _previous)
-      when first >= 0 and last >= first and step > 0 do
+       when first >= 0 and last >= first and step > 0 do
     %Range{first: first, last: last, step: step}
   end
 
@@ -168,11 +170,11 @@ defmodule Tempo.Algebra do
   end
 
   def current_units(units) do
-    Enum.map units, fn
+    Enum.map(units, fn
       {unit, list} when is_list(list) -> {unit, extract_first(list)}
       {unit, {current, _fun}} -> {unit, current}
       {unit, value} -> {unit, value}
-    end
+    end)
   end
 
   def extract_first([%Range{first: first} | _rest]), do: first
@@ -222,7 +224,7 @@ defmodule Tempo.Algebra do
   def add_implicit_enumeration(%Tempo{time: time, calendar: calendar} = tempo) do
     {unit, _span} = Tempo.resolution(tempo)
     {unit, range} = Unit.implicit_enumerator(unit, calendar)
-    %{tempo| time: time ++ [{unit, [range]}]}
+    %{tempo | time: time ++ [{unit, [range]}]}
   end
 
   def maybe_add_implicit_enumeration(%Tempo{} = tempo) do
@@ -239,5 +241,4 @@ defmodule Tempo.Algebra do
     end)
     |> Unit.sort(:desc)
   end
-
 end

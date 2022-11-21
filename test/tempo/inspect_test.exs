@@ -12,7 +12,8 @@ defmodule Tempo.Iso8601.InspectTest do
   end
 
   test "Inspect with other calendars" do
-    assert inspect(Tempo.from_iso8601!("2022Y3G4DU", Cldr.Calendar.ISOWeek)) == "~o\"2022Y3G4DU\"W"
+    assert inspect(Tempo.from_iso8601!("2022Y3G4DU", Cldr.Calendar.ISOWeek)) ==
+             "~o\"2022Y3G4DU\"W"
   end
 
   test "Inspect interval" do
@@ -25,7 +26,8 @@ defmodule Tempo.Iso8601.InspectTest do
   end
 
   test "Inspect set" do
-    assert inspect(Tempo.from_iso8601!("{2022Y,2021Y,2021Y12M}")) == "~o\"{2022Y,2021Y,2021Y12M}\""
+    assert inspect(Tempo.from_iso8601!("{2022Y,2021Y,2021Y12M}")) ==
+             "~o\"{2022Y,2021Y,2021Y12M}\""
   end
 
   test "Groups with sets" do

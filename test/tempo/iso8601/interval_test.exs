@@ -199,24 +199,24 @@ defmodule Tempo.Parser.Interval.Test do
 
   test "Intervals with undefined beginning or end" do
     assert Tokenizer.tokenize("-13.787E9S4±20E6Y/..") ==
-      {:ok,
-       [
-         interval: [
-           {:date,
-            [year: {-13787000000, [significant_digits: 4, margin_of_error: 20000000]}]},
-           :undefined
-         ]
-       ]}
+             {:ok,
+              [
+                interval: [
+                  {:date,
+                   [year: {-13_787_000_000, [significant_digits: 4, margin_of_error: 20_000_000]}]},
+                  :undefined
+                ]
+              ]}
 
-     assert Tokenizer.tokenize("../13.787E9S4±20E6Y") ==
-       {:ok,
-        [
-          interval: [
-            :undefined,
-            {:date,
-             [year: {13787000000, [significant_digits: 4, margin_of_error: 20000000]}]}
-          ]
-        ]}
+    assert Tokenizer.tokenize("../13.787E9S4±20E6Y") ==
+             {:ok,
+              [
+                interval: [
+                  :undefined,
+                  {:date,
+                   [year: {13_787_000_000, [significant_digits: 4, margin_of_error: 20_000_000]}]}
+                ]
+              ]}
   end
 
   test "Intervals where trailing century should be month" do

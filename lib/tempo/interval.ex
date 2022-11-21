@@ -1,12 +1,10 @@
 defmodule Tempo.Interval do
   alias Tempo.Duration
 
-  defstruct [
-    recurrence: 1,
-    from: nil,
-    to: nil,
-    duration: nil
-  ]
+  defstruct recurrence: 1,
+            from: nil,
+            to: nil,
+            duration: nil
 
   def new([{_from, time}, {:duration, duration}]) do
     %__MODULE__{from: Tempo.new(time), duration: Duration.new(duration)}
@@ -28,5 +26,4 @@ defmodule Tempo.Interval do
     new(rest)
     |> Map.put(:recurrence, recur)
   end
-
 end

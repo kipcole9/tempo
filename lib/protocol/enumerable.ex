@@ -31,6 +31,7 @@ defimpl Enumerable, for: Tempo do
   @impl Enumerable
   def reduce(enum, {:cont, acc}, fun) do
     enum = Tempo.make_enum(enum)
+
     case Algebra.next(enum) do
       nil ->
         {:done, acc}
@@ -52,5 +53,4 @@ defimpl Enumerable, for: Tempo do
   def reduce(enum, {:suspend, acc}, fun) do
     {:suspended, acc, &reduce(enum, &1, fun)}
   end
-
 end

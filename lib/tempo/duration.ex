@@ -4,5 +4,4 @@ defmodule Tempo.Duration do
   def new(tokens) do
     %__MODULE__{time: tokens}
   end
-
 end

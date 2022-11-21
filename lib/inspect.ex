@@ -11,13 +11,22 @@ defmodule Tempo.Inspect do
     |> :erlang.iolist_to_binary()
   end
 
+  # For when the calendar isn't Calendar.ISO or Cldr.Calendar.Gregorian
   def inspect(%Tempo{time: time, shift: shift, calendar: calendar}) do
-    ["Tempo.from_iso8601!(\"", inspect(time), inspect_shift(shift), "\", ", Kernel.inspect(calendar), ?)]
+    [
+      "Tempo.from_iso8601!(\"",
+      inspect(time),
+      inspect_shift(shift),
+      "\", ",
+      Kernel.inspect(calendar),
+      ?)
+    ]
     |> :erlang.iolist_to_binary()
   end
 
   def inspect(%Tempo.Set{type: type, set: set}) do
     elements = Enum.map_join(set, ",", &inspect/1)
+
     ["~o\"", open(type), elements, close(type), ?"]
     |> :erlang.iolist_to_binary()
   end
@@ -37,12 +46,22 @@ defmodule Tempo.Inspect do
     |> :erlang.iolist_to_binary()
   end
 
-  def inspect(%Tempo.Interval{recurrence: :infinity, from: from, to: :undefined = to, duration: nil}) do
+  def inspect(%Tempo.Interval{
+        recurrence: :infinity,
+        from: from,
+        to: :undefined = to,
+        duration: nil
+      }) do
     ["~o\"R/", inspect(from.time), ?/, inspect_value(to), ?"]
     |> :erlang.iolist_to_binary()
   end
 
-  def inspect(%Tempo.Interval{recurrence: :infinity, from: :undefined = from, to: to, duration: nil}) do
+  def inspect(%Tempo.Interval{
+        recurrence: :infinity,
+        from: :undefined = from,
+        to: to,
+        duration: nil
+      }) do
     ["~o\"R/", inspect_value(from), ?/, inspect(to.time), ?"]
     |> :erlang.iolist_to_binary()
   end
@@ -62,8 +81,24 @@ defmodule Tempo.Inspect do
   end
 
   def inspect([{unit, _value1} = first, {time, _value2} = second | t])
-      when unit in [:year, :month, :day, :week, :day_of_week] and time in [:hour, :minute, :second] do
-    [inspect_value(first), ?T, inspect_value(second) | inspect(t)]
+      when unit in [:year, :month, :day, :week, :day_of_week] and
+             time in [:hour, :minute, :second] do
+    [inspect_value(first), inspect([second | t])]
+  end
+
+  def inspect([{unit, _value1} = first, second, third])
+      when unit in [:hour, :minute, :second] do
+    [?T, inspect_value(first), inspect_value(second), inspect_value(third)]
+  end
+
+  def inspect([{unit, _value1} = first, second])
+      when unit in [:hour, :minute, :second] do
+    [?T, inspect_value(first) | inspect_value(second)]
+  end
+
+  def inspect([{unit, _value1} = first])
+      when unit in [:hour, :minute, :second] do
+    [?T, inspect_value(first)]
   end
 
   def inspect([h | t]) do
@@ -104,7 +139,7 @@ defmodule Tempo.Inspect do
 
   def inspect_value({unit, {:group, %Range{first: first, last: last}}}) do
     group_size = last - first + 1
-    nth =  div(last, group_size)
+    nth = div(last, group_size)
 
     [_, unit_key] = inspect_value({unit, 1})
     [inspect_value(nth), ?G, inspect_value(group_size), unit_key, ?U]

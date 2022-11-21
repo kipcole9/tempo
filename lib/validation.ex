@@ -40,12 +40,12 @@ defmodule Tempo.Validation do
 
   def validate(%Tempo.Set{set: set} = tempo, calendar) do
     validated =
-      Enum.reduce_while set, [], fn elem, acc ->
+      Enum.reduce_while(set, [], fn elem, acc ->
         case resolve(elem, calendar) do
           {:error, reason} -> {:halt, {:error, reason}}
           units -> {:cont, [units | acc]}
         end
-      end
+      end)
 
     case validated do
       {:error, reason} -> {:error, reason}
@@ -74,7 +74,10 @@ defmodule Tempo.Validation do
 
   # When a group of years succeeds a century or decade
   # Here we merge into a set
-  def resolve([{unit, {:group, %Range{} = range1}}, {unit, {:group, %Range{} = range2}} | rest], calendar) do
+  def resolve(
+        [{unit, {:group, %Range{} = range1}}, {unit, {:group, %Range{} = range2}} | rest],
+        calendar
+      ) do
     first = range1.first + range2.first - 1
 
     if first in 1..range1.last do
@@ -82,13 +85,13 @@ defmodule Tempo.Validation do
       resolve([{unit, [first..last]} | rest], calendar)
     else
       {:error,
-        "#{inspect first} is outside the #{unit} range #{inspect range1} " <>
-         "for the calendar #{inspect calendar}"
-      }
+       "#{inspect(first)} is outside the #{unit} range #{inspect(range1)} " <>
+         "for the calendar #{inspect(calendar)}"}
     end
   end
 
-  def resolve([{:year, {:group, %Range{} = years}}, {:month, month} | rest], calendar) when is_integer(month) do
+  def resolve([{:year, {:group, %Range{} = years}}, {:month, month} | rest], calendar)
+      when is_integer(month) do
     months_in_group =
       years
       |> Enum.map(&calendar.months_in_year/1)
@@ -100,7 +103,10 @@ defmodule Tempo.Validation do
     end
   end
 
-  def resolve([{:year, year}, {:month, {:group, %Range{} = months}}, {:day, day} | rest], calendar)
+  def resolve(
+        [{:year, year}, {:month, {:group, %Range{} = months}}, {:day, day} | rest],
+        calendar
+      )
       when is_integer(year) and is_integer(day) do
     days_in_group =
       months
@@ -124,6 +130,7 @@ defmodule Tempo.Validation do
           %Date.Range{first: start_of_week} = calendar.week(year, week)
           iso_days = Cldr.Calendar.date_to_iso_days(start_of_week) + day - 1
           {year, month, day} = calendar.date_from_iso_days(iso_days)
+
           case resolve([{:month, month}, {:day, day} | rest], calendar) do
             {:error, reason} -> reason
             resolved -> [{:year, year} | resolved]
@@ -136,9 +143,8 @@ defmodule Tempo.Validation do
         end
       else
         {:error,
-          "#{inspect abs(week)} is greater than #{inspect weeks_in_year} which " <>
-           "is the number of weeks in #{inspect year} for the calendar #{inspect calendar}"
-        }
+         "#{inspect(abs(week))} is greater than #{inspect(weeks_in_year)} which " <>
+           "is the number of weeks in #{inspect(year)} for the calendar #{inspect(calendar)}"}
       end
     end
   end
@@ -150,11 +156,15 @@ defmodule Tempo.Validation do
     with {:ok, day_of_year} <- conform(day_of_year, 1..days_in_year) do
       %{year: year, month: month, day: day} =
         Cldr.Calendar.date_from_day_of_year(year, day_of_year, calendar)
+
       resolve([{:year, year}, {:month, month}, {:day, day} | rest], calendar)
     end
   end
 
-  def resolve([{:year, year}, {:day, {:group, %Range{} = days_of_year}}, {:day, day} | rest], calendar)
+  def resolve(
+        [{:year, year}, {:day, {:group, %Range{} = days_of_year}}, {:day, day} | rest],
+        calendar
+      )
       when is_integer(year) and is_integer(day) do
     %{first: first, last: last} = days_of_year
     days_in_year = calendar.days_in_year(year)
@@ -162,17 +172,21 @@ defmodule Tempo.Validation do
     day = if day < 0, do: last + day + 1, else: first + day - 1
 
     if first in 1..days_in_year and day <= last do
-      %{year: year, month: month, day: day} = Cldr.Calendar.date_from_day_of_year(year, day, calendar)
+      %{year: year, month: month, day: day} =
+        Cldr.Calendar.date_from_day_of_year(year, day, calendar)
+
       resolve([{:year, year}, {:month, month}, {:day, day} | rest], calendar)
     else
       {:error,
-        "#{inspect abs(day)} is outside the group #{inspect days_of_year} " <>
-         "for the calendar #{inspect calendar}"
-      }
+       "#{inspect(abs(day))} is outside the group #{inspect(days_of_year)} " <>
+         "for the calendar #{inspect(calendar)}"}
     end
   end
 
-  def resolve([{:year, year}, {:hour, {:group, %Range{} = hours_of_year}}, {:hour, hour} | rest], calendar)
+  def resolve(
+        [{:year, year}, {:hour, {:group, %Range{} = hours_of_year}}, {:hour, hour} | rest],
+        calendar
+      )
       when is_integer(year) and is_integer(hour) do
     %{first: first, last: last} = hours_of_year
     hours_in_year = calendar.days_in_year(year) * @hours_per_day
@@ -182,12 +196,18 @@ defmodule Tempo.Validation do
     with {:ok, _first} <- conform(first, 1..hours_in_year) do
       day = div(hour, @hours_per_day) + 1
       hour = rem(hour, @hours_per_day)
-      %{year: year, month: month, day: day} = Cldr.Calendar.date_from_day_of_year(year, day, calendar)
+
+      %{year: year, month: month, day: day} =
+        Cldr.Calendar.date_from_day_of_year(year, day, calendar)
+
       resolve([{:year, year}, {:month, month}, {:day, day}, {:hour, hour} | rest], calendar)
     end
   end
 
-  def resolve([{:year, year}, {:month, month}, {:day, {:group, %Range{} = days}} | rest], calendar)
+  def resolve(
+        [{:year, year}, {:month, month}, {:day, {:group, %Range{} = days}} | rest],
+        calendar
+      )
       when is_integer(year) and is_integer(month) do
     months_in_year = calendar.months_in_year(year)
 
@@ -202,9 +222,10 @@ defmodule Tempo.Validation do
   end
 
   # days needs to start at 1
-  def resolve([{:day, {:group, %Range{} = range}}, {:hour, hours} | rest], calendar) when is_integer(hours) do
+  def resolve([{:day, {:group, %Range{} = range}}, {:hour, hours} | rest], calendar)
+      when is_integer(hours) do
     first = (range.first - 1) * @hours_per_day
-    last = (range.last * @hours_per_day) - 1
+    last = range.last * @hours_per_day - 1
     hours = hours + first
 
     with {:ok, hours} <- conform(hours, first..last) do
@@ -215,9 +236,10 @@ defmodule Tempo.Validation do
   end
 
   # hours start at 0
-  def resolve([{:hour, {:group, %Range{} = range}}, {:minute, minutes} | rest], calendar) when is_integer(minutes) do
+  def resolve([{:hour, {:group, %Range{} = range}}, {:minute, minutes} | rest], calendar)
+      when is_integer(minutes) do
     first = (range.first - 1) * @minutes_per_hour
-    last = (range.last * @minutes_per_hour) - 1
+    last = range.last * @minutes_per_hour - 1
     minutes = minutes + first
 
     with {:ok, minutes} <- conform(minutes, first..last) do
@@ -229,9 +251,10 @@ defmodule Tempo.Validation do
   end
 
   # minutes start at 0
-  def resolve([{:minute, {:group, %Range{} = range}}, {:second, seconds} | rest], calendar) when is_integer(seconds) do
+  def resolve([{:minute, {:group, %Range{} = range}}, {:second, seconds} | rest], calendar)
+      when is_integer(seconds) do
     first = (range.first - 1) * @minutes_per_hour
-    last = (range.last * @minutes_per_hour) - 1
+    last = range.last * @minutes_per_hour - 1
     seconds = seconds + first
 
     with {:ok, seconds} <- conform(seconds, first..last) do
@@ -257,7 +280,7 @@ defmodule Tempo.Validation do
   end
 
   def resolve([{:year, year}, {:month, month}, {:day, day} | rest], calendar)
-      when is_integer(year) and is_integer(month) or is_list(month) do
+      when (is_integer(year) and is_integer(month)) or is_list(month) do
     with [{:year, year}, {:month, month}] <- resolve([{:year, year}, {:month, month}], calendar) do
       case resolve(rest, calendar) do
         {:error, reason} -> {:error, reason}
@@ -284,12 +307,14 @@ defmodule Tempo.Validation do
     end
   end
 
-  def resolve([{:month, month}, {:day, days} | _rest], calendar) when is_integer(month) and is_list(days) do
+  def resolve([{:month, month}, {:day, days} | _rest], calendar)
+      when is_integer(month) and is_list(days) do
     with days_in_month when is_integer(days_in_month) <- calendar.days_in_month(month),
          {:ok, days} <- conform(days, 1..days_in_month) do
       [{:month, month}, {:day, days}]
     else
-      {:error, :unresolved} -> {:error, "Cannot resolve days in month #{month} without knowing the year"}
+      {:error, :unresolved} ->
+        {:error, "Cannot resolve days in month #{month} without knowing the year"}
     end
   end
 
@@ -387,12 +412,14 @@ defmodule Tempo.Validation do
   end
 
   # Make sure only the last element is a fraction
-  def resolve([{_unit, fraction}, {_unit_2, _value} | _rest], _calendar) when is_float(fraction) do
-    {:error, "A fractional unit can only be used for the highest resolution unit (smallest time unit)"}
+  def resolve([{_unit, fraction}, {_unit_2, _value} | _rest], _calendar)
+      when is_float(fraction) do
+    {:error,
+     "A fractional unit can only be used for the highest resolution unit (smallest time unit)"}
   end
 
   def resolve([{:hour, hour} | rest], calendar) when is_integer(hour) do
-    with {:ok, hour} <- conform(hour, 0..@hours_per_day - 1) do
+    with {:ok, hour} <- conform(hour, 0..(@hours_per_day - 1)) do
       case resolve(rest, calendar) do
         {:error, reason} -> {:error, reason}
         resolved -> [{:hour, hour} | resolved]
@@ -402,7 +429,7 @@ defmodule Tempo.Validation do
 
   def resolve([{:hour, %Range{first: first, last: last, step: step}} | rest], calendar)
       when first > 0 and last < 0 do
-    with {:ok, last} <- conform(last, 0..@hours_per_day - 1) do
+    with {:ok, last} <- conform(last, 0..(@hours_per_day - 1)) do
       case resolve(rest, calendar) do
         {:error, reason} -> {:error, reason}
         resolved -> [{:hour, first..last//abs(step)} | resolved]
@@ -412,7 +439,7 @@ defmodule Tempo.Validation do
 
   def resolve([{unit, requested} | rest], calendar)
       when unit in [:minute, :second] and is_integer(requested) do
-    with {:ok, part} <- conform(requested, 0..@minutes_per_hour - 1) do
+    with {:ok, part} <- conform(requested, 0..(@minutes_per_hour - 1)) do
       case resolve(rest, calendar) do
         {:error, reason} -> {:error, reason}
         resolved -> [{unit, part} | resolved]
@@ -421,8 +448,8 @@ defmodule Tempo.Validation do
   end
 
   def resolve([{unit, _value} = first | rest], calendar) do
-   with {^unit, _} = first <- resolve(first, calendar),
-        rest when is_list(rest) <- resolve(rest, calendar) do
+    with {^unit, _} = first <- resolve(first, calendar),
+         rest when is_list(rest) <- resolve(rest, calendar) do
       [first | rest]
     end
   end
@@ -435,7 +462,8 @@ defmodule Tempo.Validation do
 
   def year_and_month(years, month, calendar) do
     return =
-      Enum.reduce_while years, {calendar.months_in_year(years.first), month}, fn year, {acc, to_go} ->
+      Enum.reduce_while(years, {calendar.months_in_year(years.first), month}, fn year,
+                                                                                 {acc, to_go} ->
         months_in_year = calendar.months_in_year(year)
 
         if to_go <= months_in_year do
@@ -443,7 +471,7 @@ defmodule Tempo.Validation do
         else
           {:cont, {acc + months_in_year, to_go - months_in_year}}
         end
-      end
+      end)
 
     case return do
       {:ok, year, month} -> {:ok, year, month}
@@ -453,7 +481,8 @@ defmodule Tempo.Validation do
 
   def month_and_day(year, months, day, calendar) do
     return =
-      Enum.reduce_while months, {calendar.days_in_month(year, months.first), day}, fn month, {acc, to_go} ->
+      Enum.reduce_while(months, {calendar.days_in_month(year, months.first), day}, fn month,
+                                                                                      {acc, to_go} ->
         days_in_month = calendar.days_in_month(year, month)
 
         if to_go <= days_in_month do
@@ -461,7 +490,7 @@ defmodule Tempo.Validation do
         else
           {:cont, {acc + days_in_month, to_go - days_in_month}}
         end
-      end
+      end)
 
     case return do
       {:ok, month, day} -> {:ok, month, day}
@@ -481,6 +510,7 @@ defmodule Tempo.Validation do
 
   def conform(integer, %Range{last: last} = range) when is_integer(integer) and integer < 0 do
     value = last + integer + 1
+
     case value >= 0 && conform(value, range) do
       {:ok, value} ->
         {:ok, value}
@@ -515,12 +545,12 @@ defmodule Tempo.Validation do
   end
 
   def conform(from, to) do
-    {:error, "#{inspect from} is not valid. The valid values are #{inspect to}"}
+    {:error, "#{inspect(from)} is not valid. The valid values are #{inspect(to)}"}
   end
 
   defp normalized_error(value, normalized, range) do
     {:error,
-      "#{inspect value} is not valid. The normalized value of #{inspect normalized} " <>
-      "is outside the range #{inspect range}"}
+     "#{inspect(value)} is not valid. The normalized value of #{inspect(normalized)} " <>
+       "is outside the range #{inspect(range)}"}
   end
 end

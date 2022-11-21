@@ -104,15 +104,72 @@ defmodule Tempo do
   """
 
   alias Tempo.Iso8601.{Tokenizer, Parser, Group, Unit}
+  alias Tempo.Algebra
   alias Tempo.Validation
 
   defstruct [:time, :shift, :calendar]
 
+  # TODO refine this to be more specific
+  @type token :: integer() | list() | tuple()
+
+  @type time_unit :: [
+    :year | :month | :week | :day | :hour | :minute | :second
+  ]
+
+  @type token_list :: [
+    {:year, token} |
+    {:month, token} |
+    {:week, token} |
+    {:day, token} |
+    {:hour, token} |
+    {:minute, token} |
+    {:second, token}
+  ]
+
+  @type time_shift :: number()
+
+  @type t :: %{time: token_list(), shift: time_shift(), calendar: Calendar.t()}
+  @type error_reason :: atom() | binary()
+
+  @doc false
   def new(tokens, calendar \\ Cldr.Calendar.Gregorian) do
     {shift, time} = Keyword.pop(tokens, :time_shift)
     %__MODULE__{time: time, shift: shift, calendar: calendar}
   end
 
+  @doc """
+  Creates a `t:Tempo.t/0` struct from an ISO8601
+  string.
+
+  The parser supports the vast majority of [ISO8601](https://www.iso.org/iso-8601-date-and-time-format.html)
+  parts 1 and 2.
+
+  ### Arguments
+
+  * `string` is any ISO8601 formatted string
+
+  * `calendar` is any `t:Calendar.t/0`. The default is
+    `Cldr.Calendar.Gregorian`.
+
+  ### Returns
+
+  * `{:ok, t}` or
+
+  * `{:error, reason}`
+
+  ## Examples
+
+      iex> Tempo.from_iso8601("2022-11-20")
+      {:ok, ~o"2022Y11M20D"}
+
+      iex> Tempo.from_iso8601("2022Y")
+      {:ok, ~o"2022Y"}
+
+      iex> Tempo.from_iso8601("invalid")
+      {:error, "Expected time of day. Error detected at \\"invalid\\""}
+
+  """
+  @spec from_iso8601(string :: String.t, calendar :: Calendat.t) :: {:ok, t} | {:error, error_reason()}
   def from_iso8601(string, calendar \\ Cldr.Calendar.Gregorian) do
     with {:ok, tokens} <- Tokenizer.tokenize(string),
          {:ok, parsed} <- Parser.parse(tokens, calendar),
@@ -121,6 +178,37 @@ defmodule Tempo do
     end
   end
 
+
+  @doc """
+  Creates a `t:Tempo.t/0` struct from an ISO8601
+  string.
+
+  The parser supports the vast majority of [ISO8601](https://www.iso.org/iso-8601-date-and-time-format.html)
+  parts 1 and 2.
+
+  ### Arguments
+
+  * `string` is any ISO8601 formatted string
+
+  * `calendar` is any `t:Calendar.t/0`. The default is
+    `Cldr.Calendar.Gregorian`.
+
+  ### Returns
+
+  * `t:t/0` or
+
+  * raises an exception
+
+  ## Examples
+
+      iex> Tempo.from_iso8601!("2022-11-20")
+      ~o"2022Y11M20D"
+
+      iex> Tempo.from_iso8601!("2022Y")
+      ~o"2022Y"
+
+  """
+  @spec from_iso8601!(string :: String.t, calendar :: Calendat.t) :: t | no_return()
   def from_iso8601!(string, calendar \\ Cldr.Calendar.Gregorian) do
     case from_iso8601(string, calendar) do
       {:ok, tempo} -> tempo
@@ -128,30 +216,189 @@ defmodule Tempo do
     end
   end
 
-  def from_date(%{year: year, month: month, day: day, calendar: calendar}) do
-    new([year: year, month: month, day: day, calendar: calendar])
+  @doc """
+  Creates a `t:Tempo.t/0` struct from a `t:Date.t/0`.
+
+  ### Arguments
+
+  * `date` is any `t:Date.t/0`.
+
+  ### Returns
+
+  * `t:t/0` or
+
+  * `{:error, reason}`
+
+  ### Examples
+
+      iex> Tempo.from_date ~D[2022-11-20]
+      ~o"2022Y11M20D"
+
+  """
+  @spec from_date(date :: Date.t) :: t | {:error, error_reason}
+  def from_date(%{year: year, month: month, day: day, calendar: Calendar.ISO}) do
+    new(year: year, month: month, day: day)
   end
 
+  def from_date(%{year: year, month: month, day: day, calendar: Cldr.Calendar.Gregorian}) do
+    new(year: year, month: month, day: day)
+  end
+
+  def from_date(%{year: year, month: month, day: day, calendar: calendar}) do
+    new([year: year, month: month, day: day], calendar)
+  end
+
+  @doc """
+  Creates a `t:Tempo.t/0` struct from a `t:Time.t/0`.
+
+  ### Arguments
+
+  * `time` is any `t:Time.t/0`.
+
+  ### Returns
+
+  * `t:t/0` or
+
+  * `{:error, reason}`
+
+  ### Examples
+
+      iex> Tempo.from_time ~T[10:09:00]
+      ~o"T10H9M0S"
+
+  """
+  @spec from_time(time :: Time.t) :: t | {:error, error_reason}
+  def from_time(%{hour: hour, minute: minute, second: second}) do
+    new(hour: hour, minute: minute, second: second)
+  end
+
+  @doc """
+  Creates a `t:Tempo.t/0` struct from a `t:NaiveDateTime.t/0`.
+
+  ### Arguments
+
+  * `naive_date_time` is any `t:NaiveDateTime.t/0`.
+
+  ### Returns
+
+  * `t:t/0` or
+
+  * `{:error, reason}`
+
+  ### Examples
+
+      iex> Tempo.from_naive_date_time ~N[2022-11-20 10:37:00]
+      ~o"2022Y11M20DT10H37M0S"
+
+  """
+  @spec from_naive_date_time(naive_date_time :: NaiveDateTime.t) :: t | {:error, error_reason}
+  def from_naive_date_time(%{
+        year: year,
+        month: month,
+        day: day,
+        hour: hour,
+        minute: minute,
+        second: second,
+        calendar: Calendar.ISO
+      }) do
+    new(year: year, month: month, day: day, hour: hour, minute: minute, second: second)
+  end
+
+  def from_naive_date_time(%{
+        year: year,
+        month: month,
+        day: day,
+        hour: hour,
+        minute: minute,
+        second: second,
+        calendar: Cldr.Calendar.Gregorian
+      }) do
+    new(year: year, month: month, day: day, hour: hour, minute: minute, second: second)
+  end
+
+  def from_naive_date_time(%{
+        year: year,
+        month: month,
+        day: day,
+        hour: hour,
+        minute: minute,
+        second: second,
+        calendar: calendar
+      }) do
+    new(
+      [year: year, month: month, day: day, hour: hour, minute: minute, second: second],
+      calendar
+    )
+  end
+
+  @doc """
+  Returns the resolution of a `t:Tempo.t/0` struct.
+
+  The resolution is the smallest time unit of the
+  struct and an appropriate scale.
+
+  ### Arguments
+
+  * `tempo` is any `t:#{__MODULE__}.t/0`.
+
+  ### Returns
+
+  * `{time_unit, scale}`
+
+  ### Examples
+
+      iex> Tempo.resolution ~o"2022"
+      {:year, 1}
+
+      iex> Tempo.resolution ~o"2022-11"
+      {:month, 1}
+
+      iex> Tempo.resolution ~o"2022-11-20"
+      {:day, 1}
+
+      iex> Tempo.resolution ~o"2022Y1M2G3DU"
+      {:day, 3}
+
+  """
+  @spec resolution(tempo :: t) :: {time_unit(), non_neg_integer()}
   def resolution(%__MODULE__{time: units}) do
     case hd(Enum.reverse(units)) do
-      {:group, group} -> group
+      {unit, {:group, first..last}} -> {unit, last - first + 1}
       {unit, %Range{last: last}} -> {unit, last}
       {unit, {_value, meta}} when is_list(meta) -> {unit, Keyword.get(meta, :margin_of_error, 1)}
-      {unit, {_value, continuation}} when is_function(continuation)-> {unit, 1}
+      {unit, {_value, continuation}} when is_function(continuation) -> {unit, 1}
       {unit, _value} -> {unit, 1}
     end
   end
 
-  @valid_units Unit.units()
+  @doc """
+  Returns a boolean indicating if a `t:Tempo.t/0` struct
+  is anchored to the timeline.
 
-  def validate_unit(unit) when unit in @valid_units do
-    {:ok, unit}
-  end
+  Anchored means that the time representation contains
+  enough information for it to be located in a single
+  location on the timeline.  In practise this means the
+  if the tempo struct has a `:year` value then
+  it is anchored.
 
-  def validate_unit(unit) do
-    {:error, "Invalid time unit #{inspect unit}"}
-  end
+  ### Arguments
 
+  * `tempo` is any `t:#{__MODULE__}.t/0`.
+
+  ### Returns
+
+  * `true` or `false`
+
+  ### Examples
+
+      iex> Tempo.anchored? ~o"2022"
+      true
+
+      iex> Tempo.anchored? ~o"2M"
+      false
+
+  """
+  @spec anchored?(tempo :: t) :: boolean()
   def anchored?(%__MODULE__{time: [{:year, _year} | _rest]}) do
     true
   end
@@ -160,9 +407,42 @@ defmodule Tempo do
     false
   end
 
+  @doc """
+  Truncates a tempo struct to the specified resolution.
+
+  Truncation removes the time units that have a
+  higher resolution than the specified `truncate_to`
+  option.
+
+  ### Arguments
+
+  * `tempo` is any `t:#{__MODULE__}.t/0`.
+
+  * `truncate_to` is any time unit. The default
+    is `:day`.
+
+  ### Returns
+
+  * `truncated` is a tempo struct that is truncated or
+
+  * `{:error, reason}`
+
+  ### Examples
+
+      iex> Tempo.trunc ~o"2022-11-21T09:30:00"
+      ~o"2022Y11M21D"
+
+      iex> Tempo.trunc ~o"2022-11-21T09:30:00", :minute
+      ~o"2022Y11M21DT9H30M"
+
+      iex> Tempo.trunc ~o"2022-11-21T09:30:00", :year
+      ~o"2022Y"
+
+  """
+  @spec trunc(tempo :: t, truncate_to :: time_unit()) :: t
   def trunc(%__MODULE__{time: time} = tempo, truncate_to \\ :day) do
     with {:ok, truncate_to} <- validate_unit(truncate_to) do
-      case Enum.take_while(time, &Unit.compare(&1, truncate_to) in [:gt, :eq]) do
+      case Enum.take_while(time, &(Unit.compare(&1, truncate_to) in [:gt, :eq])) do
         [] -> {:error, "Truncation would result in no time resolution"}
         other -> %{tempo | time: other}
       end
@@ -178,17 +458,8 @@ defmodule Tempo do
     end
   end
 
-  def make_enum(%__MODULE__{} = tempo) do
-    {:ok, tempo} =
-      tempo
-      |> Tempo.Algebra.maybe_add_implicit_enumeration()
-      |> Tempo.Validation.validate()
-
-    tempo
-  end
-
   def merge(%Tempo{} = base, %Tempo{} = from) do
-    units = Tempo.Algebra.merge(base.time, from.time)
+    units = Algebra.merge(base.time, from.time)
     shift = from.shift || base.shift
 
     case Validation.validate(%{base | time: units, shift: shift}) do
@@ -197,22 +468,77 @@ defmodule Tempo do
     end
   end
 
-  def zoom(tempo, unit \\ nil)
+  def explode(tempo, unit \\ nil)
 
-  def zoom(%Tempo{} = tempo, nil) do
+  def explode(%Tempo{} = tempo, nil) do
     tempo
     |> Tempo.Algebra.add_implicit_enumeration()
     |> Tempo.Validation.validate()
   end
 
-  def zoom!(%Tempo{} = tempo, unit \\ nil) do
-    case zoom(tempo, unit) do
+  def explode!(%Tempo{} = tempo, unit \\ nil) do
+    case explode(tempo, unit) do
       {:ok, zoomed} -> zoomed
       {:error, reason} -> raise Tempo.ParseError, reason
     end
   end
 
-  # def compare(%Tempo{} = tempo1, %Tempo{} = tempo2) do
-  #   Tempo.Algebra.compare(tempo1.time, tempo1)
-  # end
+  def to_date(%Tempo{time: [year: year, month: month, day: day]}) do
+    Date.new(year, month, day)
+  end
+
+  def to_date(%Tempo{}) do
+    {:error, :invalid_date}
+  end
+
+  def to_time(%Tempo{time: [hour: hour, minute: minute, second: second], shift: nil}) do
+    Time.new(hour, minute, second, 0)
+  end
+
+  def to_time(%Tempo{}) do
+    {:error, :invalid_time}
+  end
+
+  def to_naive_date_time(%Tempo{
+        time: [year: year, month: month, day: day, hour: hour, minute: minute, second: second],
+        shift: nil
+      }) do
+    NaiveDateTime.new(year, month, day, hour, minute, second, 0)
+  end
+
+  def to_naive_date_time(%Tempo{}) do
+    {:error, :invalid_date_time}
+  end
+
+  def to_calendar(%Tempo{shift: nil} = tempo) do
+    with {:error, :invalid_date} <- to_date(tempo),
+         {:error, :invalid_time} <- to_time(tempo) do
+      to_naive_date_time(tempo)
+    end
+  end
+
+  def to_calendar(%Tempo{}) do
+    {:error, :invalid_date_time}
+  end
+
+  @valid_units Unit.units()
+
+  @doc false
+  def validate_unit(unit) when unit in @valid_units do
+    {:ok, unit}
+  end
+
+  def validate_unit(unit) do
+    {:error, "Invalid time unit #{inspect(unit)}"}
+  end
+
+  @doc false
+  def make_enum(%__MODULE__{} = tempo) do
+    {:ok, tempo} =
+      tempo
+      |> Tempo.Algebra.maybe_add_implicit_enumeration()
+      |> Tempo.Validation.validate()
+
+    tempo
+  end
 end

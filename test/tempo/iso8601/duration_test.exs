@@ -37,6 +37,8 @@ defmodule Tempo.Parser.Duration.Test do
 
   test "Negative durations section 4.4.1.9" do
     assert Tokenizer.tokenize("-P100D") == {:ok, [duration: [direction: :negative, day: 100]]}
-    assert Tokenizer.tokenize("-P1Y3D") == {:ok, [duration: [direction: :negative, year: 1, day: 3]]}
+
+    assert Tokenizer.tokenize("-P1Y3D") ==
+             {:ok, [duration: [direction: :negative, year: 1, day: 3]]}
   end
 end

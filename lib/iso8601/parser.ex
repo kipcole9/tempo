@@ -6,35 +6,36 @@ defmodule Tempo.Iso8601.Parser do
     |> parse()
     |> put_calendar(calendar)
     |> wrap(:ok)
-  rescue e in Tempo.ParseError ->
-    {:error, e.message}
+  rescue
+    e in Tempo.ParseError ->
+      {:error, e.message}
   end
 
-  def parse([date: tokens]) do
+  def parse(date: tokens) do
     with parsed <- parse_date(tokens) do
       Tempo.new(parsed)
     end
   end
 
-  def parse([time_of_day: tokens]) do
+  def parse(time_of_day: tokens) do
     with parsed <- parse_date(tokens) do
       Tempo.new(parsed)
     end
   end
 
-  def parse([datetime: tokens]) do
+  def parse(datetime: tokens) do
     with parsed <- parse_date(tokens) do
       Tempo.new(parsed)
     end
   end
 
-  def parse([interval: tokens]) do
+  def parse(interval: tokens) do
     with parsed <- parse_date(tokens) do
       Tempo.Interval.new(parsed)
     end
   end
 
-  def parse([duration: tokens]) do
+  def parse(duration: tokens) do
     with parsed <- parse_date(tokens) do
       parsed
       |> adjust_for_direction()
@@ -42,13 +43,13 @@ defmodule Tempo.Iso8601.Parser do
     end
   end
 
-  def parse([all_of: tokens]) do
+  def parse(all_of: tokens) do
     tokens
     |> parse_set
     |> Tempo.Set.new(:all)
   end
 
-  def parse([one_of: tokens]) do
+  def parse(one_of: tokens) do
     tokens
     |> parse_set
     |> Tempo.Set.new(:one)
@@ -73,11 +74,11 @@ defmodule Tempo.Iso8601.Parser do
   end
 
   def parse_date([{:century, century} | rest]) do
-    parse_date([{:year, {:group, (century * 100)..(century + 1) * 100 - 1}} | rest])
+    parse_date([{:year, {:group, (century * 100)..((century + 1) * 100 - 1)}} | rest])
   end
 
   def parse_date([{:decade, century} | rest]) do
-    parse_date([{:year, {:group, (century * 10)..(century + 1) * 10 - 1}} | rest])
+    parse_date([{:year, {:group, (century * 10)..((century + 1) * 10 - 1)}} | rest])
   end
 
   # TODO what if prior unit is a selection
@@ -86,7 +87,8 @@ defmodule Tempo.Iso8601.Parser do
     {min_2, _max} = group_min_max(group_1)
 
     if Unit.compare(max_1, min_2) == :lt do
-      raise Tempo.ParseError, "Group max of #{inspect group_1} is less than group min of #{inspect group_2}"
+      raise Tempo.ParseError,
+            "Group max of #{inspect(group_1)} is less than group min of #{inspect(group_2)}"
     else
       [{:group, parse_date(group_1)} | parse_date([{:group, group_2} | rest])]
     end
@@ -96,7 +98,7 @@ defmodule Tempo.Iso8601.Parser do
     {min, _max} = group_min_max(group)
 
     if Unit.compare(unit_1, min) == :lt do
-      raise Tempo.ParseError, "#{inspect unit_1} is less than group min of #{inspect min}"
+      raise Tempo.ParseError, "#{inspect(unit_1)} is less than group min of #{inspect(min)}"
     else
       [{unit_1, value_1} | parse_date([{:group, group} | rest])]
     end
@@ -107,7 +109,7 @@ defmodule Tempo.Iso8601.Parser do
     {_min, max} = group_min_max(group)
 
     if Unit.compare(unit_2, max) == :gt do
-      raise Tempo.ParseError, "#{inspect unit_2} is greater than group max of #{inspect max}"
+      raise Tempo.ParseError, "#{inspect(unit_2)} is greater than group max of #{inspect(max)}"
     else
       [{:group, parse_date(group)} | parse_date([{unit_2, value_2} | rest])]
     end
@@ -190,11 +192,11 @@ defmodule Tempo.Iso8601.Parser do
 
   # Duration
 
-  def parse_duration([datetime: tokens]) do
+  def parse_duration(datetime: tokens) do
     parse_duration(tokens)
   end
 
-  def parse_duration([date: tokens]) do
+  def parse_duration(date: tokens) do
     parse_duration(tokens)
   end
 
@@ -277,12 +279,15 @@ defmodule Tempo.Iso8601.Parser do
     [a | consolidate_ranges([b | rest])]
   end
 
-  def consolidate_ranges([a, %Range{first: first, last: last} = range | rest]) when is_integer(a) do
+  def consolidate_ranges([a, %Range{first: first, last: last} = range | rest])
+      when is_integer(a) do
     cond do
       a >= first && a <= last ->
         consolidate_ranges([range | rest])
+
       a + 1 == first ->
         consolidate_ranges([%{range | first: a} | rest])
+
       true ->
         [a | consolidate_ranges([range | rest])]
     end
@@ -292,8 +297,10 @@ defmodule Tempo.Iso8601.Parser do
     cond do
       b <= last ->
         consolidate_ranges([range | rest])
+
       last + 1 == b ->
         consolidate_ranges([%{range | last: b} | rest])
+
       true ->
         [range | consolidate_ranges([b | rest])]
     end
@@ -350,5 +357,4 @@ defmodule Tempo.Iso8601.Parser do
   def wrap(term, atom) do
     {atom, term}
   end
-
 end

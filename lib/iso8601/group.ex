@@ -117,7 +117,9 @@ defmodule Tempo.Iso8601.Group do
 
     quarter = month - 32
     start = (quarter - 1) * months_in_quarter + 1
-    finish = if quarter == @quarters_in_year, do: months_in_year, else: start + months_in_quarter - 1
+
+    finish =
+      if quarter == @quarters_in_year, do: months_in_year, else: start + months_in_quarter - 1
 
     expand_groups([{:year, year}, {:month, {:group, start..finish}} | rest], calendar)
   end
@@ -130,7 +132,11 @@ defmodule Tempo.Iso8601.Group do
 
     quadrimester = month - 36
     start = (quadrimester - 1) * months_in_quadrimester + 1
-    finish = if quadrimester == @quadrimesters_in_year, do: months_in_year, else: start + months_in_quadrimester - 1
+
+    finish =
+      if quadrimester == @quadrimesters_in_year,
+        do: months_in_year,
+        else: start + months_in_quadrimester - 1
 
     expand_groups([{:year, year}, {:month, {:group, start..finish}} | rest], calendar)
   end
@@ -143,7 +149,11 @@ defmodule Tempo.Iso8601.Group do
 
     semestral = month - 39
     start = (semestral - 1) * months_in_semestral + 1
-    finish = if semestral == @semestrals_in_year, do: months_in_year, else: start + months_in_semestral - 1
+
+    finish =
+      if semestral == @semestrals_in_year,
+        do: months_in_year,
+        else: start + months_in_semestral - 1
 
     expand_groups([{:year, year}, {:month, {:group, start..finish}} | rest], calendar)
   end
@@ -164,7 +174,7 @@ defmodule Tempo.Iso8601.Group do
   end
 
   def expand_groups([{:group, group} | _rest], _calendar) do
-    {:error, "Complex groupings not yet supported. Found #{inspect group}"}
+    {:error, "Complex groupings not yet supported. Found #{inspect(group)}"}
   end
 
   def expand_groups([first | rest], calendar) do
@@ -177,5 +187,4 @@ defmodule Tempo.Iso8601.Group do
   def expand_groups(other, _calendar) do
     other
   end
-
 end

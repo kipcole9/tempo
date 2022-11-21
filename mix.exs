@@ -1,11 +1,13 @@
 defmodule Tempo.MixProject do
   use Mix.Project
 
+  @version "0.1.0"
+
   def project do
     [
       app: :tempo,
-      version: "0.1.0",
-      elixir: "~> 1.11",
+      version: @version,
+      elixir: "~> 1.13",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps()

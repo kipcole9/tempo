@@ -46,7 +46,7 @@ defmodule Tempo.Event.Easter do
   # lunar cycle
   def epact(metonic_phase) do
     @paschal_full_moon_day_in_lunar_cycle +
-      (@days_diff_between_common_year_and_lunar_year * metonic_phase)
+      @days_diff_between_common_year_and_lunar_year * metonic_phase
   end
 
   def metonic_phase(gregorian_year) do
@@ -57,7 +57,7 @@ defmodule Tempo.Event.Easter do
   # year rule causes a shift of 1 day forward
   # in the date of the paschal new moon
   def leap_year_adjustment(century) do
-     floor(3 / 4 * century)
+    floor(3 / 4 * century)
   end
 
   def correction(century) do
@@ -65,7 +65,7 @@ defmodule Tempo.Event.Easter do
   end
 
   defp adjusted_epact(shifted_epact, metonic_phase)
-      when shifted_epact == 0 or (shifted_epact == 1 and 10 < metonic_phase) do
+       when shifted_epact == 0 or (shifted_epact == 1 and 10 < metonic_phase) do
     shifted_epact + 1
   end
 
@@ -74,7 +74,5 @@ defmodule Tempo.Event.Easter do
   end
 
   def orthodox_easter(_year) do
-
   end
-
 end

@@ -19,7 +19,10 @@ defmodule Tempo.Parser.DatesTimes.Test do
     assert Tokenizer.tokenize("1985W15") == {:ok, [date: [year: 1985, week: 15]]}
     assert Tokenizer.tokenize("19") == {:ok, [date: [century: 19]]}
     assert Tokenizer.tokenize("198") == {:ok, [date: [decade: 198]]}
-    assert Tokenizer.tokenize("1985-W15-1") == {:ok, [date: [year: 1985, week: 15, day_of_week: 1]]}
+
+    assert Tokenizer.tokenize("1985-W15-1") ==
+             {:ok, [date: [year: 1985, week: 15, day_of_week: 1]]}
+
     assert Tokenizer.tokenize("1985-W15") == {:ok, [date: [year: 1985, week: 15]]}
     assert Tokenizer.tokenize("1985-102") == {:ok, [date: [year: 1985, day: 102]]}
     assert Tokenizer.tokenize("W03") == {:ok, [date: [week: 3]]}
@@ -53,22 +56,32 @@ defmodule Tempo.Parser.DatesTimes.Test do
 
   test "Unspecified digits section 4.6.2" do
     assert Tokenizer.tokenize("1390YXXM") ==
-      {:ok, [date: [year: 1390, month: {:mask, [:X, :X]}]]}
+             {:ok, [date: [year: 1390, month: {:mask, [:X, :X]}]]}
+
     assert Tokenizer.tokenize("13{00..90}YXXM") ==
-      {:ok, [date: [year: {:mask, [1, 3, [0..90]]}, month: {:mask, [:X, :X]}]]}
+             {:ok, [date: [year: {:mask, [1, 3, [0..90]]}, month: {:mask, [:X, :X]}]]}
+
     assert Tokenizer.tokenize("13X{0..9}YXXM") ==
-      {:ok, [date: [year: {:mask, [1, 3, :X, [0..9]]}, month: {:mask, [:X, :X]}]]}
+             {:ok, [date: [year: {:mask, [1, 3, :X, [0..9]]}, month: {:mask, [:X, :X]}]]}
   end
 
   test "Time Without Zone Parsing" do
-    assert Tokenizer.tokenize("T23:20:50") == {:ok, [time_of_day: [hour: 23, minute: 20, second: 50]]}
+    assert Tokenizer.tokenize("T23:20:50") ==
+             {:ok, [time_of_day: [hour: 23, minute: 20, second: 50]]}
+
     assert Tokenizer.tokenize("T23:20") == {:ok, [time_of_day: [hour: 23, minute: 20]]}
     assert Tokenizer.tokenize("T23") == {:ok, [time_of_day: [hour: 23]]}
     assert Tokenizer.tokenize("T23.3") == {:ok, [time_of_day: [hour: 23.3]]}
-    assert Tokenizer.tokenize("T00:00:00") == {:ok, [time_of_day: [hour: 0, minute: 0, second: 0]]}
+
+    assert Tokenizer.tokenize("T00:00:00") ==
+             {:ok, [time_of_day: [hour: 0, minute: 0, second: 0]]}
+
     assert Tokenizer.tokenize("23:20") == {:ok, [time_of_day: [hour: 23, minute: 20]]}
     assert Tokenizer.tokenize("6H") == {:ok, [time_of_day: [hour: 6]]}
-    assert Tokenizer.tokenize("T232050") == {:ok, [time_of_day: [hour: 23, minute: 20, second: 50]]}
+
+    assert Tokenizer.tokenize("T232050") ==
+             {:ok, [time_of_day: [hour: 23, minute: 20, second: 50]]}
+
     assert Tokenizer.tokenize("T2320") == {:ok, [time_of_day: [hour: 23, minute: 20]]}
   end
 
@@ -78,7 +91,6 @@ defmodule Tempo.Parser.DatesTimes.Test do
 
     assert Tokenizer.tokenize("T232030.5") ==
              {:ok, [time_of_day: [hour: 23, minute: 20, second: 30.5]]}
-
 
     assert Tokenizer.tokenize("23:20:30.5") ==
              {:ok, [time_of_day: [hour: 23, minute: 20, second: 30.5]]}
@@ -93,12 +105,12 @@ defmodule Tempo.Parser.DatesTimes.Test do
 
   test "Quarters in the month position" do
     assert Tempo.Iso8601.Tokenizer.tokenize("13X{0..9}Y1Q") ==
-      {:ok, [date: [year: {:mask, [1, 3, :X, [0..9]]}, month: 33]]}
+             {:ok, [date: [year: {:mask, [1, 3, :X, [0..9]]}, month: 33]]}
   end
 
   test "Time With Zone Parsing" do
     assert Tokenizer.tokenize("T23:20:30Z") ==
-        {:ok, [time_of_day: [hour: 23, minute: 20, second: 30, time_shift: [hour: 0]]]}
+             {:ok, [time_of_day: [hour: 23, minute: 20, second: 30, time_shift: [hour: 0]]]}
 
     assert Tokenizer.tokenize("T232030Z") ==
              {:ok,
@@ -478,23 +490,23 @@ defmodule Tempo.Parser.DatesTimes.Test do
 
   test "Date with timezone (but no time)" do
     assert Tokenizer.tokenize("2018Y3G60DU6DZ8H") ==
-      {:ok, [date: [year: 2018, group: [nth: 3, day: 60], day: 6, time_shift: [hour: 8]]]}
+             {:ok, [date: [year: 2018, group: [nth: 3, day: 60], day: 6, time_shift: [hour: 8]]]}
 
     assert Tokenizer.tokenize("2018Y1G60DUZ-5H") ==
-      {:ok, [date: [year: 2018, group: [nth: 1, day: 60], time_shift: [hour: -5]]]}
+             {:ok, [date: [year: 2018, group: [nth: 1, day: 60], time_shift: [hour: -5]]]}
   end
 
   test "Date with margin of error" do
     assert Tokenizer.tokenize("-13.787E9±20E6Y") ==
-      {:ok, [date: [year: {-13787000000, [margin_of_error: 20000000]}]]}
+             {:ok, [date: [year: {-13_787_000_000, [margin_of_error: 20_000_000]}]]}
 
     assert Tokenizer.tokenize("-13.787E9S4±20E6Y") ==
-      {:ok,
-       [
-         date: [
-           year: {-13787000000, [significant_digits: 4, margin_of_error: 20000000]}
-         ]
-       ]}
+             {:ok,
+              [
+                date: [
+                  year: {-13_787_000_000, [significant_digits: 4, margin_of_error: 20_000_000]}
+                ]
+              ]}
   end
 
   test "Date Error parsing" do

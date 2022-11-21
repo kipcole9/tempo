@@ -1,5 +1,4 @@
 defmodule Tempo.Iso8601.Unit do
-
   @sort_keys %{
     century: 40,
     decade: 35,
@@ -20,7 +19,7 @@ defmodule Tempo.Iso8601.Unit do
     week: {:day_of_week, 1..7},
     day: {:hour, 0..23},
     hour: {:minute, 0..59},
-    minute: {:second, 0..59},
+    minute: {:second, 0..59}
   }
 
   @units Map.keys(@sort_keys)

@@ -1,17 +1,13 @@
 defmodule Tempo.Component do
-
   @unit_order %{
     century: 1,
     decade: 2,
     year: 3,
-
     month: 4,
     week_of_year: 4,
     day_of_year: 4,
-
     day_of_month: 5,
     day_of_week: 5,
-
     hour: 6,
     minute: 7,
     second: 8,
@@ -25,7 +21,8 @@ defmodule Tempo.Component do
   end
 
   # Compare two components
-  def compare({unit_1, _value_1}, {unit_2, _value_2}) when unit_1 in @units and unit_2 in @units do
+  def compare({unit_1, _value_1}, {unit_2, _value_2})
+      when unit_1 in @units and unit_2 in @units do
     index_1 = Map.fetch!(unit_order(), unit_1)
     index_2 = Map.fetch!(unit_order(), unit_2)
 
@@ -101,4 +98,3 @@ defmodule Tempo.Component do
     {start, finish}
   end
 end
-
