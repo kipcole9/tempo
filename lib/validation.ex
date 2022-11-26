@@ -313,7 +313,7 @@ defmodule Tempo.Validation do
          {:ok, days} <- conform(days, 1..days_in_month) do
       [{:month, month}, {:day, days}]
     else
-      {:error, :unresolved} ->
+      {:ambiguous, _values} ->
         {:error, "Cannot resolve days in month #{month} without knowing the year"}
     end
   end
