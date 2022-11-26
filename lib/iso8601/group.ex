@@ -29,8 +29,18 @@ defmodule Tempo.Iso8601.Group do
   end
 
   def expand_groups(%Tempo.Set{set: set} = tempo, calendar) do
-    set = Enum.map(set, &expand_groups(&1, calendar))
-    {:ok, %{tempo | set: set}}
+    expanded =
+      Enum.reduce_while(set, [], fn elem, acc ->
+        case expand_groups(elem, calendar) do
+          {:error, reason} -> {:halt, {:error, reason}}
+          {:ok, tempo} -> {:cont, [tempo | acc]}
+        end
+      end)
+
+    case expanded do
+      {:error, reason} -> {:error, reason}
+      expanded -> {:ok, %{tempo | set: Enum.reverse(expanded)}}
+    end
   end
 
   def expand_groups(nil, _calendar) do

@@ -1,20 +1,23 @@
 defmodule Tempo.Inspect do
   import Kernel, except: [inspect: 1]
 
+  @from_iso8601 "Tempo.from_iso8601!(\""
+  @sigil_o "~o\""
+
   def inspect(%Tempo{time: time, shift: shift, calendar: Cldr.Calendar.Gregorian}) do
-    ["~o\"", inspect(time), inspect_shift(shift), ?"]
+    [@sigil_o, inspect(time), inspect_shift(shift), ?"]
     |> :erlang.iolist_to_binary()
   end
 
   def inspect(%Tempo{time: time, shift: shift, calendar: Cldr.Calendar.ISOWeek}) do
-    ["~o\"", inspect(time), inspect_shift(shift), ?", ?W]
+    [@sigil_o, inspect(time), inspect_shift(shift), ?", ?W]
     |> :erlang.iolist_to_binary()
   end
 
   # For when the calendar isn't Calendar.ISO or Cldr.Calendar.Gregorian
   def inspect(%Tempo{time: time, shift: shift, calendar: calendar}) do
     [
-      "Tempo.from_iso8601!(\"",
+      @from_iso8601,
       inspect(time),
       inspect_shift(shift),
       "\", ",
@@ -25,24 +28,23 @@ defmodule Tempo.Inspect do
   end
 
   def inspect(%Tempo.Set{type: type, set: set}) do
-    elements = Enum.map_join(set, ",", &inspect/1)
-
-    ["~o\"", open(type), elements, close(type), ?"]
+    elements = Enum.map_join(set, ",", &inner_inspect/1)
+    [@sigil_o, open(type), elements, close(type), ?"]
     |> :erlang.iolist_to_binary()
   end
 
   def inspect(%Tempo.Interval{recurrence: 1, from: from, to: :undefined = to, duration: nil}) do
-    ["~o\"", inspect(from.time), ?/, inspect_value(to), ?"]
+    [@sigil_o, inspect(from.time), ?/, inspect_value(to), ?"]
     |> :erlang.iolist_to_binary()
   end
 
   def inspect(%Tempo.Interval{recurrence: 1, from: :undefined = from, to: to, duration: nil}) do
-    ["~o\"", inspect_value(from), ?/, inspect(to.time), ?"]
+    [@sigil_o, inspect_value(from), ?/, inspect(to.time), ?"]
     |> :erlang.iolist_to_binary()
   end
 
   def inspect(%Tempo.Interval{recurrence: 1, from: from, to: to, duration: nil}) do
-    ["~o\"", inspect(from.time), ?/, inspect(to.time), ?"]
+    [@sigil_o, inspect(from.time), ?/, inspect(to.time), ?"]
     |> :erlang.iolist_to_binary()
   end
 
@@ -52,7 +54,7 @@ defmodule Tempo.Inspect do
         to: :undefined = to,
         duration: nil
       }) do
-    ["~o\"R/", inspect(from.time), ?/, inspect_value(to), ?"]
+    [@sigil_o, "R/", inspect(from.time), ?/, inspect_value(to), ?"]
     |> :erlang.iolist_to_binary()
   end
 
@@ -62,17 +64,17 @@ defmodule Tempo.Inspect do
         to: to,
         duration: nil
       }) do
-    ["~o\"R/", inspect_value(from), ?/, inspect(to.time), ?"]
+    [@sigil_o, "R/", inspect_value(from), ?/, inspect(to.time), ?"]
     |> :erlang.iolist_to_binary()
   end
 
   def inspect(%Tempo.Interval{recurrence: :infinity, from: from, to: to, duration: nil}) do
-    ["~o\"R/", inspect(from.time), ?/, inspect(to.time), ?"]
+    [@sigil_o, "R/", inspect(from.time), ?/, inspect(to.time), ?"]
     |> :erlang.iolist_to_binary()
   end
 
   def inspect(%Tempo.Duration{time: time}) do
-    ["~o\"P", inspect(time), ?"]
+    [@sigil_o, "P", inspect(time), ?"]
     |> :erlang.iolist_to_binary()
   end
 
@@ -171,6 +173,14 @@ defmodule Tempo.Inspect do
 
   def insert_time_marker([]) do
     []
+  end
+
+  defp inner_inspect(tempo) do
+    tempo
+    |> inspect()
+    |> String.trim_trailing("\"")
+    |> String.trim_leading(@sigil_o)
+    |> String.trim_leading(@from_iso8601)
   end
 
   def open(:all), do: ?{
