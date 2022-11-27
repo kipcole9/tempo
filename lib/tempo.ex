@@ -135,7 +135,7 @@ defmodule Tempo do
   def new(tokens, calendar \\ Cldr.Calendar.Gregorian)
 
   def new({:range, [first, last]}, calendar) do
-    {:range, [new(first, calendar), new(last, calendar)]}
+    Tempo.Range.new(first, last, calendar)
   end
 
   def new(:undefined, _calendar) do
