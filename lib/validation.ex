@@ -315,6 +315,7 @@ defmodule Tempo.Validation do
     else
       {:ambiguous, _values} ->
         {:error, "Cannot resolve days in month #{month} without knowing the year"}
+
       other ->
         other
     end

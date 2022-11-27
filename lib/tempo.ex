@@ -113,18 +113,18 @@ defmodule Tempo do
   @type token :: integer() | list() | tuple()
 
   @type time_unit :: [
-    :year | :month | :week | :day | :hour | :minute | :second
-  ]
+          :year | :month | :week | :day | :hour | :minute | :second
+        ]
 
   @type token_list :: [
-    {:year, token} |
-    {:month, token} |
-    {:week, token} |
-    {:day, token} |
-    {:hour, token} |
-    {:minute, token} |
-    {:second, token}
-  ]
+          {:year, token}
+          | {:month, token}
+          | {:week, token}
+          | {:day, token}
+          | {:hour, token}
+          | {:minute, token}
+          | {:second, token}
+        ]
 
   @type time_shift :: number()
 
@@ -179,7 +179,8 @@ defmodule Tempo do
       {:error, "Expected time of day. Error detected at \\"invalid\\""}
 
   """
-  @spec from_iso8601(string :: String.t, calendar :: Calendat.t) :: {:ok, t} | {:error, error_reason()}
+  @spec from_iso8601(string :: String.t(), calendar :: Calendat.t()) ::
+          {:ok, t} | {:error, error_reason()}
   def from_iso8601(string, calendar \\ Cldr.Calendar.Gregorian) do
     with {:ok, tokens} <- Tokenizer.tokenize(string),
          {:ok, parsed} <- Parser.parse(tokens, calendar),
@@ -187,7 +188,6 @@ defmodule Tempo do
       Validation.validate(expanded, calendar)
     end
   end
-
 
   @doc """
   Creates a `t:Tempo.t/0` struct from an ISO8601
@@ -218,7 +218,7 @@ defmodule Tempo do
       ~o"2022Y"
 
   """
-  @spec from_iso8601!(string :: String.t, calendar :: Calendat.t) :: t | no_return()
+  @spec from_iso8601!(string :: String.t(), calendar :: Calendat.t()) :: t | no_return()
   def from_iso8601!(string, calendar \\ Cldr.Calendar.Gregorian) do
     case from_iso8601(string, calendar) do
       {:ok, tempo} -> tempo
@@ -245,7 +245,7 @@ defmodule Tempo do
       ~o"2022Y11M20D"
 
   """
-  @spec from_date(date :: Date.t) :: t | {:error, error_reason}
+  @spec from_date(date :: Date.t()) :: t | {:error, error_reason}
   def from_date(%{year: year, month: month, day: day, calendar: Calendar.ISO}) do
     new(year: year, month: month, day: day)
   end
@@ -277,7 +277,7 @@ defmodule Tempo do
       ~o"T10H9M0S"
 
   """
-  @spec from_time(time :: Time.t) :: t | {:error, error_reason}
+  @spec from_time(time :: Time.t()) :: t | {:error, error_reason}
   def from_time(%{hour: hour, minute: minute, second: second}) do
     new(hour: hour, minute: minute, second: second)
   end
@@ -301,7 +301,7 @@ defmodule Tempo do
       ~o"2022Y11M20DT10H37M0S"
 
   """
-  @spec from_naive_date_time(naive_date_time :: NaiveDateTime.t) :: t | {:error, error_reason}
+  @spec from_naive_date_time(naive_date_time :: NaiveDateTime.t()) :: t | {:error, error_reason}
   def from_naive_date_time(%{
         year: year,
         month: month,

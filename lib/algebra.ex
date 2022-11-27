@@ -90,7 +90,12 @@ defmodule Tempo.Algebra do
       [%Range{first: first, last: last} = range | rest] when first > 0 and last < 0 ->
         reset(source, range, unit, calendar, previous, rest)
 
-      [%Range{first: first, last: last} = range | rest] when first <= last ->
+      [%Range{first: first, last: last, step: step} = range | rest]
+      when first <= last and step > 0 ->
+        increment(source, range, unit, rest)
+
+      [%Range{first: first, last: last, step: step} = range | rest]
+      when first >= last and step < 0 ->
         increment(source, range, unit, rest)
 
       [%Range{}] ->

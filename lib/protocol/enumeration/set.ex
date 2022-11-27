@@ -1,5 +1,4 @@
 defimpl Enumerable, for: Tempo.Set do
-
   @impl Enumerable
   def count(_array) do
     {:error, __MODULE__}

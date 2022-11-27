@@ -158,33 +158,41 @@ defmodule Tempo.Iso8601.Parser.Test do
 
     # Section 6.1 Example 2
     assert Tempo.from_iso8601("{1960,1961-12}") ==
-      {:ok, %Tempo.Set{set: [~o"1960Y", ~o"1961Y12M"], type: :all}}
+             {:ok, %Tempo.Set{set: [~o"1960Y", ~o"1961Y12M"], type: :all}}
 
     # Section 6.2 Example 1
     assert Tempo.from_iso8601("[1984,1986,1988]") ==
-      {:ok, %Tempo.Set{set: [~o"1984Y", ~o"1986Y", ~o"1988Y"], type: :one}}
+             {:ok, %Tempo.Set{set: [~o"1984Y", ~o"1986Y", ~o"1988Y"], type: :one}}
 
     # Section 6.2 Example 2
     assert Tempo.from_iso8601("[1667,1760-12]") ==
-      {:ok, %Tempo.Set{set: [~o"1667Y", ~o"1760Y12M"], type: :one}}
+             {:ok, %Tempo.Set{set: [~o"1667Y", ~o"1760Y12M"], type: :one}}
 
     # Section 6.4 Example 1
     assert Tempo.from_iso8601("{1667,1668,1670..1672}") ==
-      {:ok, ~o"{1667..1668,1670..1672}Y"}
+             {:ok, ~o"{1667..1668,1670..1672}Y"}
 
     # Section 6.4 Example 2
     assert Tempo.from_iso8601("[1760-01,1760-02,1760-12..]") ==
-      {:ok, %Tempo.Set{set: [~o"1760Y1M", ~o"1760Y2M", %Tempo.Range{first: ~o"1760Y12M", last: :undefined}], type: :one}}
+             {:ok,
+              %Tempo.Set{
+                set: [
+                  ~o"1760Y1M",
+                  ~o"1760Y2M",
+                  %Tempo.Range{first: ~o"1760Y12M", last: :undefined}
+                ],
+                type: :one
+              }}
 
     assert Tempo.from_iso8601("[1760-01,1760-02,..1760-12]") ==
-      {:ok, ~o"[1760Y1M,1760Y2M,..1760Y12M]"}
+             {:ok, ~o"[1760Y1M,1760Y2M,..1760Y12M]"}
 
     assert Tempo.from_iso8601("[1760-01,1760-02,1760-10..1760-12]") ==
-      {:ok, ~o"[1760Y1M,1760Y2M,1760Y10M..1760Y12M]"}
+             {:ok, ~o"[1760Y1M,1760Y2M,1760Y10M..1760Y12M]"}
 
     # Section 6.4 Example 3
     assert Tempo.from_iso8601("{1M2S..1M5S}") ==
-      {:ok, %Tempo.Set{set: [%Tempo.Range{first: ~o"T1M2S", last: ~o"T1M5S"}], type: :all}}
+             {:ok, %Tempo.Set{set: [%Tempo.Range{first: ~o"T1M2S", last: ~o"T1M5S"}], type: :all}}
 
     # Section 6.4 Example 4
     assert Tempo.from_iso8601("[1M2S,1M3S]") ==
@@ -601,5 +609,11 @@ defmodule Tempo.Iso8601.Parser.Test do
   test "Integer sets with negative bounds" do
     assert Tempo.from_iso8601("T{-4..-1}H") ==
              {:ok, %Tempo{time: [hour: [-4..-1]], shift: nil, calendar: Cldr.Calendar.Gregorian}}
+  end
+
+  test "Ranges must have the same time unit keys" do
+    assert Tempo.from_iso8601("[1760-12..1760]") ==
+             {:error,
+              "Time ranges must have the same time units on both sides. Found [year: 1760, month: 12]..[year: 1760]"}
   end
 end

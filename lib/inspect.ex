@@ -29,6 +29,7 @@ defmodule Tempo.Inspect do
 
   def inspect(%Tempo.Set{type: type, set: set}) do
     elements = Enum.map_join(set, ",", &inner_inspect/1)
+
     [@sigil_o, open(type), elements, close(type), ?"]
     |> :erlang.iolist_to_binary()
   end

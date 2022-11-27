@@ -58,7 +58,9 @@ defmodule Tempo.Iso8601.Parser do
   def parse_set(set) do
     Enum.map(set, fn
       {:range, [{_, from}, {_, to}]} ->
-        {:range, [parse_date(from), parse_date(to)]}
+        from = parse_date(from)
+        to = parse_date(to)
+        validate_range(from, to)
 
       {:range, [from, :undefined]} ->
         {:range, [parse_date(from), :undefined]}
@@ -333,6 +335,19 @@ defmodule Tempo.Iso8601.Parser do
 
   def consolidate_ranges([struct | rest]) when is_struct(struct) do
     [struct | consolidate_ranges(rest)]
+  end
+
+  # Ranges must have the same keys. Assumption
+  # is that ranges can be in either direction
+  # (ie increasing or decreasin)
+
+  defp validate_range(from, to) do
+    if Keyword.keys(from) == Keyword.keys(to) do
+      {:range, [from, to]}
+    else
+      raise Tempo.ParseError,
+            "Time ranges must have the same time units on both sides. Found #{inspect(from)}..#{inspect(to)}"
+    end
   end
 
   # If the duratation direction is negative, negate all the

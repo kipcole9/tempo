@@ -233,6 +233,58 @@ defmodule Tempo.Enumeration.Test do
   end
 
   test "Enumerating a set" do
-    assert Enum.to_list(~o"{1970,1980,1990}") == [~o"1970",~o"1980",~o"1990"]
+    assert Enum.to_list(~o"{1970,1980,1990}") == [~o"1970", ~o"1980", ~o"1990"]
+  end
+
+  test "Enumeration in the negative direction" do
+    assert Enum.to_list(~o"{5..1}M") == [~o"5M", ~o"4M", ~o"3M", ~o"2M", ~o"1M"]
+
+    assert Enum.to_list(~o"{5..1}M{4..1}D") ==
+             [
+               ~o"5M4D",
+               ~o"5M3D",
+               ~o"5M2D",
+               ~o"5M1D",
+               ~o"4M4D",
+               ~o"4M3D",
+               ~o"4M2D",
+               ~o"4M1D",
+               ~o"3M4D",
+               ~o"3M3D",
+               ~o"3M2D",
+               ~o"3M1D",
+               ~o"2M4D",
+               ~o"2M3D",
+               ~o"2M2D",
+               ~o"2M1D",
+               ~o"1M4D",
+               ~o"1M3D",
+               ~o"1M2D",
+               ~o"1M1D"
+             ]
+
+    assert Enum.to_list(~o"{5..1}M{1..4}D") ==
+             [
+               ~o"5M1D",
+               ~o"5M2D",
+               ~o"5M3D",
+               ~o"5M4D",
+               ~o"4M1D",
+               ~o"4M2D",
+               ~o"4M3D",
+               ~o"4M4D",
+               ~o"3M1D",
+               ~o"3M2D",
+               ~o"3M3D",
+               ~o"3M4D",
+               ~o"2M1D",
+               ~o"2M2D",
+               ~o"2M3D",
+               ~o"2M4D",
+               ~o"1M1D",
+               ~o"1M2D",
+               ~o"1M3D",
+               ~o"1M4D"
+             ]
   end
 end
