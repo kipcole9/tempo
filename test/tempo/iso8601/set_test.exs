@@ -1,5 +1,6 @@
 defmodule Tempo.Parser.Set.Test do
   use ExUnit.Case, async: true
+  import Tempo.Sigil
 
   alias Tempo.Iso8601.Tokenizer
 
@@ -123,5 +124,9 @@ defmodule Tempo.Parser.Set.Test do
 
     assert Tokenizer.tokenize("2018-[2,4]G3MU") ==
              {:ok, [date: [year: 2018, group: [one_of: [2, 4], month: 3]]]}
+  end
+
+  test "Set ranges of single time unit" do
+    assert ~o"[2020..2030]" == %Tempo.Set{set: [%Tempo.Range{first: ~o"2020", last: ~o"2030"}], type: :one}
   end
 end
