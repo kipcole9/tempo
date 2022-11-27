@@ -231,4 +231,8 @@ defmodule Tempo.Enumeration.Test do
     assert Enum.to_list(~o"{1..2,5..6}Y") == [~o"1Y", ~o"2Y", ~o"5Y", ~o"6Y"]
     assert Enum.to_list(~o"{1..2,4,6..7}Y") == [~o"1Y", ~o"2Y", ~o"4Y", ~o"6Y", ~o"7Y"]
   end
+
+  test "Enumerating a set" do
+    assert Enum.to_list(~o"{1970,1980,1990}") == [~o"1970",~o"1980",~o"1990"]
+  end
 end
