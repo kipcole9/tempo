@@ -132,7 +132,17 @@ defmodule Tempo do
   @type error_reason :: atom() | binary()
 
   @doc false
-  def new(tokens, calendar \\ Cldr.Calendar.Gregorian) when is_list(tokens) do
+  def new(tokens, calendar \\ Cldr.Calendar.Gregorian)
+
+  def new({:range, [first, last]}, calendar) do
+    {:range, [new(first, calendar), new(last, calendar)]}
+  end
+
+  def new(:undefined, _calendar) do
+    :undefined
+  end
+
+  def new(tokens, calendar) when is_list(tokens) do
     {shift, time} = Keyword.pop(tokens, :time_shift)
     %__MODULE__{time: time, shift: shift, calendar: calendar}
   end

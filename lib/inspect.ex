@@ -78,6 +78,16 @@ defmodule Tempo.Inspect do
     |> :erlang.iolist_to_binary()
   end
 
+  def inspect({:range, from, :undefined}) do
+    [inspect(from), inspect_value(:undefined)]
+    |> :erlang.iolist_to_binary()
+  end
+
+  def inspect({:range, :undefined, to}) do
+    [inspect_value(:undefined), inspect(to)]
+    |> :erlang.iolist_to_binary()
+  end
+
   def inspect([{unit, {:group, range}} | t]) do
     [inspect_value({unit, {:group, range}}) | inspect(t)]
   end
@@ -178,9 +188,9 @@ defmodule Tempo.Inspect do
   defp inner_inspect(tempo) do
     tempo
     |> inspect()
-    |> String.trim_trailing("\"")
     |> String.trim_leading(@sigil_o)
     |> String.trim_leading(@from_iso8601)
+    |> String.replace("\"", "")
   end
 
   def open(:all), do: ?{

@@ -51,6 +51,13 @@ defmodule Tempo.Iso8601.Group do
     {:ok, :undefined}
   end
 
+  def expand_groups({:range, [first, last]}, calendar) do
+    with {:ok, first} <- expand_groups(first, calendar),
+         {:ok, last} <- expand_groups(last, calendar) do
+      {:ok, {:range, first, last}}
+    end
+  end
+
   # Seasons:  These are meteorological seasons, not
   # astronomical
   # TODO implement astronomical seasons as an option

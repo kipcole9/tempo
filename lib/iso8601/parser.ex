@@ -60,6 +60,12 @@ defmodule Tempo.Iso8601.Parser do
       {:range, [{_, from}, {_, to}]} ->
         {:range, [parse_date(from), parse_date(to)]}
 
+      {:range, [from, :undefined]} ->
+        {:range, [parse_date(from), :undefined]}
+
+      {:range, [:undefined, to]} ->
+        {:range, [:undefined, parse_date(to)]}
+
       tempo ->
         tempo
         |> elem(1)
