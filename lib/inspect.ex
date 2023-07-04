@@ -94,6 +94,8 @@ defmodule Tempo.Inspect do
     |> :erlang.iolist_to_binary()
   end
 
+  # Inspect value for everything else
+
   def inspect([{unit, {:group, range}} | t]) do
     [inspect_value({unit, {:group, range}}) | inspect(t)]
   end

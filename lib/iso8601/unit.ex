@@ -91,11 +91,15 @@ defmodule Tempo.Iso8601.Unit do
     ordered?([unit | rest])
   end
 
-  def ordered?([unit_1, unit_2 | rest]) when is_atom(unit_1) do
+  def ordered?([unit_1, unit_2 | rest]) when is_atom(unit_1) and is_atom(unit_2) do
     if compare(unit_1, unit_2) == :gt, do: ordered?([unit_2 | rest]), else: false
   end
 
   def ordered?([{unit_1, _value_1}, {unit_2, _value_2} | rest]) do
+    if compare(unit_1, unit_2) == :gt, do: ordered?([unit_2 | rest]), else: false
+  end
+
+  def ordered?([unit_1, {unit_2, _value_2} | rest]) when is_atom(unit_1) do
     if compare(unit_1, unit_2) == :gt, do: ordered?([unit_2 | rest]), else: false
   end
 

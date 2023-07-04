@@ -157,7 +157,8 @@ defmodule Tempo.Parser.Selection.Test do
       {:error, ":month is greater than the selection max of :day"}
   end
 
-  test "fix me" do
+  # FIXME Raises on inspection
+  test "fix inspection of me" do
     assert Tempo.from_iso8601("LL4M4D/-P20DN7K-2IN") ==
              {
                :ok,

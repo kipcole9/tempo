@@ -2,6 +2,7 @@ defmodule Tempo.Interval do
   alias Tempo.Duration
 
   defstruct recurrence: 1,
+            direction: 1,
             from: nil,
             to: nil,
             duration: nil
