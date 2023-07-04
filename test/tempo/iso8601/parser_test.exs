@@ -606,6 +606,10 @@ defmodule Tempo.Iso8601.Parser.Test do
               }}
   end
 
+  test "Selections" do
+    assert Tempo.from_iso8601("2018YL1M2DNT2H") == {:ok, ~o"2018YL1M2DNT2H"}
+  end
+
   test "Integer sets with negative bounds" do
     assert Tempo.from_iso8601("T{-4..-1}H") ==
              {:ok, %Tempo{time: [hour: [-4..-1]], shift: nil, calendar: Cldr.Calendar.Gregorian}}

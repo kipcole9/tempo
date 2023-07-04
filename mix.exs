@@ -1,7 +1,7 @@
 defmodule Tempo.MixProject do
   use Mix.Project
 
-  @version "0.1.0"
+  @version "0.2.0-dev"
 
   def project do
     [
@@ -23,8 +23,7 @@ defmodule Tempo.MixProject do
   defp deps do
     [
       {:nimble_parsec, "~> 1.0"},
-      {:ex_cldr, "~> 2.34"},
-      {:ex_cldr_calendars, github: "elixir-cldr/cldr_calendars", branch: "tempo", override: true},
+      {:ex_cldr_calendars, "~> 1.22"},
       {:astro, "~> 0.10"},
       {:ex_doc, "~> 0.21", runtime: false}
     ]

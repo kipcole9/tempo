@@ -119,6 +119,10 @@ defmodule Tempo.Inspect do
     [?T, inspect_value(first)]
   end
 
+  def inspect([{:selection, selection} | rest]) do
+    [?L, inspect(selection), ?N | inspect(rest)]
+  end
+
   def inspect([h | t]) do
     [inspect_value(h) | inspect(t)]
   end
@@ -177,6 +181,7 @@ defmodule Tempo.Inspect do
   def inspect_value({:second, second}), do: [inspect_value(second), "S"]
   def inspect_value({:day_of_week, day}), do: [inspect_value(day), "K"]
   def inspect_value({:week, week}), do: [inspect_value(week), "W"]
+  def inspect_value({:instance, instance}), do: [inspect_value(instance), "I"]
 
   def insert_time_marker([{value1, unit}, {value2, time} | t])
       when unit in [:year, :month, :day, :week] and time in [:hour, :miniute, :second] do
