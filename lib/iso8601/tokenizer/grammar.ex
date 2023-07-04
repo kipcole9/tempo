@@ -312,7 +312,6 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
       maybe_negative_integer_or_integer_set("D", :day, min: 1),
       maybe_negative_integer_or_integer_set("K", :day_of_week, min: 1),
       ignore(string("L")) |> parsec(:interval_parser) |> ignore(string("N")),
-      parsec(:selection)
     ])
   end
 
@@ -322,7 +321,6 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
       maybe_negative_integer_or_integer_set("M", :minute, min: 1),
       maybe_negative_integer_or_integer_set("S", :second, min: 1),
       ignore(string("L")) |> parsec(:interval_parser) |> ignore(string("N")),
-      parsec(:selection)
     ])
   end
 

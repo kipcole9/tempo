@@ -372,7 +372,47 @@ defmodule Tempo do
   """
   @spec resolution(tempo :: t) :: {time_unit(), non_neg_integer()}
   def resolution(%__MODULE__{time: units}) do
-    case hd(Enum.reverse(units)) do
+    units
+    |> Enum.reverse()
+    |> hd
+    |> unit_resolution()
+  end
+
+  @doc """
+  Returns the maximum and minimum time units as a
+  2-tuple.
+
+  ### Arguments
+
+  * `tempo` is any `t:#{__MODULE__}.t/0`.
+
+  ### Returns
+
+  * `{max_unit, min_unit}`
+
+  ### Examples
+
+        iex> Tempo.unit_min_max ~o"2022Y1M2G3DU"
+        {:day, :year}
+
+        iex> Tempo.unit_min_max ~o"2022"
+        {:year, :year}
+
+  """
+  @spec unit_min_max(tempo :: t | [time_unit(), ...]) :: {time_unit(), time_unit()}
+  def unit_min_max(%__MODULE__{time: units}) do
+    unit_min_max(units)
+  end
+
+  def unit_min_max(units) when is_list(units) do
+    {max, _} = unit_resolution(hd(units))
+    {min, _} = unit_resolution(hd(Enum.reverse(units)))
+    {min, max}
+  end
+
+  defp unit_resolution(time_unit) do
+    case time_unit do
+      {:selection, selection} -> unit_min_max(selection)
       {unit, {:group, first..last}} -> {unit, last - first + 1}
       {unit, %Range{last: last}} -> {unit, last}
       {unit, {_value, meta}} when is_list(meta) -> {unit, Keyword.get(meta, :margin_of_error, 1)}

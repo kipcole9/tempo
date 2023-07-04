@@ -1,5 +1,6 @@
 defmodule Tempo.Iso8601.Unit do
   @sort_keys %{
+    interval: 50,
     century: 40,
     decade: 35,
     year: 30,
@@ -10,7 +11,8 @@ defmodule Tempo.Iso8601.Unit do
     day_of_week: 20,
     hour: 15,
     minute: 10,
-    second: 5
+    second: 5,
+    instance: 3
   }
 
   @unit_after %{

@@ -99,7 +99,7 @@ defmodule Tempo.Iso8601.Parser do
 
     if Unit.compare(max_1, min_2) == :lt do
       raise Tempo.ParseError,
-            "Group max of #{inspect(group_1)} is less than group min of #{inspect(group_2)}"
+            "Group max of #{inspect(group_1)} is less than the group min of #{inspect(group_2)}"
     else
       [{:group, parse_date(group_1)} | parse_date([{:group, group_2} | rest])]
     end
@@ -109,9 +109,9 @@ defmodule Tempo.Iso8601.Parser do
     {min, _max} = group_min_max(group)
 
     if Unit.compare(unit_1, min) == :lt do
-      raise Tempo.ParseError, "#{inspect(unit_1)} is less than group min of #{inspect(min)}"
+      raise Tempo.ParseError, "#{inspect(unit_1)} is less than the group min of #{inspect(min)}"
     else
-      [{unit_1, value_1} | parse_date([{:group, group} | rest])]
+      [parse_date({unit_1, value_1}) | parse_date([{:group, group} | rest])]
     end
   end
 
@@ -119,16 +119,45 @@ defmodule Tempo.Iso8601.Parser do
   def parse_date([{:group, group}, {unit_2, value_2} | rest]) do
     {_min, max} = group_min_max(group)
 
-    if Unit.compare(unit_2, max) == :gt do
-      raise Tempo.ParseError, "#{inspect(unit_2)} is greater than group max of #{inspect(max)}"
+    if Unit.compare(max, unit_2) == :lt do
+      raise Tempo.ParseError, "#{inspect(unit_2)} is greater than the group max of #{inspect(max)}"
     else
       [{:group, parse_date(group)} | parse_date([{unit_2, value_2} | rest])]
     end
   end
 
-  # TODO ensure selection time units are in order
-  # TODO ensure selection units are after previous and before after, like groups
+  def parse_date([{unit_1, value_1}, {:selection, selection} | rest]) do
+    {min, _max} = selection_min_max(selection)
+
+    if Unit.compare(unit_1, min) == :lt do
+      raise Tempo.ParseError, "#{inspect(unit_1)} is less than the selection min of #{inspect(min)}"
+    else
+      [parse_date({unit_1, value_1}) | parse_date([{:selection, selection} | rest])]
+    end
+  end
+
+  def parse_date([{:selection, selection}, {unit_2, value_2} | rest]) do
+    {_min, max} = selection_min_max(selection)
+
+    unless selection == Unit.sort(selection) do
+      raise Tempo.ParseError,
+        "Selection time units must be in decreasing time scale order. Found #{inspect selection}."
+    end
+
+    if Unit.compare(max, unit_2) == :lt do
+      raise Tempo.ParseError, "#{inspect(unit_2)} is greater than the selection max of #{inspect(max)}"
+    else
+      selection = parse_date(selection) |> reduce_list()
+      [{:selection, selection} | parse_date([{unit_2, value_2} | rest])]
+    end
+  end
+
   def parse_date([{:selection, selection} | rest]) do
+    unless selection == Unit.sort(selection) do
+      raise Tempo.ParseError,
+        "Selection time units must be in decreasing time scale order. Found #{inspect selection}."
+    end
+
     selection = parse_date(selection) |> reduce_list()
     [{:selection, selection} | parse_date(rest)]
   end
@@ -165,6 +194,12 @@ defmodule Tempo.Iso8601.Parser do
 
   def parse_date([]) do
     []
+  end
+
+  def parse_date({unit, value}) do
+    [{unit, value}]
+    |> parse_date()
+    |> hd()
   end
 
   # Time
@@ -224,7 +259,11 @@ defmodule Tempo.Iso8601.Parser do
   def group_min_max(group) do
     group = Keyword.delete(group, :nth) |> Keyword.delete(:all_of) |> Keyword.delete(:one_of)
     sorted = Unit.sort(group)
-    {elem(List.last(sorted), 0), elem(List.first(sorted), 0)}
+    Tempo.unit_min_max(sorted)
+  end
+
+  def selection_min_max(selection) do
+    Tempo.unit_min_max(selection)
   end
 
   # Keyword list

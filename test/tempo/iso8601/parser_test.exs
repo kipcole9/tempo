@@ -608,6 +608,11 @@ defmodule Tempo.Iso8601.Parser.Test do
 
   test "Selections" do
     assert Tempo.from_iso8601("2018YL1M2DNT2H") == {:ok, ~o"2018YL1M2DNT2H"}
+    assert Tempo.from_iso8601("{2018,2019,2020,2021,2022}YL2M29D1IN") == {:ok, ~o"{2018..2022}YL2M29D1IN"}
+  end
+
+  test "Groups" do
+    assert Tempo.from_iso8601("{2018,2019,2020,2021,2022}Y1G20DU") == {:ok, ~o"{2018..2022}Y1G20DU"}
   end
 
   test "Integer sets with negative bounds" do
