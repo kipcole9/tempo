@@ -127,6 +127,9 @@ defmodule Tempo.Parser.Set.Test do
   end
 
   test "Set ranges of single time unit" do
-    assert ~o"[2020..2030]" == %Tempo.Set{set: [%Tempo.Range{first: ~o"2020", last: ~o"2030"}], type: :one}
+    assert ~o"[2020..2030]" == %Tempo.Set{
+             set: [%Tempo.Range{first: ~o"2020", last: ~o"2030"}],
+             type: :one
+           }
   end
 end

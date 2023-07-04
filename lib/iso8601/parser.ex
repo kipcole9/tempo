@@ -120,7 +120,8 @@ defmodule Tempo.Iso8601.Parser do
     {_min, max} = group_min_max(group)
 
     if Unit.compare(max, unit_2) == :lt do
-      raise Tempo.ParseError, "#{inspect(unit_2)} is greater than the group max of #{inspect(max)}"
+      raise Tempo.ParseError,
+            "#{inspect(unit_2)} is greater than the group max of #{inspect(max)}"
     else
       [{:group, parse_date(group)} | parse_date([{unit_2, value_2} | rest])]
     end
@@ -130,7 +131,8 @@ defmodule Tempo.Iso8601.Parser do
     {min, _max} = selection_min_max(selection)
 
     if Unit.compare(unit_1, min) == :lt do
-      raise Tempo.ParseError, "#{inspect(unit_1)} is less than the selection min of #{inspect(min)}"
+      raise Tempo.ParseError,
+            "#{inspect(unit_1)} is less than the selection min of #{inspect(min)}"
     else
       [parse_date({unit_1, value_1}) | parse_date([{:selection, selection} | rest])]
     end
@@ -141,11 +143,12 @@ defmodule Tempo.Iso8601.Parser do
 
     unless selection == Unit.sort(selection) do
       raise Tempo.ParseError,
-        "Selection time units must be in decreasing time scale order. Found #{inspect selection}."
+            "Selection time units must be in decreasing time scale order. Found #{inspect(selection)}."
     end
 
     if Unit.compare(max, unit_2) == :lt do
-      raise Tempo.ParseError, "#{inspect(unit_2)} is greater than the selection max of #{inspect(max)}"
+      raise Tempo.ParseError,
+            "#{inspect(unit_2)} is greater than the selection max of #{inspect(max)}"
     else
       selection = parse_date(selection) |> reduce_list()
       [{:selection, selection} | parse_date([{unit_2, value_2} | rest])]
@@ -155,7 +158,7 @@ defmodule Tempo.Iso8601.Parser do
   def parse_date([{:selection, selection} | rest]) do
     unless selection == Unit.sort(selection) do
       raise Tempo.ParseError,
-        "Selection time units must be in decreasing time scale order. Found #{inspect selection}."
+            "Selection time units must be in decreasing time scale order. Found #{inspect(selection)}."
     end
 
     selection = parse_date(selection) |> reduce_list()

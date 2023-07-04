@@ -60,5 +60,4 @@ defmodule Tempo.Comparison do
         :eq
     end
   end
-
 end

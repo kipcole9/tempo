@@ -40,8 +40,8 @@ defmodule Tempo.Inspect do
   # Inspect value for everything else
 
   defp inspect_value([{unit, _value1} = first, {time, _value2} = second | t])
-      when unit in [:year, :month, :day, :week, :day_of_week] and
-             time in [:hour, :minute, :second] do
+       when unit in [:year, :month, :day, :week, :day_of_week] and
+              time in [:hour, :minute, :second] do
     [inspect_value(first), inspect_value([second | t])]
   end
 
@@ -49,17 +49,17 @@ defmodule Tempo.Inspect do
   # in the output. Three because :hour, :minute, :second
 
   defp inspect_value([{unit, _value1} = first, second, third])
-      when unit in [:hour, :minute, :second] do
+       when unit in [:hour, :minute, :second] do
     [?T, inspect_value(first), inspect_value(second), inspect_value(third)]
   end
 
   defp inspect_value([{unit, _value1} = first, second])
-      when unit in [:hour, :minute, :second] do
+       when unit in [:hour, :minute, :second] do
     [?T, inspect_value(first) | inspect_value(second)]
   end
 
   defp inspect_value([{unit, _value1} = first])
-      when unit in [:hour, :minute, :second] do
+       when unit in [:hour, :minute, :second] do
     [?T, inspect_value(first)]
   end
 
@@ -126,11 +126,21 @@ defmodule Tempo.Inspect do
     [open(type), elements, close(type)]
   end
 
-  defp inspect_value(%Tempo.Interval{recurrence: 1, from: from, to: :undefined = to, duration: nil}) do
+  defp inspect_value(%Tempo.Interval{
+         recurrence: 1,
+         from: from,
+         to: :undefined = to,
+         duration: nil
+       }) do
     [inspect_value(from.time), ?/, inspect_value(to)]
   end
 
-  defp inspect_value(%Tempo.Interval{recurrence: 1, from: :undefined = from, to: to, duration: nil}) do
+  defp inspect_value(%Tempo.Interval{
+         recurrence: 1,
+         from: :undefined = from,
+         to: to,
+         duration: nil
+       }) do
     [inspect_value(from), ?/, inspect_value(to.time)]
   end
 
@@ -143,20 +153,20 @@ defmodule Tempo.Inspect do
   end
 
   defp inspect_value(%Tempo.Interval{
-        recurrence: :infinity,
-        from: from,
-        to: :undefined = to,
-        duration: nil
-      }) do
+         recurrence: :infinity,
+         from: from,
+         to: :undefined = to,
+         duration: nil
+       }) do
     ["R/", inspect_value(from.time), ?/, inspect_value(to)]
   end
 
   defp inspect_value(%Tempo.Interval{
-        recurrence: :infinity,
-        from: :undefined = from,
-        to: to,
-        duration: nil
-      }) do
+         recurrence: :infinity,
+         from: :undefined = from,
+         to: to,
+         duration: nil
+       }) do
     ["R/", inspect_value(from), ?/, inspect_value(to.time)]
   end
 
@@ -196,19 +206,6 @@ defmodule Tempo.Inspect do
   defp inspect_value({:duration, duration}), do: inspect_value(duration)
   defp inspect_value(:undefined), do: ".."
   defp inspect_shift(_shift), do: ""
-
-  # defp insert_time_marker([{value1, unit}, {value2, time} | t])
-  #     when unit in [:year, :month, :day, :week] and time in [:hour, :miniute, :second] do
-  #   [{unit, value1}, ?T, {time, value2} | t]
-  # end
-  #
-  # defp insert_time_marker([first | rest]) do
-  #   [first, insert_time_marker(rest)]
-  # end
-  #
-  # defp insert_time_marker([]) do
-  #   []
-  # end
 
   defp open(:all), do: ?{
   defp open(:one), do: ?[

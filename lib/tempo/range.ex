@@ -7,5 +7,4 @@ defmodule Tempo.Range do
     last = Tempo.new(last, calendar)
     %__MODULE__{first: first, last: last}
   end
-
 end
