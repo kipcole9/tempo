@@ -131,7 +131,7 @@ defmodule Tempo.Iso8601.Parser do
   def parse_date([{:selection, selection}, {unit_2, value_2} | rest]) do
     {_min, max} = selection_min_max(selection)
 
-    unless selection == Unit.sort(selection) do
+    unless Unit.ordered?(selection) do
       raise Tempo.ParseError,
             "Selection time units must be in decreasing time scale order. Found #{inspect(selection)}."
     end
@@ -146,7 +146,7 @@ defmodule Tempo.Iso8601.Parser do
   end
 
   def parse_date([{:selection, selection} | rest]) do
-    unless selection == Unit.sort(selection) do
+    unless Unit.ordered?(selection) do
       raise Tempo.ParseError,
             "Selection time units must be in decreasing time scale order. Found #{inspect(selection)}."
     end
