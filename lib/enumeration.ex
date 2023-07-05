@@ -1,4 +1,4 @@
-defmodule Tempo.Algebra do
+defmodule Tempo.Enumeration do
   alias Tempo.Validation
   alias Tempo.Iso8601.Unit
 
@@ -146,16 +146,14 @@ defmodule Tempo.Algebra do
   end
 
   def backtrack(previous, calendar) do
-    previous =
-      previous
-      |> Enum.reverse()
-      |> do_next(calendar, previous)
-
-    case previous do
-      {:rollover, list} -> Enum.reverse(list)
-      other -> Enum.reverse(other)
-    end
+    previous
+    |> reverse()
+    |> do_next(calendar, previous)
+    |> reverse()
   end
+
+  defp reverse({:rollover, list}), do: Enum.reverse(list)
+  defp reverse(list), do: Enum.reverse(list)
 
   defp adjusted_range(%Range{first: first, last: last, step: step}, _unit, _calendar, _previous)
        when first >= 0 and last >= first and step > 0 do

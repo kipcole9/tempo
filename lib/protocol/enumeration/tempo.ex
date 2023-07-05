@@ -1,16 +1,20 @@
 defimpl Enumerable, for: Tempo do
-  alias Tempo.Algebra
+  @moduledoc false
+
+  alias Tempo.Enumeration
   alias Tempo.Validation
 
+  # TODO Implement Enumerable.count
   # Count can be calculated from ranges/sets in all
-  # cases except where there is groupgin involved and therefore
-  # we would need to evaluate each date/time
+  # cases except where there is group or selection involved
+  # and therefore we would need to evaluate each date/time
 
   @impl Enumerable
   def count(_array) do
     {:error, __MODULE__}
   end
 
+  # TODO Implement Enumerable.member?
   # Similar to the above, we can check inclusion by checking against
   # the bounds of each range/set
 
@@ -19,6 +23,7 @@ defimpl Enumerable, for: Tempo do
     {:error, __MODULE__}
   end
 
+  # TODO Implement Enumerable.slice
   # As for the above, we could calculate the bounds
   # of each range/set and calculate their values
   # based upon the catesian product of the bounds
@@ -30,18 +35,15 @@ defimpl Enumerable, for: Tempo do
 
   @impl Enumerable
   def reduce(enum, {:cont, acc}, fun) do
-    enum = Tempo.make_enum(enum)
+    # enum = Enumeration.maybe_add_implicit_enumeration(enum)
+    enum = make_enum(enum)
 
-    case Algebra.next(enum) do
+    case Enumeration.next(enum) do
       nil ->
         {:done, acc}
 
       next ->
-        {:ok, tempo} =
-          next
-          |> Algebra.collect()
-          |> Validation.validate(next.calendar)
-
+        tempo = Enumeration.collect(next)
         reduce(next, fun.(tempo, acc), fun)
     end
   end
@@ -52,5 +54,14 @@ defimpl Enumerable, for: Tempo do
 
   def reduce(enum, {:suspend, acc}, fun) do
     {:suspended, acc, &reduce(enum, &1, fun)}
+  end
+
+  defp make_enum(%Tempo{} = tempo) do
+    {:ok, tempo} =
+      tempo
+      |> Enumeration.maybe_add_implicit_enumeration()
+      |> Validation.validate()
+
+    tempo
   end
 end

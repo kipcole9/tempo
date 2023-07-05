@@ -1,4 +1,6 @@
 defmodule Tempo.Iso8601.Parser do
+  @moduledoc false
+
   alias Tempo.Iso8601.Unit
 
   def parse(tokens, calendar) do
@@ -11,19 +13,7 @@ defmodule Tempo.Iso8601.Parser do
       {:error, e.message}
   end
 
-  def parse(date: tokens) do
-    with parsed <- parse_date(tokens) do
-      Tempo.new(parsed)
-    end
-  end
-
-  def parse(time_of_day: tokens) do
-    with parsed <- parse_date(tokens) do
-      Tempo.new(parsed)
-    end
-  end
-
-  def parse(datetime: tokens) do
+  def parse([{type, tokens}]) when type in [:date, :time_of_day, :datetime] do
     with parsed <- parse_date(tokens) do
       Tempo.new(parsed)
     end
@@ -115,7 +105,7 @@ defmodule Tempo.Iso8601.Parser do
     end
   end
 
-  # TODO what is successor unit is a selection or a group
+  # TODO what if successor unit is a selection or a group
   def parse_date([{:group, group}, {unit_2, value_2} | rest]) do
     {_min, max} = group_min_max(group)
 
@@ -396,7 +386,7 @@ defmodule Tempo.Iso8601.Parser do
   end
 
   # If the duratation direction is negative, negate all the
-  # units
+  # units.
 
   def adjust_for_direction([{:direction, :negative} | rest]) do
     Enum.map(rest, fn {k, v} -> {k, -v} end)

@@ -1,18 +1,17 @@
 defmodule Tempo.Validation do
-  @moduledoc """
-  This function performs two roles (and maybe should be split):
+  @moduledoc false
 
-  1. Expand groups into basic time units where there is enough information to do so and
-  2. Ensures that basic units are valid (days in months, months in year etc)
+  # This function performs two roles (and maybe should be split):
+  #
+  # 1. Expand groups into basic time units where there is enough information to do so and
+  # 2. Ensures that basic units are valid (days in months, months in year etc)
 
-  There is ample room to refactor into a more generalised solution for much of
-  the resolution task. For now, being completely explicit aids implementation and
-  debugging. Refactoring to a generalised case will come later.
+  # There is ample room to refactor into a more generalised solution for much of
+  # the resolution task. For now, being completely explicit aids implementation and
+  # debugging. Refactoring to a generalised case will come later.
 
-  """
   @hours_per_day 24
   @minutes_per_hour 60
-  # @seconds_per_minute 60
   @rounding_precision 10
 
   def validate(tempo, calendar \\ Cldr.Calendar.Gregorian)
@@ -26,6 +25,7 @@ defmodule Tempo.Validation do
 
   # TODO Check that the second time is after the first (ISO expectation)
   # TODO Adjust the second time if its time shift is different to the first
+
   def validate(%Tempo.Interval{} = tempo, calendar) do
     with {:ok, from} <- validate(tempo.from, calendar),
          {:ok, to} <- validate(tempo.to, calendar),
@@ -61,6 +61,9 @@ defmodule Tempo.Validation do
     {:ok, :undefined}
   end
 
+  # Resolution is the process of pre-calculating concrete
+  # time units from groups whereever possible.
+
   def resolve([{:day_of_week, day} | rest], calendar) do
     days_in_week = calendar.days_in_week()
 
@@ -73,7 +76,8 @@ defmodule Tempo.Validation do
   end
 
   # When a group of years succeeds a century or decade
-  # Here we merge into a set
+  # Here we merge into a set.
+
   def resolve(
         [{unit, {:group, %Range{} = range1}}, {unit, {:group, %Range{} = range2}} | rest],
         calendar
@@ -323,6 +327,7 @@ defmodule Tempo.Validation do
 
   # Calculating the result of fractional time units
   # TODO Support negative time fractions
+
   def resolve([{:year, year}], calendar) when is_float(year) and year > 0 do
     int_year = trunc(year)
     fraction_of_year = year - int_year
@@ -415,6 +420,7 @@ defmodule Tempo.Validation do
   end
 
   # Make sure only the last element is a fraction
+
   def resolve([{_unit, fraction}, {_unit_2, _value} | _rest], _calendar)
       when is_float(fraction) do
     {:error,

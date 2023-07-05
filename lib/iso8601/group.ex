@@ -1,4 +1,13 @@
 defmodule Tempo.Iso8601.Group do
+  @moduledoc false
+
+  # This module expands groups into base time units.
+  # For example, it exapands:
+  #  * quarters
+  #  * quadrimester
+  #  * semestrals
+  #  * seasons (meterological, not astronomical)
+
   @quarters_in_year 4
   @quadrimesters_in_year 3
   @semestrals_in_year 2
@@ -60,6 +69,7 @@ defmodule Tempo.Iso8601.Group do
 
   # Seasons:  These are meteorological seasons, not
   # astronomical
+
   # TODO implement astronomical seasons as an option
 
   # Northern Spring March-May
@@ -68,8 +78,8 @@ defmodule Tempo.Iso8601.Group do
     {:ok, interval} =
       [
         interval: [
-          datetime: [{:year, year}, {:month, 3}] ++ rest,
-          datetime: [{:year, year}, {:month, 5}] ++ rest
+          datetime: [{:year, year}, {:month, 3} | rest],
+          datetime: [{:year, year}, {:month, 5} | rest]
         ]
       ]
       |> Tempo.Iso8601.Parser.parse()
@@ -84,8 +94,8 @@ defmodule Tempo.Iso8601.Group do
     {:ok, interval} =
       [
         interval: [
-          datetime: [{:year, year}, {:month, 6}] ++ rest,
-          datetime: [{:year, year}, {:month, 8}] ++ rest
+          datetime: [{:year, year}, {:month, 6} | rest],
+          datetime: [{:year, year}, {:month, 8} | rest]
         ]
       ]
       |> Tempo.Iso8601.Parser.parse()
@@ -100,8 +110,8 @@ defmodule Tempo.Iso8601.Group do
     {:ok, interval} =
       [
         interval: [
-          datetime: [{:year, year}, {:month, 9}] ++ rest,
-          datetime: [{:year, year}, {:month, 11}] ++ rest
+          datetime: [{:year, year}, {:month, 9} | rest],
+          datetime: [{:year, year}, {:month, 11} | rest]
         ]
       ]
       |> Tempo.Iso8601.Parser.parse()
@@ -116,8 +126,8 @@ defmodule Tempo.Iso8601.Group do
     {:ok, interval} =
       [
         interval: [
-          datetime: [{:year, year - 1}, {:month, 12}] ++ rest,
-          datetime: [{:year, year}, {:month, 2}] ++ rest
+          datetime: [{:year, year - 1}, {:month, 12} | rest],
+          datetime: [{:year, year}, {:month, 2} | rest]
         ]
       ]
       |> Tempo.Iso8601.Parser.parse()
@@ -190,6 +200,7 @@ defmodule Tempo.Iso8601.Group do
     [{unit, {:group, {:one, set}}, value} | expand_groups(rest, calendar)]
   end
 
+  # TODO implement complex groups
   def expand_groups([{:group, group} | _rest], _calendar) do
     {:error, "Complex groupings not yet supported. Found #{inspect(group)}"}
   end

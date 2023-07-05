@@ -104,7 +104,7 @@ defmodule Tempo do
   """
 
   alias Tempo.Iso8601.{Tokenizer, Parser, Group, Unit}
-  alias Tempo.Algebra
+  alias Tempo.Enumeration
   alias Tempo.Validation
 
   defstruct [:time, :shift, :calendar]
@@ -509,7 +509,7 @@ defmodule Tempo do
   end
 
   def merge(%Tempo{} = base, %Tempo{} = from) do
-    units = Algebra.merge(base.time, from.time)
+    units = Enumeration.merge(base.time, from.time)
     shift = from.shift || base.shift
 
     case Validation.validate(%{base | time: units, shift: shift}) do
@@ -522,8 +522,8 @@ defmodule Tempo do
 
   def explode(%Tempo{} = tempo, nil) do
     tempo
-    |> Tempo.Algebra.add_implicit_enumeration()
-    |> Tempo.Validation.validate()
+    |> Enumeration.add_implicit_enumeration()
+    |> Validation.validate()
   end
 
   def explode!(%Tempo{} = tempo, unit \\ nil) do
@@ -582,13 +582,4 @@ defmodule Tempo do
     {:error, "Invalid time unit #{inspect(unit)}"}
   end
 
-  @doc false
-  def make_enum(%__MODULE__{} = tempo) do
-    {:ok, tempo} =
-      tempo
-      |> Tempo.Algebra.maybe_add_implicit_enumeration()
-      |> Tempo.Validation.validate()
-
-    tempo
-  end
 end
