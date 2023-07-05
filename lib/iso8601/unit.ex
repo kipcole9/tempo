@@ -1,14 +1,20 @@
 defmodule Tempo.Iso8601.Unit do
+  @moduledoc false
+
+  # The field names are the same as those in
+  # Elixir dates/times as far as possible making
+  # interchange a little more obvious. Therefore
+  # `:day` not `:day_of_month`.
+
   @sort_keys %{
     interval: 50,
     century: 40,
     decade: 35,
     year: 30,
     month: 25,
-    day: 20,
-    day_of_year: 19,
-    day_of_month: 18,
-    day_of_week: 17,
+    day_of_year: 20,
+    day: 19, # Represents day of month
+    day_of_week: 18,
     hour: 15,
     minute: 10,
     second: 5,
@@ -30,6 +36,21 @@ defmodule Tempo.Iso8601.Unit do
     @units
   end
 
+  @doc """
+  Returns an implcit enumerator for a `t:Tempo.t/0`.
+
+  When enumerating a t:Tempo.t/0 we check whether there
+  is an explicit enumeration built it. Explicit enumerators
+  are formed from selections, groups and sets.
+
+  For all other cases, like a simple date such as
+  `~o"2022-07-05` we add an additional time unit to
+  act as the enumeration.
+
+  The additional unit is the next smallest unit after
+  the last unit in the struct.
+
+  """
   def implicit_enumerator(:year = unit, calendar) do
     if calendar.calendar_base == :month do
       Map.get(@unit_after, unit)
@@ -38,19 +59,25 @@ defmodule Tempo.Iso8601.Unit do
     end
   end
 
-  def implicit_enumerator(unit, _calendar) do
+  def implicit_enumerator(unit, _calendar) when unit in @units do
     Map.get(@unit_after, unit)
   end
 
-  def sort_key(time_unit) do
-    Map.fetch!(@sort_keys, time_unit)
-  end
+  @doc """
+  Sorts a list of time units or time unit
+  tuples.
 
-  # Sort a keyword list of duration elements
-  # by the key
-
+  """
   def sort([{_unit, _value} | _rest] = units, direction \\ :desc) do
     Enum.sort_by(units, &sort_key(elem(&1, 0)), direction)
+  end
+
+  @doc """
+  Returns the sort key for a given time unit.
+
+  """
+  def sort_key(time_unit) do
+    Map.fetch!(@sort_keys, time_unit)
   end
 
   def compare(unit_1, unit_2) when is_atom(unit_1) and is_atom(unit_2) do
