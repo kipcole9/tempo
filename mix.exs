@@ -23,7 +23,8 @@ defmodule Tempo.MixProject do
   defp deps do
     [
       {:nimble_parsec, "~> 1.0"},
-      {:ex_cldr_calendars, "~> 1.22"},
+      {:ex_cldr_calendars, github: "kipcole9/cldr_calendars"},
+      # {:ex_cldr_calendars, "~> 1.23"},
       {:astro, "~> 0.10"},
       {:ex_doc, "~> 0.21", runtime: false}
     ]

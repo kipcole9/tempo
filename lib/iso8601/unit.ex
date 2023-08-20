@@ -64,8 +64,10 @@ defmodule Tempo.Iso8601.Unit do
   end
 
   @doc """
-  Sorts a list of time units or time unit
-  tuples.
+  Sorts a list of time units.
+
+  A list of time units is the underlying representation
+  of a `t:Tempo.t/0`.
 
   """
   def sort([{_unit, _value} | _rest] = units, direction \\ :desc) do
@@ -80,6 +82,11 @@ defmodule Tempo.Iso8601.Unit do
     Map.fetch!(@sort_keys, time_unit)
   end
 
+  @doc """
+  Compares two units or unit tuples returning an indicator
+  of precedemce.
+
+  """
   def compare(unit_1, unit_2) when is_atom(unit_1) and is_atom(unit_2) do
     u1 = sort_key(unit_1)
     u2 = sort_key(unit_2)

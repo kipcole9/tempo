@@ -106,6 +106,7 @@ defmodule Tempo do
   alias Tempo.Iso8601.{Tokenizer, Parser, Group, Unit}
   alias Tempo.Enumeration
   alias Tempo.Validation
+  alias Tempo.Rounding
 
   defstruct [:time, :shift, :calendar]
 
@@ -499,10 +500,41 @@ defmodule Tempo do
     end
   end
 
-  def round(%__MODULE__{time: time} = tempo, round_to \\ :day) do
-    with {:ok, truncate_to} <- validate_unit(round_to) do
-      case round(time, truncate_to) do
-        [] -> {:error, "Rounding would result in no time resolution"}
+  @doc """
+  Truncates a tempo struct to the specified resolution.
+
+  Rounding rounds to the specified time unit resolution.
+
+  ### Arguments
+
+  * `tempo` is any `t:#{__MODULE__}.t/0`.
+
+  * `round_to` is any time unit. The default
+    is `:day`.
+
+  ### Returns
+
+  * `rounded` is a tempo struct that is rounded or
+
+  * `{:error, reason}`
+
+  ### Examples
+
+      iex> Tempo.round ~o"2022-11-21", :day
+      ~o"2022Y11M21D"
+
+      iex> Tempo.round ~o"2022-11-21", :month
+      ~o"2022Y12M"
+
+      iex> Tempo.round ~o"2022-11-21", :year
+      ~o"2023Y"
+
+  """
+  @spec round(tempo :: t, round_to :: time_unit()) :: t
+  def round(%__MODULE__{} = tempo, round_to \\ :day) do
+    with {:ok, round_to} <- validate_unit(round_to) do
+      case Rounding.round(tempo, round_to) do
+        {:error, reason} -> {:error, reason}
         other -> %{tempo | time: other}
       end
     end
