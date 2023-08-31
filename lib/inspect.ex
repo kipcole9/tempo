@@ -97,8 +97,12 @@ defmodule Tempo.Inspect do
     [?{, Enum.map_join(list, ",", &inspect_value/1), ?}]
   end
 
-  defp inspect_value(%Range{first: first, last: last}) do
+  defp inspect_value(%Range{first: first, last: last, step: 1}) do
     [inspect_value(first), "..", inspect_value(last)]
+  end
+
+  defp inspect_value(%Range{first: first, last: last, step: step}) do
+    [inspect_value(first), "..", inspect_value(last), ?/, ?/, inspect_value(step)]
   end
 
   defp inspect_value(number) when is_number(number) do
@@ -107,6 +111,20 @@ defmodule Tempo.Inspect do
 
   defp inspect_value({number, [margin_of_error: margin]}) do
     Kernel.inspect(number) <> "±" <> Kernel.inspect(margin)
+  end
+
+  defp inspect_value({:mask, mask}) do
+    Enum.reduce(mask, [], fn
+      :X, acc ->
+        [?X | acc]
+
+      int, acc when is_integer(int) ->
+        [Integer.to_string(int) | acc]
+
+      list, acc when is_list(list) ->
+        [?}, Enum.map_join(list, ",", &Integer.to_string/1), ?{ | acc]
+    end)
+    |> Enum.reverse()
   end
 
   defp inspect_value({value, continuation}) when is_function(continuation) do

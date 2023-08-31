@@ -68,4 +68,17 @@ defmodule Tempo.Iso8601.InspectTest do
     assert inspect(~o"R/20150104T083000/PT15M00S/F2YL1M1KT{8,9}H30MN") ==
       "~o\"R/2015Y1M4DT8H30M0S/PT15M0S/F2YL1M1KT{8..9}H30MN\""
   end
+
+  test "Dates with masks" do
+    assert inspect(~o"2023-WX{2,4,6,8,0}") == "~o\"2023YX{0,2,4,6,8}W\""
+    assert inspect(~o"2023YX{2,4,6,8,0}W") == "~o\"2023YX{0,2,4,6,8}W\""
+  end
+
+  test "Dates with stepped ranges" do
+    assert inspect(~o"2023Y{1..-1//2}W") ==
+      "~o\"2023Y{1..53//2}W\""
+
+    assert inspect(~o"R/2018-08-01T10:20:00/PT10M/F1ML{1..10//2}DT10H20M0SN") ==
+      "~o\"R/2018Y8M1DT10H20M0S/PT10M/F1ML{1..10//2}DT10H20M0SN\""
+  end
 end

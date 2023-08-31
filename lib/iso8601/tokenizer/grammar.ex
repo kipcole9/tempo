@@ -639,6 +639,14 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
     first..-last
   end
 
+  def range([[first, "..", last], step]) when is_integer(first) and is_integer(last) and is_integer(step) do
+    first..last//step
+  end
+
+  def range([[first, "..", ?-, last], step]) when is_integer(first) and is_integer(last) and is_integer(step) do
+    first..-last//step
+  end
+
   def range([:undefined, {_type, other}]) do
     {:range, [:undefined, other]}
   end
@@ -664,6 +672,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
       maybe_negative_integer(min: 1)
       |> string("..")
       |> maybe_negative_integer(min: 1)
+      |> optional(ignore(string("//")) |> maybe_negative_integer(min: 1))
       |> reduce(:range),
       maybe_negative_integer(min: 1)
     ])
