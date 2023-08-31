@@ -1,4 +1,5 @@
 defmodule Tempo.Enumeration do
+  @moduledoc false
   alias Tempo.Validation
   alias Tempo.Iso8601.Unit
 

@@ -29,13 +29,12 @@ defimpl Enumerable, for: Tempo do
   # based upon the catesian product of the bounds
 
   @impl Enumerable
-  def slice(_array) do
+  def slice(_enum) do
     {:error, __MODULE__}
   end
 
   @impl Enumerable
   def reduce(enum, {:cont, acc}, fun) do
-    # enum = Enumeration.maybe_add_implicit_enumeration(enum)
     enum = make_enum(enum)
 
     case Enumeration.next(enum) do

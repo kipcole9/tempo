@@ -37,7 +37,7 @@ defmodule Tempo.Inspect do
     |> :erlang.iolist_to_binary()
   end
 
-  # Inspect value for everything else
+  # inspect_value/1 for everything else
 
   defp inspect_value([{unit, _value1} = first, {time, _value2} = second | t])
        when unit in [:year, :month, :day, :week, :day_of_week] and
@@ -126,6 +126,16 @@ defmodule Tempo.Inspect do
     [open(type), elements, close(type)]
   end
 
+  defp inspect_value(%Tempo.Interval{recurrence: recurrence, from: from, to: to, repeat_rule: repeat_rule})
+      when not is_nil(to) and not is_nil(repeat_rule) do
+    [?R, recurrence(recurrence), ?/, inspect_value(from.time), ?/, inspect_value(to), ?/, ?F, inspect_value(repeat_rule)]
+  end
+
+  defp inspect_value(%Tempo.Interval{recurrence: recurrence, from: from, duration: duration, repeat_rule: repeat_rule})
+      when not is_nil(duration) and not is_nil(repeat_rule) do
+    [?R, recurrence(recurrence), ?/, inspect_value(from.time), ?/, inspect_value(duration), ?/, ?F, inspect_value(repeat_rule)]
+  end
+
   defp inspect_value(%Tempo.Interval{
          recurrence: 1,
          from: from,
@@ -153,25 +163,30 @@ defmodule Tempo.Inspect do
   end
 
   defp inspect_value(%Tempo.Interval{
-         recurrence: :infinity,
+         recurrence: recurrence,
          from: from,
          to: :undefined = to,
          duration: nil
        }) do
-    ["R/", inspect_value(from.time), ?/, inspect_value(to)]
+    [?R, recurrence(recurrence), ?/, inspect_value(from.time), ?/, inspect_value(to)]
   end
 
   defp inspect_value(%Tempo.Interval{
-         recurrence: :infinity,
+         recurrence: recurrence,
          from: :undefined = from,
          to: to,
          duration: nil
        }) do
-    ["R/", inspect_value(from), ?/, inspect_value(to.time)]
+    [?R, recurrence(recurrence), ?/, inspect_value(from), ?/, inspect_value(to.time)]
   end
 
-  defp inspect_value(%Tempo.Interval{recurrence: :infinity, from: from, to: to, duration: nil}) do
-    ["R/", inspect_value(from.time), ?/, inspect_value(to.time)]
+  defp inspect_value(%Tempo.Interval{recurrence: recurrence, from: from, to: to, duration: nil}) do
+    [?R, recurrence(recurrence), ?/, inspect_value(from.time), ?/, inspect_value(to.time)]
+  end
+
+
+  defp inspect_value(%Tempo.Interval{recurrence: recurrence, from: from, to: nil, duration: duration}) do
+    [?R, recurrence(recurrence), ?/, inspect_value(from.time), ?/, inspect_value(duration)]
   end
 
   defp inspect_value(%Tempo.Duration{time: time}) do
@@ -193,22 +208,34 @@ defmodule Tempo.Inspect do
     |> :erlang.iolist_to_binary()
   end
 
-  defp inspect_value({:year, year}), do: [inspect_value(year), ?Y]
-  defp inspect_value({:month, month}), do: [inspect_value(month), ?M]
-  defp inspect_value({:day, day}), do: [inspect_value(day), ?D]
-  defp inspect_value({:hour, hour}), do: [inspect_value(hour), ?H]
-  defp inspect_value({:minute, minute}), do: [inspect_value(minute), ?M]
-  defp inspect_value({:second, second}), do: [inspect_value(second), ?S]
-  defp inspect_value({:day_of_week, day}), do: [inspect_value(day), ?K]
-  defp inspect_value({:week, week}), do: [inspect_value(week), ?W]
+  defp inspect_value({:year, year}), do: [inspect_list(year), ?Y]
+  defp inspect_value({:month, month}), do: [inspect_list(month), ?M]
+  defp inspect_value({:day, day}), do: [inspect_list(day), ?D]
+  defp inspect_value({:hour, hour}), do: [inspect_list(hour), ?H]
+  defp inspect_value({:minute, minute}), do: [inspect_list(minute), ?M]
+  defp inspect_value({:second, second}), do: [inspect_list(second), ?S]
+  defp inspect_value({:day_of_week, day}), do: [inspect_list(day), ?K]
+  defp inspect_value({:week, week}), do: [inspect_list(week), ?W]
   defp inspect_value({:instance, instance}), do: [inspect_value(instance), ?I]
   defp inspect_value({:interval, interval}), do: inspect_value(interval)
   defp inspect_value({:duration, duration}), do: inspect_value(duration)
   defp inspect_value(:undefined), do: ".."
   defp inspect_shift(_shift), do: ""
 
+  defp inspect_list(list) when is_list(list) do
+    elements = Enum.map_join(list, ",", &inspect_value/1)
+    [open(:all), elements, close(:all)]
+  end
+
+  defp inspect_list(value) do
+    inspect_value(value)
+  end
+
   defp open(:all), do: ?{
   defp open(:one), do: ?[
   defp close(:all), do: ?}
   defp close(:one), do: ?]
+
+  defp recurrence(:infinity), do: <<>>
+  defp recurrence(recurrence), do: Integer.to_string(recurrence)
 end

@@ -81,4 +81,8 @@ defmodule Tempo.Iso8601.Tokenizer.Helpers do
   def convert_bc([other]) do
     other
   end
+
+  def extract_repeat_rule([{_type, rule}]) do
+    rule
+  end
 end

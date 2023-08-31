@@ -12,6 +12,7 @@ defmodule Tempo.Iso8601.Unit do
     decade: 35,
     year: 30,
     month: 25,
+    week: 22,
     day_of_year: 20,
     day: 19, # Represents day of month
     day_of_week: 18,

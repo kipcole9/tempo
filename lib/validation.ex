@@ -64,7 +64,7 @@ defmodule Tempo.Validation do
   # Resolution is the process of pre-calculating concrete
   # time units from groups whereever possible.
 
-  def resolve([{:day_of_week, day} | rest], calendar) do
+  def resolve([{:day_of_week, day} | rest], calendar) when is_integer(day) do
     days_in_week = calendar.days_in_week()
 
     with {:ok, day} <- conform(day, 1..days_in_week) do
@@ -123,33 +123,16 @@ defmodule Tempo.Validation do
     end
   end
 
+  # TODO Make sure that the day of week fits into the available
+  # days in the last week
+
   def resolve([{:year, year}, {:week, week}, {:day_of_week, day} | rest], calendar)
       when is_integer(year) and is_integer(week) and is_integer(day) do
-    weeks_in_year = calendar.weeks_in_year(year)
-    week = if week < 0, do: weeks_in_year + week - 1, else: week
+    {weeks_in_year, _days_in_last_week} = calendar.weeks_in_year(year)
 
-    with [day_of_week: day] <- resolve([day_of_week: day], calendar) do
-      if week in 1..weeks_in_year do
-        if calendar.calendar_base == :month do
-          %Date.Range{first: start_of_week} = calendar.week(year, week)
-          iso_days = Cldr.Calendar.date_to_iso_days(start_of_week) + day - 1
-          {year, month, day} = calendar.date_from_iso_days(iso_days)
-
-          case resolve([{:month, month}, {:day, day} | rest], calendar) do
-            {:error, reason} -> reason
-            resolved -> [{:year, year} | resolved]
-          end
-        else
-          case resolve([{:week, week}, {:day, day} | rest], calendar) do
-            {:error, reason} -> {:error, reason}
-            resolved -> [{:year, year} | resolved]
-          end
-        end
-      else
-        {:error,
-         "#{inspect(abs(week))} is greater than #{inspect(weeks_in_year)} which " <>
-           "is the number of weeks in #{inspect(year)} for the calendar #{inspect(calendar)}"}
-      end
+    with {:ok, week} <- conform(week, 1..weeks_in_year),
+         [day_of_week: day] <- resolve([day_of_week: day], calendar) do
+      year_week_day(year, week, day, rest, calendar.calendar_base, calendar)
     end
   end
 
@@ -304,7 +287,7 @@ defmodule Tempo.Validation do
 
   def resolve([{:year, year}, {:week, weeks}], calendar)
       when is_integer(year) and (is_list(weeks) or is_integer(weeks)) do
-    weeks_in_year = calendar.weeks_in_year(year)
+    {weeks_in_year, _} = calendar.weeks_in_year(year)
 
     with {:ok, weeks} <- conform(weeks, 1..weeks_in_year) do
       [{:year, year}, {:week, weeks}]
@@ -469,6 +452,32 @@ defmodule Tempo.Validation do
 
   ### Helpers
 
+  def year_week_day(year, week, day, rest, :month, calendar) do
+    {weeks_in_year, days_in_last_week} = calendar.weeks_in_year(year)
+
+    if day <= days_in_last_week do
+      %Date.Range{first: start_of_week} = calendar.week(year, week)
+      iso_days = Cldr.Calendar.date_to_iso_days(start_of_week) + day - 1
+      {year, month, day} = calendar.date_from_iso_days(iso_days)
+
+      case resolve([{:month, month}, {:day, day} | rest], calendar) do
+        {:error, reason} -> {:error, reason}
+        resolved -> [{:year, year} | resolved]
+      end
+    else
+      {:error,
+        "Day of week #{inspect day} is not valid. " <>
+        "There are #{inspect days_in_last_week} days in #{inspect year}-W#{inspect weeks_in_year}."}
+    end
+  end
+
+  def year_week_day(year, week, day, rest, :week, calendar) do
+    case resolve([{:week, week}, {:day, day} | rest], calendar) do
+      {:error, reason} -> {:error, reason}
+      resolved -> [{:year, year} | resolved]
+    end
+  end
+
   def year_and_month(years, month, calendar) do
     return =
       Enum.reduce_while(years, {calendar.months_in_year(years.first), month}, fn year,
@@ -545,12 +554,18 @@ defmodule Tempo.Validation do
   end
 
   def conform(from, to) when is_list(from) do
-    Enum.reduce_while(from, {:ok, []}, fn unit, {:ok, acc} ->
-      case conform(unit, to) do
-        {:ok, conformed} -> {:cont, {:ok, [conformed | acc]}}
-        {:error, reason} -> {:halt, {:error, reason}}
-      end
-    end)
+    conformed =
+      Enum.reduce_while(from, {:ok, []}, fn unit, {:ok, acc} ->
+        case conform(unit, to) do
+          {:ok, conformed} -> {:cont, {:ok, [conformed | acc]}}
+          {:error, reason} -> {:halt, {:error, reason}}
+        end
+      end)
+
+    case conformed do
+      {:error, reason} -> {:error, reason}
+      {:ok, other} -> {:ok, Enum.reverse(other)}
+    end
   end
 
   def conform(from, to) do

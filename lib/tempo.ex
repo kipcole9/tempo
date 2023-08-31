@@ -540,7 +540,20 @@ defmodule Tempo do
     end
   end
 
-  def merge(%Tempo{} = base, %Tempo{} = from) do
+  @doc """
+  Split a tempo struct into a date
+  and time.
+
+  """
+  def split(%__MODULE__{time: time, calendar: calendar}) do
+    case Tempo.Split.split(time) do
+      {date, []} -> {%Tempo{time: date, calendar: calendar}, nil}
+      {[], time} -> {nil, %Tempo{time: time, calendar: calendar}}
+      {date, time} -> {%Tempo{time: date, calendar: calendar}, %Tempo{time: time, calendar: calendar}}
+    end
+  end
+
+  def merge(%__MODULE__{} = base, %Tempo{} = from) do
     units = Enumeration.merge(base.time, from.time)
     shift = from.shift || base.shift
 
@@ -550,21 +563,39 @@ defmodule Tempo do
     end
   end
 
-  def explode(tempo, unit \\ nil)
+  @doc """
+  Adds an extended enumeration to a Tempo.
 
-  def explode(%Tempo{} = tempo, nil) do
+  This has the effect of increasing the
+  resolution of the the Tempo struct but
+  still covering the same interval.
+
+  ### Example
+
+      iex> Tempo.extend(~o"2020")
+      {:ok, ~o"2020Y{1..12}M"}
+
+  """
+
+  def extend(tempo, unit \\ nil)
+
+  def extend(%Tempo{} = tempo, nil) do
     tempo
     |> Enumeration.add_implicit_enumeration()
     |> Validation.validate()
   end
 
-  def explode!(%Tempo{} = tempo, unit \\ nil) do
-    case explode(tempo, unit) do
+  def extend!(%Tempo{} = tempo, unit \\ nil) do
+    case extend(tempo, unit) do
       {:ok, zoomed} -> zoomed
       {:error, reason} -> raise Tempo.ParseError, reason
     end
   end
 
+  @doc """
+  Convert a Tempo struct into a Date.
+
+  """
   def to_date(%Tempo{time: [year: year, month: month, day: day]}) do
     Date.new(year, month, day)
   end
@@ -573,6 +604,10 @@ defmodule Tempo do
     {:error, :invalid_date}
   end
 
+  @doc """
+  Convert a Tempo struct into a Time.
+
+  """
   def to_time(%Tempo{time: [hour: hour, minute: minute, second: second], shift: nil}) do
     Time.new(hour, minute, second, 0)
   end
@@ -581,6 +616,10 @@ defmodule Tempo do
     {:error, :invalid_time}
   end
 
+  @doc """
+  Convert a Tempo struct into a NaiveDateTime.
+
+  """
   def to_naive_date_time(%Tempo{
         time: [year: year, month: month, day: day, hour: hour, minute: minute, second: second],
         shift: nil

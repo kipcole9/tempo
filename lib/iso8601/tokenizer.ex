@@ -84,6 +84,7 @@ defmodule Tempo.Iso8601.Tokenizer do
               |> ignore(string("/"))
               |> parsec(:datetime_or_date_or_time)
             ])
+            |> optional(parsec(:repeat_rule))
             |> reduce(:adjust_interval)
             |> unwrap_and_tag(:interval)
             |> label("interval")
@@ -94,6 +95,7 @@ defmodule Tempo.Iso8601.Tokenizer do
               parsec(:date_parser),
               parsec(:time_parser)
             ])
+            |> label("datetime_or_date_or_time")
 
   defparsec :datetime_parser,
             choice([
@@ -154,4 +156,12 @@ defmodule Tempo.Iso8601.Tokenizer do
             |> concat(duration_elements())
             |> tag(:duration)
             |> label("duration")
+
+
+  defparsec :repeat_rule,
+            ignore(string("/F"))
+            |> parsec(:datetime_or_date_or_time)
+            |> reduce(:extract_repeat_rule)
+            |> label("repeat_rule")
+            |> unwrap_and_tag(:repeat_rule)
 end

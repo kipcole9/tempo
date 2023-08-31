@@ -74,6 +74,10 @@ defmodule Tempo.Iso8601.Parser do
     [{:date, parse_date(date)} | parse_date(rest)]
   end
 
+  def parse_date([{:repeat_rule, date} | rest]) do
+    [{:repeat_rule, parse_date(date)} | parse_date(rest)]
+  end
+
   def parse_date([{:century, century} | rest]) do
     parse_date([{:year, {:group, (century * 100)..((century + 1) * 100 - 1)}} | rest])
   end
@@ -170,7 +174,7 @@ defmodule Tempo.Iso8601.Parser do
   end
 
   def parse_date([{component, {:all_of, list}} | rest]) do
-    parse_date([{component, list} | rest])
+    [{component, reduce_list(list)} | parse_date(rest)]
   end
 
   def parse_date([{component, list} | rest]) when is_list(list) do
@@ -374,7 +378,7 @@ defmodule Tempo.Iso8601.Parser do
 
   # Ranges must have the same keys. Assumption
   # is that ranges can be in either direction
-  # (ie increasing or decreasin)
+  # (ie increasing or decreasing)
 
   defp validate_range(from, to) do
     if Keyword.keys(from) == Keyword.keys(to) do
