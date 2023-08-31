@@ -4,7 +4,10 @@
 
 A Time library based upon conceptualizing time as intervals rather than instants.  A blog of the ideas behind this library is at [https://kipcole9.github.io/tempo/](https://kipcole9.github.io/tempo/).
 
-**There is not much to see here yet, the current work is on implementing full support for ISO8601 dates/times (both part 1 and part 2).**
+> #### I'm back to work on Tempo {: .info}
+>
+> As of August 2023 I'm actively back at work on Tempo with the
+> aim of a first Hex release by the end of September.
 
 ## ElixirConf 22 Video on Time Algebra
 
@@ -12,7 +15,18 @@ A talk that introduces a unified time type and builds on the idea of time as int
 
 ## Project status
 
-Whilst the commit volume is currently low, the mental effort going into the conceptual model is high. Expect more active progress in this repo during December 2022.  The primary effort for the next updates will be time math (which is important for calculating explicit intervals and time differences) and time comparison (which is creating a very active discussion on the [elixir-lang core mailing list](https://groups.google.com/g/elixir-lang-core/c/W2TeQm5r1H4)).
+As of August 2023, development is now more active again with an intent to publish on Hex an intial release by the end of September.  
+
+Parsing and inspection of almost the entirity of ISO8601 Parts 1 and 2 is now complete including repeat rules (added in August 2023). The main omissions are uncertainty and approximation of time units.
+
+The key items to complete by then are:
+
+1. Shift math in order to be able to calculate intervals and repeating rules
+2. Tempo comparison using [Allens Interval Algebra](https://en.wikipedia.org/wiki/Allen%27s_interval_algebra). Since the conceptual model is all intervals - not instants - comparison is a more complex algebra.
+2. Enumerate Intervals
+3. Implement selections
+4. Implement repeat rules
+5. Documentation. Lots of documentation.
 
 ## Installation
 

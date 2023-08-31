@@ -109,6 +109,10 @@ defmodule Tempo.Inspect do
     Kernel.inspect(number)
   end
 
+  defp inspect_value(:any) do
+    [?X, ?*]
+  end
+
   defp inspect_value({number, [margin_of_error: margin]}) do
     Kernel.inspect(number) <> "±" <> Kernel.inspect(margin)
   end
@@ -122,7 +126,7 @@ defmodule Tempo.Inspect do
         [Integer.to_string(int) | acc]
 
       list, acc when is_list(list) ->
-        [?}, Enum.map_join(list, ",", &Integer.to_string/1), ?{ | acc]
+        [?}, Enum.map_join(list, ",", &inspect_value/1), ?{ | acc]
     end)
     |> Enum.reverse()
   end

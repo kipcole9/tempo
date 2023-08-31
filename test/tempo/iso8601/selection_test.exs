@@ -40,7 +40,7 @@ defmodule Tempo.Parser.Selection.Test do
               %Tempo{
                 calendar: Cldr.Calendar.Gregorian,
                 time: [
-                  year: ["X*"],
+                  year: :any,
                   selection: [month: 11, day_of_week: 4, instance: 4],
                   hour: 17
                 ],

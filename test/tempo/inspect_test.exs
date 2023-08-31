@@ -81,4 +81,24 @@ defmodule Tempo.Iso8601.InspectTest do
     assert inspect(~o"R/2018-08-01T10:20:00/PT10M/F1ML{1..10//2}DT10H20M0SN") ==
       "~o\"R/2018Y8M1DT10H20M0S/PT10M/F1ML{1..10//2}DT10H20M0SN\""
   end
+
+  test "Unspecified digits" do
+    assert inspect(~o"2052Y1MXD") ==
+      "~o\"2052Y1MXD\""
+
+    assert inspect(~o"195XY") ==
+      "~o\"195XY\""
+
+    assert inspect(~o"1390YXXM") ==
+      "~o\"1390YXXM\""
+
+    assert inspect(~o"2052Y1MX*D") ==
+      "~o\"2052Y1MX*D\""
+
+    assert inspect(~o"XXXYX*MXD") ==
+      "~o\"XXXYX*MXD\""
+
+    assert inspect(~o"X*Y12M28D") ==
+      "~o\"X*Y12M28D\""
+  end
 end

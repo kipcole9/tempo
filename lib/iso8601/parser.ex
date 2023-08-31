@@ -181,8 +181,12 @@ defmodule Tempo.Iso8601.Parser do
     [{component, reduce_list(list)} | parse_date(rest)]
   end
 
+  def parse_date([{component, {:mask, :"X*"}} | rest]) do
+    [{component, :any} | parse_date(rest)]
+  end
+
   def parse_date([{component, {:mask, list}} | rest]) when is_list(list) do
-    [{component, {:mask, reduce_list(list)}} | parse_date(rest)]
+    [{component, {:mask, reduce_sublists(list)}} | parse_date(rest)]
   end
 
   def parse_date([h | t]) do
@@ -253,6 +257,13 @@ defmodule Tempo.Iso8601.Parser do
 
   # Helpers
 
+  def reduce_sublists(list) do
+    Enum.map list, fn
+      list when is_list(list) -> reduce_list(list)
+      other -> other
+    end
+  end
+
   def group_min_max(group) do
     group = Keyword.delete(group, :nth) |> Keyword.delete(:all_of) |> Keyword.delete(:one_of)
     sorted = Unit.sort(group)
@@ -270,15 +281,6 @@ defmodule Tempo.Iso8601.Parser do
 
   def reduce_list([%module{} | _rest] = list) when module != Range do
     list
-  end
-
-  # The "unknown" marker
-  def reduce_list([:X | rest]) do
-    [:X | reduce_list(rest)]
-  end
-
-  def reduce_list(["X*"]) do
-    "X*"
   end
 
   # The list has a set in it, we need to reduce

@@ -59,6 +59,9 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
       |> optional(error_range())
       |> lookahead_not(unknown_or_set())
       |> reduce(:form_number),
+      all_unknown()
+      |> reduce(:normalize_mask)
+      |> unwrap_and_tag(:mask),
       digit_or_unknown()
       |> times(n)
       |> reduce(:normalize_mask)
@@ -77,7 +80,9 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
       |> optional(error_range())
       |> lookahead_not(unknown_or_set())
       |> reduce(:form_number),
-      all_unknown(),
+      all_unknown()
+      |> reduce(:normalize_mask)
+      |> unwrap_and_tag(:mask),
       digit_or_unknown()
       |> times(opts)
       |> reduce(:normalize_mask)
@@ -98,6 +103,9 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
       |> optional(error_range())
       |> lookahead_not(unknown_or_set())
       |> reduce(:form_number),
+      all_unknown()
+      |> reduce(:normalize_mask)
+      |> unwrap_and_tag(:mask),
       digit_or_unknown()
       |> times(n)
       |> reduce(:normalize_mask)
@@ -116,6 +124,9 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
       |> optional(error_range())
       |> lookahead_not(unknown_or_set())
       |> reduce(:form_number),
+      all_unknown()
+      |> reduce(:normalize_mask)
+      |> unwrap_and_tag(:mask),
       digit_or_unknown()
       |> times(opts)
       |> reduce(:normalize_mask)
@@ -288,13 +299,16 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
     []
   end
 
-  # Masks are
   def normalize_mask([{:all_of, list} | t]) do
     [list | normalize_mask(t)]
   end
 
   def normalize_mask([?X | t]) do
     [:X | normalize_mask(t)]
+  end
+
+  def normalize_mask([:"X*"]) do
+    :"X*"
   end
 
   def normalize_mask([digit | t]) when digit in ?0..?9 do

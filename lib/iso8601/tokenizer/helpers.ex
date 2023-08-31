@@ -41,6 +41,7 @@ defmodule Tempo.Iso8601.Tokenizer.Helpers do
 
   def all_unknown do
     string("X*")
+    |> replace(:"X*")
   end
 
   def day_of_week do

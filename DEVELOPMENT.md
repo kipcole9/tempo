@@ -27,6 +27,27 @@ The ABNF of the extension mechanism is described as follows and will be used for
 
 If the Critical flag is not provided, then the policy will be that the time zone name will take precedence. The extension proposal explicitly calls out that the policy to apply is implementation dependent, hence the clarity required here.
 
+### Handling ambiguous times
+
+There are ambiguities when changing to an from daylight savings. When jumping forward there is a discontinuity in the hours (typically jumping from 1:59am to 3:59am). And when moving back, there are two time occurences with the same hour (typicaly 2am).  How can we resolve this in Tempo?  Python [PEP 495](https://peps.python.org/pep-0495/#proposal) proposed adding a `fold` attribute to datetimes to disambiguate and Tempo will follow a similar approach when enumerating discontinuous or ambiguous time ranges.
+
+### Masks
+
+Masks are a way of expressing integer values with unspecified digits.
+
+The unspecified value character "X" is used to indicate unspecified digits or values in time scale components.
+In explicit forms of time scale components:
+* the unspecified value character followed by a "*" ("X*") indicates that the entire value is unspecified;
+* the unspecified value character "X" is used as a replacement for any digit in a time scale component value to indicate that the digit is unspecified.
+
+#### Examples
+
+* `195XY` expresses an unspecified calendar year in the 1950s.
+* `1390YXXM` expresses a two-digit calendar month in 1390.
+* `2052Y1MX*D` expresses some calendar day in January 2052.
+* `XXXYX*MXD` expresses a one-digit calendar day of a calendar month in a three-digit calendar year. 
+* `X*Y12M28D` expresses December 28th of an unspecified calendar year.
+
 ### Extensions
 
 The [RFC3339 proposed extensions mechanism](https://datatracker.ietf.org/doc/draft-ietf-sedate-datetime-extended/) also allows additional metadata to be attached to a date time. The key `u-ca` is based upon BCP47 "U" extension tag and is therefore aligned with the [CLDR locale extension](http://www.unicode.org/reports/tr35/#Locale_Extension_Key_and_Type_Data).
