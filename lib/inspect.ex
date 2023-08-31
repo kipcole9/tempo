@@ -63,12 +63,23 @@ defmodule Tempo.Inspect do
     [?T, inspect_value(first)]
   end
 
+  # Making sure the ?T time marker is inserted the
+  # first time we encounter a time unit of :hour, :minute
+  # or :second
+
   defp inspect_value([{:selection, selection} | rest]) do
     selection =
-      Enum.reduce(selection, [], fn
-        {:interval, interval}, acc -> [[?L, inspect_value(interval), ?N] | acc]
-        other, acc -> [inspect_value(other) | acc]
+      Enum.reduce(selection, {[], nil}, fn
+        {:interval, interval}, {acc, time_marker} ->
+          {[[?L, inspect_value(interval), ?N] | acc], time_marker}
+
+        {unit_2, value_2}, {acc, nil} when unit_2 in [:hour, :minute, :second] ->
+          {[inspect_value({unit_2, value_2}), ?T | acc], true}
+
+        other, {acc, time_marker} ->
+          {[inspect_value(other) | acc], time_marker}
       end)
+      |> elem(0)
       |> Enum.reverse()
 
     [?L, selection, ?N | inspect_value(rest)]
@@ -183,7 +194,6 @@ defmodule Tempo.Inspect do
   defp inspect_value(%Tempo.Interval{recurrence: recurrence, from: from, to: to, duration: nil}) do
     [?R, recurrence(recurrence), ?/, inspect_value(from.time), ?/, inspect_value(to.time)]
   end
-
 
   defp inspect_value(%Tempo.Interval{recurrence: recurrence, from: from, to: nil, duration: duration}) do
     [?R, recurrence(recurrence), ?/, inspect_value(from.time), ?/, inspect_value(duration)]
