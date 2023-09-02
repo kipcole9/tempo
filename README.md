@@ -43,3 +43,8 @@ end
 
 The docs will be found at [https://hexdocs.pm/tempo](https://hexdocs.pm/tempo).
 
+## Links
+
+* [Computerphile on Timezones](https://www.youtube.com/watch?v=-5wpm-gesOY)
+* [RFC3339 and ISO8601 formats](https://ijmacd.github.io/rfc3339-iso8601/)
+* [Allen's Interval Algebra](https://en.wikipedia.org/wiki/Allen%27s_interval_algebra)

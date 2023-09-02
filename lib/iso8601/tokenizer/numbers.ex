@@ -304,6 +304,19 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
     other
   end
 
+  def apply_fraction([{unit, value}, {:fraction, fraction} | rest]) do
+    value = form_number([value, {:fraction, fraction}])
+    [{unit, value} | apply_fraction(rest)]
+  end
+
+  def apply_fraction([first | rest]) do
+    [first | apply_fraction(rest)]
+  end
+
+  def apply_fraction(other) do
+    other
+  end
+
   def normalize_mask([]) do
     []
   end

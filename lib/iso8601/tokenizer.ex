@@ -119,7 +119,9 @@ defmodule Tempo.Iso8601.Tokenizer do
               |> optional(implicit_time_shift()),
               explicit_time_shift()
             ])
-            |> tag(:date)
+            |> reduce(:apply_fraction)
+            |> post_traverse({:check_valid_date, []})
+            |> unwrap_and_tag(:date)
             |> label("date")
 
   defparsec :time_parser,
