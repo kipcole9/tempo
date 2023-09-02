@@ -112,6 +112,8 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
       # Week, day of week
       explicit_week()
       |> concat(explicit_day_of_week()),
+
+      # Ordinal Date (year-day_of_year)
       explicit_ordinal_date(),
 
       # Year
@@ -124,7 +126,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
       # Can create ambiguity with implicit week dates so care is required
       # This should also cater for looking ahead for interval separators
       # and probably other tokens
-      explicit_week() |> eos(),
+      explicit_week() |> lookahead_not(digit()),
       explicit_day_of_year(),
       explicit_day_of_month(),
       explicit_day_of_week()
@@ -223,7 +225,9 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
       |> concat(implicit_second()),
       implicit_hour()
       |> ignore(colon())
-      |> concat(implicit_minute())
+      |> concat(implicit_minute()),
+      implicit_hour()
+      |> lookahead_not(digit())
     ])
     |> optional(fraction())
   end
@@ -543,16 +547,14 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
 
   # Time Shift
 
-  # A sign is required if no Z indicator
-  # A sign is optional if there is a Z indicator
-
   def implicit_time_shift do
     shift_indicator()
     |> choice([
       implicit_hour()
+      |> ignore(optional(colon()))
       |> concat(implicit_minute()),
       implicit_hour(),
-      eos()
+      lookahead_not(digit())
     ])
     |> reduce(:resolve_shift)
     |> unwrap_and_tag(:time_shift)
@@ -562,10 +564,11 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
     shift_indicator()
     |> choice([
       implicit_hour()
-      |> ignore(colon())
+      |> ignore(optional(colon()))
       |> concat(implicit_minute()),
-      implicit_hour(),
-      eos()
+      implicit_hour()
+      |> lookahead_not(digit()),
+      lookahead_not(digit())
     ])
     |> reduce(:resolve_shift)
     |> unwrap_and_tag(:time_shift)
@@ -576,15 +579,18 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
     |> optional(explicit_hour())
     |> optional(explicit_minute())
     |> optional(explicit_second())
-    |> eos()
+    |> lookahead_not(digit())
     |> reduce(:resolve_shift)
     |> unwrap_and_tag(:time_shift)
   end
 
+  # A sign is required if no Z indicator
+  # A sign is optional if there is a Z indicator
+
   def shift_indicator do
     choice([
-      ignore(zulu()) |> concat(sign()) |> lookahead_not(eos()),
-      sign() |> lookahead_not(eos()),
+      ignore(zulu()) |> concat(sign()) |> lookahead(digit()),
+      sign() |> lookahead(digit()),
       zulu()
     ])
   end

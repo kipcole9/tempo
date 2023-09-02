@@ -287,4 +287,9 @@ defmodule Tempo.Enumeration.Test do
                ~o"1M4D"
              ]
   end
+
+  test "Enumerating with a step != 1" do
+    assert Enum.to_list(~o"2023Y{1..12//2}M") ==
+     [~o"2023Y1M", ~o"2023Y3M", ~o"2023Y5M", ~o"2023Y7M", ~o"2023Y9M", ~o"2023Y11M"]
+  end
 end

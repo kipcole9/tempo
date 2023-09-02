@@ -35,6 +35,19 @@ defmodule Tempo.Enumeration do
     [{unit, cycle} | List.wrap(do_next(t, calendar, [{unit, value} | previous]))]
   end
 
+  # When its a mask, fill in the unspecified digits with
+  # acceptable candidate values.
+
+  def do_next([{unit, {:mask, mask}} | t], calendar, previous) do
+    value = Tempo.Mask.fill_unspecified(unit, mask, calendar, previous)
+    do_next([{unit, value} | t], calendar, previous)
+  end
+
+  def do_next([{unit, :any = mask} | t], calendar, previous) do
+    value = Tempo.Mask.fill_unspecified(unit, mask, calendar, previous)
+    do_next([{unit, value} | t], calendar, previous)
+  end
+
   # We hit a continuation at the end of a list
   def do_next([{unit, {_current, fun}}], calendar, previous) when is_continuation(unit, fun) do
     case fun.(calendar, previous) do
@@ -156,12 +169,13 @@ defmodule Tempo.Enumeration do
   defp reverse({:rollover, list}), do: Enum.reverse(list)
   defp reverse(list), do: Enum.reverse(list)
 
-  defp adjusted_range(%Range{first: first, last: last, step: step}, _unit, _calendar, _previous)
+  @doc false
+  def adjusted_range(%Range{first: first, last: last, step: step}, _unit, _calendar, _previous)
        when first >= 0 and last >= first and step > 0 do
     %Range{first: first, last: last, step: step}
   end
 
-  defp adjusted_range(range, unit, calendar, previous) do
+  def adjusted_range(range, unit, calendar, previous) do
     units = [{unit, range} | current_units(previous)] |> Enum.reverse()
 
     {_unit, range} =
@@ -219,6 +233,8 @@ defmodule Tempo.Enumeration do
   def explicitly_enumerable?(%Tempo{time: time}) do
     Enum.any?(time, fn
       {_unit, value} when is_list(value) -> true
+      {_unit, :any} -> true
+      {_unit, {:mask, _}} -> true
       {_unit, {_value, continuation}} when is_function(continuation) -> true
       {_unit, continuation} when is_function(continuation) -> false
       _other -> false

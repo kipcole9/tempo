@@ -105,12 +105,18 @@ defmodule Tempo.Iso8601.Tokenizer do
               explicit_time_shift()
             ])
             |> tag(:datetime)
+            |> label("datetime")
 
   defparsec :date_parser,
             choice([
-              explicit_date() |> optional(explicit_time_shift()),
-              implicit_date_x() |> optional(implicit_time_shift_x()),
-              implicit_date() |> optional(implicit_time_shift()),
+              explicit_date()
+              |> optional(explicit_time_shift()),
+              implicit_date_x()
+              |> optional(fraction())
+              |> optional(implicit_time_shift_x()),
+              implicit_date()
+              |> optional(fraction())
+              |> optional(implicit_time_shift()),
               explicit_time_shift()
             ])
             |> tag(:date)

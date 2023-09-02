@@ -26,6 +26,7 @@ The key items to complete by then are:
 2. Enumerate Intervals
 3. Implement selections
 4. Implement repeat rules
+5. Add support for the [proposed timezone extension](https://datatracker.ietf.org/doc/draft-ietf-sedate-datetime-extended/) - parsing, inspecting and added to structs. Timezone manipulation and conversion may not make it in the initial release.
 5. Documentation. Lots of documentation.
 
 ## Installation

@@ -7,7 +7,7 @@ defmodule Tempo.Iso8601.Tokenizer.Helpers do
   def recur([other]), do: other
 
   def sign do
-    ascii_char([?+, ?-])
+    utf8_char([?+, ?-, ?−])
     |> unwrap_and_tag(:sign)
   end
 
@@ -20,7 +20,7 @@ defmodule Tempo.Iso8601.Tokenizer.Helpers do
   end
 
   def dash do
-    ascii_char([?-])
+    utf8_char([?-, ?‐])
   end
 
   def decimal_separator do

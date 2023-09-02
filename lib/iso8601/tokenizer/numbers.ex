@@ -218,8 +218,17 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
   def fraction do
     ignore(decimal_separator())
     |> times(ascii_char([?0..?9]), min: 1)
+    |> lookahead_not(number_separator())
     |> reduce({List, :to_integer, []})
     |> unwrap_and_tag(:fraction)
+  end
+
+  def number_separator do
+    choice([
+      dash(),
+      decimal_separator(),
+      ascii_char([?], ?}])
+    ])
   end
 
   def error_range do

@@ -23,7 +23,7 @@ An implicit interval, such as `2022` is equalivent to the explicit interval `202
 
 A [proposed extension](https://datatracker.ietf.org/doc/draft-ietf-sedate-datetime-extended/) to [rfc3339](https://www.rfc-editor.org/rfc/rfc3339) specifies a mechanism to add metadata, including timezones, to a RFC3339 datetime.  RFC3339 is a profile of ISO8601 that is largely the "extended" syntax of ISO8601 limited to the capability of Part 1.  Therefore ISO8601 is a superset of RFC3339.
 
-The ABNF of the extension mechanism is described as follows and will be used for implementation in Tempo.  Since a timezone offset and a timezone extension name may be in conflict, the "Critical" flag is used to raise an exception if the explicit offset and the implicit offset (of the timezone name) do not match.
+The ABNF of the extension mechanism is described at the end of this documenet and will be used for implementation in Tempo.  Since a timezone offset and a timezone extension name may be in conflict, the "Critical" flag is used to raise an exception if the explicit offset and the implicit offset (of the timezone name) do not match.
 
 If the Critical flag is not provided, then the policy will be that the time zone name will take precedence. The extension proposal explicitly calls out that the policy to apply is implementation dependent, hence the clarity required here.
 
@@ -47,6 +47,10 @@ In explicit forms of time scale components:
 * `2052Y1MX*D` expresses some calendar day in January 2052.
 * `XXXYX*MXD` expresses a one-digit calendar day of a calendar month in a three-digit calendar year. 
 * `X*Y12M28D` expresses December 28th of an unspecified calendar year.
+
+#### Enumerating
+
+When enumerating a mask, use the current datetime data to fill in the undefined digits. The good news is that it is easy, the bad new is that Tempo is currently not timezone aware. Therefore the fill-in values will be UTC based since we will use `Date.utc_today/0` to source date components and `Time.utc_now/0` for the time components.  When we have timezone support (planned) this will get better.
 
 ### Extensions
 

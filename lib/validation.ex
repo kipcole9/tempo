@@ -294,6 +294,15 @@ defmodule Tempo.Validation do
     end
   end
 
+  def resolve([{:year, year}, {:day, days}], calendar)
+      when is_integer(year) and (is_list(days) or is_integer(days)) do
+    days_in_year = calendar.days_in_year(year)
+
+    with {:ok, day} <- conform(days, 1..days_in_year) do
+      [{:year, year}, {:day, day}]
+    end
+  end
+
   def resolve([{:month, month}, {:day, days} | _rest], calendar)
       when is_integer(month) and is_list(days) do
     with days_in_month when is_integer(days_in_month) <- calendar.days_in_month(month),
