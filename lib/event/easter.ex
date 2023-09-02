@@ -27,7 +27,7 @@ defmodule Tempo.Event.Easter do
   end
 
   defp gregorian_paschal_moon(gregorian_year, calendar)
-      when is_integer(gregorian_year) do
+       when is_integer(gregorian_year) do
     century = floor(gregorian_year / 100) + 1
     metonic_phase = metonic_phase(gregorian_year)
     leap_year_adjustment = leap_year_adjustment(century)

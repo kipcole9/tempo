@@ -114,7 +114,12 @@ defmodule Tempo.Rounding do
 
   # Round to hour
 
-  defp round([{:hour, _hour}, {:minute, _minute}, {:second, _second}] = time, calendar, :second, :hour) do
+  defp round(
+         [{:hour, _hour}, {:minute, _minute}, {:second, _second}] = time,
+         calendar,
+         :second,
+         :hour
+       ) do
     time
     |> round(calendar, :second, :minute)
     |> round(calendar, :minute, :hour)
@@ -147,12 +152,12 @@ defmodule Tempo.Rounding do
   end
 
   defp round([{:hour, hour}, {:minute, minute}], calendar, :minute, :minute)
-      when hour > @hours_in_day - 1 do
+       when hour > @hours_in_day - 1 do
     round([day: 1, hour: 0, minute: minute], calendar, :minute, :minute)
   end
 
   defp round([{:hour, hour}, {:minute, minute}], calendar, :minute, :minute)
-      when minute > @minutes_in_day - 1 do
+       when minute > @minutes_in_day - 1 do
     round([hour: hour + 1, minute: 0], calendar, :minute, :minute)
   end
 
@@ -166,7 +171,12 @@ defmodule Tempo.Rounding do
 
   # Round to second
 
-  defp round([{:hour, _hour}, {:minute, _minute}, {:second, _second}] = time_of_day, _calendar, :second, :second) do
+  defp round(
+         [{:hour, _hour}, {:minute, _minute}, {:second, _second}] = time_of_day,
+         _calendar,
+         :second,
+         :second
+       ) do
     time_of_day
   end
 
@@ -181,7 +191,8 @@ defmodule Tempo.Rounding do
   # Desired resolution is in :year, :month, :day and tempo resolution is :hour, :minute, :second
 
   defp round(time, calendar, time_resolution, rounding)
-      when time_resolution in [:hour, :minute, :second] and rounding in [:year, :month, :week, :day] do
+       when time_resolution in [:hour, :minute, :second] and
+              rounding in [:year, :month, :week, :day] do
     {date, time} = Tempo.Split.split(time)
 
     case round(time, calendar, time_resolution, :hour) do
@@ -203,8 +214,7 @@ defmodule Tempo.Rounding do
   end
 
   defp rounding_error(time, resolution, time_unit) do
-    {Tempo.RoundingError, "Time #{inspect time} resolution #{inspect resolution} cannot be rounded to #{inspect time_unit}"}
+    {Tempo.RoundingError,
+     "Time #{inspect(time)} resolution #{inspect(resolution)} cannot be rounded to #{inspect(time_unit)}"}
   end
-
-
 end

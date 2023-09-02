@@ -258,10 +258,10 @@ defmodule Tempo.Iso8601.Parser do
   # Helpers
 
   def reduce_sublists(list) do
-    Enum.map list, fn
+    Enum.map(list, fn
       list when is_list(list) -> reduce_list(list)
       other -> other
-    end
+    end)
   end
 
   def group_min_max(group) do

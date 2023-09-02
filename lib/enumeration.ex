@@ -171,7 +171,7 @@ defmodule Tempo.Enumeration do
 
   @doc false
   def adjusted_range(%Range{first: first, last: last, step: step}, _unit, _calendar, _previous)
-       when first >= 0 and last >= first and step > 0 do
+      when first >= 0 and last >= first and step > 0 do
     %Range{first: first, last: last, step: step}
   end
 

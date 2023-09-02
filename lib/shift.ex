@@ -13,6 +13,5 @@ defmodule Tempo.Shift do
   """
 
   def shift(time, shift) do
-
   end
 end

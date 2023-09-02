@@ -14,7 +14,8 @@ defmodule Tempo.Iso8601.Unit do
     month: 25,
     week: 22,
     day_of_year: 20,
-    day: 19, # Represents day of month
+    # Represents day of month
+    day: 19,
     day_of_week: 18,
     hour: 15,
     minute: 10,

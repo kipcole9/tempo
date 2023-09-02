@@ -25,11 +25,15 @@ defmodule Tempo.Interval do
   end
 
   def new([{_from, from}, {:duration, duration}, {:repeat_rule, repeat_rule}]) do
-     %__MODULE__{from: Tempo.new(from), duration: Tempo.Duration.new(duration), repeat_rule: Tempo.new(repeat_rule)}
+    %__MODULE__{
+      from: Tempo.new(from),
+      duration: Tempo.Duration.new(duration),
+      repeat_rule: Tempo.new(repeat_rule)
+    }
   end
 
   def new([{_from, from}, {:to, to}, {:repeat_rule, repeat_rule}]) do
-     %__MODULE__{from: Tempo.new(from), to: Tempo.new(to), repeat_rule: Tempo.new(repeat_rule)}
+    %__MODULE__{from: Tempo.new(from), to: Tempo.new(to), repeat_rule: Tempo.new(repeat_rule)}
   end
 
   def new([{:recurrence, recur} | rest]) do

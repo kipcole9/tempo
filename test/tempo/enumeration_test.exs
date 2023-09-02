@@ -3,7 +3,7 @@ defmodule Tempo.Enumeration.Test do
   import Tempo.Sigil
 
   test "Enumeration of basic double" do
-    assert Enum.map(~o"2022Y{1,2}M{1..2}D", &(&1)) == [
+    assert Enum.map(~o"2022Y{1,2}M{1..2}D", & &1) == [
              %Tempo{
                time: [year: 2022, month: 1, day: 1],
                shift: nil,
@@ -28,7 +28,7 @@ defmodule Tempo.Enumeration.Test do
   end
 
   test "Enumeration of basic triple" do
-    assert Enum.map(~o"{2021,2022}Y{1,2}M{1..2}D", &(&1)) == [
+    assert Enum.map(~o"{2021,2022}Y{1,2}M{1..2}D", & &1) == [
              %Tempo{
                time: [year: 2021, month: 1, day: 1],
                shift: nil,
@@ -73,7 +73,7 @@ defmodule Tempo.Enumeration.Test do
   end
 
   test "Enumeration with a constant after a range" do
-    assert Enum.map(~o"{1,2}M23D", &(&1)) == [
+    assert Enum.map(~o"{1,2}M23D", & &1) == [
              %Tempo{
                time: [month: 1, day: 23],
                shift: nil,
@@ -88,7 +88,7 @@ defmodule Tempo.Enumeration.Test do
   end
 
   test "Enumeration with a range, then constant, then range" do
-    assert Enum.map(~o"{1,2}M23DT{3,4}H", &(&1)) ==
+    assert Enum.map(~o"{1,2}M23DT{3,4}H", & &1) ==
              [
                %Tempo{
                  time: [month: 1, day: 23, hour: 3],
@@ -114,7 +114,7 @@ defmodule Tempo.Enumeration.Test do
   end
 
   test "Enumeration with negative range and cascading ranges" do
-    assert Enum.map(~o"2022Y{1,2}M{1..-28}D", &(&1)) ==
+    assert Enum.map(~o"2022Y{1,2}M{1..-28}D", & &1) ==
              [
                %Tempo{
                  time: [year: 2022, month: 1, day: 1],
@@ -145,7 +145,7 @@ defmodule Tempo.Enumeration.Test do
   end
 
   test "Implicit Enumeration" do
-    assert Enum.map(~o"2022", &(&1)) ==
+    assert Enum.map(~o"2022", & &1) ==
              [
                ~o"2022Y1M",
                ~o"2022Y2M",
@@ -161,7 +161,7 @@ defmodule Tempo.Enumeration.Test do
                ~o"2022Y12M"
              ]
 
-    assert Enum.map(~o"2022Y2M", &(&1)) ==
+    assert Enum.map(~o"2022Y2M", & &1) ==
              [
                ~o"2022Y2M1D",
                ~o"2022Y2M2D",
@@ -193,7 +193,7 @@ defmodule Tempo.Enumeration.Test do
                ~o"2022Y2M28D"
              ]
 
-    assert Enum.map(~o"2020Y2M", &(&1)) ==
+    assert Enum.map(~o"2020Y2M", & &1) ==
              [
                ~o"2020Y2M1D",
                ~o"2020Y2M2D",
@@ -290,6 +290,6 @@ defmodule Tempo.Enumeration.Test do
 
   test "Enumerating with a step != 1" do
     assert Enum.to_list(~o"2023Y{1..12//2}M") ==
-     [~o"2023Y1M", ~o"2023Y3M", ~o"2023Y5M", ~o"2023Y7M", ~o"2023Y9M", ~o"2023Y11M"]
+             [~o"2023Y1M", ~o"2023Y3M", ~o"2023Y5M", ~o"2023Y7M", ~o"2023Y9M", ~o"2023Y11M"]
   end
 end

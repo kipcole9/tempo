@@ -475,8 +475,8 @@ defmodule Tempo.Validation do
       end
     else
       {:error,
-        "Day of week #{inspect day} is not valid. " <>
-        "There are #{inspect days_in_last_week} days in #{inspect year}-W#{inspect weeks_in_year}."}
+       "Day of week #{inspect(day)} is not valid. " <>
+         "There are #{inspect(days_in_last_week)} days in #{inspect(year)}-W#{inspect(weeks_in_year)}."}
     end
   end
 

@@ -227,52 +227,51 @@ defmodule Tempo.Parser.Interval.Test do
   # Part 2 section 13
   test "Parsing interval with repeat rule but no selection" do
     assert Tokenizer.tokenize("R12/20150929T140000/20150929T153000/F2W") ==
-      {:ok,
-       [
-         interval: [
-           recurrence: 12,
-           datetime: [year: 2015, month: 9, day: 29, hour: 14, minute: 0, second: 0],
-           datetime: [year: 2015, month: 9, day: 29, hour: 15, minute: 30, second: 0],
-           repeat_rule: [week: 2]
-         ]
-       ]}
+             {:ok,
+              [
+                interval: [
+                  recurrence: 12,
+                  datetime: [year: 2015, month: 9, day: 29, hour: 14, minute: 0, second: 0],
+                  datetime: [year: 2015, month: 9, day: 29, hour: 15, minute: 30, second: 0],
+                  repeat_rule: [week: 2]
+                ]
+              ]}
   end
 
   test "Parsing interval with repeat rule and selection" do
     assert Tokenizer.tokenize("R/2018-08-08/P1D/F1YL{3,8}M8DN") ==
-      {:ok,
-       [
-         interval: [
-           recurrence: :infinity,
-           date: [year: 2018, month: 8, day: 8],
-           duration: [day: 1],
-           repeat_rule: [year: 1, selection: [month: {:all_of, [3, 8]}, day: 8]]
-         ]
-       ]}
+             {:ok,
+              [
+                interval: [
+                  recurrence: :infinity,
+                  date: [year: 2018, month: 8, day: 8],
+                  duration: [day: 1],
+                  repeat_rule: [year: 1, selection: [month: {:all_of, [3, 8]}, day: 8]]
+                ]
+              ]}
   end
 
   test "Parsing interval with repeat rule and time selector" do
     assert Tokenizer.tokenize("1ML{1,10}DT10H20M0SN") ==
-      {:ok,
-       [
-         date: [
-           month: 1,
-           selection: [day: {:all_of, [1, 10]}, hour: 10, minute: 20, second: 0]
-         ]
-       ]}
+             {:ok,
+              [
+                date: [
+                  month: 1,
+                  selection: [day: {:all_of, [1, 10]}, hour: 10, minute: 20, second: 0]
+                ]
+              ]}
   end
 
   test "Parsing interval with repeat rule and instance selector" do
     assert Tokenizer.tokenize("R/2018-09-05/P1D/F1YL9M3K1IN") ==
-    {:ok,
-     [
-       interval: [
-         recurrence: :infinity,
-         date: [year: 2018, month: 9, day: 5],
-         duration: [day: 1],
-         repeat_rule: [year: 1, selection: [month: 9, day_of_week: 3, instance: 1]]
-       ]
-     ]}
+             {:ok,
+              [
+                interval: [
+                  recurrence: :infinity,
+                  date: [year: 2018, month: 9, day: 5],
+                  duration: [day: 1],
+                  repeat_rule: [year: 1, selection: [month: 9, day_of_week: 3, instance: 1]]
+                ]
+              ]}
   end
-
 end

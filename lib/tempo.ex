@@ -547,9 +547,14 @@ defmodule Tempo do
   """
   def split(%__MODULE__{time: time, calendar: calendar}) do
     case Tempo.Split.split(time) do
-      {date, []} -> {%Tempo{time: date, calendar: calendar}, nil}
-      {[], time} -> {nil, %Tempo{time: time, calendar: calendar}}
-      {date, time} -> {%Tempo{time: date, calendar: calendar}, %Tempo{time: time, calendar: calendar}}
+      {date, []} ->
+        {%Tempo{time: date, calendar: calendar}, nil}
+
+      {[], time} ->
+        {nil, %Tempo{time: time, calendar: calendar}}
+
+      {date, time} ->
+        {%Tempo{time: date, calendar: calendar}, %Tempo{time: time, calendar: calendar}}
     end
   end
 
@@ -652,5 +657,4 @@ defmodule Tempo do
   def validate_unit(unit) do
     {:error, "Invalid time unit #{inspect(unit)}"}
   end
-
 end

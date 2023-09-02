@@ -165,7 +165,6 @@ defmodule Tempo.Iso8601.Tokenizer do
             |> tag(:duration)
             |> label("duration")
 
-
   defparsec :repeat_rule,
             ignore(string("/F"))
             |> parsec(:datetime_or_date_or_time)

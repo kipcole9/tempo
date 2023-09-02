@@ -645,11 +645,13 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
     first..-last
   end
 
-  def range([[first, "..", last], step]) when is_integer(first) and is_integer(last) and is_integer(step) do
+  def range([[first, "..", last], step])
+      when is_integer(first) and is_integer(last) and is_integer(step) do
     first..last//step
   end
 
-  def range([[first, "..", ?-, last], step]) when is_integer(first) and is_integer(last) and is_integer(step) do
+  def range([[first, "..", ?-, last], step])
+      when is_integer(first) and is_integer(last) and is_integer(step) do
     first..-last//step
   end
 

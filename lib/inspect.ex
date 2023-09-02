@@ -159,14 +159,44 @@ defmodule Tempo.Inspect do
     [open(type), elements, close(type)]
   end
 
-  defp inspect_value(%Tempo.Interval{recurrence: recurrence, from: from, to: to, repeat_rule: repeat_rule})
-      when not is_nil(to) and not is_nil(repeat_rule) do
-    [?R, recurrence(recurrence), ?/, inspect_value(from.time), ?/, inspect_value(to), ?/, ?F, inspect_value(repeat_rule)]
+  defp inspect_value(%Tempo.Interval{
+         recurrence: recurrence,
+         from: from,
+         to: to,
+         repeat_rule: repeat_rule
+       })
+       when not is_nil(to) and not is_nil(repeat_rule) do
+    [
+      ?R,
+      recurrence(recurrence),
+      ?/,
+      inspect_value(from.time),
+      ?/,
+      inspect_value(to),
+      ?/,
+      ?F,
+      inspect_value(repeat_rule)
+    ]
   end
 
-  defp inspect_value(%Tempo.Interval{recurrence: recurrence, from: from, duration: duration, repeat_rule: repeat_rule})
-      when not is_nil(duration) and not is_nil(repeat_rule) do
-    [?R, recurrence(recurrence), ?/, inspect_value(from.time), ?/, inspect_value(duration), ?/, ?F, inspect_value(repeat_rule)]
+  defp inspect_value(%Tempo.Interval{
+         recurrence: recurrence,
+         from: from,
+         duration: duration,
+         repeat_rule: repeat_rule
+       })
+       when not is_nil(duration) and not is_nil(repeat_rule) do
+    [
+      ?R,
+      recurrence(recurrence),
+      ?/,
+      inspect_value(from.time),
+      ?/,
+      inspect_value(duration),
+      ?/,
+      ?F,
+      inspect_value(repeat_rule)
+    ]
   end
 
   defp inspect_value(%Tempo.Interval{
@@ -217,7 +247,12 @@ defmodule Tempo.Inspect do
     [?R, recurrence(recurrence), ?/, inspect_value(from.time), ?/, inspect_value(to.time)]
   end
 
-  defp inspect_value(%Tempo.Interval{recurrence: recurrence, from: from, to: nil, duration: duration}) do
+  defp inspect_value(%Tempo.Interval{
+         recurrence: recurrence,
+         from: from,
+         to: nil,
+         duration: duration
+       }) do
     [?R, recurrence(recurrence), ?/, inspect_value(from.time), ?/, inspect_value(duration)]
   end
 
@@ -252,14 +287,19 @@ defmodule Tempo.Inspect do
 
   defp inspect_shift(nil),
     do: ""
+
   defp inspect_shift(hour: 0),
     do: ?Z
+
   defp inspect_shift(hour: hour) when hour > 0,
     do: [?Z, ?+, inspect_value(hour), ?H]
+
   defp inspect_shift(hour: hour),
     do: [?Z, inspect_value(hour), ?H]
+
   defp inspect_shift(hour: hour, minute: minute) when hour > 0,
     do: [?Z, ?+, inspect_value(hour), ?H, inspect_value(minute), ?M]
+
   defp inspect_shift(hour: hour, minute: minute),
     do: [?Z, inspect_value(hour), ?H, inspect_value(minute), ?M]
 

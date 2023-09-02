@@ -88,12 +88,18 @@ defmodule Tempo.Iso8601.Tokenizer.Helpers do
   end
 
   # Some calendars have 13 months
-  # Quarters are recognised as months 33..36 so we have to allow them
   # Seasons are recognised as months 21..32 so we have to allow them
+  # Quarters are recognised as months 33..36 so we have to allow them
   # Quadrimesters are recognised as months 36..39 so we have to allow them
   # Semestrals are recognised as momths 40..41 so we have to allow them
 
-  def check_valid_date(_rest, [[{:year, _year}, {:month, month} | _remaining]], _context, _line, _offset)
+  def check_valid_date(
+        _rest,
+        [[{:year, _year}, {:month, month} | _remaining]],
+        _context,
+        _line,
+        _offset
+      )
       when is_number(month) and month > 13 and month not in 21..41 do
     {:error, :invalid_month}
   end
@@ -104,12 +110,24 @@ defmodule Tempo.Iso8601.Tokenizer.Helpers do
   end
 
   # No supported calendars have more than 31 days in a month
-  def check_valid_date(_rest, [[{:year, _year}, {:month, _month}, {:day, day} | _remaining]], _context, _line, _offset)
+  def check_valid_date(
+        _rest,
+        [[{:year, _year}, {:month, _month}, {:day, day} | _remaining]],
+        _context,
+        _line,
+        _offset
+      )
       when is_number(day) and day > 31 do
     {:error, :invalid_day}
   end
 
-  def check_valid_date(_rest, [[{:month, _month}, {:day, day} | _remaining]], _context, _line, _offset)
+  def check_valid_date(
+        _rest,
+        [[{:month, _month}, {:day, day} | _remaining]],
+        _context,
+        _line,
+        _offset
+      )
       when is_number(day) and day > 31 do
     {:error, :invalid_day}
   end
