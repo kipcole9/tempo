@@ -5,7 +5,7 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
 
   * Have exponents
   * Have precision
-  * Have unknown digits
+  * Have unspecified digits
 
   And how these are formed varies by whether the
   number is being parsed for an implicit form,
@@ -15,15 +15,15 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
 
   * Numbers are always positive with no sign
   except when its the year in which case it may have
-  a negative sign
+  a negative sign.
 
   * Numbers are always a positive integer, or a the
-    "unknown" symbol `X` in any digit location. Numbers
+    "unspecified" symbol `X` in any digit location. Numbers
     are either 2, 3 or 4 digits wide (decades are three
     digits) and this implementation does not currently
     support more than 4 digits for years.
 
-  * Neither exponent or significant digits are supported
+  * Significant digits are not supported.
 
   ** Extended form
 
@@ -33,7 +33,7 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
 
   * Numbers may be positive of negative
 
-  * The "unknown" symbol `X` may appear in
+  * The "unspecified" symbol `X` may appear in
     any digit location.
 
   * The symbol `X*` means the entire
@@ -41,7 +41,7 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
 
   * Exponent and significant digits are supported,
     but only if the number is an integer (ie does
-    not have unknown digits)
+    not have unspecified digits).
 
   """
   import NimbleParsec
@@ -57,12 +57,12 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
       |> optional(exponent())
       |> optional(significant())
       |> optional(error_range())
-      |> lookahead_not(unknown_or_set())
+      |> lookahead_not(unspecified_or_set())
       |> reduce(:form_number),
-      all_unknown()
+      all_unspecified()
       |> reduce(:normalize_mask)
       |> unwrap_and_tag(:mask),
-      digit_or_unknown()
+      digit_or_unspecified()
       |> times(n)
       |> reduce(:normalize_mask)
       |> unwrap_and_tag(:mask)
@@ -78,12 +78,12 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
       |> optional(exponent())
       |> optional(significant())
       |> optional(error_range())
-      |> lookahead_not(unknown_or_set())
+      |> lookahead_not(unspecified_or_set())
       |> reduce(:form_number),
-      all_unknown()
+      all_unspecified()
       |> reduce(:normalize_mask)
       |> unwrap_and_tag(:mask),
-      digit_or_unknown()
+      digit_or_unspecified()
       |> times(opts)
       |> reduce(:normalize_mask)
       |> unwrap_and_tag(:mask)
@@ -101,12 +101,12 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
       |> optional(exponent())
       |> optional(significant())
       |> optional(error_range())
-      |> lookahead_not(unknown_or_set())
+      |> lookahead_not(unspecified_or_set())
       |> reduce(:form_number),
-      all_unknown()
+      all_unspecified()
       |> reduce(:normalize_mask)
       |> unwrap_and_tag(:mask),
-      digit_or_unknown()
+      digit_or_unspecified()
       |> times(n)
       |> reduce(:normalize_mask)
       |> unwrap_and_tag(:mask)
@@ -118,16 +118,16 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
     combinator
     |> choice([
       integer(opts)
-      |> lookahead_not(unknown())
+      |> lookahead_not(unspecified())
       |> optional(exponent())
       |> optional(significant())
       |> optional(error_range())
-      |> lookahead_not(unknown_or_set())
+      |> lookahead_not(unspecified_or_set())
       |> reduce(:form_number),
-      all_unknown()
+      all_unspecified()
       |> reduce(:normalize_mask)
       |> unwrap_and_tag(:mask),
-      digit_or_unknown()
+      digit_or_unspecified()
       |> times(opts)
       |> reduce(:normalize_mask)
       |> unwrap_and_tag(:mask)
@@ -239,17 +239,17 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
     |> unwrap_and_tag(:margin_of_error)
   end
 
-  def digit_or_unknown do
+  def digit_or_unspecified do
     choice([
       digit(),
-      unknown(),
+      unspecified(),
       parsec(:integer_set_all)
     ])
   end
 
-  def unknown_or_set() do
+  def unspecified_or_set() do
     choice([
-      unknown(),
+      unspecified(),
       ascii_char([?{])
     ])
   end

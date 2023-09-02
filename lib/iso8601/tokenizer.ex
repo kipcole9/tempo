@@ -100,7 +100,7 @@ defmodule Tempo.Iso8601.Tokenizer do
   defparsec :datetime_parser,
             choice([
               explicit_date_time() |> optional(explicit_time_shift()),
-              implicit_date_time_x() |> optional(implicit_time_shift_x()),
+              extended_date_time() |> optional(extended_time_shift()),
               implicit_date_time() |> optional(implicit_time_shift()),
               explicit_time_shift()
             ])
@@ -111,9 +111,9 @@ defmodule Tempo.Iso8601.Tokenizer do
             choice([
               explicit_date()
               |> optional(explicit_time_shift()),
-              implicit_date_x()
+              extended_date()
               |> optional(fraction())
-              |> optional(implicit_time_shift_x()),
+              |> optional(extended_time_shift()),
               implicit_date()
               |> optional(fraction())
               |> optional(implicit_time_shift()),
@@ -125,7 +125,7 @@ defmodule Tempo.Iso8601.Tokenizer do
   defparsec :time_parser,
             choice([
               explicit_time_of_day() |> optional(explicit_time_shift()),
-              implicit_time_of_day_x() |> optional(implicit_time_shift_x()),
+              extended_time_of_day() |> optional(extended_time_shift()),
               implicit_time_of_day() |> optional(implicit_time_shift()),
               explicit_time_shift()
             ])

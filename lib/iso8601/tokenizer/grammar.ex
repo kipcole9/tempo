@@ -32,8 +32,8 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
     implicit_date() |> concat(implicit_time_of_day())
   end
 
-  def implicit_date_time_x do
-    implicit_date_x() |> concat(implicit_time_of_day_x())
+  def extended_date_time do
+    extended_date() |> concat(extended_time_of_day())
   end
 
   def explicit_date_time do
@@ -61,9 +61,9 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
     |> label("implicit date")
   end
 
-  def implicit_date_x do
+  def extended_date do
     choice([
-      implicit_week_date_x(),
+      extended_week_date(),
       implicit_year()
       |> ignore(dash())
       |> concat(implicit_month())
@@ -76,7 +76,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
       implicit_month()
       |> ignore(dash())
       |> concat(implicit_day_of_month()),
-      implicit_ordinal_date_x()
+      extended_ordinal_date()
     ])
     |> label("extended date")
   end
@@ -150,7 +150,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
     |> concat(implicit_day_of_year())
   end
 
-  def implicit_ordinal_date_x do
+  def extended_ordinal_date do
     implicit_year()
     |> ignore(dash())
     |> concat(implicit_day_of_year())
@@ -174,7 +174,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
     ])
   end
 
-  def implicit_week_date_x do
+  def extended_week_date do
     choice([
       implicit_year()
       |> ignore(dash())
@@ -215,7 +215,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
     |> optional(fraction())
   end
 
-  def implicit_time_of_day_x do
+  def extended_time_of_day do
     ignore(optional(string("T")))
     |> choice([
       implicit_hour()
@@ -560,7 +560,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
     |> unwrap_and_tag(:time_shift)
   end
 
-  def implicit_time_shift_x do
+  def extended_time_shift do
     shift_indicator()
     |> choice([
       implicit_hour()

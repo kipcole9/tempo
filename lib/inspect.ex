@@ -227,17 +227,14 @@ defmodule Tempo.Inspect do
 
   defp inspect_value(%Tempo.Range{first: first, last: :undefined}) do
     [inspect_value(first), inspect_value(:undefined)]
-    |> :erlang.iolist_to_binary()
   end
 
   defp inspect_value(%Tempo.Range{first: :undefined, last: last}) do
     [inspect_value(:undefined), inspect_value(last)]
-    |> :erlang.iolist_to_binary()
   end
 
   defp inspect_value(%Tempo.Range{first: first, last: last}) do
     [inspect_value(first), "..", inspect_value(last)]
-    |> :erlang.iolist_to_binary()
   end
 
   defp inspect_value({:year, year}), do: [inspect_list(year), ?Y]
@@ -252,7 +249,19 @@ defmodule Tempo.Inspect do
   defp inspect_value({:interval, interval}), do: inspect_value(interval)
   defp inspect_value({:duration, duration}), do: inspect_value(duration)
   defp inspect_value(:undefined), do: ".."
-  defp inspect_shift(_shift), do: ""
+
+  defp inspect_shift(nil),
+    do: ""
+  defp inspect_shift(hour: 0),
+    do: ?Z
+  defp inspect_shift(hour: hour) when hour > 0,
+    do: [?Z, ?+, inspect_value(hour), ?H]
+  defp inspect_shift(hour: hour),
+    do: [?Z, inspect_value(hour), ?H]
+  defp inspect_shift(hour: hour, minute: minute) when hour > 0,
+    do: [?Z, ?+, inspect_value(hour), ?H, inspect_value(minute), ?M]
+  defp inspect_shift(hour: hour, minute: minute),
+    do: [?Z, inspect_value(hour), ?H, inspect_value(minute), ?M]
 
   defp inspect_list(list) when is_list(list) do
     elements = Enum.map_join(list, ",", &inspect_value/1)

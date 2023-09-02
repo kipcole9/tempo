@@ -35,11 +35,11 @@ defmodule Tempo.Iso8601.Tokenizer.Helpers do
     ascii_char([?0..?9])
   end
 
-  def unknown do
+  def unspecified do
     ascii_char([?X])
   end
 
-  def all_unknown do
+  def all_unspecified do
     string("X*")
     |> replace(:"X*")
   end
