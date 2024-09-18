@@ -15,7 +15,7 @@ defmodule Tempo.Mask do
 
   def fill_unspecified(unit, :any, calendar, previous)
       when unit in [:month, :day, :hour, :minute, :second] do
-    [1..-1]
+    [1..-1//1]
     |> adjusted_range(unit, calendar, backtrack(previous, calendar))
     |> List.wrap()
   end
@@ -48,7 +48,7 @@ defmodule Tempo.Mask do
     end
   end
 
-  def matches?(digit, mask) do
+  def matches?(_digit, _mask) do
     true
   end
 end

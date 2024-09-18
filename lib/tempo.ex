@@ -414,7 +414,7 @@ defmodule Tempo do
   defp unit_resolution(time_unit) do
     case time_unit do
       {:selection, selection} -> unit_min_max(selection)
-      {unit, {:group, first..last}} -> {unit, last - first + 1}
+      {unit, {:group, first..last//_}} -> {unit, last - first + 1}
       {unit, %Range{last: last}} -> {unit, last}
       {unit, {_value, meta}} when is_list(meta) -> {unit, Keyword.get(meta, :margin_of_error, 1)}
       {unit, {_value, continuation}} when is_function(continuation) -> {unit, 1}

@@ -198,7 +198,7 @@ defmodule Tempo.Rounding do
     case round(time, calendar, time_resolution, :hour) do
       [day: _day, hour: 0] = shift ->
         time
-        |> Tempo.shift(shift)
+        |> Tempo.Shift.shift(shift)
         |> round(calendar, time_resolution, rounding)
 
       _other ->

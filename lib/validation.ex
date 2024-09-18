@@ -526,7 +526,7 @@ defmodule Tempo.Validation do
   end
 
   def conform(integer, %Range{first: first, last: last})
-      when is_integer(integer) and integer in first..last do
+      when is_integer(integer) and integer in first..last//1 do
     {:ok, integer}
   end
 
@@ -551,7 +551,7 @@ defmodule Tempo.Validation do
   end
 
   def conform(%Range{first: f1, last: t1} = from, %Range{first: f2, last: t2})
-      when f1 in f2..t2 and t1 in f2..t2 do
+      when f1 in f2..t2//1 and t1 in f2..t2//1 do
     {:ok, from}
   end
 
