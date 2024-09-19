@@ -24,8 +24,8 @@ defmodule Tempo.Iso8601.Unit do
   }
 
   @unit_after %{
-    year: {:month, 1..-1},
-    month: {:day, 1..-1},
+    year: {:month, 1..-1//-1},
+    month: {:day, 1..-1//-1},
     week: {:day_of_week, 1..7},
     day: {:hour, 0..23},
     hour: {:minute, 0..59},
@@ -54,10 +54,10 @@ defmodule Tempo.Iso8601.Unit do
 
   """
   def implicit_enumerator(:year = unit, calendar) do
-    if calendar.calendar_base == :month do
+    if calendar.calendar_base() == :month do
       Map.get(@unit_after, unit)
     else
-      {:week, 1..-1}
+      {:week, 1..-1//-1}
     end
   end
 

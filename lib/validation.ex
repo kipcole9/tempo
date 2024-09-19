@@ -132,7 +132,7 @@ defmodule Tempo.Validation do
 
     with {:ok, week} <- conform(week, 1..weeks_in_year),
          [day_of_week: day] <- resolve([day_of_week: day], calendar) do
-      year_week_day(year, week, day, rest, calendar.calendar_base, calendar)
+      year_week_day(year, week, day, rest, calendar.calendar_base(), calendar)
     end
   end
 
