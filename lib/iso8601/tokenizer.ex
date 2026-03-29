@@ -124,6 +124,18 @@ defmodule Tempo.Iso8601.Tokenizer do
   defparsecp :implicit_minute_p, implicit_minute()
   defparsecp :implicit_week_p, implicit_week()
 
+  # Duration and remaining implicit component combinators
+  defparsecp :duration_elements_p, duration_elements()
+  defparsecp :duration_time_elements_p, duration_time_elements()
+  defparsecp :implicit_second_p, implicit_second()
+  defparsecp :implicit_day_of_week_p, implicit_day_of_week()
+  defparsecp :implicit_day_of_year_p, implicit_day_of_year()
+
+  # Explicit composite combinators (only those called 3+ times)
+  defparsecp :explicit_century_decade_or_year_p, explicit_century_decade_or_year()
+  defparsecp :explicit_month_p, explicit_month()
+  defparsecp :explicit_week_p, explicit_week()
+
   defparsec :datetime_parser,
             choice([
               explicit_date_time() |> optional(parsec(:explicit_time_shift_p)),
@@ -164,7 +176,7 @@ defmodule Tempo.Iso8601.Tokenizer do
   defparsec :group,
             parsec(:integer_or_integer_set)
             |> ignore(string("G"))
-            |> duration_elements()
+            |> parsec(:duration_elements_p)
             |> ignore(string("U"))
             |> tag(:group)
             |> label("group")
@@ -172,7 +184,7 @@ defmodule Tempo.Iso8601.Tokenizer do
   defparsec :time_group,
             parsec(:integer_or_integer_set)
             |> ignore(string("G"))
-            |> duration_time_elements()
+            |> parsec(:duration_time_elements_p)
             |> ignore(string("U"))
             |> tag(:group)
             |> label("time group")
@@ -188,7 +200,7 @@ defmodule Tempo.Iso8601.Tokenizer do
   defparsec :duration_parser,
             optional(negative() |> replace({:direction, :negative}))
             |> ignore(string("P"))
-            |> concat(duration_elements())
+            |> concat(parsec(:duration_elements_p))
             |> tag(:duration)
             |> label("duration")
 

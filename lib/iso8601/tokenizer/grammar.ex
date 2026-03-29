@@ -84,49 +84,49 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
   def explicit_date do
     choice([
       # Year, month, day
-      explicit_century_decade_or_year()
-      |> concat(explicit_month())
+      parsec(:explicit_century_decade_or_year_p)
+      |> concat(parsec(:explicit_month_p))
       |> concat(explicit_day_of_month()),
 
       # Year, week, day of week
-      explicit_century_decade_or_year()
-      |> concat(explicit_week())
+      parsec(:explicit_century_decade_or_year_p)
+      |> concat(parsec(:explicit_week_p))
       |> concat(explicit_day_of_week()),
 
       # Year, month
-      explicit_century_decade_or_year()
-      |> concat(explicit_month()),
+      parsec(:explicit_century_decade_or_year_p)
+      |> concat(parsec(:explicit_month_p)),
 
       # Year, day
-      explicit_century_decade_or_year()
+      parsec(:explicit_century_decade_or_year_p)
       |> concat(explicit_day_of_month()),
 
       # Year, week
-      explicit_century_decade_or_year()
-      |> concat(explicit_week()),
+      parsec(:explicit_century_decade_or_year_p)
+      |> concat(parsec(:explicit_week_p)),
 
       # Month, day of month
-      explicit_month()
+      parsec(:explicit_month_p)
       |> concat(explicit_day_of_month()),
 
       # Week, day of week
-      explicit_week()
+      parsec(:explicit_week_p)
       |> concat(explicit_day_of_week()),
 
       # Ordinal Date (year-day_of_year)
       explicit_ordinal_date(),
 
       # Year
-      explicit_century_decade_or_year(),
+      parsec(:explicit_century_decade_or_year_p),
 
       # Month
-      explicit_month()
+      parsec(:explicit_month_p)
       |> lookahead_not(explicit_time_of_day()),
 
       # Can create ambiguity with implicit week dates so care is required
       # This should also cater for looking ahead for interval separators
       # and probably other tokens
-      explicit_week() |> lookahead_not(digit()),
+      parsec(:explicit_week_p) |> lookahead_not(digit()),
       explicit_day_of_year(),
       explicit_day_of_month(),
       explicit_day_of_week()
@@ -147,13 +147,13 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
 
   def implicit_ordinal_date do
     parsec(:implicit_year_p)
-    |> concat(implicit_day_of_year())
+    |> concat(parsec(:implicit_day_of_year_p))
   end
 
   def extended_ordinal_date do
     parsec(:implicit_year_p)
     |> ignore(dash())
-    |> concat(implicit_day_of_year())
+    |> concat(parsec(:implicit_day_of_year_p))
   end
 
   def explicit_ordinal_date do
@@ -167,7 +167,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
     choice([
       parsec(:implicit_year_p)
       |> concat(parsec(:implicit_week_p))
-      |> concat(implicit_day_of_week()),
+      |> concat(parsec(:implicit_day_of_week_p)),
       parsec(:implicit_year_p)
       |> concat(parsec(:implicit_week_p)),
       parsec(:implicit_week_p)
@@ -180,7 +180,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
       |> ignore(dash())
       |> concat(parsec(:implicit_week_p))
       |> ignore(dash())
-      |> concat(implicit_day_of_week()),
+      |> concat(parsec(:implicit_day_of_week_p)),
       parsec(:implicit_year_p)
       |> ignore(dash())
       |> concat(parsec(:implicit_week_p))
@@ -189,14 +189,14 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
 
   def explicit_week_date do
     choice([
-      explicit_century_decade_or_year()
-      |> concat(explicit_week())
+      parsec(:explicit_century_decade_or_year_p)
+      |> concat(parsec(:explicit_week_p))
       |> concat(explicit_day_of_week()),
-      explicit_century_decade_or_year()
-      |> concat(explicit_week()),
-      explicit_week()
+      parsec(:explicit_century_decade_or_year_p)
+      |> concat(parsec(:explicit_week_p)),
+      parsec(:explicit_week_p)
       |> concat(explicit_day_of_week()),
-      explicit_week()
+      parsec(:explicit_week_p)
     ])
   end
 
@@ -207,7 +207,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
     |> choice([
       parsec(:implicit_hour_p)
       |> concat(parsec(:implicit_minute_p))
-      |> concat(implicit_second()),
+      |> concat(parsec(:implicit_second_p)),
       parsec(:implicit_hour_p)
       |> concat(parsec(:implicit_minute_p)),
       parsec(:implicit_hour_p)
@@ -222,7 +222,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
       |> ignore(colon())
       |> concat(parsec(:implicit_minute_p))
       |> ignore(colon())
-      |> concat(implicit_second()),
+      |> concat(parsec(:implicit_second_p)),
       parsec(:implicit_hour_p)
       |> ignore(colon())
       |> concat(parsec(:implicit_minute_p)),
