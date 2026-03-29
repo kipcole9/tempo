@@ -97,11 +97,38 @@ defmodule Tempo.Iso8601.Tokenizer do
             ])
             |> label("datetime_or_date_or_time")
 
+  # Private parsec definitions to reduce compile-time code expansion.
+  # Each defparsecp creates a function call boundary instead of inlining
+  # the combinator, significantly reducing generated code size.
+
+  # Date combinators
+  defparsecp :implicit_date_p, implicit_date()
+  defparsecp :extended_date_p, extended_date()
+  defparsecp :explicit_date_p, explicit_date()
+
+  # Time-of-day combinators
+  defparsecp :implicit_time_of_day_p, implicit_time_of_day()
+  defparsecp :extended_time_of_day_p, extended_time_of_day()
+  defparsecp :explicit_time_of_day_p, explicit_time_of_day()
+
+  # Time shift combinators
+  defparsecp :implicit_time_shift_p, implicit_time_shift()
+  defparsecp :extended_time_shift_p, extended_time_shift()
+  defparsecp :explicit_time_shift_p, explicit_time_shift()
+
+  # Low-level component combinators
+  defparsecp :implicit_year_p, implicit_year()
+  defparsecp :implicit_month_p, implicit_month()
+  defparsecp :implicit_day_of_month_p, implicit_day_of_month()
+  defparsecp :implicit_hour_p, implicit_hour()
+  defparsecp :implicit_minute_p, implicit_minute()
+  defparsecp :implicit_week_p, implicit_week()
+
   defparsec :datetime_parser,
             choice([
-              explicit_date_time() |> optional(explicit_time_shift()),
-              extended_date_time() |> optional(extended_time_shift()),
-              implicit_date_time() |> optional(implicit_time_shift()),
+              explicit_date_time() |> optional(parsec(:explicit_time_shift_p)),
+              extended_date_time() |> optional(parsec(:extended_time_shift_p)),
+              implicit_date_time() |> optional(parsec(:implicit_time_shift_p)),
               explicit_time_shift()
             ])
             |> tag(:datetime)
@@ -109,14 +136,14 @@ defmodule Tempo.Iso8601.Tokenizer do
 
   defparsec :date_parser,
             choice([
-              explicit_date()
-              |> optional(explicit_time_shift()),
-              extended_date()
+              parsec(:explicit_date_p)
+              |> optional(parsec(:explicit_time_shift_p)),
+              parsec(:extended_date_p)
               |> optional(fraction())
-              |> optional(extended_time_shift()),
-              implicit_date()
+              |> optional(parsec(:extended_time_shift_p)),
+              parsec(:implicit_date_p)
               |> optional(fraction())
-              |> optional(implicit_time_shift()),
+              |> optional(parsec(:implicit_time_shift_p)),
               explicit_time_shift()
             ])
             |> reduce(:apply_fraction)
@@ -126,9 +153,9 @@ defmodule Tempo.Iso8601.Tokenizer do
 
   defparsec :time_parser,
             choice([
-              explicit_time_of_day() |> optional(explicit_time_shift()),
-              extended_time_of_day() |> optional(extended_time_shift()),
-              implicit_time_of_day() |> optional(implicit_time_shift()),
+              parsec(:explicit_time_of_day_p) |> optional(parsec(:explicit_time_shift_p)),
+              parsec(:extended_time_of_day_p) |> optional(parsec(:extended_time_shift_p)),
+              parsec(:implicit_time_of_day_p) |> optional(parsec(:implicit_time_shift_p)),
               explicit_time_shift()
             ])
             |> tag(:time_of_day)

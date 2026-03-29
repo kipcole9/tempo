@@ -28,3 +28,10 @@ tempo-*.tar
 # Mac artifact
 .DS_Store
 
+# Claude
+.claude
+
+# Mise and asdf
+mise.toml
+.tool-versions
+
