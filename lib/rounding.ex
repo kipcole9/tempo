@@ -202,7 +202,7 @@ defmodule Tempo.Rounding do
         |> round(calendar, time_resolution, rounding)
 
       _other ->
-        {resolution, _} = Tempo.resolution(date)
+        {resolution, _} = Tempo.resolution(%Tempo{time: date})
         round(date, calendar, resolution, rounding)
     end
   end

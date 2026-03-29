@@ -16,22 +16,22 @@ defimpl Enumerable, for: Tempo.Set do
 
   @impl Enumerable
   def reduce(%Tempo.Set{set: set, type: _type}, {:cont, acc}, fun) do
-    reduce(set, {:cont, acc}, fun)
+    reduce_set(set, {:cont, acc}, fun)
   end
 
-  def reduce([], {:cont, acc}, _fun) do
+  defp reduce_set([], {:cont, acc}, _fun) do
     {:halted, acc}
   end
 
-  def reduce([next | rest], {:cont, acc}, fun) do
-    reduce(rest, fun.(next, acc), fun)
+  defp reduce_set([next | rest], {:cont, acc}, fun) do
+    reduce_set(rest, fun.(next, acc), fun)
   end
 
-  def reduce(_enum, {:halt, acc}, _fun) do
+  defp reduce_set(_enum, {:halt, acc}, _fun) do
     {:halted, acc}
   end
 
-  def reduce(enum, {:suspend, acc}, fun) do
-    {:suspended, acc, &reduce(enum, &1, fun)}
+  defp reduce_set(enum, {:suspend, acc}, fun) do
+    {:suspended, acc, &reduce_set(enum, &1, fun)}
   end
 end
