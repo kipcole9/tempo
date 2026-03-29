@@ -1,5 +1,6 @@
 defmodule Tempo.Mask do
   @moduledoc false
+  @dialyzer {:nowarn_function, matches_mask?: 2}
 
   import Tempo.Enumeration, only: [adjusted_range: 4, backtrack: 2]
 
@@ -45,6 +46,8 @@ defmodule Tempo.Mask do
             {:halt, false}
           end
       end)
+    else
+      false
     end
   end
 

@@ -1,6 +1,7 @@
 defmodule Tempo.Comparison do
   # This implementation is badly wrong
   # Just a template to get started
+  @dialyzer {:nowarn_function, compare: 2}
 
   # Compare two *lists* of components.
   # Note we are not comparing time values,

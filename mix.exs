@@ -25,7 +25,8 @@ defmodule Tempo.MixProject do
       {:nimble_parsec, "~> 1.0"},
       {:ex_cldr_calendars, "~> 1.23"},
       {:astro, "~> 0.10"},
-      {:ex_doc, "~> 0.21", runtime: false}
+      {:ex_doc, "~> 0.21", runtime: false},
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
     ]
   end
 

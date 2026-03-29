@@ -113,9 +113,8 @@ defmodule Tempo do
   # TODO refine this to be more specific
   @type token :: integer() | list() | tuple()
 
-  @type time_unit :: [
+  @type time_unit ::
           :year | :month | :week | :day | :hour | :minute | :second
-        ]
 
   @type token_list :: [
           {:year, token}
@@ -127,9 +126,9 @@ defmodule Tempo do
           | {:second, token}
         ]
 
-  @type time_shift :: number()
+  @type time_shift :: number() | nil
 
-  @type t :: %{time: token_list(), shift: time_shift(), calendar: Calendar.t()}
+  @type t :: %__MODULE__{time: token_list(), shift: time_shift(), calendar: Calendar.calendar() | nil}
   @type error_reason :: atom() | binary()
 
   @doc false
@@ -180,7 +179,7 @@ defmodule Tempo do
       {:error, "Expected time of day. Error detected at \\"invalid\\""}
 
   """
-  @spec from_iso8601(string :: String.t(), calendar :: Calendat.t()) ::
+  @spec from_iso8601(string :: String.t(), calendar :: Calendar.calendar()) ::
           {:ok, t} | {:error, error_reason()}
   def from_iso8601(string, calendar \\ Cldr.Calendar.Gregorian) do
     with {:ok, tokens} <- Tokenizer.tokenize(string),
@@ -219,7 +218,7 @@ defmodule Tempo do
       ~o"2022Y"
 
   """
-  @spec from_iso8601!(string :: String.t(), calendar :: Calendat.t()) :: t | no_return()
+  @spec from_iso8601!(string :: String.t(), calendar :: Calendar.calendar()) :: t | no_return()
   def from_iso8601!(string, calendar \\ Cldr.Calendar.Gregorian) do
     case from_iso8601(string, calendar) do
       {:ok, tempo} -> tempo
@@ -246,7 +245,7 @@ defmodule Tempo do
       ~o"2022Y11M20D"
 
   """
-  @spec from_date(date :: Date.t()) :: t | {:error, error_reason}
+  @spec from_date(date :: Date.t()) :: t()
   def from_date(%{year: year, month: month, day: day, calendar: Calendar.ISO}) do
     new(year: year, month: month, day: day)
   end
@@ -278,7 +277,7 @@ defmodule Tempo do
       ~o"T10H9M0S"
 
   """
-  @spec from_time(time :: Time.t()) :: t | {:error, error_reason}
+  @spec from_time(time :: Time.t()) :: t()
   def from_time(%{hour: hour, minute: minute, second: second}) do
     new(hour: hour, minute: minute, second: second)
   end
@@ -302,7 +301,7 @@ defmodule Tempo do
       ~o"2022Y11M20DT10H37M0S"
 
   """
-  @spec from_naive_date_time(naive_date_time :: NaiveDateTime.t()) :: t | {:error, error_reason}
+  @spec from_naive_date_time(naive_date_time :: NaiveDateTime.t()) :: t()
   def from_naive_date_time(%{
         year: year,
         month: month,
@@ -371,7 +370,7 @@ defmodule Tempo do
       {:day, 3}
 
   """
-  @spec resolution(tempo :: t) :: {time_unit(), non_neg_integer()}
+  @spec resolution(tempo :: t()) :: {time_unit(), time_unit() | non_neg_integer()}
   def resolution(%__MODULE__{time: units}) do
     units
     |> Enum.reverse()
@@ -400,7 +399,7 @@ defmodule Tempo do
         {:year, :year}
 
   """
-  @spec unit_min_max(tempo :: t | [time_unit(), ...]) :: {time_unit(), time_unit()}
+  @spec unit_min_max(tempo :: t | token_list()) :: {time_unit(), time_unit()}
   def unit_min_max(%__MODULE__{time: units}) do
     unit_min_max(units)
   end
@@ -490,7 +489,7 @@ defmodule Tempo do
       ~o"2022Y"
 
   """
-  @spec trunc(tempo :: t, truncate_to :: time_unit()) :: t
+  @spec trunc(tempo :: t, truncate_to :: time_unit()) :: t | {:error, error_reason()}
   def trunc(%__MODULE__{time: time} = tempo, truncate_to \\ :day) do
     with {:ok, truncate_to} <- validate_unit(truncate_to) do
       case Enum.take_while(time, &(Unit.compare(&1, truncate_to) in [:gt, :eq])) do
@@ -530,7 +529,7 @@ defmodule Tempo do
       ~o"2023Y"
 
   """
-  @spec round(tempo :: t, round_to :: time_unit()) :: t
+  @spec round(tempo :: t, round_to :: time_unit()) :: t | {:error, error_reason()}
   def round(%__MODULE__{} = tempo, round_to \\ :day) do
     with {:ok, round_to} <- validate_unit(round_to) do
       case Rounding.round(tempo, round_to) do
