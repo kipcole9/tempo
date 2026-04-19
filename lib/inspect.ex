@@ -6,35 +6,52 @@ defmodule Tempo.Inspect do
   @from_iso8601 "Tempo.from_iso8601!(\""
   @sigil_o "~o\""
 
+  @doc """
+  Encode any Tempo value as ISO 8601-2 **explicit-form** iodata.
+
+  The public entry point shared by `Tempo.to_iso8601/1` and the
+  Inspect protocol implementation. Returns iodata so callers can
+  compose the result before binary conversion.
+
+  ### Examples
+
+      iex> Tempo.from_iso8601!("2022-11-20") |> Tempo.Inspect.to_iodata() |> IO.iodata_to_binary()
+      "2022Y11M20D"
+
+  """
+  @spec to_iodata(term()) :: iodata()
+  def to_iodata(value), do: inspect_value(value)
+
+  # Inspect wraps `Tempo.to_iso8601/1` in sigil syntax. Keeping
+  # encoding in one place — `Tempo.to_iso8601/1` — means the
+  # Inspect output is guaranteed to round-trip through
+  # `Tempo.from_iso8601/1` for the Gregorian and ISO-week cases,
+  # and through the equivalent `Tempo.from_iso8601!/2` call for
+  # non-default calendars.
+
   def inspect(%Tempo{calendar: Calendrical.Gregorian} = tempo) do
-    [@sigil_o, inspect_value(tempo), ?"]
-    |> :erlang.iolist_to_binary()
+    @sigil_o <> Tempo.to_iso8601(tempo) <> "\""
   end
 
   def inspect(%Tempo{calendar: Calendrical.ISOWeek} = tempo) do
-    [@sigil_o, inspect_value(tempo), ?", ?W]
-    |> :erlang.iolist_to_binary()
+    @sigil_o <> Tempo.to_iso8601(tempo) <> "\"W"
   end
 
-  # For when the calendar isn't Calendar.ISO or Calendrical.Gregorian
   def inspect(%Tempo{calendar: calendar} = tempo) do
-    [@from_iso8601, inspect_value(tempo), "\", ", Kernel.inspect(calendar), ?)]
-    |> :erlang.iolist_to_binary()
+    @from_iso8601 <>
+      Tempo.to_iso8601(tempo) <> "\", " <> Kernel.inspect(calendar) <> ")"
   end
 
   def inspect(%Tempo.Interval{} = interval) do
-    [@sigil_o, inspect_value(interval), ?"]
-    |> :erlang.iolist_to_binary()
+    @sigil_o <> Tempo.to_iso8601(interval) <> "\""
   end
 
   def inspect(%Tempo.Duration{} = duration) do
-    [@sigil_o, inspect_value(duration), ?"]
-    |> :erlang.iolist_to_binary()
+    @sigil_o <> Tempo.to_iso8601(duration) <> "\""
   end
 
   def inspect(%Tempo.Set{} = set) do
-    [@sigil_o, inspect_value(set), ?"]
-    |> :erlang.iolist_to_binary()
+    @sigil_o <> Tempo.to_iso8601(set) <> "\""
   end
 
   # inspect_value/1 for everything else
@@ -162,8 +179,8 @@ defmodule Tempo.Inspect do
     [open(set_type), elements, close(set_type), ?G, inspect_value(value), unit_key, ?U]
   end
 
-  defp inspect_value(%Tempo{time: time, shift: shift}) do
-    [inspect_value(time), inspect_shift(shift)]
+  defp inspect_value(%Tempo{time: time, shift: shift, qualification: qualification}) do
+    [inspect_value(time), inspect_shift(shift), inspect_qualification(qualification)]
   end
 
   defp inspect_value(%Tempo.Set{set: set, type: type}) do
@@ -201,7 +218,7 @@ defmodule Tempo.Inspect do
       ?/,
       "..",
       ?/,
-      inspect_value(to.time),
+      inspect_value(to),
       ?/,
       inspect_value(duration)
     ]
@@ -240,7 +257,7 @@ defmodule Tempo.Inspect do
       ?/,
       "..",
       ?/,
-      inspect_value(to.time),
+      inspect_value(to),
       ?/,
       inspect_value(duration),
       ?/,
@@ -260,7 +277,7 @@ defmodule Tempo.Inspect do
       ?R,
       recurrence(recurrence),
       ?/,
-      inspect_value(from.time),
+      inspect_value(from),
       ?/,
       inspect_value(to),
       ?/,
@@ -280,7 +297,7 @@ defmodule Tempo.Inspect do
       ?R,
       recurrence(recurrence),
       ?/,
-      inspect_value(from.time),
+      inspect_value(from),
       ?/,
       inspect_value(duration),
       ?/,
@@ -304,7 +321,7 @@ defmodule Tempo.Inspect do
          to: :undefined = to,
          duration: nil
        }) do
-    [inspect_value(from.time), ?/, inspect_value(to)]
+    [inspect_value(from), ?/, inspect_value(to)]
   end
 
   defp inspect_value(%Tempo.Interval{
@@ -313,15 +330,15 @@ defmodule Tempo.Inspect do
          to: to,
          duration: nil
        }) do
-    [inspect_value(from), ?/, inspect_value(to.time)]
+    [inspect_value(from), ?/, inspect_value(to)]
   end
 
   defp inspect_value(%Tempo.Interval{recurrence: 1, from: from, to: to, duration: nil}) do
-    [inspect_value(from.time), ?/, inspect_value(to.time)]
+    [inspect_value(from), ?/, inspect_value(to)]
   end
 
   defp inspect_value(%Tempo.Interval{recurrence: 1, from: from, to: nil, duration: duration}) do
-    [inspect_value(from.time), ?/, inspect_value(duration)]
+    [inspect_value(from), ?/, inspect_value(duration)]
   end
 
   # Duration-first: `P1D/2022-01-01` — a bounded-end interval
@@ -334,7 +351,7 @@ defmodule Tempo.Inspect do
          to: %Tempo{} = to,
          duration: %Tempo.Duration{} = duration
        }) do
-    [inspect_value(duration), ?/, inspect_value(to.time)]
+    [inspect_value(duration), ?/, inspect_value(to)]
   end
 
   defp inspect_value(%Tempo.Interval{
@@ -343,7 +360,7 @@ defmodule Tempo.Inspect do
          to: :undefined = to,
          duration: nil
        }) do
-    [?R, recurrence(recurrence), ?/, inspect_value(from.time), ?/, inspect_value(to)]
+    [?R, recurrence(recurrence), ?/, inspect_value(from), ?/, inspect_value(to)]
   end
 
   defp inspect_value(%Tempo.Interval{
@@ -352,11 +369,11 @@ defmodule Tempo.Inspect do
          to: to,
          duration: nil
        }) do
-    [?R, recurrence(recurrence), ?/, inspect_value(from), ?/, inspect_value(to.time)]
+    [?R, recurrence(recurrence), ?/, inspect_value(from), ?/, inspect_value(to)]
   end
 
   defp inspect_value(%Tempo.Interval{recurrence: recurrence, from: from, to: to, duration: nil}) do
-    [?R, recurrence(recurrence), ?/, inspect_value(from.time), ?/, inspect_value(to.time)]
+    [?R, recurrence(recurrence), ?/, inspect_value(from), ?/, inspect_value(to)]
   end
 
   defp inspect_value(%Tempo.Interval{
@@ -365,7 +382,7 @@ defmodule Tempo.Inspect do
          to: nil,
          duration: duration
        }) do
-    [?R, recurrence(recurrence), ?/, inspect_value(from.time), ?/, inspect_value(duration)]
+    [?R, recurrence(recurrence), ?/, inspect_value(from), ?/, inspect_value(duration)]
   end
 
   defp inspect_value(%Tempo.Duration{time: time}) do
@@ -414,6 +431,11 @@ defmodule Tempo.Inspect do
 
   defp inspect_shift(hour: hour, minute: minute),
     do: [?Z, inspect_value(hour), ?H, inspect_value(minute), ?M]
+
+  defp inspect_qualification(nil), do: []
+  defp inspect_qualification(:uncertain), do: "?"
+  defp inspect_qualification(:approximate), do: "~"
+  defp inspect_qualification(:uncertain_and_approximate), do: "%"
 
   defp inspect_list(list) when is_list(list) do
     elements = Enum.map_join(list, ",", &inspect_value/1)

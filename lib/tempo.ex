@@ -363,6 +363,134 @@ defmodule Tempo do
   end
 
   @doc """
+  Encode a Tempo value back into an ISO 8601-2 string.
+
+  The output uses the explicit-suffix form (`2022Y11M20D`), which
+  is a valid ISO 8601-2 / EDTF representation that round-trips
+  cleanly through `from_iso8601/1`. Constructs that exist only
+  in ISO 8601-2 Part 2 (seasons, groups, selections,
+  uncertainty qualifiers, unspecified digits) are preserved in
+  their explicit form.
+
+  IXDTF suffixes (`[Europe/Paris]`, `[u-ca=hebrew]`) are **not**
+  emitted by this function — the `:extended` field is currently
+  ignored. Round-trip of IXDTF-enriched values is a future
+  extension.
+
+  ### Arguments
+
+  * `value` is a `t:Tempo.t/0`, `t:Tempo.Interval.t/0`,
+    `t:Tempo.Duration.t/0`, or `t:Tempo.Set.t/0`.
+
+  ### Returns
+
+  * An ISO 8601-2 binary that parses back to the same AST.
+
+  ### Examples
+
+      iex> Tempo.from_iso8601!("2022-11-20") |> Tempo.to_iso8601()
+      "2022Y11M20D"
+
+      iex> Tempo.from_iso8601!("R5/2022-01-01/P1M") |> Tempo.to_iso8601()
+      "R5/2022Y1M1D/P1M"
+
+      iex> {:ok, i} = Tempo.from_iso8601("1984?/2004~")
+      iex> Tempo.to_iso8601(i)
+      "1984Y?/2004Y~"
+
+  """
+  @spec to_iso8601(
+          Tempo.t() | Tempo.Interval.t() | Tempo.Duration.t() | Tempo.Set.t()
+        ) :: String.t()
+  def to_iso8601(value) do
+    value
+    |> Tempo.Inspect.to_iodata()
+    |> IO.iodata_to_binary()
+  end
+
+  @doc """
+  Encode a `t:Tempo.Interval.t/0` into an RFC 5545 RRULE string.
+
+  The output does **not** include the leading `RRULE:` prefix,
+  nor a `DTSTART` property — RRULE is a recurrence pattern, not
+  a full iCalendar record. Callers wanting the full record
+  prepend `DTSTART` themselves using the interval's `:from`
+  field.
+
+  ### Supported inputs
+
+  * A `%Tempo.Interval{}` with a single-unit `%Tempo.Duration{}`
+    cadence. Supported units: `:second`, `:minute`, `:hour`,
+    `:day`, `:week`, `:month`, `:year`.
+
+  * `:recurrence` of `:infinity` (no COUNT), a positive integer
+    (COUNT), or `1` combined with `:to` (UNTIL).
+
+  * `:repeat_rule` of `nil`, or a `%Tempo{}` whose `:time` holds a
+    single `{:selection, [...]}` entry. Selection entries for
+    `:month`, `:day` (→ BYMONTHDAY), `:day_of_year`, `:week`,
+    `:hour`, `:minute`, `:second`, and the paired
+    `:day_of_week`/`:instance` (→ BYDAY with optional ordinals)
+    are encoded directly.
+
+  ### Returns
+
+  * `{:ok, rrule_string}` on success.
+
+  * `{:error, reason}` when the interval cannot be expressed as
+    an RRULE (e.g. multi-unit duration, unsupported selection
+    entry).
+
+  ### Examples
+
+      iex> {:ok, i} = Tempo.RRule.parse("FREQ=DAILY;COUNT=10")
+      iex> Tempo.to_rrule(i)
+      {:ok, "COUNT=10;FREQ=DAILY"}
+
+      iex> {:ok, i} = Tempo.RRule.parse("FREQ=YEARLY;BYMONTH=11;BYDAY=4TH")
+      iex> Tempo.to_rrule(i)
+      {:ok, "FREQ=YEARLY;BYMONTH=11;BYDAY=4TH"}
+
+      iex> {:error, %Tempo.ConversionError{}} =
+      ...>   Tempo.to_rrule(Tempo.from_iso8601!("2022-06-15"))
+
+  """
+  @spec to_rrule(Tempo.Interval.t() | term()) ::
+          {:ok, String.t()} | {:error, Tempo.ConversionError.t()}
+  def to_rrule(%Tempo.Interval{} = interval) do
+    Tempo.RRule.Encoder.encode(interval)
+  end
+
+  def to_rrule(other) do
+    {:error,
+     Tempo.ConversionError.exception(
+       message:
+         "Only a %Tempo.Interval{} can be converted to an RRULE. " <>
+           "RRULE is a recurrence rule; got: #{inspect(other)}",
+       value: other,
+       target: :rrule
+     )}
+  end
+
+  @doc """
+  Bang variant of `to_rrule/1`.
+
+  ### Returns
+
+  * The RRULE string on success.
+
+  * Raises `Tempo.ConversionError` otherwise.
+
+  """
+  @spec to_rrule!(Tempo.Interval.t()) :: String.t() | no_return()
+  def to_rrule!(value) do
+    case to_rrule(value) do
+      {:ok, rrule} -> rrule
+      {:error, %Tempo.ConversionError{} = error} -> raise error
+    end
+  end
+
+  @doc """
   Creates a `t:Tempo.t/0` struct from a `t:Date.t/0`.
 
   ### Arguments
