@@ -1,6 +1,8 @@
 defimpl Enumerable, for: Tempo.Interval do
   @moduledoc false
 
+  alias Tempo.Math
+
   # An interval represents a span on the time line. Enumerating it
   # walks forward one resolution-unit at a time from the `:from`
   # endpoint. This is a different iteration semantics from
@@ -165,151 +167,14 @@ defimpl Enumerable, for: Tempo.Interval do
   # using the same unit vocabulary.
   defp compare_time(_, _), do: :eq
 
-  # The start-of-unit minimum when a trailing unit is unspecified:
-  # `:month` and `:day` count from 1, everything else from 0.
-  defp unit_minimum(:month), do: 1
-  defp unit_minimum(:day), do: 1
-  defp unit_minimum(:week), do: 1
-  defp unit_minimum(:day_of_year), do: 1
-  defp unit_minimum(:day_of_week), do: 1
-  defp unit_minimum(_), do: 0
+  # Delegates to `Tempo.Math.unit_minimum/1` — see that module's
+  # docstring for the start-of-unit semantics.
+  defp unit_minimum(unit), do: Math.unit_minimum(unit)
 
   # Advance a Tempo by 1 unit at its declared resolution, carrying
-  # over into coarser units as needed. Calendar-aware for months
-  # (variable months-per-year) and days (variable days-per-month).
-
-  defp increment(%Tempo{time: time, calendar: calendar} = tempo) do
+  # over into coarser units as needed. Delegates to `Tempo.Math`.
+  defp increment(%Tempo{calendar: calendar} = tempo) do
     {unit, _span} = Tempo.resolution(tempo)
-    %{tempo | time: increment_time(time, unit, calendar)}
+    Math.add_unit(tempo, unit, calendar)
   end
-
-  # All updates use `Keyword.replace!/3` (preserves position) rather
-  # than `Keyword.put/3` (removes + prepends). Keyword-list order is
-  # the invariant maintained elsewhere in Tempo — compare_time/2
-  # depends on it, as do inspect and to_iso8601.
-
-  defp increment_time(time, :year, _calendar) do
-    Keyword.update!(time, :year, &(&1 + 1))
-  end
-
-  defp increment_time(time, :month, calendar) do
-    year = Keyword.fetch!(time, :year)
-    month = Keyword.fetch!(time, :month)
-    months_in_year = calendar.months_in_year(year)
-
-    if month < months_in_year do
-      Keyword.replace!(time, :month, month + 1)
-    else
-      time
-      |> Keyword.replace!(:year, year + 1)
-      |> Keyword.replace!(:month, 1)
-    end
-  end
-
-  defp increment_time(time, :day, calendar) do
-    year = Keyword.fetch!(time, :year)
-    month = Keyword.fetch!(time, :month)
-    day = Keyword.fetch!(time, :day)
-    days_in_month = calendar.days_in_month(year, month)
-
-    cond do
-      day < days_in_month ->
-        Keyword.replace!(time, :day, day + 1)
-
-      month < calendar.months_in_year(year) ->
-        time
-        |> Keyword.replace!(:month, month + 1)
-        |> Keyword.replace!(:day, 1)
-
-      true ->
-        time
-        |> Keyword.replace!(:year, year + 1)
-        |> Keyword.replace!(:month, 1)
-        |> Keyword.replace!(:day, 1)
-    end
-  end
-
-  defp increment_time(time, :hour, calendar) do
-    hour = Keyword.fetch!(time, :hour)
-
-    if hour < 23 do
-      Keyword.replace!(time, :hour, hour + 1)
-    else
-      time
-      |> Keyword.replace!(:hour, 0)
-      |> increment_time(:day, calendar)
-    end
-  end
-
-  defp increment_time(time, :minute, calendar) do
-    minute = Keyword.fetch!(time, :minute)
-
-    if minute < 59 do
-      Keyword.replace!(time, :minute, minute + 1)
-    else
-      time
-      |> Keyword.replace!(:minute, 0)
-      |> increment_time(:hour, calendar)
-    end
-  end
-
-  defp increment_time(time, :second, calendar) do
-    second = Keyword.fetch!(time, :second)
-
-    if second < 59 do
-      Keyword.replace!(time, :second, second + 1)
-    else
-      time
-      |> Keyword.replace!(:second, 0)
-      |> increment_time(:minute, calendar)
-    end
-  end
-
-  defp increment_time(time, :week, calendar) do
-    year = Keyword.fetch!(time, :year)
-    week = Keyword.fetch!(time, :week)
-    {weeks_in_year, _} = calendar.weeks_in_year(year)
-
-    if week < weeks_in_year do
-      Keyword.replace!(time, :week, week + 1)
-    else
-      time
-      |> Keyword.replace!(:year, year + 1)
-      |> Keyword.replace!(:week, 1)
-    end
-  end
-
-  defp increment_time(time, :day_of_year, calendar) do
-    year = Keyword.fetch!(time, :year)
-    day_of_year = Keyword.fetch!(time, :day_of_year)
-    days_in_year = calendar.days_in_year(year)
-
-    if day_of_year < days_in_year do
-      Keyword.replace!(time, :day_of_year, day_of_year + 1)
-    else
-      time
-      |> Keyword.replace!(:year, year + 1)
-      |> Keyword.replace!(:day_of_year, 1)
-    end
-  end
-
-  defp increment_time(time, :day_of_week, calendar) do
-    day_of_week = Keyword.fetch!(time, :day_of_week)
-    days_in_week = calendar.days_in_week()
-
-    if day_of_week < days_in_week do
-      Keyword.replace!(time, :day_of_week, day_of_week + 1)
-    else
-      time
-      |> Keyword.replace!(:day_of_week, 1)
-      |> increment_time(:week, calendar)
-    end
-  end
-
-  defp increment_time(_time, unit, _calendar) do
-    raise ArgumentError,
-          "Cannot increment a Tempo at #{inspect(unit)} resolution — " <>
-            "no increment rule is defined for this unit."
-  end
-
 end

@@ -78,9 +78,24 @@ defmodule Tempo.Mask do
     end)
   end
 
-  # For mask `[1, 5, 6, :X]` returns `{1560, 1569}`.
-  # For mask `[:X, :X, :X, :X]` returns `{0, 9999}`.
-  defp mask_bounds(mask) when is_list(mask) do
+  @doc """
+  Return the `{min, max}` numeric range spanned by a digit mask.
+
+  Each `:X` position contributes `0..9` at its digit weight; each
+  concrete digit contributes itself. Used by `fill_unspecified/4`
+  to bound the candidate enumeration, and by `Tempo.to_interval/1`
+  to compute the enclosing span of a masked value.
+
+  ### Examples
+
+      iex> Tempo.Mask.mask_bounds([1, 5, 6, :X])
+      {1560, 1569}
+
+      iex> Tempo.Mask.mask_bounds([:X, :X, :X, :X])
+      {0, 9999}
+
+  """
+  def mask_bounds(mask) when is_list(mask) do
     {min_digits, max_digits} =
       Enum.reduce(mask, {[], []}, fn
         :X, {lo, hi} -> {[0 | lo], [9 | hi]}

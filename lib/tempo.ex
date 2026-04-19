@@ -930,6 +930,125 @@ defmodule Tempo do
     {:error, :invalid_date_time}
   end
 
+  @doc """
+  Convert an implicit-span `t:#{__MODULE__}.t/0` into the
+  equivalent explicit `t:Tempo.Interval.t/0`.
+
+  Every Tempo value represents a bounded interval on the time
+  line. `~o"2026-01"` *is* the interval `[2026-01-01, 2026-02-01)`
+  — `to_interval/1` materialises that implicit span as a pair of
+  concrete endpoints under the half-open `[from, to)` convention
+  (`from` inclusive, `to` exclusive). This is the canonical
+  representation used by the upcoming set-operations API
+  (`union/2`, `intersection/2`, `coalesce/1`).
+
+  The conversion is idempotent on the explicit form: passing an
+  existing `%Tempo.Interval{}` returns it unchanged.
+
+  ### Arguments
+
+  * `tempo` is a `t:#{__MODULE__}.t/0`, a `t:Tempo.Interval.t/0`,
+    or a `t:Tempo.Set.t/0`.
+
+  ### Returns
+
+  * `{:ok, interval}` where `interval` is a `t:Tempo.Interval.t/0`
+    with concrete `from` and `to` endpoints.
+
+  * `{:ok, [interval, ...]}` when the input is a `Tempo.Set` — one
+    materialised interval per set member, in source order.
+
+  * `{:error, reason}` when the input cannot be materialised, such
+    as a bare `Tempo.Duration` (no anchor) or a `Tempo` already at
+    its finest resolution (no finer unit to bound the span).
+
+  ### Examples
+
+      iex> {:ok, tempo} = Tempo.from_iso8601("2026-01")
+      iex> {:ok, interval} = Tempo.to_interval(tempo)
+      iex> interval.from.time
+      [year: 2026, month: 1, day: 1]
+      iex> interval.to.time
+      [year: 2026, month: 2, day: 1]
+
+      iex> {:ok, tempo} = Tempo.from_iso8601("156X")
+      iex> {:ok, interval} = Tempo.to_interval(tempo)
+      iex> {interval.from.time, interval.to.time}
+      {[year: 1560], [year: 1570]}
+
+      iex> {:ok, duration} = Tempo.from_iso8601("P3M")
+      iex> Tempo.to_interval(duration)
+      {:error, "Cannot materialise a Tempo.Duration into an interval — a duration has no anchor on the time line."}
+
+  """
+  @spec to_interval(Tempo.t() | Tempo.Interval.t() | Tempo.Set.t() | Tempo.Duration.t()) ::
+          {:ok, Tempo.Interval.t() | [Tempo.Interval.t()]} | {:error, error_reason()}
+  def to_interval(value)
+
+  def to_interval(%Tempo.Interval{} = interval) do
+    {:ok, interval}
+  end
+
+  def to_interval(%Tempo{} = tempo) do
+    with {:ok, {lower, upper}} <- Tempo.Interval.next_unit_boundary(tempo) do
+      {:ok, %Tempo.Interval{from: lower, to: upper}}
+    end
+  end
+
+  def to_interval(%Tempo.Set{set: members}) do
+    Enum.reduce_while(members, {:ok, []}, fn member, {:ok, acc} ->
+      case to_interval(member) do
+        {:ok, interval} -> {:cont, {:ok, [interval | acc]}}
+        {:error, _} = err -> {:halt, err}
+      end
+    end)
+    |> case do
+      {:ok, reversed} -> {:ok, Enum.reverse(reversed)}
+      {:error, _} = err -> err
+    end
+  end
+
+  def to_interval(%Tempo.Duration{}) do
+    {:error,
+     "Cannot materialise a Tempo.Duration into an interval — " <>
+       "a duration has no anchor on the time line."}
+  end
+
+  @doc """
+  Raising version of `to_interval/1`.
+
+  ### Arguments
+
+  * `tempo` is a `t:#{__MODULE__}.t/0`, a `t:Tempo.Interval.t/0`,
+    or a `t:Tempo.Set.t/0`.
+
+  ### Returns
+
+  * The materialised `t:Tempo.Interval.t/0` (or a list of them for
+    a `Tempo.Set`).
+
+  ### Raises
+
+  * `ArgumentError` when the input cannot be materialised. See
+    `to_interval/1` for the error cases.
+
+  ### Examples
+
+      iex> {:ok, tempo} = Tempo.from_iso8601("2026")
+      iex> interval = Tempo.to_interval!(tempo)
+      iex> {interval.from.time, interval.to.time}
+      {[year: 2026, month: 1], [year: 2027, month: 1]}
+
+  """
+  @spec to_interval!(Tempo.t() | Tempo.Interval.t() | Tempo.Set.t() | Tempo.Duration.t()) ::
+          Tempo.Interval.t() | [Tempo.Interval.t()]
+  def to_interval!(value) do
+    case to_interval(value) do
+      {:ok, result} -> result
+      {:error, reason} -> raise ArgumentError, reason
+    end
+  end
+
   @valid_units Unit.units()
 
   @doc false

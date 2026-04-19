@@ -12,6 +12,8 @@ Tempo values are **bounded intervals on the time line**, not instants. That info
 
 Iteration always honours the **half-open `[from, to)` convention**: the lower bound is inclusive, the upper bound is exclusive. This makes adjacent intervals concatenate cleanly without overlap or gap.
 
+`Tempo.to_interval/1` converts between the two forms: it takes any implicit-span `%Tempo{}` and returns the equivalent `%Tempo.Interval{}` with concrete `from` and `to` endpoints. Iteration on the explicit form is guaranteed to yield the same sequence as iteration on the implicit source (for every shape where both are defined — see §5.6 for the edge cases). `to_interval/1` is idempotent on values that are already intervals.
+
 ## 2. Enumerable — what you can iterate
 
 ### 2.1. Single `%Tempo{}` values
@@ -111,7 +113,32 @@ The endpoint that anchors iteration (`from`) provides the metadata carried on ea
 
 Mismatched-resolution endpoints are compared as their concrete start-moments: missing trailing units fill with their unit minimum (`:month` / `:day` / `:week` from 1, everything else from 0).
 
-### 2.9. Seasons
+### 2.9. Implicit-to-explicit conversion (`Tempo.to_interval/1`)
+
+Every enumerable `%Tempo{}` has an explicit `%Tempo.Interval{}` equivalent. `Tempo.to_interval/1` materialises it under the half-open `[from, to)` convention. The conversion preserves every piece of source metadata (`:qualification`, `:qualifications`, `:extended`, `:shift`, `:calendar`) on both endpoints.
+
+| Input | `from.time` | `to.time` |
+|---|---|---|
+| `2026` | `[year: 2026, month: 1]` | `[year: 2027, month: 1]` |
+| `2026-01` | `[year: 2026, month: 1, day: 1]` | `[year: 2026, month: 2, day: 1]` |
+| `2026-01-15` | `[year: 2026, month: 1, day: 15, hour: 0]` | `[year: 2026, month: 1, day: 16, hour: 0]` |
+| `2026-01-15T10` | `[…, hour: 10, minute: 0]` | `[…, hour: 11, minute: 0]` |
+| `156X` | `[year: 1560]` | `[year: 1570]` |
+| `-1XXX` | `[year: -1999]` | `[year: -999]` |
+| `1985-XX-XX` | `[year: 1985]` | `[year: 1986]` |
+| `1985-06-XX` | `[year: 1985, month: 6]` | `[year: 1985, month: 7]` |
+
+Mask rules:
+
+* A **year mask** (`156X`, `-1XXX`) translates directly to a year range via `Tempo.Mask.mask_bounds/1`. The signed half-open upper bound is computed as `-magnitude_min + 1` for negative masks.
+
+* A **finer-unit mask** (`1985-XX-XX`, `1985-06-XX`, `1985-XX-15`) widens to the coarsest un-masked prefix and increments there. `1985-XX-XX` becomes year-precision bounds because the mask at month-level can't map cleanly to a valid-month range; `1985-06-XX` keeps month precision because only the day is masked.
+
+* `1985-XX-15` (day specified, month masked) is semantically non-contiguous — the covered moments are "the 15th of any 1985 month" which isn't a single interval. `to_interval/1` accepts the looser bound (`[year: 1985]..[year: 1986]`) rather than returning a set.
+
+`to_interval/1` is idempotent on existing intervals, maps over `%Tempo.Set{}` members, and returns an error for bare `%Tempo.Duration{}` values (they have no anchor on the time line).
+
+### 2.10. Seasons
 
 The parser expands season codes into intervals before enumeration sees them.
 
@@ -255,6 +282,25 @@ Forward-stepping through an interval uses `calendar.months_in_year/1`, `calendar
 ### 5.5. DST transitions
 
 Zone-aware iteration currently treats enumeration as operating on **wall-clock time** and passes the `zone_id` through unchanged on each yielded value. DST transitions are **not** compensated. Iterating hours across a DST boundary yields each wall-clock hour in turn, which may skip or repeat an instant-clock hour. This is a deliberate simplification and is documented so callers can choose to correct for it downstream.
+
+### 5.6. Parity between implicit and explicit iteration
+
+For every `%Tempo{}` where both implicit and explicit iteration are defined, the two produce identical sequences:
+
+```
+iex> {:ok, tempo} = Tempo.from_iso8601("2026-01")
+iex> implicit = Enum.to_list(tempo)
+iex> {:ok, interval} = Tempo.to_interval(tempo)
+iex> explicit = Enum.to_list(interval)
+iex> implicit == explicit
+true
+```
+
+Known divergences:
+
+* **Second-precision values.** `~o"2026-01-15T10:30:00"` has no finer unit to drill into. Implicit iteration raises `ArgumentError`; `to_interval/1` raises a matching error. Neither form yields a value.
+
+* **Masked values iterated implicitly.** The current implicit enumeration of masked values (`1985-XX-XX`) has known quirks — it does not always walk the full cartesian product of valid month/day pairs. `to_interval/1` widens to the coarsest un-masked prefix and produces a clean span; iterating that interval yields the straightforward forward-stepped sequence. Prefer the explicit form for set operations on masked values.
 
 ## 6. Summary table
 
