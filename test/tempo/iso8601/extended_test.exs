@@ -297,4 +297,94 @@ defmodule Tempo.Iso8601.Extended.Test do
       assert extended.tags == %{"_foo" => ["bar"], "_baz" => ["bat"]}
     end
   end
+
+  ## Per-endpoint IXDTF on intervals.
+  ##
+  ## Prior to this round, any interval where an endpoint carried an
+  ## IXDTF suffix failed to parse — the grammar attached the suffix
+  ## only at the top level, so the first `/` inside the string ended
+  ## up unmatched. The fix adds an optional `extended_suffix()` to
+  ## `qualified_endpoint` and validates the embedded segments in
+  ## post-processing. These tests pin the new behaviour.
+
+  describe "IXDTF on interval endpoints" do
+    test "both endpoints carry their own zone" do
+      assert {:ok, interval} =
+               Tempo.from_iso8601(
+                 "2022-06-15T10:00[Europe/Paris]/2022-06-15T12:00[Europe/Paris]"
+               )
+
+      assert interval.from.extended.zone_id == "Europe/Paris"
+      assert interval.to.extended.zone_id == "Europe/Paris"
+    end
+
+    test "endpoints may carry different zones" do
+      assert {:ok, interval} =
+               Tempo.from_iso8601(
+                 "2022-06-15T10:00[Europe/Paris]/2022-06-15T12:00[Europe/London]"
+               )
+
+      assert interval.from.extended.zone_id == "Europe/Paris"
+      assert interval.to.extended.zone_id == "Europe/London"
+    end
+
+    test "asymmetric — only the upper endpoint carries IXDTF info" do
+      assert {:ok, interval} =
+               Tempo.from_iso8601("2022-06-15T10:00/2022-06-15T12:00[Europe/Paris]")
+
+      assert interval.from.extended == nil
+      assert interval.to.extended.zone_id == "Europe/Paris"
+    end
+
+    test "open-upper interval with IXDTF on the lower endpoint" do
+      assert {:ok, interval} = Tempo.from_iso8601("2022-06-15T10:00[Europe/Paris]/..")
+
+      assert interval.from.extended.zone_id == "Europe/Paris"
+      assert interval.to == :undefined
+    end
+
+    test "open-lower interval with IXDTF on the upper endpoint" do
+      assert {:ok, interval} = Tempo.from_iso8601("../2022-06-15T10:00[Europe/Paris]")
+
+      assert interval.from == :undefined
+      assert interval.to.extended.zone_id == "Europe/Paris"
+    end
+
+    test "endpoint qualifier and IXDTF suffix may coexist" do
+      assert {:ok, interval} =
+               Tempo.from_iso8601("2022?[Europe/Paris]/2023~[Europe/London]")
+
+      assert interval.from.qualification == :uncertain
+      assert interval.from.extended.zone_id == "Europe/Paris"
+      assert interval.to.qualification == :approximate
+      assert interval.to.extended.zone_id == "Europe/London"
+    end
+
+    test "endpoint-local IXDTF supports `u-ca` calendar identifiers" do
+      assert {:ok, interval} =
+               Tempo.from_iso8601(
+                 "2022-06-15T10:00[Europe/Paris][u-ca=hebrew]/2022-06-15T12:00[Europe/Paris]"
+               )
+
+      assert interval.from.extended.zone_id == "Europe/Paris"
+      assert interval.from.extended.calendar == :hebrew
+      assert interval.to.extended.zone_id == "Europe/Paris"
+      assert interval.to.extended.calendar == nil
+    end
+
+    test "critical unknown zone on an endpoint bubbles up to the error result" do
+      # Prior behaviour (before the interval grammar change) would
+      # report a generic "could not parse" because the grammar never
+      # reached the endpoint suffix. With per-endpoint extended-info
+      # validation in place, the specific `Unknown IANA time zone`
+      # error is surfaced.
+      assert {:error, msg} =
+               Tempo.from_iso8601(
+                 "2022-06-15T10:00[!Continent/Imaginary]/2022-06-15T12:00"
+               )
+
+      assert msg =~ "Unknown IANA time zone"
+      assert msg =~ "Continent/Imaginary"
+    end
+  end
 end

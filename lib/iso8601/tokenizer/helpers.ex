@@ -136,18 +136,35 @@ defmodule Tempo.Iso8601.Tokenizer.Helpers do
   `parsec(:datetime_or_date_or_time)` when no qualifier is present.
 
   """
-  def merge_endpoint_qualification([{tag, inner}]) when tag in [:date, :datetime, :time_of_day] do
-    {tag, inner}
+  # Strip out an optional IXDTF extended-info segment from the
+  # reducer input first, then delegate to the qualification-only
+  # clauses below. When present, the `{:extended, segments}` entry
+  # is appended verbatim to the endpoint's inner list; downstream
+  # `Extended.split_extended/1` walks interval tokens and swaps the
+  # raw segments for a validated extended_info map.
+
+  def merge_endpoint_qualification(tokens) do
+    case Enum.split_with(tokens, &match?({:extended, _}, &1)) do
+      {[], tokens} -> merge_qualification(tokens)
+      {[{:extended, segments}], tokens} -> merge_qualification(tokens, segments)
+    end
   end
 
-  def merge_endpoint_qualification([{tag, inner}, {:qualification, q}])
-      when tag in [:date, :datetime, :time_of_day] do
-    {tag, inner ++ [qualification: q]}
+  defp merge_qualification(tokens, segments \\ nil)
+
+  defp merge_qualification([{tag, inner}], segments)
+       when tag in [:date, :datetime, :time_of_day] do
+    {tag, inner ++ extended_entry(segments)}
   end
 
-  def merge_endpoint_qualification([{:qualification, q}, {tag, inner}])
-      when tag in [:date, :datetime, :time_of_day] do
-    {tag, inner ++ [qualification: q]}
+  defp merge_qualification([{tag, inner}, {:qualification, q}], segments)
+       when tag in [:date, :datetime, :time_of_day] do
+    {tag, inner ++ [qualification: q] ++ extended_entry(segments)}
+  end
+
+  defp merge_qualification([{:qualification, q}, {tag, inner}], segments)
+       when tag in [:date, :datetime, :time_of_day] do
+    {tag, inner ++ [qualification: q] ++ extended_entry(segments)}
   end
 
   # Both leading and trailing qualifiers present. The leading
@@ -155,14 +172,22 @@ defmodule Tempo.Iso8601.Tokenizer.Helpers do
   # last component. We keep the leading one on the expression-level
   # field and leave the trailing to be handled as a component
   # qualifier by the inner grammar.
-  def merge_endpoint_qualification([{:qualification, q1}, {tag, inner}, {:qualification, q2}])
-      when tag in [:date, :datetime, :time_of_day] do
-    {tag, inner ++ [qualification: q1] ++ [trailing_qualification: q2]}
+  defp merge_qualification(
+         [{:qualification, q1}, {tag, inner}, {:qualification, q2}],
+         segments
+       )
+       when tag in [:date, :datetime, :time_of_day] do
+    {tag,
+     inner ++
+       [qualification: q1] ++ [trailing_qualification: q2] ++ extended_entry(segments)}
   end
 
   # Single-value pass-through (e.g. a duration or interval token that
   # was not wrapped by date/datetime/time_of_day).
-  def merge_endpoint_qualification(other), do: other
+  defp merge_qualification(other, _segments), do: other
+
+  defp extended_entry(nil), do: []
+  defp extended_entry(segments), do: [extended: segments]
 
   # Some calendars have 13 months
   # Seasons are recognised as months 21..32 so we have to allow them

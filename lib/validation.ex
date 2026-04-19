@@ -280,7 +280,8 @@ defmodule Tempo.Validation do
   end
 
   def resolve([{:year, year}, {:month, months}], calendar)
-      when is_integer(year) and (is_list(months) or is_integer(months)) do
+      when is_integer(year) and
+             (is_list(months) or is_integer(months) or is_struct(months, Range)) do
     months_in_year = calendar.months_in_year(year)
 
     with {:ok, month} <- conform(months, 1..months_in_year) do

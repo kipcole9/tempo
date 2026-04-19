@@ -107,23 +107,30 @@ defmodule Tempo.EnumerationConformance.Test do
     end
 
     test "Y-prefix with exponent (`Y17E8`)" do
-      # Wide-range year (1.7 billion). Current plan: refuse to
-      # enumerate with a clear error, not crash.
-      result = take("Y17E8")
-      assert match?({:ok, _}, result) or match?({:crash, _}, result)
+      # `Y17E8` = 1,700,000,000 — a single anchored year. The implicit
+      # enumerator then walks months of that year (12 values).
+      assert {:ok, list} = take("Y17E8")
+      assert Enum.all?(list, fn v -> v.time[:year] == 1_700_000_000 end)
     end
 
-    test "Y-prefix with significant-digit annotation (`Y171010000S3`)" do
-      # The parser produces `{integer, [significant_digits: 3]}` for
-      # this. `do_next` has no clause for the tuple shape.
-      result = take("Y171010000S3")
-      assert match?({:ok, _}, result) or match?({:crash, _}, result)
+    test "Y-prefix with significant-digit annotation (`Y171010000S3`) refuses" do
+      # 3 significant digits on a 9-digit year = 10^6 candidates, which
+      # exceeds `@significant_digits_limit`. Refuses with a clear error.
+      assert {:crash, msg} = take("Y171010000S3")
+      assert msg =~ "Cannot enumerate a significant-digits block"
+      assert msg =~ "limit: 10000"
     end
 
-    test "short year with significant-digit annotation (`1950S2`)" do
-      # Should enumerate the significant-digit block (e.g. 1900..1999).
-      result = take("1950S2")
-      assert match?({:ok, _}, result) or match?({:crash, _}, result)
+    test "short year with significant-digit annotation (`1950S2`) enumerates the block" do
+      # `1950S2` = first 2 digits significant → range `1900..1999`.
+      # The implicit enumerator then walks months for each year.
+      assert {:ok, list} = take("1950S2")
+      # First 3 values should be 1900Y1M, 1900Y2M, 1900Y3M.
+      assert Enum.map(list, & &1.time) == [
+               [year: 1900, month: 1],
+               [year: 1900, month: 2],
+               [year: 1900, month: 3]
+             ]
     end
   end
 
@@ -142,9 +149,10 @@ defmodule Tempo.EnumerationConformance.Test do
       assert {:ok, _list} = take("-1XXX-XX")
     end
 
-    test "all-unspecified year (`XXXX`)" do
-      result = take("XXXX")
-      assert match?({:ok, _}, result) or match?({:crash, _}, result)
+    test "all-unspecified year (`XXXX`) enumerates starting from 1000" do
+      # Mask `[:X, :X, :X, :X]` → 4-digit year range 1000..9999.
+      assert {:ok, list} = take("XXXX")
+      assert Enum.map(list, & &1.time) == [[year: 1000], [year: 1001], [year: 1002]]
     end
   end
 
@@ -159,9 +167,20 @@ defmodule Tempo.EnumerationConformance.Test do
       assert {:ok, _list} = take("~2022")
     end
 
-    test "mixed component qualifiers (`2022?-?06-%15`)" do
-      result = take("2022?-?06-%15")
-      assert match?({:ok, _}, result) or match?({:crash, _}, result)
+    test "mixed component qualifiers (`2022?-?06-%15`) enumerate at hour granularity" do
+      # Day-resolution input with per-component qualifiers. Implicit
+      # enumeration walks hours within the day.
+      assert {:ok, list} = take("2022?-?06-%15")
+
+      assert Enum.all?(list, fn v ->
+               v.time[:year] == 2022 and v.time[:month] == 6 and v.time[:day] == 15
+             end)
+
+      assert Enum.all?(list, fn v ->
+               v.qualifications[:year] == :uncertain and
+                 v.qualifications[:month] == :uncertain and
+                 v.qualifications[:day] == :uncertain_and_approximate
+             end)
     end
   end
 
@@ -190,48 +209,140 @@ defmodule Tempo.EnumerationConformance.Test do
         Enum.take(value, 1)
       end
     end
+
+    test "IXDTF interval with per-endpoint zones parses and the zones survive enumeration" do
+      # Prior to this round, the grammar attached IXDTF suffixes only
+      # at the top level, so an interval with an IXDTF suffix on each
+      # endpoint failed to parse. This test pins the fix and confirms
+      # the per-endpoint zone_id is preserved through enumeration.
+      {:ok, interval} =
+        Tempo.from_iso8601(
+          "2022-06-15T10:00[Europe/Paris]/2022-06-15T13:00[Europe/London]"
+        )
+
+      assert interval.from.extended.zone_id == "Europe/Paris"
+      assert interval.to.extended.zone_id == "Europe/London"
+
+      # Endpoint iteration: `from` is the anchor, so yielded values
+      # carry `from`'s zone_id. The `to` endpoint's zone is attached
+      # to the boundary, not the interior values.
+      list = Enum.take(interval, 3)
+
+      assert Enum.all?(list, fn v ->
+               v.extended && v.extended.zone_id == "Europe/Paris"
+             end)
+    end
   end
 
   ## Step 5 — open-ended intervals.
 
   describe "open-ended intervals (Step 5 of the plan)" do
     # Step 5 of the Enumerable review plan implements
-    # `Enumerable.Tempo.Interval`. Until it lands, any call to an
-    # Enumerable protocol function on an interval raises
-    # `Protocol.UndefinedError`. These tests pin the current
-    # behaviour so they fail-fast when Step 5 changes it — forcing
-    # a conscious update of the assertions.
+    # `Enumerable.Tempo.Interval`. Count/member?/slice currently
+    # return `{:error, __MODULE__}` (a conservative placeholder).
+    # Reduce is the interesting callback: it iterates forward one
+    # resolution-unit at a time from the `:from` endpoint for the
+    # closed and open-upper cases, and raises `ArgumentError` for
+    # the fully-open and open-lower cases (no anchor).
 
-    test "Enumerable.count/1 raises Protocol.UndefinedError today" do
+    test "Enumerable.count/1 returns {:error, __MODULE__} for fully open intervals" do
       {:ok, interval} = Tempo.from_iso8601("../..")
-
-      assert_raise Protocol.UndefinedError, fn ->
-        Enumerable.count(interval)
-      end
+      assert Enumerable.count(interval) == {:error, Enumerable.Tempo.Interval}
     end
 
-    test "Enum.take/2 on a fully open interval raises a clear error" do
+    test "Enum.take/2 on a fully open interval raises a clear ArgumentError" do
       {:ok, interval} = Tempo.from_iso8601("../..")
 
-      assert_raise Protocol.UndefinedError, fn ->
+      assert_raise ArgumentError, ~r/fully open interval/, fn ->
         Enum.take(interval, 3)
       end
     end
 
-    test "Enum.take/2 on an open-upper interval raises" do
+    test "Enum.take/2 on an open-upper interval iterates forward from `from`" do
       {:ok, interval} = Tempo.from_iso8601("1985-01-01/..")
+      list = Enum.take(interval, 3)
+      assert length(list) == 3
 
-      assert_raise Protocol.UndefinedError, fn ->
-        Enum.take(interval, 3)
-      end
+      assert Enum.map(list, & &1.time) == [
+               [year: 1985, month: 1, day: 1],
+               [year: 1985, month: 1, day: 2],
+               [year: 1985, month: 1, day: 3]
+             ]
     end
 
-    test "Enum.take/2 on an open-lower interval raises" do
+    test "Enum.take/2 on an open-lower interval raises a clear ArgumentError" do
       {:ok, interval} = Tempo.from_iso8601("../1985-12-31")
 
-      assert_raise Protocol.UndefinedError, fn ->
+      assert_raise ArgumentError, ~r/open lower bound/, fn ->
         Enum.take(interval, 3)
       end
+    end
+
+    test "Enum.take/2 on an open-upper year interval advances years" do
+      {:ok, interval} = Tempo.from_iso8601("1985/..")
+      list = Enum.take(interval, 4)
+      assert Enum.map(list, & &1.time) == [[year: 1985], [year: 1986], [year: 1987], [year: 1988]]
+    end
+
+    test "Enum.take/2 on a closed day-resolution interval stops at the upper bound" do
+      # Half-open `[from, to)` — `to` is exclusive. Jan 1 .. Jan 4
+      # yields Jan 1, 2, 3.
+      {:ok, interval} = Tempo.from_iso8601("1985-01-01/1985-01-04")
+      list = Enum.to_list(interval)
+
+      assert Enum.map(list, & &1.time) == [
+               [year: 1985, month: 1, day: 1],
+               [year: 1985, month: 1, day: 2],
+               [year: 1985, month: 1, day: 3]
+             ]
+    end
+
+    test "Enum.take/2 on a closed month-resolution interval rolls year boundaries" do
+      # Dec 1985 .. Feb 1986 (exclusive): yields Dec 1985, Jan 1986.
+      {:ok, interval} = Tempo.from_iso8601("1985-12/1986-02")
+      list = Enum.to_list(interval)
+
+      assert Enum.map(list, & &1.time) == [
+               [year: 1985, month: 12],
+               [year: 1986, month: 1]
+             ]
+    end
+
+    test "Enum.take/2 on a mismatched-resolution interval `1985/1986-06`" do
+      # `1985`.start = 1985-01-01, `1986-06`.start = 1986-06-01.
+      # `1985` (start 1985-01-01) and `1986` (start 1986-01-01) both
+      # fall before 1986-06-01, so both are yielded under half-open
+      # semantics.
+      {:ok, interval} = Tempo.from_iso8601("1985/1986-06")
+      list = Enum.to_list(interval)
+      assert Enum.map(list, & &1.time) == [[year: 1985], [year: 1986]]
+    end
+
+    test "Enum.take/2 on `from/duration` intervals iterates forward" do
+      # `1985-01/P3M` — concrete `from`, duration-expressed upper
+      # bound. For now the upper bound is treated as open because
+      # Tempo-Duration addition isn't implemented; `Enum.take/2`
+      # still halts as expected.
+      {:ok, interval} = Tempo.from_iso8601("1985-01/P3M")
+      list = Enum.take(interval, 3)
+      assert Enum.map(list, & &1.time) == [[year: 1985, month: 1], [year: 1985, month: 2], [year: 1985, month: 3]]
+    end
+
+    test "Enum.take/2 on `duration/to` raises a clear error" do
+      # `P1M/1985-06` — duration-anchored lower bound. Computing
+      # `from = to - duration` requires Tempo-Duration subtraction
+      # (not yet implemented).
+      {:ok, interval} = Tempo.from_iso8601("P1M/1985-06")
+
+      assert_raise ArgumentError, ~r/duration-anchored interval/, fn ->
+        Enum.take(interval, 3)
+      end
+    end
+
+    test "Enum.take/2 on a week-resolution interval advances weeks" do
+      {:ok, interval} = Tempo.from_iso8601("2022-W05/2022-W08")
+      list = Enum.to_list(interval)
+      assert Enum.map(list, & &1.time) == [[year: 2022, week: 5], [year: 2022, week: 6], [year: 2022, week: 7]]
     end
   end
 
@@ -287,20 +398,26 @@ defmodule Tempo.EnumerationConformance.Test do
       assert {:ok, _list} = take("[1984,1986,1988]")
     end
 
-    test "group expansion (pre-existing gap, outside plan scope)" do
-      # `2022Y5G2MU` currently crashes in `do_next/3` — there's no
-      # clause matching the expanded group token. Tracked in
-      # `docs/enumeration-gaps.md`. This test pins current broken
-      # behaviour so a future fix is visible.
-      assert {:crash, _} = take("2022Y5G2MU")
+    test "group expansion (`nGspanUNITU`)" do
+      assert {:ok, list} = take("2022Y5G2MU")
+      # `5G2MU` = 5th group of 2 months = months 9..10. Enumeration
+      # then drops to the next-finer implicit unit (day).
+      assert Enum.all?(list, fn v -> v.time[:year] == 2022 and v.time[:month] in 9..10 end)
     end
 
-    test "selection (pre-existing gap, outside plan scope)" do
-      # `2022YL1MN` enumerates to a Tempo whose `:time` contains a
-      # tuple-valued `:selection` entry that breaks later
-      # processing (inspect, equality). Tracked in the gap report.
-      result = take("2022YL1MN")
-      assert match?({:ok, _}, result) or match?({:crash, _}, result)
+    test "selection (`L…N`) preserves its shape through enumeration" do
+      # A selection is a constraint, not a sequence. Its inner
+      # keyword list (`[month: 1]` for `L1MN`) must stay intact
+      # on every yielded Tempo so downstream consumers — inspect,
+      # to_iso8601, equality — still see a well-formed selection.
+      assert {:ok, list} = take("2022YL1MN")
+
+      assert Enum.all?(list, fn v ->
+               case Keyword.get(v.time, :selection) do
+                 [month: 1] -> true
+                 _ -> false
+               end
+             end)
     end
   end
 

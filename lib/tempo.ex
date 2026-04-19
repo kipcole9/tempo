@@ -196,12 +196,14 @@ defmodule Tempo do
   def new(tokens, calendar) when is_list(tokens) do
     {shift, tokens} = Keyword.pop(tokens, :time_shift)
     {qualification, tokens} = Keyword.pop(tokens, :qualification)
+    {extended, tokens} = Keyword.pop(tokens, :extended)
     {component_qualifications, time} = pop_component_qualifications(tokens)
 
     %__MODULE__{
       time: time,
       shift: shift,
       calendar: calendar,
+      extended: extended,
       qualification: qualification,
       qualifications: component_qualifications
     }
@@ -315,12 +317,30 @@ defmodule Tempo do
   @doc false
   def attach_extended(result, nil), do: result
 
-  def attach_extended(%__MODULE__{} = tempo, extended) do
-    %{tempo | extended: extended}
+  def attach_extended(%__MODULE__{extended: existing} = tempo, extended) do
+    # An endpoint-local `:extended` parsed from a per-endpoint IXDTF
+    # suffix (`2022-06-15T10:00[Europe/Paris]/…`) takes precedence
+    # over a top-level suffix. The top-level suffix is only used as
+    # a default when the endpoint carries none of its own.
+    case existing do
+      nil -> %{tempo | extended: extended}
+      _map -> tempo
+    end
   end
 
   def attach_extended(%Tempo.Range{} = range, extended) do
     %{range | first: attach_extended(range.first, extended)}
+  end
+
+  def attach_extended(%Tempo.Interval{} = interval, extended) do
+    # A top-level suffix on an interval propagates to each endpoint
+    # unless that endpoint carries its own IXDTF info (which the
+    # parser has already attached to `endpoint.extended`).
+    %{
+      interval
+      | from: attach_extended(interval.from, extended),
+        to: attach_extended(interval.to, extended)
+    }
   end
 
   def attach_extended(other, _extended), do: other

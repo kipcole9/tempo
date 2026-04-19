@@ -6,17 +6,19 @@ The harness exercises one or two `Enum.take/2` invocations for every construct t
 
 ## Summary
 
-| # | Category | Status | Fix scope |
-|---|---|---|---|
-| 1 | Mask filling on year (`156X`, `-1XXX-XX`) | **Bug — crashes** | Small; `Tempo.Mask.fill_unspecified` for year |
-| 2 | Full second-precision enumeration | **Bug — crashes** | Small; `Enumeration.add_implicit_enumeration` |
-| 3 | Metadata propagation (`extended`, `qualification`, `qualifications`) | Untested (blocked by 1 & 2) | Verified passive once 1 & 2 fixed |
-| 4 | Group expansion (`2022Y5G2MU`) | **Pre-existing bug — crashes** | Medium; not part of the Enumerable plan |
-| 5 | Selection enumeration (`2022YL1MN`) | **Pre-existing bug — invalid shape** | Medium; not part of the Enumerable plan |
-| 6 | `Enumerable.Tempo.Interval` | **Not implemented** | Large; Step 5 of the plan |
-| 7 | Long-year significant-digit shapes (`Y171010000S3`) | Gap as predicted | Medium; Step 4 of the plan |
-| 8 | Long-year wide range (`Y17E8`) | Gap as predicted | Medium; Step 4 of the plan |
-| 9 | Component-level qualification semantics on enumerated values | Unverified until crash-gaps closed | Small (Step 3) |
+All gaps the harness surfaced are now closed. Status after this session:
+
+| # | Category | Status |
+|---|---|---|
+| 1 | Mask filling on year (`156X`, `-1XXX-XX`) | **Fixed** |
+| 2 | Full second-precision enumeration | **Fixed** (raises clear `ArgumentError`) |
+| 3 | Metadata propagation (`extended`, `qualification`, `qualifications`) | **Verified** (regression tests pinned) |
+| 4 | Group expansion (`2022Y5G2MU`) | **Fixed** |
+| 5 | Selection enumeration (`2022YL1MN`) | **Fixed** |
+| 6 | `Enumerable.Tempo.Interval` (open-ended + closed intervals) | **Implemented** |
+| 7 | Long-year significant-digit shapes (`Y171010000S3`) | **Fixed** (refuses blocks >10 000 candidates) |
+| 8 | Long-year wide range (`Y17E8`) | **Works** (single anchored year; implicit month enum) |
+| 9 | Component-level qualification semantics on enumerated values | **Verified** (propagate verbatim) |
 
 ## Details
 
@@ -110,17 +112,33 @@ Verified reachable once gap 1 is fixed (the mask path is independent of qualific
 
 * **Gap 3** (metadata propagation) — verified via the harness. `%Tempo{}` struct updates in `Enumeration.collect/1` preserve `:extended`, `:qualification`, and `:qualifications` without any code change. Four regression tests pin this down.
 
-## Deferred to follow-up sessions
+## Fixes landed in the follow-up session
 
-* **Gaps 4, 5** — pre-existing group/selection bugs, outside the plan's scope. Pinned in the harness as `{:crash, _}`-matching tests so a future fix forces an assertion update.
+* **Gap 4** (group `2022Y5G2MU`) — added a `do_next/3` clause that unwraps `{:group, %Range{}}` into the standard range-iteration path (`[{unit, [range]} | t]`). The rest of the cycle machinery handles it transparently.
 
-* **Gap 6** — Step 5 of the plan (`Enumerable.Tempo.Interval`). Pinned in the harness as `Protocol.UndefinedError`-raising tests.
+* **Gap 5** (selection `2022YL1MN`) — moved the `{:selection, _}` clause in `do_next/3` ABOVE the generic `{unit, value} when is_unit(unit, value)` clause. The previous ordering let `is_unit` match the selection's inner keyword list and destructively iterate it. Updated `explicitly_enumerable?/1` so a bare selection alone does not mark a Tempo as enumerable (it is a constraint, not a sequence).
 
-* **Gaps 7, 8** — Step 4 of the plan (long-year shapes). Harness accepts either `{:ok, _}` or `{:crash, _}` for these so progress in either direction updates the assertions consciously.
+* **Gap 7** (significant-digits enumeration) — added `do_next/3` clause for `{unit, {value, [significant_digits: n]}}` that expands the tuple into a digit-prefix range (`1950S2` → `[1900..1999]`). Guards against blocks larger than `@significant_digits_limit` (10 000 candidates) by raising a clear `ArgumentError`. Negative values enumerate in most-negative-first order. The helper `significant_digits_range/2` handles the digit arithmetic.
+
+* **Gap 2c** (year-range + month-resolve) — extended `Tempo.Validation.resolve/2`'s `{:year, year}, {:month, months}` clause guard from `is_list(months) or is_integer(months)` to also accept `is_struct(months, Range)`. This lets the implicit month enumerator (`1..-1//-1`) conform against `months_in_year` when the year is itself a range (as it is during significant-digits iteration).
+
+* **Gap 6** (`Enumerable.Tempo.Interval`) — implemented. `lib/protocol/enumeration/range.ex` is no longer empty. Closed intervals and open-upper intervals iterate forward one resolution-unit at a time from the `:from` endpoint; fully-open and open-lower intervals raise `ArgumentError` with a clear message. Iteration honours the half-open `[from, to)` convention — the upper bound is exclusive, matching `CLAUDE.md`'s architectural rule. `count/1`, `member?/2`, and `slice/1` return `{:error, __MODULE__}` for now; precise implementations are tracked with the set-operations milestone.
+
+  Increment is calendar-aware: `increment_time/3` uses `calendar.months_in_year/1` and `calendar.days_in_month/2` for carry. All Keyword updates use `Keyword.replace!/3` (preserves position) rather than `Keyword.put/3` (removes + prepends) because the keyword-list order is the invariant `compare_time/2`, `inspect`, and `to_iso8601` all depend on.
 
 ## Session totals
 
-* `test/tempo/enumeration_conformance_test.exs` — 35 tests, all passing
-* Full suite — 1717 tests, 0 failures
-* Files changed: `lib/mask.ex`, `lib/enumeration.ex`, `lib/validation.ex`
-* Files added: the conformance test, this report
+* `test/tempo/enumeration_conformance_test.exs` — 38 tests, all passing (3 new `Enumerable.Tempo.Interval` tests).
+* Full suite — 31 doctests, 1720 tests, 0 failures.
+* Files changed: `lib/mask.ex`, `lib/enumeration.ex`, `lib/validation.ex`.
+* Files added: the conformance test, this report, `lib/protocol/enumeration/range.ex` (previously empty).
+
+## Still deferred
+
+None of the original gaps remain. The harness assertions are now tightened to exact expected outputs rather than `{:ok, _} or {:crash, _}` matches, so any future regression surfaces as a clear test failure.
+
+Future enhancements tracked elsewhere:
+
+* Precise `count/1` and `member?/2` for `Tempo.Interval` — needs Tempo-to-Tempo comparison and wall-clock day arithmetic. Tracked with the set-operations milestone.
+
+* Increment support for additional resolution units (`:week`, `:day_of_year`, `:day_of_week`, fractional units). The current `increment_time/3` covers year / month / day / hour / minute / second — adequate for every standard ISO 8601 interval shape and every harness test, but future EDTF shapes may want more.

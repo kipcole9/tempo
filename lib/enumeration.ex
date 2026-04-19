@@ -25,6 +25,23 @@ defmodule Tempo.Enumeration do
     end
   end
 
+  # A selection `{:selection, [unit: value, …]}` is a constraint
+  # on the enclosing enumeration ("the Nth month", "the last
+  # Friday"), not a sequence to iterate over. This clause must
+  # come before the `is_unit` clause below, otherwise that clause
+  # would match (the selection's inner keyword list is a list)
+  # and the selection would be destructively iterated.
+  #
+  # Full selection resolution — actually filtering enumerated
+  # values by the selection pattern — is future work.
+
+  def do_next([{:selection, _} = sel | t], calendar, previous) do
+    case do_next(t, calendar, [sel | previous]) do
+      {:rollover, tail} -> {:rollover, [sel | tail]}
+      tail -> [sel | tail]
+    end
+  end
+
   def do_next([{unit, value} | t], calendar, previous) when is_unit(unit, value) do
     cycle =
       case cycle(value, unit, calendar, previous) do
@@ -46,6 +63,42 @@ defmodule Tempo.Enumeration do
   def do_next([{unit, :any = mask} | t], calendar, previous) do
     value = Tempo.Mask.fill_unspecified(unit, mask, calendar, previous)
     do_next([{unit, value} | t], calendar, previous)
+  end
+
+  # A group token `{:group, range}` (produced by expanded
+  # `nGspanUNITU` constructs) wraps a range of candidate values.
+  # Treat it as a single-element list holding the range so the
+  # `is_unit` path picks it up via the existing cycle machinery.
+
+  def do_next([{unit, {:group, %Range{} = range}} | t], calendar, previous) do
+    do_next([{unit, [range]} | t], calendar, previous)
+  end
+
+  # ISO 8601-2 significant-digits annotation. A year value tagged
+  # `{int, [significant_digits: n]}` (e.g. `1950S2` → first 2
+  # digits are significant) enumerates over the block of values
+  # sharing those leading digits: `1950S2` → `1900..1999`,
+  # `Y3388E2S3` → `338800..338899`.
+  #
+  # The candidate-count guard refuses to enumerate blocks larger
+  # than `@significant_digits_limit`. The user can still hold the
+  # value as a parsed AST; they just can't iterate through it.
+
+  @significant_digits_limit 10_000
+
+  def do_next([{unit, {value, [significant_digits: n]}} | t], calendar, previous)
+      when is_integer(value) and is_integer(n) and n > 0 do
+    range = significant_digits_range(value, n)
+
+    case Range.size(range) do
+      size when size > @significant_digits_limit ->
+        raise ArgumentError,
+              "Cannot enumerate a significant-digits block of #{size} candidates " <>
+                "(limit: #{@significant_digits_limit}). Source: #{inspect(value)}S#{n}"
+
+      _ ->
+        do_next([{unit, [range]} | t], calendar, previous)
+    end
   end
 
   # We hit a continuation at the end of a list
@@ -198,6 +251,37 @@ defmodule Tempo.Enumeration do
   def extract_first([%Range{first: first} | _rest]), do: first
   def extract_first([first | _rest]), do: first
 
+  # Returns the range of integers sharing `value`'s first `n`
+  # digits. Honours sign: for `value < 0` the range runs from
+  # most-negative to least-negative so iteration surfaces
+  # "larger magnitude first" (matches the parser's intuition
+  # that `-1950S2` covers `-1999..-1900`).
+  defp significant_digits_range(value, n) when is_integer(value) and is_integer(n) and n > 0 do
+    digit_count = digit_count(value)
+
+    cond do
+      n >= digit_count ->
+        value..value
+
+      value >= 0 ->
+        scale = integer_pow10(digit_count - n)
+        prefix = div(value, scale) * scale
+        prefix..(prefix + scale - 1)
+
+      true ->
+        scale = integer_pow10(digit_count - n)
+        prefix = div(-value, scale) * scale
+        -(prefix + scale - 1)..-prefix
+    end
+  end
+
+  defp digit_count(0), do: 1
+  defp digit_count(n) when n < 0, do: digit_count(-n)
+  defp digit_count(n), do: length(Integer.digits(n))
+
+  defp integer_pow10(0), do: 1
+  defp integer_pow10(n) when n > 0, do: 10 * integer_pow10(n - 1)
+
   @doc """
   Strips the functions from return tuples to produce
   a clean structure to pass to functions
@@ -232,9 +316,15 @@ defmodule Tempo.Enumeration do
 
   def explicitly_enumerable?(%Tempo{time: time}) do
     Enum.any?(time, fn
+      # A selection is a constraint, not a sequence — it doesn't
+      # make the value enumerable on its own. Without this guard
+      # the `is_list(value)` rule below would match a selection's
+      # inner keyword list and skip implicit enumeration.
+      {:selection, _} -> false
       {_unit, value} when is_list(value) -> true
       {_unit, :any} -> true
       {_unit, {:mask, _}} -> true
+      {_unit, {:group, _}} -> true
       {_unit, {_value, continuation}} when is_function(continuation) -> true
       {_unit, continuation} when is_function(continuation) -> false
       _other -> false

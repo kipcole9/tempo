@@ -157,15 +157,21 @@ defmodule Tempo.Iso8601.Tokenizer do
             |> label("datetime_or_date_or_time")
 
   # A date/datetime/time endpoint with an optional EDTF
-  # qualification prefix or suffix (`?`, `~`, `%`). The qualifier,
-  # when present, is merged into the tagged date's inner keyword
-  # list so that each interval endpoint retains its own
-  # qualification. Defined as `defparsecp` so the `reduce` scope
-  # is local to this combinator.
+  # qualification prefix or suffix (`?`, `~`, `%`) and an optional
+  # IXDTF extended-info suffix (`[Europe/Paris][u-ca=hebrew]`). The
+  # qualifier, when present, is merged into the tagged date's inner
+  # keyword list so each interval endpoint retains its own
+  # qualification. The extended-info segments are spliced into the
+  # endpoint's inner list as `{:extended, raw_segments}` and later
+  # validated by `Extended.split_extended/1`, which bubbles any
+  # critical-suffix error back up to the parser's return path.
+  # Defined as `defparsecp` so the `reduce` scope is local to this
+  # combinator.
   defparsecp :qualified_endpoint,
              optional(qualification())
              |> parsec(:datetime_or_date_or_time)
              |> optional(qualification())
+             |> optional(Extended.extended_suffix())
              |> reduce(:merge_endpoint_qualification)
 
   # Private parsec definitions to reduce compile-time code expansion.

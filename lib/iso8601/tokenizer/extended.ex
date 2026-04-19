@@ -169,14 +169,72 @@ defmodule Tempo.Iso8601.Tokenizer.Extended do
 
   """
   def split_extended(tokens) do
-    case List.pop_at(tokens, -1) do
+    with {:ok, tokens} <- validate_embedded_extended(tokens) do
+      case List.pop_at(tokens, -1) do
+        {{:extended, segments}, rest} ->
+          with {:ok, extended} <- build_extended(segments) do
+            {:ok, {rest, extended}}
+          end
+
+        _ ->
+          {:ok, {tokens, nil}}
+      end
+    end
+  end
+
+  # Interval endpoints produced by `qualified_endpoint` may carry
+  # per-endpoint `{:extended, raw_segments}` entries embedded in
+  # their inner lists. Walk the token tree, validate each embedded
+  # segment via `build_extended/1`, and replace the raw entry with a
+  # validated map. Errors (critical unknown zone, etc.) bubble up.
+  #
+  # The top-level `{:extended, _}` remains untouched here — it is
+  # handled by the List.pop_at branch above.
+
+  defp validate_embedded_extended(tokens) when is_list(tokens) do
+    reduce_while_ok(tokens, &validate_token/1)
+  end
+
+  defp validate_embedded_extended(other) do
+    {:ok, other}
+  end
+
+  defp validate_token({:interval, inner}) when is_list(inner) do
+    with {:ok, inner} <- reduce_while_ok(inner, &validate_interval_part/1) do
+      {:ok, {:interval, inner}}
+    end
+  end
+
+  defp validate_token(other) do
+    {:ok, other}
+  end
+
+  defp validate_interval_part({tag, inner}) when tag in [:date, :datetime, :time_of_day] do
+    case List.keytake(inner, :extended, 0) do
+      nil ->
+        {:ok, {tag, inner}}
+
       {{:extended, segments}, rest} ->
         with {:ok, extended} <- build_extended(segments) do
-          {:ok, {rest, extended}}
+          {:ok, {tag, rest ++ [extended: extended]}}
         end
+    end
+  end
 
-      _ ->
-        {:ok, {tokens, nil}}
+  defp validate_interval_part(other) do
+    {:ok, other}
+  end
+
+  defp reduce_while_ok(list, fun) do
+    Enum.reduce_while(list, {:ok, []}, fn item, {:ok, acc} ->
+      case fun.(item) do
+        {:ok, value} -> {:cont, {:ok, [value | acc]}}
+        {:error, _} = err -> {:halt, err}
+      end
+    end)
+    |> case do
+      {:ok, reversed} -> {:ok, Enum.reverse(reversed)}
+      {:error, _} = err -> err
     end
   end
 
