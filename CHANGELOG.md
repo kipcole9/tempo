@@ -30,6 +30,8 @@
 
 * **100% EDTF corpus coverage.** The `unt-libraries/edtf-validate` corpus — the only publicly-available conformance test suite we could find for ISO 8601-2 Part 2 — now passes in full. 183 strings exercised, 0 known failures.
 
+* **Web visualizer.** `Tempo.Visualizer` is a `Plug.Router` that shows a parsed ISO 8601 / ISO 8601-2 / IXDTF string as a large-font echo followed by a component-by-component breakdown. Each component (year, month, day, time zone, qualification, IXDTF suffix, …) is rendered as its own box with the canonical glyph above an underline-and-tick separator, a unit label, and a short description. Mount via `forward "/visualize", Tempo.Visualizer` in Phoenix/Plug, or run standalone with `Tempo.Visualizer.Standalone.start(port: 4001)`. Both `:plug` and `:bandit` are declared as optional deps, so the core parser compiles without them.
+
 ### Changed
 
 * **Removed all CLDR-family dependencies.** `ex_cldr_calendars` (and its transitive closure `ex_cldr`, `ex_cldr_numbers`, `ex_cldr_currencies`, `cldr_utils`, `digital_token`) has been replaced by [Calendrical](https://hex.pm/packages/calendrical) for calendar functionality and by `Localize.Utils.Math` / `Localize.Utils.Digits` for numeric helpers. The default calendar is now `Calendrical.Gregorian` instead of `Cldr.Calendar.Gregorian`. Calendrical bundles all 17 CLDR-aligned calendars directly and has broader calendar coverage than the previous setup.

@@ -27,6 +27,8 @@ defmodule Tempo.MixProject do
       {:astro, "~> 2.0"},
       {:localize, path: "../localize/localize", override: true},
       {:tzdata, "~> 1.1"},
+      {:plug, "~> 1.15", optional: true},
+      {:bandit, "~> 1.5", optional: true},
       {:ex_doc, "~> 0.21", runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
     ]
