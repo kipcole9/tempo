@@ -365,7 +365,30 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
     choice([
       parsec(:group),
       parsec(:integer_set_all) |> unwrap_and_tag(:year),
+
+      # EDTF Level 2 long-year with exponent or significant-digit
+      # annotation: `Y17E8` (17 × 10^8) or `Y171010000S3`. Requires
+      # an `E` or `S` after the integer so that short-digit years
+      # like `Y1` are not accepted as standalone.
+      ignore(string("Y"))
+      |> optional(negative())
+      |> integer(min: 1)
+      |> lookahead(choice([string("E"), string("S")]))
+      |> optional(exponent())
+      |> optional(significant())
+      |> reduce({Tempo.Iso8601.Tokenizer.Numbers, :form_number, []})
+      |> unwrap_and_tag(:year),
+
+      # EDTF Level 2 long-year without annotation: `Y` followed by
+      # a 5+ digit integer (`Y170000002`). Ordered before the
+      # 4-digit branch so long years win.
+      ignore(string("Y"))
+      |> maybe_negative_number(min: 5)
+      |> unwrap_and_tag(:year),
+
+      # Short `Y`-prefix form (`Y2022`) — exactly 4 digits.
       ignore(string("Y")) |> maybe_negative_number(4) |> unwrap_and_tag(:year),
+
       maybe_negative_integer(4) |> unwrap_and_tag(:year)
     ])
     |> label("implicit year")

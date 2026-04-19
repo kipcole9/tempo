@@ -75,9 +75,9 @@ A single `Tempo.from_iso8601/1` call therefore always returns a bounded value, n
 
 | Feature | Example | Reason |
 |---|---|---|
-| Wide-range exponent years | `Y17E8`, `Y-170000002` | Geological scale; no archaeological / historical use case. Tracked in the EDTF corpus. |
-| 9+ digit significant-digit annotations | `Y171010000S3`, `Y-171010000S2` | Same — very long years combined with significance markers. |
 | Cross-endpoint semantic validation of intervals | `2012-24/2012-21` (winter before spring) | Parses at syntax level; semantic check (via Allen's Interval Algebra) is planned for the set-operations milestone. |
+
+All other EDTF Level 2 features — including wide-range exponent years (`Y17E8`, `Y-170000002`) and long-year significant-digit annotations (`Y171010000S3`) — are supported.
 
 ## 4. IXDTF — Internet Extended Date/Time Format
 
@@ -127,9 +127,9 @@ Tempo's conformance is exercised by:
 * **`test/tempo/iso8601/open_interval_test.exs`** — open-ended intervals.
 * **`test/tempo/iso8601/unspecified_digit_test.exs`** — unspecified-digit masks.
 * **`test/tempo/iso8601/leap_second_test.exs`** — leap-second validation.
-* **`test/tempo/iso8601/edtf_corpus_test.exs`** — 177 strings adapted from the `unt-libraries/edtf-validate` corpus (BSD-3-Clause). See `test/support/edtf_corpus.ex` for the raw strings and attribution.
+* **`test/tempo/iso8601/edtf_corpus_test.exs`** — the full `unt-libraries/edtf-validate` corpus (BSD-3-Clause), exercised at 100%. See `test/support/edtf_corpus.ex` for the raw strings and attribution.
 
-As of v0.2.0 the suite runs 1586 tests with zero failures.
+As of v0.2.0 the suite runs 1592 tests with zero failures. The EDTF corpus is the only publicly-available conformance test set we know of for ISO 8601-2 Part 2; Tempo passes it in full.
 
 ## 8. Comparison to other implementations
 

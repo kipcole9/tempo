@@ -117,6 +117,15 @@ defmodule Tempo.Inspect do
     Kernel.inspect(number) <> "±" <> Kernel.inspect(margin)
   end
 
+  defp inspect_value({number, [significant_digits: digits]}) when is_integer(number) do
+    Kernel.inspect(number) <> "S" <> Integer.to_string(digits)
+  end
+
+  defp inspect_value({number, [significant_digits: digits, margin_of_error: margin]})
+       when is_integer(number) do
+    Kernel.inspect(number) <> "S" <> Integer.to_string(digits) <> "±" <> Kernel.inspect(margin)
+  end
+
   defp inspect_value({:mask, [:negative | rest]}) do
     [?-, inspect_value({:mask, rest})]
   end

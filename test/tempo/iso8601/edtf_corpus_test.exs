@@ -18,24 +18,11 @@ defmodule Tempo.Iso8601.EdtfCorpus.Test do
 
   alias Tempo.Iso8601.Edtf.Corpus
 
-  # EDTF strings that Tempo does not yet parse. The list shrank
-  # dramatically in v0.2.0 as unspecified digits, open-ended
-  # intervals, per-endpoint and component-level qualification all
-  # landed. What remains are the rarer Level 2 "very long year"
-  # notations that matter for geological rather than archaeological
-  # time scales.
-  @known_failures %{
-    # Wide-range exponent years — `Y17E8` = 17 × 10^8 = 1.7 billion.
-    "Y17E8" => :wide_range_year,
-    "Y-17E7" => :wide_range_year,
-    "Y170000002" => :wide_range_year,
-    "Y-170000002" => :wide_range_year,
-
-    # Significant-digit annotations on 9+ digit years (`Y171010000S3`).
-    # Shorter forms like `-1859S5` and `Y3388E2S3` already parse.
-    "Y171010000S3" => :significant_digit_annotation,
-    "Y-171010000S2" => :significant_digit_annotation
-  }
+  # As of v0.2.0 every string in the upstream corpus either parses
+  # or is rejected as the spec prescribes. The map is retained so
+  # that future corpus additions that Tempo can't yet handle have a
+  # documented home.
+  @known_failures %{}
 
   # Strings that our parser currently accepts but EDTF marks invalid
   # because of cross-component rules (time-zone offset > 14 hours,
@@ -173,14 +160,16 @@ defmodule Tempo.Iso8601.EdtfCorpus.Test do
     end
   end
 
-  ## Known-failure tracking
+  ## Full-coverage sentinel
   #
-  # This keeps a visible list of Level 2 features that the parser
-  # cannot yet handle. When a feature lands, remove its strings
-  # from `@known_failures` above and the corresponding positive
-  # tests will automatically re-enable.
+  # The upstream corpus is exercised in full and is expected to
+  # produce zero failures. If a new EDTF feature is added to the
+  # corpus and Tempo cannot handle it yet, add the offending
+  # strings to `@known_failures` above so positive assertions are
+  # skipped but the gap stays documented.
 
-  test "known-failure list is non-empty (remove when all features land)" do
-    refute Enum.empty?(@known_failures)
+  test "known-failure list is empty" do
+    assert Enum.empty?(@known_failures),
+           "Re-enable the failing tests once the listed features are implemented"
   end
 end
