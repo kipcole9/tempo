@@ -6,7 +6,7 @@ The canonical authority is the PDF of the ISO standard (held locally in `~/Docum
 
 ## 1. Core principle — bounded intervals
 
-Every Tempo value is a **bounded interval on the time line**, not an instant. `2026-01` is not the single moment "January 2026"; it is the interval `[2026-01-01, 2026-02-01)` — inclusive of the first boundary, exclusive of the last. This is called the **implicit-span semantics**: a partial date specification spans the next-finer unit that isn't given.
+Every Tempo value is a **bounded interval on the time line**, not an instant. `2026-01` is not the single instant "January 2026"; it is the interval `[2026-01-01, 2026-02-01)` — inclusive of the first boundary, exclusive of the last. This is called the **implicit-span semantics**: a partial date specification spans the next-finer unit that isn't given.
 
 A single `Tempo.from_iso8601/1` call therefore always returns a bounded value, never a "partial" or "unresolved" date. This guarantees that set operations (planned: union, intersection, coalesce) can reason about every value uniformly.
 

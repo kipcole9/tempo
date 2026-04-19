@@ -6,13 +6,13 @@ title: Thinking differently about time in Elixir
 
 Elixir, in common with many (most?, all?) programming languages considers `date` and `time` to be separate structures even though time is a continuum and both `date` and `time` are different representations of the same concept.
 
-Additionally `date` and `time` are represented as a moment (or instant) in time:
+Additionally `date` and `time` are represented as an instant in time:
 
-* `date` represents a moment in time. That is, a `date` represents a unique moment on the timeline since the big bang.
+* `date` represents an instant in time. That is, a `date` represents a unique instant on the timeline since the big bang.
 
-* `time` represents a moment *within* any given `date`.  Therefore `time` is a set of moments on the universe's timeline; one moment occuring for each `date`.
+* `time` represents an instant *within* any given `date`.  Therefore `time` is a set of instants on the universe's timeline; one instant occuring for each `date`.
 
-So despite representing the same concepts - a moment in time - a `date` is a scalar and `time` is a set.
+So despite representing the same concepts - an instant in time - a `date` is a scalar and `time` is a set.
 
 ### What is a Date?
 
@@ -28,7 +28,7 @@ iex> Enum.map ~D[2021-01-01], &IO.puts/1
     (elixir 1.11.2) lib/enum.ex:3461: Enum.map/2
 ```
 
-No, `Date` is not enumerable in Elixir (and other languages). It's implemented as a scalar. It represents a moment in time with a precision of one day.
+No, `Date` is not enumerable in Elixir (and other languages). It's implemented as a scalar. It represents an instant in time with a precision of one day.
 
 ### What is a Time?
 
@@ -65,11 +65,11 @@ No, can't do that either. `Time` is also a scalar.
 
 In this short story we have considered that:
 
-1. `Date` and `Time` are representations of the same idea - moments of time. Albeit with different levels of precision (date with a precision of day and time with a precision of milliseconds..microseconds in Elixir).
+1. `Date` and `Time` are representations of the same idea - instants of time. Albeit with different levels of precision (date with a precision of day and time with a precision of milliseconds..microseconds in Elixir).
 
-2. `Date` establishes a concrete moment in time, it is anchored on the universal timeline. `Time` establishes a moment of time within any `Date` and is therefore a set of moments.
+2. `Date` establishes a concrete instant in time, it is anchored on the universal timeline. `Time` establishes an instant of time within any `Date` and is therefore a set of instants.
 
-3. `Date` and `Time` in Elixir (and other languages) are represented as moments of time. Humans are more likely to think of them as `periods of time` rather than `moments` of time.
+3. `Date` and `Time` in Elixir (and other languages) are represented as instants of time. Humans are more likely to think of them as `periods of time` rather than `instants` of time.
 
 ### Introducing Tempo
 
@@ -93,9 +93,8 @@ It's quite a large undertaking expected to take most of 2022 to complete.  On th
 
 ### References
 
-* Considering time as an interval rather than a moment is not a new idea. I recommend watching [Exploring Time by Eric Evans](https://www.youtube.com/watch?v=Zm95cYAtAa8).
+* Considering time as an interval rather than an instant is not a new idea. I recommend watching [Exploring Time by Eric Evans](https://www.youtube.com/watch?v=Zm95cYAtAa8).
 
 * Intervals in Elixir are partially implemented by [Date.Range](https://hexdocs.pm/elixir/Date.Range.html).
 
 * The excellent [calendar_interval](https://github.com/wojtekmach/calendar_interval) library by [@wojtekmach](https://twitter.com/wojtekmach?lang=en) implements calendar intervals.
-

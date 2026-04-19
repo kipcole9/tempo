@@ -79,7 +79,7 @@ defmodule Tempo.Visualizer.Assets do
 
   a.vz-brand {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     gap: 10px;
     color: var(--vz-text);
     flex-shrink: 0;
@@ -92,8 +92,11 @@ defmodule Tempo.Visualizer.Assets do
     letter-spacing: -0.01em;
   }
   .vz-logo {
-    font-size: 22px;
-    line-height: 1;
+    inline-size: 28px;
+    block-size: 28px;
+    flex-shrink: 0;
+    color: var(--vz-accent);
+    display: block;
   }
   .vz-subtitle {
     color: var(--vz-text-dim);

@@ -24,7 +24,7 @@ Add a single public function, `Tempo.to_interval/1`, that takes any `%Tempo{}` v
 * `2026` → `from: 2026-01-01, to: 2027-01-01`.
 * `2026-01-15T10` → `from: 2026-01-15T10:00, to: 2026-01-15T11:00`.
 
-The upper bound is always the next-unit boundary, never "the last moment". This lets adjacent intervals concatenate cleanly (`[a, b) ++ [b, c) == [a, c)`).
+The upper bound is always the next-unit boundary, never "the last instant". This lets adjacent intervals concatenate cleanly (`[a, b) ++ [b, c) == [a, c)`).
 
 ## Step-by-step
 

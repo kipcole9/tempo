@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Tempo — social / OG preview card.
+
+  Sized 1280×640 per GitHub's recommended social-preview
+  dimensions. Also suitable for the Hex.pm card.
+
+  Layout:
+
+  * The mark is top-aligned with the wordmark's cap-top so they
+    read as peer elements sharing a baseline at the top.
+
+  * The gap between the mark's visible right edge and the
+    wordmark's left edge is tight (≈30 units) so the pair reads
+    as one lock-up, not two drifting halves.
+
+  * Taglines stack below the wordmark, left-aligned on the
+    wordmark's inset.
+
+  The mark visible extent (accounting for round stroke caps) is
+  x=44..201, y=44..212 of its 256-unit box. The SVG origin below
+  is offset so that extent lands where we want on the 1280×640
+  canvas.
+-->
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 1280 640"
+     font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif">
+  <rect width="1280" height="640" fill="#0b0d10"/>
+
+  <!-- The mark.
+       Origin at (356, 158) so visible left edge sits at x≈400
+       and visible top edge sits at y≈202 — aligned with the
+       wordmark's cap-top, 202. -->
+  <g transform="translate(356, 158)"
+     fill="none"
+     stroke="#e5e7eb"
+     stroke-width="24"
+     stroke-linecap="round"
+     stroke-linejoin="round">
+    <path d="M 88 56 H 56 V 200 H 88"/>
+    <circle cx="128" cy="128" r="18" fill="#e5e7eb" stroke="none"/>
+    <path d="M 168 56 Q 212 128 168 200"/>
+  </g>
+
+  <!-- Wordmark: baseline y=302, 140 px font ≈ 100 px cap height,
+       so cap-top ≈ y=202 — matches the mark's visible top. -->
+  <text x="588" y="302"
+        font-size="140"
+        font-weight="700"
+        letter-spacing="-0.02em"
+        fill="#e5e7eb">Tempo</text>
+
+  <!-- Tagline. Inset to align with wordmark's optical left. -->
+  <text x="590" y="364"
+        font-size="30"
+        font-weight="500"
+        letter-spacing="0.01em"
+        fill="#9ca3af">Time is an interval, not an instant.</text>
+
+  <!-- Subtitle. -->
+  <text x="590" y="406"
+        font-size="22"
+        font-weight="400"
+        fill="#6b7280">ISO 8601 Parts 1 &amp; 2 · EDTF · IXDTF</text>
+</svg>

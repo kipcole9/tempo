@@ -67,7 +67,7 @@ defmodule Tempo.Visualizer.Render do
       "<a class=\"vz-brand\" href=\"",
       escape(base),
       "/\">",
-      "<span class=\"vz-logo\" aria-hidden=\"true\">\u231A</span>",
+      logo_svg(),
       "<h1>Tempo</h1>",
       "<span class=\"vz-subtitle\">ISO 8601 Visualizer</span>",
       "</a>",
@@ -97,5 +97,20 @@ defmodule Tempo.Visualizer.Render do
       "<a href=\"https://www.ietf.org/archive/id/draft-ietf-sedate-datetime-extended-09.html\">IXDTF</a>",
       "</div>"
     ]
+  end
+
+  # Inlined Tempo mark. `currentColor` lets it inherit the brand
+  # anchor's colour so it matches the wordmark without a separate
+  # asset round-trip.
+  defp logo_svg do
+    """
+    <svg class="vz-logo" viewBox="0 0 256 256" aria-hidden="true"
+         fill="none" stroke="currentColor" stroke-width="24"
+         stroke-linecap="round" stroke-linejoin="round">
+      <path d="M 88 56 H 56 V 200 H 88"/>
+      <circle cx="128" cy="128" r="18" fill="currentColor" stroke="none"/>
+      <path d="M 168 56 Q 212 128 168 200"/>
+    </svg>
+    """
   end
 end

@@ -2,13 +2,13 @@
 
 ## Project objective
 
-Tempo treats **date and time as intervals, not as moments**. Every value represents a bounded span on the time line, which means:
+Tempo treats **date and time as intervals, not as instants**. Every value represents a bounded span on the time line, which means:
 
 * We can **reduce and map** across intervals as first-class structures.
 
 * We can **compare** intervals using [Allen's Interval Algebra](https://ics.uci.edu/~alspaugh/cls/shr/allen.html).
 
-* We **never run the risk of invalid dates** because every value is a bounded interval — partial specifications like `2022Y` or `2022Y-11M` are intervals spanning the whole year or month, not uncertain moments.
+* We **never run the risk of invalid dates** because every value is a bounded interval — partial specifications like `2022Y` or `2022Y-11M` are intervals spanning the whole year or month, not uncertain instants.
 
 ### Next major milestone
 

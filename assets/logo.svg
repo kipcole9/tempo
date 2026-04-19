@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Tempo logo.
+
+  The half-open interval mark `[ • )` — the universal mathematical
+  notation for a bounded span that is inclusive on one end and
+  exclusive on the other. This is the core architectural
+  invariant of Tempo: every value is a bounded half-open interval.
+
+  The mark uses `currentColor` throughout so it adapts to light-
+  and dark-theme hosts (hexdocs, GitHub markdown rendering, etc.)
+  without a second SVG. For a fixed colour, override `color` on
+  the embedding element or use `logo.png` instead.
+-->
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 256 256"
+     fill="none"
+     stroke="currentColor"
+     stroke-width="24"
+     stroke-linecap="round"
+     stroke-linejoin="round"
+     aria-label="Tempo">
+  <!-- Opening bracket [ — closed end of the interval -->
+  <path d="M 88 56 H 56 V 200 H 88"/>
+
+  <!-- Value dot — a point within the interval -->
+  <circle cx="128" cy="128" r="18" fill="currentColor" stroke="none"/>
+
+  <!-- Closing parenthesis ) — open end of the interval -->
+  <path d="M 168 56 Q 212 128 168 200"/>
+</svg>

@@ -10,7 +10,20 @@ defmodule Tempo.MixProject do
       elixir: "~> 1.13",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
-      deps: deps()
+      deps: deps(),
+      docs: docs()
+    ]
+  end
+
+  defp docs do
+    [
+      main: "Tempo",
+      logo: "assets/logo.png",
+      extras: [
+        "README.md",
+        "CHANGELOG.md",
+        "guides/iso8601-conformance.md"
+      ]
     ]
   end
 
