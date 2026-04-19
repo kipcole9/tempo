@@ -108,7 +108,7 @@ defmodule Tempo do
   alias Tempo.Validation
   alias Tempo.Rounding
 
-  defstruct [:time, :shift, :calendar]
+  defstruct [:time, :shift, :calendar, :extended, :qualification]
 
   # TODO refine this to be more specific
   @type token :: integer() | list() | tuple()
@@ -128,7 +128,47 @@ defmodule Tempo do
 
   @type time_shift :: number() | nil
 
-  @type t :: %__MODULE__{time: token_list(), shift: time_shift(), calendar: Calendar.calendar() | nil}
+  @typedoc """
+  Extended information parsed from an IXDTF suffix.
+
+  * `:calendar` — calendar identifier atom derived from `u-ca=`.
+
+  * `:zone_id` — IANA time zone name such as `"Europe/Paris"`.
+
+  * `:zone_offset` — numeric offset in minutes from `[+HH:MM]`.
+
+  * `:tags` — map of non-`u-ca` elective tagged suffixes.
+
+  """
+  @type extended_info :: %{
+          calendar: atom() | nil,
+          zone_id: String.t() | nil,
+          zone_offset: integer() | nil,
+          tags: %{optional(String.t()) => [String.t()]}
+        }
+
+  @typedoc """
+  ISO 8601-2 / EDTF date qualification.
+
+  * `:uncertain` — the value is uncertain (`?`).
+
+  * `:approximate` — the value is approximate (`~`), e.g. "circa".
+
+  * `:uncertain_and_approximate` — both (`%`).
+
+  * `nil` when no qualification was supplied.
+
+  """
+  @type qualification ::
+          :uncertain | :approximate | :uncertain_and_approximate | nil
+
+  @type t :: %__MODULE__{
+          time: token_list(),
+          shift: time_shift(),
+          calendar: Calendar.calendar() | nil,
+          extended: extended_info() | nil,
+          qualification: qualification()
+        }
   @type error_reason :: atom() | binary()
 
   @doc false
@@ -148,24 +188,37 @@ defmodule Tempo do
   end
 
   @doc """
-  Creates a `t:Tempo.t/0` struct from an ISO8601
+  Creates a `t:Tempo.t/0` struct from an ISO 8601 or IXDTF
   string.
 
-  The parser supports the vast majority of [ISO8601](https://www.iso.org/iso-8601-date-and-time-format.html)
-  parts 1 and 2.
+  The parser supports the vast majority of [ISO 8601](https://www.iso.org/iso-8601-date-and-time-format.html)
+  parts 1 and 2 as well as the Internet Extended Date/Time Format
+  (IXDTF) defined in
+  [draft-ietf-sedate-datetime-extended-09](https://www.ietf.org/archive/id/draft-ietf-sedate-datetime-extended-09.html).
+
+  An IXDTF suffix follows the ISO 8601 production and consists of
+  an optional time zone (`[Europe/Paris]` or `[+08:45]`) followed
+  by zero or more tagged suffixes (`[u-ca=hebrew]`, `[_key=value]`).
+  Any bracket may be prefixed with `!` to mark it critical —
+  unrecognised critical suffixes cause the parse to fail; elective
+  suffixes are retained verbatim under `extended.tags`.
 
   ### Arguments
 
-  * `string` is any ISO8601 formatted string
+  * `string` is any ISO 8601 formatted string, optionally
+    followed by an IXDTF suffix.
 
-  * `calendar` is any `t:Calendar.t/0`. The default is
+  * `calendar` is any `t:Calendar.calendar/0`. The default is
     `Cldr.Calendar.Gregorian`.
 
   ### Returns
 
-  * `{:ok, t}` or
+  * `{:ok, t}` where the returned struct's `:extended` field
+    is populated when an IXDTF suffix was parsed, or `nil`
+    otherwise.
 
-  * `{:error, reason}`
+  * `{:error, reason}` when the string cannot be parsed or a
+    critical IXDTF suffix is unrecognised.
 
   ## Examples
 
@@ -178,16 +231,39 @@ defmodule Tempo do
       iex> Tempo.from_iso8601("invalid")
       {:error, "Expected time of day. Error detected at \\"invalid\\""}
 
+      iex> {:ok, tempo} = Tempo.from_iso8601("2022-11-20T10:30:00Z[Europe/Paris][u-ca=hebrew]")
+      iex> {tempo.extended.zone_id, tempo.extended.calendar}
+      {"Europe/Paris", :hebrew}
+
+      iex> Tempo.from_iso8601("2022-11-20T10:30:00Z[!Continent/Imaginary]")
+      {:error, "Unknown IANA time zone: \\"Continent/Imaginary\\""}
+
   """
   @spec from_iso8601(string :: String.t(), calendar :: Calendar.calendar()) ::
           {:ok, t} | {:error, error_reason()}
   def from_iso8601(string, calendar \\ Cldr.Calendar.Gregorian) do
-    with {:ok, tokens} <- Tokenizer.tokenize(string),
+    with {:ok, {tokens, extended}} <- Tokenizer.tokenize(string),
          {:ok, parsed} <- Parser.parse(tokens, calendar),
          {:ok, expanded} <- Group.expand_groups(parsed) do
-      Validation.validate(expanded, calendar)
+      case Validation.validate(expanded, calendar) do
+        {:ok, result} -> {:ok, attach_extended(result, extended)}
+        other -> other
+      end
     end
   end
+
+  @doc false
+  def attach_extended(result, nil), do: result
+
+  def attach_extended(%__MODULE__{} = tempo, extended) do
+    %{tempo | extended: extended}
+  end
+
+  def attach_extended(%Tempo.Range{} = range, extended) do
+    %{range | first: attach_extended(range.first, extended)}
+  end
+
+  def attach_extended(other, _extended), do: other
 
   @doc """
   Creates a `t:Tempo.t/0` struct from an ISO8601

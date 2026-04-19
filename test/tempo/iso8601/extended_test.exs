@@ -1,0 +1,300 @@
+defmodule Tempo.Iso8601.Extended.Test do
+  use ExUnit.Case, async: true
+
+  alias Tempo.Iso8601.Tokenizer
+
+  ## Backward compatibility — no suffix
+
+  describe "no extended suffix" do
+    test "bare RFC 3339 datetime returns nil extended info" do
+      assert {:ok, {tokens, nil}} = Tokenizer.tokenize("2022-11-20T10:30:00Z")
+
+      assert tokens == [
+               datetime: [
+                 year: 2022,
+                 month: 11,
+                 day: 20,
+                 hour: 10,
+                 minute: 30,
+                 second: 0,
+                 time_shift: [hour: 0]
+               ]
+             ]
+    end
+
+    test "bare date returns nil extended info" do
+      assert {:ok, {_tokens, nil}} = Tokenizer.tokenize("2022-11-20")
+    end
+
+    test "from_iso8601 leaves :extended field nil when no suffix" do
+      assert {:ok, tempo} = Tempo.from_iso8601("2022-11-20")
+      assert tempo.extended == nil
+    end
+  end
+
+  ## Time zone name
+
+  describe "time zone name" do
+    test "parses a valid IANA zone name" do
+      assert {:ok, {_tokens, extended}} =
+               Tokenizer.tokenize("2022-11-20T10:30:00Z[Europe/Paris]")
+
+      assert extended.zone_id == "Europe/Paris"
+      assert extended.zone_offset == nil
+      assert extended.calendar == nil
+      assert extended.tags == %{}
+    end
+
+    test "parses zone names with dots and underscores" do
+      assert {:ok, {_, extended}} =
+               Tokenizer.tokenize("2022-11-20T10:30:00Z[America/Indiana/Indianapolis]")
+
+      assert extended.zone_id == "America/Indiana/Indianapolis"
+
+      assert {:ok, {_, extended2}} =
+               Tokenizer.tokenize("2022-11-20T10:30:00Z[America/North_Dakota/Center]")
+
+      assert extended2.zone_id == "America/North_Dakota/Center"
+    end
+
+    test "parses UTC zone" do
+      assert {:ok, {_, extended}} = Tokenizer.tokenize("2022-11-20T10:30:00Z[UTC]")
+      assert extended.zone_id == "UTC"
+    end
+
+    test "critical flag on known zone is accepted" do
+      assert {:ok, {_, extended}} =
+               Tokenizer.tokenize("2022-11-20T10:30:00Z[!Europe/Paris]")
+
+      assert extended.zone_id == "Europe/Paris"
+    end
+
+    test "critical flag on unknown zone is rejected" do
+      assert {:error, msg} =
+               Tokenizer.tokenize("2022-11-20T10:30:00Z[!America/Not_A_Place]")
+
+      assert msg =~ "Unknown IANA time zone"
+    end
+
+    test "elective (non-critical) unknown zone retains tag but no zone_id" do
+      assert {:ok, {_, extended}} =
+               Tokenizer.tokenize("2022-11-20T10:30:00Z[Made/Up_Zone]")
+
+      assert extended.zone_id == nil
+      assert extended.tags["unknown_zone"] == ["Made/Up_Zone"]
+    end
+  end
+
+  ## Numeric offset
+
+  describe "numeric offset in brackets" do
+    test "positive offset in minutes" do
+      assert {:ok, {_, extended}} = Tokenizer.tokenize("2022-11-20T10:30:00Z[+08:45]")
+      assert extended.zone_offset == 8 * 60 + 45
+    end
+
+    test "negative offset in minutes" do
+      assert {:ok, {_, extended}} = Tokenizer.tokenize("2022-11-20T10:30:00Z[-03:30]")
+      assert extended.zone_offset == -(3 * 60 + 30)
+    end
+
+    test "offset without colon" do
+      assert {:ok, {_, extended}} = Tokenizer.tokenize("2022-11-20T10:30:00Z[+0530]")
+      assert extended.zone_offset == 5 * 60 + 30
+    end
+
+    test "hours only" do
+      assert {:ok, {_, extended}} = Tokenizer.tokenize("2022-11-20T10:30:00Z[+08]")
+      assert extended.zone_offset == 8 * 60
+    end
+  end
+
+  ## Calendar (u-ca)
+
+  describe "u-ca calendar tag" do
+    test "recognised calendar name" do
+      assert {:ok, {_, extended}} =
+               Tokenizer.tokenize("2022-11-20T10:30:00Z[u-ca=hebrew]")
+
+      assert extended.calendar == :hebrew
+    end
+
+    test "\"gregory\" maps to :gregorian" do
+      assert {:ok, {_, extended}} =
+               Tokenizer.tokenize("2022-11-20T10:30:00Z[u-ca=gregory]")
+
+      assert extended.calendar == :gregorian
+    end
+
+    test "persian calendar" do
+      assert {:ok, {_, extended}} =
+               Tokenizer.tokenize("2022-11-20T10:30:00Z[u-ca=persian]")
+
+      assert extended.calendar == :persian
+    end
+
+    test "critical unknown calendar is rejected" do
+      assert {:error, msg} =
+               Tokenizer.tokenize("2022-11-20T10:30:00Z[!u-ca=nonesuch]")
+
+      assert msg =~ "Unknown calendar identifier"
+    end
+
+    test "elective unknown calendar is silently ignored" do
+      assert {:ok, {_, extended}} =
+               Tokenizer.tokenize("2022-11-20T10:30:00Z[u-ca=nonesuch]")
+
+      assert extended.calendar == nil
+    end
+  end
+
+  ## Combined suffix
+
+  describe "combined suffix" do
+    test "zone + calendar" do
+      assert {:ok, {_, extended}} =
+               Tokenizer.tokenize("2022-11-20T10:30:00Z[Europe/Paris][u-ca=hebrew]")
+
+      assert extended.zone_id == "Europe/Paris"
+      assert extended.calendar == :hebrew
+    end
+
+    test "offset + calendar" do
+      assert {:ok, {_, extended}} =
+               Tokenizer.tokenize("2022-11-20T10:30:00Z[+05:30][u-ca=hebrew]")
+
+      assert extended.zone_offset == 330
+      assert extended.calendar == :hebrew
+    end
+
+    test "multiple elective tags" do
+      assert {:ok, {_, extended}} =
+               Tokenizer.tokenize("2022-11-20T10:30:00Z[_foo=bar][_baz=qux]")
+
+      assert extended.tags == %{"_foo" => ["bar"], "_baz" => ["qux"]}
+    end
+
+    test "hyphen-separated values in a tag" do
+      assert {:ok, {_, extended}} =
+               Tokenizer.tokenize("2022-11-20T10:30:00Z[_foo=bar-baz-qux]")
+
+      assert extended.tags == %{"_foo" => ["bar", "baz", "qux"]}
+    end
+
+    test "zone + critical unknown tag rejects" do
+      assert {:error, _} =
+               Tokenizer.tokenize("2022-11-20T10:30:00Z[Europe/Paris][!unknown=x]")
+    end
+
+    test "zone + elective unknown tag is kept in :tags" do
+      assert {:ok, {_, extended}} =
+               Tokenizer.tokenize("2022-11-20T10:30:00Z[Europe/Paris][unknown=x]")
+
+      assert extended.zone_id == "Europe/Paris"
+      assert extended.tags == %{"unknown" => ["x"]}
+    end
+  end
+
+  ## Critical flag (!) behaviour
+
+  describe "critical flag" do
+    test "critical tag with u-ca gregory is accepted" do
+      assert {:ok, {_, extended}} =
+               Tokenizer.tokenize("2022-11-20T10:30:00Z[!u-ca=gregory]")
+
+      assert extended.calendar == :gregorian
+    end
+
+    test "duplicate zone is rejected when critical" do
+      assert {:error, _} =
+               Tokenizer.tokenize("2022-11-20T10:30:00Z[Europe/Paris][!Europe/London]")
+    end
+
+    test "duplicate zone is ignored when elective" do
+      assert {:ok, {_, extended}} =
+               Tokenizer.tokenize("2022-11-20T10:30:00Z[Europe/Paris][Europe/London]")
+
+      # First wins, second is ignored
+      assert extended.zone_id == "Europe/Paris"
+    end
+  end
+
+  ## Tempo.from_iso8601 integration
+
+  describe "from_iso8601 integration" do
+    test "extended info attached to the Tempo struct" do
+      assert {:ok, tempo} =
+               Tempo.from_iso8601("2022-11-20T10:30:00Z[Europe/Paris][u-ca=hebrew]")
+
+      assert tempo.extended.zone_id == "Europe/Paris"
+      assert tempo.extended.calendar == :hebrew
+    end
+
+    test "error propagates for unknown critical zone" do
+      assert {:error, _} =
+               Tempo.from_iso8601("2022-11-20T10:30:00Z[!Continent/Imaginary]")
+    end
+
+    test "extended info is nil for plain ISO 8601" do
+      assert {:ok, tempo} = Tempo.from_iso8601("2022-11-20")
+      assert tempo.extended == nil
+    end
+  end
+
+  ## Invalid / malformed
+
+  describe "malformed suffix" do
+    test "unclosed bracket rejects the whole input" do
+      assert {:error, _} = Tokenizer.tokenize("2022-11-20T10:30:00Z[Europe/Paris")
+    end
+
+    test "empty brackets rejects the whole input" do
+      assert {:error, _} = Tokenizer.tokenize("2022-11-20T10:30:00Z[]")
+    end
+
+    test "invalid key character rejects the whole input" do
+      # key must start with lowercase or underscore
+      assert {:error, _} = Tokenizer.tokenize("2022-11-20T10:30:00Z[U-CA=gregory]")
+    end
+
+    test "invalid value character rejects the whole input" do
+      # values must be alphanumeric
+      assert {:error, _} = Tokenizer.tokenize("2022-11-20T10:30:00Z[u-ca=hello!]")
+    end
+  end
+
+  ## Examples taken verbatim from draft-ietf-sedate-datetime-extended-09
+
+  describe "draft examples" do
+    test "1996-12-19T16:39:57-08:00[America/Los_Angeles]" do
+      assert {:ok, {_, extended}} =
+               Tokenizer.tokenize("1996-12-19T16:39:57-08:00[America/Los_Angeles]")
+
+      assert extended.zone_id == "America/Los_Angeles"
+    end
+
+    test "1996-12-19T16:39:57-08:00[America/Los_Angeles][u-ca=hebrew]" do
+      assert {:ok, {_, extended}} =
+               Tokenizer.tokenize(
+                 "1996-12-19T16:39:57-08:00[America/Los_Angeles][u-ca=hebrew]"
+               )
+
+      assert extended.zone_id == "America/Los_Angeles"
+      assert extended.calendar == :hebrew
+    end
+
+    test "2022-07-08T00:14:07Z[Europe/London]" do
+      assert {:ok, {_, extended}} =
+               Tokenizer.tokenize("2022-07-08T00:14:07Z[Europe/London]")
+
+      assert extended.zone_id == "Europe/London"
+    end
+
+    test "1996-12-19T16:39:57-08:00[_foo=bar][_baz=bat]" do
+      assert {:ok, {_, extended}} =
+               Tokenizer.tokenize("1996-12-19T16:39:57-08:00[_foo=bar][_baz=bat]")
+
+      assert extended.tags == %{"_foo" => ["bar"], "_baz" => ["bat"]}
+    end
+  end
+end

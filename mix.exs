@@ -16,7 +16,7 @@ defmodule Tempo.MixProject do
 
   def application do
     [
-      extra_applications: [:logger, :inets]
+      extra_applications: [:logger, :inets, :tzdata, :localize]
     ]
   end
 
@@ -25,6 +25,8 @@ defmodule Tempo.MixProject do
       {:nimble_parsec, "~> 1.0"},
       {:ex_cldr_calendars, "~> 1.23"},
       {:astro, "~> 0.10"},
+      {:localize, path: "../localize/localize"},
+      {:tzdata, "~> 1.1"},
       {:ex_doc, "~> 0.21", runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
     ]

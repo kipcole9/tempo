@@ -5,8 +5,7 @@ defmodule Tempo.Parser.Duration.Test do
 
   test "Alternate duration format section 5.5.2.4" do
     assert Tokenizer.tokenize("P00020110T223355") ==
-             {:ok,
-              [
+             {:ok, {[
                 duration: [
                   datetime: [
                     year: 2,
@@ -17,11 +16,10 @@ defmodule Tempo.Parser.Duration.Test do
                     second: 55
                   ]
                 ]
-              ]}
+              ], nil}}
 
     assert Tokenizer.tokenize("P0002-01-10T22:33:55") ==
-             {:ok,
-              [
+             {:ok, {[
                 duration: [
                   datetime: [
                     year: 2,
@@ -32,13 +30,13 @@ defmodule Tempo.Parser.Duration.Test do
                     second: 55
                   ]
                 ]
-              ]}
+              ], nil}}
   end
 
   test "Negative durations section 4.4.1.9" do
-    assert Tokenizer.tokenize("-P100D") == {:ok, [duration: [direction: :negative, day: 100]]}
+    assert Tokenizer.tokenize("-P100D") == {:ok, {[duration: [direction: :negative, day: 100]], nil}}
 
     assert Tokenizer.tokenize("-P1Y3D") ==
-             {:ok, [duration: [direction: :negative, year: 1, day: 3]]}
+             {:ok, {[duration: [direction: :negative, year: 1, day: 3]], nil}}
   end
 end

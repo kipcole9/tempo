@@ -17,9 +17,11 @@ defmodule Tempo.Validation do
   def validate(tempo, calendar \\ Cldr.Calendar.Gregorian)
 
   def validate(%Tempo{time: units} = tempo, calendar) do
-    case resolve(units, calendar) do
-      {:error, reason} -> {:error, reason}
-      other -> {:ok, %{tempo | time: other}}
+    with :ok <- validate_leap_second(units, tempo) do
+      case resolve(units, calendar) do
+        {:error, reason} -> {:error, reason}
+        other -> {:ok, %{tempo | time: other}}
+      end
     end
   end
 
@@ -438,12 +440,36 @@ defmodule Tempo.Validation do
     end
   end
 
-  def resolve([{unit, requested} | rest], calendar)
-      when unit in [:minute, :second] and is_integer(requested) do
+  def resolve([{:minute, requested} | rest], calendar) when is_integer(requested) do
     with {:ok, part} <- conform(requested, 0..(@minutes_per_hour - 1)) do
       case resolve(rest, calendar) do
         {:error, reason} -> {:error, reason}
-        resolved -> [{unit, part} | resolved]
+        resolved -> [{:minute, part} | resolved]
+      end
+    end
+  end
+
+  # Negative seconds wrap using a 0..59 range (the end-of-minute
+  # reference is 59, not 60 — `-1` means "one before the end",
+  # which is 59, not the leap-second 60).
+  def resolve([{:second, requested} | rest], calendar)
+      when is_integer(requested) and requested < 0 do
+    with {:ok, part} <- conform(requested, 0..(@minutes_per_hour - 1)) do
+      case resolve(rest, calendar) do
+        {:error, reason} -> {:error, reason}
+        resolved -> [{:second, part} | resolved]
+      end
+    end
+  end
+
+  # Positive seconds may take the value 60 for a leap second. The
+  # context (hour = 23, minute = 59, and — if present — the calendar
+  # date) is checked by `validate_leap_second/2` before we get here.
+  def resolve([{:second, requested} | rest], calendar) when is_integer(requested) do
+    with {:ok, part} <- conform(requested, 0..@minutes_per_hour) do
+      case resolve(rest, calendar) do
+        {:error, reason} -> {:error, reason}
+        resolved -> [{:second, part} | resolved]
       end
     end
   end
@@ -585,5 +611,72 @@ defmodule Tempo.Validation do
     {:error,
      "#{inspect(value)} is not valid. The normalized value of #{inspect(normalized)} " <>
        "is outside the range #{inspect(range)}"}
+  end
+
+  ## Leap-second validation
+
+  # A `second = 60` is the ISO 8601 leap-second value. It is only valid
+  # when:
+  #
+  # * The minute is 59 and the hour is 23 (immediately before the UTC
+  #   day boundary).
+  #
+  # * If the calendar date is known, it must be 30 June or 31 December
+  #   (the only two dates on which UTC announces leap seconds).
+  #
+  # * If a time-zone offset is present, it must resolve to the UTC
+  #   instant at the day boundary. In practice we require the offset
+  #   to be zero when the date is specified; without a date we accept
+  #   any offset because the caller is describing a repeating local
+  #   time.
+  defp validate_leap_second(units, tempo) when is_list(units) do
+    case List.keyfind(units, :second, 0) do
+      {:second, 60} ->
+        validate_leap_second_context(units, tempo)
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp validate_leap_second(_units, _tempo), do: :ok
+
+  defp validate_leap_second_context(units, %{shift: shift}) do
+    hour = fetch_unit(units, :hour)
+    minute = fetch_unit(units, :minute)
+    month = fetch_unit(units, :month)
+    day = fetch_unit(units, :day)
+
+    cond do
+      hour not in [nil, 23] ->
+        {:error, "A second value of 60 (leap second) is only valid at 23:59 UTC"}
+
+      minute not in [nil, 59] ->
+        {:error, "A second value of 60 (leap second) is only valid at 23:59 UTC"}
+
+      is_integer(month) and {month, day} not in [{6, 30}, {12, 31}, {6, nil}, {12, nil}] ->
+        {:error,
+         "A second value of 60 (leap second) is only valid on 30 June or 31 December"}
+
+      is_list(shift) and leap_offset_nonzero?(shift) ->
+        {:error,
+         "A second value of 60 (leap second) is only valid with a UTC time-zone offset"}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp fetch_unit(units, unit) do
+    case List.keyfind(units, unit, 0) do
+      {^unit, value} -> value
+      _ -> nil
+    end
+  end
+
+  defp leap_offset_nonzero?(shift) when is_list(shift) do
+    hour = fetch_unit(shift, :hour) || 0
+    minute = fetch_unit(shift, :minute) || 0
+    hour != 0 or minute != 0
   end
 end

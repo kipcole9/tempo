@@ -2,6 +2,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
   import NimbleParsec
   import Tempo.Iso8601.Tokenizer.Numbers
   import Tempo.Iso8601.Tokenizer.Helpers
+  import Tempo.Iso8601.Tokenizer.Extended, only: [extended_suffix: 0]
 
   # NOTES
 
@@ -14,6 +15,8 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
       interval_or_time_or_duration(),
       parsec(:set)
     ])
+    |> optional(qualification())
+    |> optional(extended_suffix())
     |> label("ISO8601 interval, duration, date, time or datetime")
   end
 

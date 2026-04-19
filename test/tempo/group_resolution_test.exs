@@ -33,10 +33,21 @@ defmodule Tempo.GroupResolution.Test do
              {:error, "480 is not valid. The valid values are 240..479"}
   end
 
-  test "Seasons expanded to groups" do
-    assert ~o"2022Y25M" == ~o"2022Y3M/2022Y5M"
-    assert ~o"2022Y26M" == ~o"2022Y6M/2022Y8M"
-    assert ~o"2022Y27M" == ~o"2022Y9M/2022Y11M"
-    assert ~o"2022Y28M" == ~o"2021Y12M/2022Y2M"
+  test "Astronomical seasons (25-32) expand to equinox/solstice-bounded intervals" do
+    # Codes 25-28 are Northern hemisphere astronomical seasons.
+    # Boundaries come from Astro.equinox/2 and Astro.solstice/2.
+    assert ~o"2022Y25M" == ~o"2022Y3M20D/2022Y6M21D"
+    assert ~o"2022Y26M" == ~o"2022Y6M21D/2022Y9M23D"
+    assert ~o"2022Y27M" == ~o"2022Y9M23D/2022Y12M21D"
+    assert ~o"2022Y28M" == ~o"2022Y12M21D/2023Y3M20D"
+  end
+
+  test "Meteorological seasons (21-24) expand to calendar months" do
+    # Codes 21-24 are hemisphere-unspecified; we default to Northern
+    # meteorological boundaries as a conventional interpretation.
+    assert ~o"2022Y21M" == ~o"2022Y3M/2022Y5M"
+    assert ~o"2022Y22M" == ~o"2022Y6M/2022Y8M"
+    assert ~o"2022Y23M" == ~o"2022Y9M/2022Y11M"
+    assert ~o"2022Y24M" == ~o"2021Y12M/2022Y2M"
   end
 end

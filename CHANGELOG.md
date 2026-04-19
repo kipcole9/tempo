@@ -1,5 +1,31 @@
 # Changelog 
 
+## Tempo v0.2.0 (unreleased)
+
+### Enhancements
+
+* Support the Internet Extended Date/Time Format (IXDTF) as defined in [draft-ietf-sedate-datetime-extended-09](https://www.ietf.org/archive/id/draft-ietf-sedate-datetime-extended-09.html). An optional suffix such as `[Europe/Paris][u-ca=hebrew]` may follow an ISO 8601 datetime. Time zones are validated against `Tzdata` and calendars are validated against `Localize.validate_calendar/1`. The critical flag (`!`) is honoured — unknown critical segments cause the parse to fail while unknown elective segments are retained on the struct's new `:extended` field.
+
+* Add an `:extended` field to `%Tempo{}` holding `%{calendar:, zone_id:, zone_offset:, tags:}` parsed from the IXDTF suffix (or `nil` when no suffix is present).
+
+* `Tempo.Iso8601.Tokenizer.tokenize/1` now returns `{:ok, {tokens, extended_info}}` where `extended_info` is either `nil` or the parsed IXDTF map.
+
+* **Astronomical seasons.** ISO 8601-2 season codes 25–28 (Northern) and 29–32 (Southern) now expand to intervals bounded by the relevant March/September equinox and June/December solstice as computed by the `Astro` library. Codes 21–24 remain meteorological calendar approximations.
+
+* **Leap-second validation.** ISO 8601 permits `second = 60` as a positive leap second. Tempo now accepts it only when the minute is 59, the hour is 23, the calendar date (if present) is 30 June or 31 December, and any time-zone offset is zero. All other uses of `second = 60` are rejected.
+
+* **ISO 8601-2 / EDTF qualification operators.** Expression-level `?` (uncertain), `~` (approximate) and `%` (both) are now parsed. The parsed qualification is carried on the new `:qualification` field of `%Tempo{}`; the bounded interval semantics of the value are unchanged.
+
+* **EDTF conformance corpus.** 200+ valid and invalid strings from the `unt-libraries/edtf-validate` corpus (BSD-3-Clause) are now exercised as ExUnit tests. Features not yet supported — component-level qualification, unspecified digits in dates, open-ended intervals, and significant-digit annotations — are tracked as a known-failures list in `test/tempo/iso8601/edtf_corpus_test.exs` rather than silently skipped.
+
+* Reduce parser compile time by ~85% (from ~190s to ~28s) and generated BEAM size by ~61% by converting high-fanout NimbleParsec combinators to `defparsecp` function boundaries. No runtime performance regression.
+
+### Bug Fixes
+
+* Fix compiler warnings around `%NaiveDateTime{}` struct updates and unreachable clauses in the set enumerable protocol.
+
+* Fix a range of Dialyzer warnings, including incorrect `@type time_unit` (was a list type, now a union of atoms), missing `nil` in struct field types, a `Calendat.t()` typo, and specs that did not include `{:error, _}` returns for `Tempo.trunc/2` and `Tempo.round/2`.
+
 ## Tempo v0.1.0
 
 This is the changelog for Tempo v0.1.0 released on _____ 2023.  For older changelogs please consult the release tag on [GitHub](https://github.com/elixir-cldr/cldr/tags)

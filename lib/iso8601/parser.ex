@@ -4,14 +4,55 @@ defmodule Tempo.Iso8601.Parser do
   alias Tempo.Iso8601.Unit
 
   def parse(tokens, calendar) do
+    {qualification, tokens} = pop_qualification(tokens)
+
     tokens
     |> parse()
     |> put_calendar(calendar)
+    |> put_qualification(qualification)
     |> wrap(:ok)
   rescue
     e in Tempo.ParseError ->
       {:error, e.message}
   end
+
+  # Handles the case where the tokenizer attached a top-level
+  # `{:qualification, _}` tuple after the main expression. Returns
+  # `{qualification | nil, tokens_without_qualification}`.
+  defp pop_qualification(tokens) when is_list(tokens) do
+    case List.keytake(tokens, :qualification, 0) do
+      {{:qualification, q}, rest} -> {q, rest}
+      nil -> {nil, tokens}
+    end
+  end
+
+  defp pop_qualification(tokens), do: {nil, tokens}
+
+  defp put_qualification(nil, _qualification), do: nil
+  defp put_qualification(result, nil), do: result
+
+  defp put_qualification(%Tempo{} = tempo, qualification) do
+    %{tempo | qualification: qualification}
+  end
+
+  defp put_qualification(%Tempo.Interval{} = interval, qualification) do
+    # Attach the qualification to both endpoints so that every
+    # sub-value carries it. Callers who care about the aggregate
+    # qualification can read it off either endpoint.
+    %{
+      interval
+      | from: put_qualification(interval.from, qualification),
+        to: put_qualification(interval.to, qualification)
+    }
+  end
+
+  defp put_qualification(%Tempo.Set{set: set} = s, qualification) do
+    %{s | set: Enum.map(set, &put_qualification(&1, qualification))}
+  end
+
+  defp put_qualification(%Tempo.Duration{} = duration, _qualification), do: duration
+
+  defp put_qualification(other, _qualification), do: other
 
   def parse([{type, tokens}]) when type in [:date, :time_of_day, :datetime] do
     with parsed <- parse_date(tokens) do

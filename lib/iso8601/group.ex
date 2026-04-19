@@ -67,62 +67,60 @@ defmodule Tempo.Iso8601.Group do
     end
   end
 
-  # Seasons:  These are meteorological seasons, not
-  # astronomical
+  # Seasons (ISO 8601-2 Part 2, Table 2)
+  #
+  # Codes 25-32 are **astronomical** seasons: the boundaries are the
+  # March and September equinoxes and the June and December solstices
+  # as computed by the `Astro` library (accurate to ~2 minutes for
+  # years 1000..3000 CE).
+  #
+  # * 25 = Spring (Northern) / 31 = Autumn (Southern) — March equinox → June solstice
+  # * 26 = Summer (Northern) / 32 = Winter (Southern) — June solstice → September equinox
+  # * 27 = Autumn (Northern) / 29 = Spring (Southern) — September equinox → December solstice
+  # * 28 = Winter (Northern) / 30 = Summer (Southern) — December solstice (year Y) → March equinox (year Y+1)
+  #
+  # Codes 21-24 are generic (hemisphere-unspecified) seasons and are
+  # handled separately as meteorological approximations; see the
+  # clauses below.
 
-  # TODO implement astronomical seasons as an option
-
-  # Northern Spring March-May
-  # Southern Autumn - March-May
-  def expand_groups([{:year, year}, {:month, month} | rest], calendar) when month in [25, 31] do
-    {:ok, interval} =
-      [
-        interval: [
-          datetime: [{:year, year}, {:month, 3} | rest],
-          datetime: [{:year, year}, {:month, 5} | rest]
-        ]
-      ]
-      |> Tempo.Iso8601.Parser.parse()
-      |> Tempo.Iso8601.Group.expand_groups(calendar)
-
-    interval
+  def expand_groups([{:year, year}, {:month, month} | rest], calendar)
+      when is_integer(year) and month in [25, 31] do
+    astronomical_season(year, rest, calendar, :march, :june)
   end
 
-  # Northern Summer June-August
-  # Southern Winter - June-August
-  def expand_groups([{:year, year}, {:month, month} | rest], calendar) when month in [26, 32] do
-    {:ok, interval} =
-      [
-        interval: [
-          datetime: [{:year, year}, {:month, 6} | rest],
-          datetime: [{:year, year}, {:month, 8} | rest]
-        ]
-      ]
-      |> Tempo.Iso8601.Parser.parse()
-      |> Tempo.Iso8601.Group.expand_groups(calendar)
-
-    interval
+  def expand_groups([{:year, year}, {:month, month} | rest], calendar)
+      when is_integer(year) and month in [26, 32] do
+    astronomical_season(year, rest, calendar, :june, :september)
   end
 
-  # Northern Autumn September-November
-  # Southern Spring - September-November
-  def expand_groups([{:year, year}, {:month, month} | rest], calendar) when month in [27, 29] do
-    {:ok, interval} =
-      [
-        interval: [
-          datetime: [{:year, year}, {:month, 9} | rest],
-          datetime: [{:year, year}, {:month, 11} | rest]
-        ]
-      ]
-      |> Tempo.Iso8601.Parser.parse()
-      |> Tempo.Iso8601.Group.expand_groups(calendar)
-
-    interval
+  def expand_groups([{:year, year}, {:month, month} | rest], calendar)
+      when is_integer(year) and month in [27, 29] do
+    astronomical_season(year, rest, calendar, :september, :december)
   end
 
-  # Northern Winter Jan-Feb and December (of the previous year)
-  # Southern Summer - December, January-February (of the next year)
-  def expand_groups([{:year, year}, {:month, month} | rest], calendar) when month in [28, 30] do
+  def expand_groups([{:year, year}, {:month, month} | rest], calendar)
+      when is_integer(year) and month in [28, 30] do
+    astronomical_season(year, rest, calendar, :december, :march_next)
+  end
+
+  # Meteorological seasons 21-24 (hemisphere-unspecified — we default to
+  # Northern hemisphere meteorological boundaries as a conventional
+  # interpretation).
+
+  def expand_groups([{:year, year}, {:month, 21} | rest], calendar) do
+    meteorological_season(year, rest, calendar, 3, 5)
+  end
+
+  def expand_groups([{:year, year}, {:month, 22} | rest], calendar) do
+    meteorological_season(year, rest, calendar, 6, 8)
+  end
+
+  def expand_groups([{:year, year}, {:month, 23} | rest], calendar) do
+    meteorological_season(year, rest, calendar, 9, 11)
+  end
+
+  def expand_groups([{:year, year}, {:month, 24} | rest], calendar) do
+    # Winter: December of previous year through February of this year.
     {:ok, interval} =
       [
         interval: [
@@ -214,5 +212,64 @@ defmodule Tempo.Iso8601.Group do
 
   def expand_groups(other, _calendar) do
     other
+  end
+
+  ## Season helpers
+
+  # Expand an astronomical season into an interval whose boundaries
+  # are the relevant equinox or solstice dates. The boundaries are
+  # inclusive on the lower end and exclusive on the upper end
+  # (matching the half-open `[first, last)` convention).
+  defp astronomical_season(year, rest, calendar, start_event, :march_next) do
+    start_date = season_boundary_date(year, start_event)
+    end_date = season_boundary_date(year + 1, :march)
+
+    build_season_interval(start_date, end_date, rest, calendar)
+  end
+
+  defp astronomical_season(year, rest, calendar, start_event, end_event) do
+    start_date = season_boundary_date(year, start_event)
+    end_date = season_boundary_date(year, end_event)
+
+    build_season_interval(start_date, end_date, rest, calendar)
+  end
+
+  defp season_boundary_date(year, event) when event in [:march, :september] do
+    {:ok, datetime} = Astro.equinox(year, event)
+    DateTime.to_date(datetime)
+  end
+
+  defp season_boundary_date(year, event) when event in [:june, :december] do
+    {:ok, datetime} = Astro.solstice(year, event)
+    DateTime.to_date(datetime)
+  end
+
+  defp build_season_interval(%Date{} = start_date, %Date{} = end_date, rest, calendar) do
+    {:ok, interval} =
+      [
+        interval: [
+          datetime:
+            [{:year, start_date.year}, {:month, start_date.month}, {:day, start_date.day} | rest],
+          datetime: [{:year, end_date.year}, {:month, end_date.month}, {:day, end_date.day} | rest]
+        ]
+      ]
+      |> Tempo.Iso8601.Parser.parse()
+      |> Tempo.Iso8601.Group.expand_groups(calendar)
+
+    interval
+  end
+
+  defp meteorological_season(year, rest, calendar, start_month, end_month) do
+    {:ok, interval} =
+      [
+        interval: [
+          datetime: [{:year, year}, {:month, start_month} | rest],
+          datetime: [{:year, year}, {:month, end_month} | rest]
+        ]
+      ]
+      |> Tempo.Iso8601.Parser.parse()
+      |> Tempo.Iso8601.Group.expand_groups(calendar)
+
+    interval
   end
 end

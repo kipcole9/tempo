@@ -1,9 +1,44 @@
 defmodule Tempo.Iso8601.Tokenizer do
+  @moduledoc """
+  Tokenizes an ISO 8601 (parts 1 and 2) or IXDTF string into a
+  list of tagged tokens that the `Tempo.Iso8601.Parser` then
+  converts into a `t:Tempo.t/0` struct.
+
+  `tokenize/1` returns a 2-tuple `{tokens, extended_info}` where
+  `extended_info` is either `nil` or a map of parsed
+  [IXDTF](https://www.ietf.org/archive/id/draft-ietf-sedate-datetime-extended-09.html)
+  suffix information.  See `Tempo.Iso8601.Tokenizer.Extended` for
+  the shape of the extended map.
+
+  """
+
   import NimbleParsec
   import Tempo.Iso8601.Tokenizer.Numbers
   import Tempo.Iso8601.Tokenizer.Grammar
   import Tempo.Iso8601.Tokenizer.Helpers
 
+  alias Tempo.Iso8601.Tokenizer.Extended
+
+  @doc """
+  Tokenize an ISO 8601 or IXDTF string.
+
+  ### Arguments
+
+  * `string` is any ISO 8601 formatted string, optionally with an
+    [IXDTF](https://www.ietf.org/archive/id/draft-ietf-sedate-datetime-extended-09.html)
+    suffix (such as `[Europe/Paris][u-ca=hebrew]`).
+
+  ### Returns
+
+  * `{:ok, {tokens, extended_info}}` where `tokens` is the list of
+    ISO 8601 tokens produced by the parser and `extended_info` is
+    either `nil` (when no IXDTF suffix was present) or a map with
+    keys `:calendar`, `:zone_id`, `:zone_offset` and `:tags`.
+
+  * `{:error, reason}` when the string cannot be parsed or a
+    critical IXDTF suffix is unrecognised.
+
+  """
   def tokenize(string) do
     string
     |> iso8601()
@@ -13,7 +48,7 @@ defmodule Tempo.Iso8601.Tokenizer do
   defp return(result, string) do
     case result do
       {:ok, tokens, "", %{}, {_, _}, _} ->
-        {:ok, tokens}
+        Extended.split_extended(tokens)
 
       {:ok, _tokens, remaining, _, {_line, _}, _char} ->
         {:error, "Could not parse #{inspect(string)}. Error detected at #{inspect(remaining)}"}

@@ -87,6 +87,24 @@ defmodule Tempo.Iso8601.Tokenizer.Helpers do
     rule
   end
 
+  @doc """
+  ISO 8601-2 / EDTF qualification suffix.
+
+  `?` marks a date as **uncertain** (the value is a best guess).
+  `~` marks it as **approximate** (the value is approximately correct,
+  e.g. "circa 1850").  `%` marks both.
+
+  """
+  def qualification(combinator \\ empty()) do
+    combinator
+    |> choice([
+      replace(string("?"), :uncertain),
+      replace(string("~"), :approximate),
+      replace(string("%"), :uncertain_and_approximate)
+    ])
+    |> unwrap_and_tag(:qualification)
+  end
+
   # Some calendars have 13 months
   # Seasons are recognised as months 21..32 so we have to allow them
   # Quarters are recognised as months 33..36 so we have to allow them
