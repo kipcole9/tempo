@@ -172,6 +172,83 @@ defmodule Tempo.Inspect do
     [open(type), elements, close(type)]
   end
 
+  # Intervals with a nil `from` are produced by callers that build
+  # the struct directly without an anchor (e.g. the RRule parser
+  # for a rule without DTSTART). These clauses come *before* the
+  # generic repeat-rule clauses below so the nil case is matched
+  # first — otherwise those clauses would bind `from: from` to
+  # `nil` and then crash on `from.time`.
+  defp inspect_value(%Tempo.Interval{
+         recurrence: recurrence,
+         from: nil,
+         to: nil,
+         duration: %Tempo.Duration{} = duration,
+         repeat_rule: nil
+       }) do
+    [?R, recurrence(recurrence), ?/, "..", ?/, inspect_value(duration)]
+  end
+
+  defp inspect_value(%Tempo.Interval{
+         recurrence: recurrence,
+         from: nil,
+         to: %Tempo{} = to,
+         duration: %Tempo.Duration{} = duration,
+         repeat_rule: nil
+       }) do
+    [
+      ?R,
+      recurrence(recurrence),
+      ?/,
+      "..",
+      ?/,
+      inspect_value(to.time),
+      ?/,
+      inspect_value(duration)
+    ]
+  end
+
+  defp inspect_value(%Tempo.Interval{
+         recurrence: recurrence,
+         from: nil,
+         to: nil,
+         duration: %Tempo.Duration{} = duration,
+         repeat_rule: %Tempo{time: rule_time}
+       }) do
+    [
+      ?R,
+      recurrence(recurrence),
+      ?/,
+      "..",
+      ?/,
+      inspect_value(duration),
+      ?/,
+      ?F,
+      inspect_value(rule_time)
+    ]
+  end
+
+  defp inspect_value(%Tempo.Interval{
+         recurrence: recurrence,
+         from: nil,
+         to: %Tempo{} = to,
+         duration: %Tempo.Duration{} = duration,
+         repeat_rule: %Tempo{time: rule_time}
+       }) do
+    [
+      ?R,
+      recurrence(recurrence),
+      ?/,
+      "..",
+      ?/,
+      inspect_value(to.time),
+      ?/,
+      inspect_value(duration),
+      ?/,
+      ?F,
+      inspect_value(rule_time)
+    ]
+  end
+
   defp inspect_value(%Tempo.Interval{
          recurrence: recurrence,
          from: from,
@@ -245,6 +322,19 @@ defmodule Tempo.Inspect do
 
   defp inspect_value(%Tempo.Interval{recurrence: 1, from: from, to: nil, duration: duration}) do
     [inspect_value(from.time), ?/, inspect_value(duration)]
+  end
+
+  # Duration-first: `P1D/2022-01-01` — a bounded-end interval
+  # whose start is derived from the duration. The tokenizer
+  # models this with `from: :undefined` so the endpoint is shown
+  # as `..` for consistency with half-open notation.
+  defp inspect_value(%Tempo.Interval{
+         recurrence: 1,
+         from: :undefined,
+         to: %Tempo{} = to,
+         duration: %Tempo.Duration{} = duration
+       }) do
+    [inspect_value(duration), ?/, inspect_value(to.time)]
   end
 
   defp inspect_value(%Tempo.Interval{
