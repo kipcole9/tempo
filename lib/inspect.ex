@@ -6,17 +6,17 @@ defmodule Tempo.Inspect do
   @from_iso8601 "Tempo.from_iso8601!(\""
   @sigil_o "~o\""
 
-  def inspect(%Tempo{calendar: Cldr.Calendar.Gregorian} = tempo) do
+  def inspect(%Tempo{calendar: Calendrical.Gregorian} = tempo) do
     [@sigil_o, inspect_value(tempo), ?"]
     |> :erlang.iolist_to_binary()
   end
 
-  def inspect(%Tempo{calendar: Cldr.Calendar.ISOWeek} = tempo) do
+  def inspect(%Tempo{calendar: Calendrical.ISOWeek} = tempo) do
     [@sigil_o, inspect_value(tempo), ?", ?W]
     |> :erlang.iolist_to_binary()
   end
 
-  # For when the calendar isn't Calendar.ISO or Cldr.Calendar.Gregorian
+  # For when the calendar isn't Calendar.ISO or Calendrical.Gregorian
   def inspect(%Tempo{calendar: calendar} = tempo) do
     [@from_iso8601, inspect_value(tempo), "\", ", Kernel.inspect(calendar), ?)]
     |> :erlang.iolist_to_binary()

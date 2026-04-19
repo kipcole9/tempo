@@ -23,9 +23,9 @@ defmodule Tempo.MixProject do
   defp deps do
     [
       {:nimble_parsec, "~> 1.0"},
-      {:ex_cldr_calendars, "~> 1.23"},
-      {:astro, "~> 0.10"},
-      {:localize, path: "../localize/localize"},
+      {:calendrical, "~> 0.2"},
+      {:astro, "~> 2.0"},
+      {:localize, path: "../localize/localize", override: true},
       {:tzdata, "~> 1.1"},
       {:ex_doc, "~> 0.21", runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}

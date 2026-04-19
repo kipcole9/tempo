@@ -14,7 +14,7 @@ defmodule Tempo.Validation do
   @minutes_per_hour 60
   @rounding_precision 10
 
-  def validate(tempo, calendar \\ Cldr.Calendar.Gregorian)
+  def validate(tempo, calendar \\ Calendrical.Gregorian)
 
   def validate(%Tempo{time: units} = tempo, calendar) do
     with :ok <- validate_leap_second(units, tempo) do
@@ -144,7 +144,7 @@ defmodule Tempo.Validation do
 
     with {:ok, day_of_year} <- conform(day_of_year, 1..days_in_year) do
       %{year: year, month: month, day: day} =
-        Cldr.Calendar.date_from_day_of_year(year, day_of_year, calendar)
+        Calendrical.date_from_day_of_year(year, day_of_year, calendar)
 
       resolve([{:year, year}, {:month, month}, {:day, day} | rest], calendar)
     end
@@ -162,7 +162,7 @@ defmodule Tempo.Validation do
 
     if first in 1..days_in_year and day <= last do
       %{year: year, month: month, day: day} =
-        Cldr.Calendar.date_from_day_of_year(year, day, calendar)
+        Calendrical.date_from_day_of_year(year, day, calendar)
 
       resolve([{:year, year}, {:month, month}, {:day, day} | rest], calendar)
     else
@@ -187,7 +187,7 @@ defmodule Tempo.Validation do
       hour = rem(hour, @hours_per_day)
 
       %{year: year, month: month, day: day} =
-        Cldr.Calendar.date_from_day_of_year(year, day, calendar)
+        Calendrical.date_from_day_of_year(year, day, calendar)
 
       resolve([{:year, year}, {:month, month}, {:day, day}, {:hour, hour} | rest], calendar)
     end
@@ -330,7 +330,7 @@ defmodule Tempo.Validation do
     if fraction_of_year == 0 do
       resolve([{:year, int_year}], calendar)
     else
-      days = Cldr.Math.round(days_in_year * fraction_of_year, @rounding_precision)
+      days = Localize.Utils.Math.round(days_in_year * fraction_of_year, @rounding_precision)
       days = if trunc(days) == days, do: trunc(days), else: days
       resolve([{:year, int_year}, {:day, days}], calendar)
     end
@@ -345,7 +345,7 @@ defmodule Tempo.Validation do
     if fraction_of_month == 0 do
       resolve([{:year, year}, {:month, int_month}], calendar)
     else
-      days = Cldr.Math.round(days_in_month * fraction_of_month, @rounding_precision)
+      days = Localize.Utils.Math.round(days_in_month * fraction_of_month, @rounding_precision)
       days = if trunc(days) == days, do: trunc(days), else: days
       resolve([{:year, year}, {:month, int_month}, {:day, days}], calendar)
     end
@@ -359,7 +359,7 @@ defmodule Tempo.Validation do
     if fraction_of_day == 0 do
       resolve([{:year, year}, {:day, int_day}], calendar)
     else
-      hours = Cldr.Math.round(@hours_per_day * fraction_of_day, @rounding_precision)
+      hours = Localize.Utils.Math.round(@hours_per_day * fraction_of_day, @rounding_precision)
       hours = if trunc(hours) == hours, do: trunc(hours), else: hours
       resolve([{:year, year}, {:day, int_day}, {:hour, hours}], calendar)
     end
@@ -372,7 +372,7 @@ defmodule Tempo.Validation do
     if fraction_of_day == 0 do
       [{:day, int_day}]
     else
-      hours = Cldr.Math.round(@hours_per_day * fraction_of_day, @rounding_precision)
+      hours = Localize.Utils.Math.round(@hours_per_day * fraction_of_day, @rounding_precision)
       hours = if trunc(hours) == hours, do: trunc(hours), else: hours
       resolve([{:day, int_day}, {:hour, hours}], calendar)
     end
@@ -385,7 +385,7 @@ defmodule Tempo.Validation do
     if fraction_of_hour == 0 do
       [{:hour, int_hour}]
     else
-      minutes = Cldr.Math.round(60 * fraction_of_hour, @rounding_precision)
+      minutes = Localize.Utils.Math.round(60 * fraction_of_hour, @rounding_precision)
       minutes = if trunc(minutes) == minutes, do: trunc(minutes), else: minutes
       [{:hour, int_hour}, {:minute, minutes}]
     end
@@ -398,7 +398,7 @@ defmodule Tempo.Validation do
     if fraction_of_minute == 0 do
       [{:minute, int_minute}]
     else
-      seconds = Cldr.Math.round(60 * fraction_of_minute, @rounding_precision)
+      seconds = Localize.Utils.Math.round(60 * fraction_of_minute, @rounding_precision)
       seconds = if trunc(seconds) == seconds, do: trunc(seconds), else: seconds
       [{:minute, int_minute}, {:second, seconds}]
     end
@@ -492,7 +492,7 @@ defmodule Tempo.Validation do
 
     if day <= days_in_last_week do
       %Date.Range{first: start_of_week} = calendar.week(year, week)
-      iso_days = Cldr.Calendar.date_to_iso_days(start_of_week) + day - 1
+      iso_days = Calendrical.date_to_iso_days(start_of_week) + day - 1
       {year, month, day} = calendar.date_from_iso_days(iso_days)
 
       case resolve([{:month, month}, {:day, day} | rest], calendar) do

@@ -18,10 +18,10 @@ defmodule Tempo.Sigil do
   end
 
   def calendar_from([?W]) do
-    Cldr.Calendar.ISOWeek
+    Calendrical.ISOWeek
   end
 
   def calendar_from([]) do
-    Cldr.Calendar.Gregorian
+    Calendrical.Gregorian
   end
 end

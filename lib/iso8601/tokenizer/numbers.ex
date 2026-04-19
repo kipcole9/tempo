@@ -260,7 +260,7 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
 
   def form_number([?-, integer, {:fraction, fraction} | rest])
       when is_integer(integer) and is_integer(fraction) do
-    digits = Cldr.Digits.number_of_integer_digits(fraction)
+    digits = Localize.Utils.Digits.number_of_integer_digits(fraction)
     number = integer + fraction / :math.pow(10, digits)
     form_number([-number | rest])
   end
@@ -284,7 +284,7 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
 
   def form_number([integer, {:fraction, fraction} | rest])
       when is_integer(integer) and is_integer(fraction) do
-    digits = Cldr.Digits.number_of_integer_digits(fraction)
+    digits = Localize.Utils.Digits.number_of_integer_digits(fraction)
     number = integer + fraction / :math.pow(10, digits)
     form_number([number | rest])
   end

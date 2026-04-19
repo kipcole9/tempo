@@ -30,6 +30,10 @@
 
 * **100% EDTF corpus coverage.** The `unt-libraries/edtf-validate` corpus — the only publicly-available conformance test suite we could find for ISO 8601-2 Part 2 — now passes in full. 183 strings exercised, 0 known failures.
 
+### Changed
+
+* **Removed all CLDR-family dependencies.** `ex_cldr_calendars` (and its transitive closure `ex_cldr`, `ex_cldr_numbers`, `ex_cldr_currencies`, `cldr_utils`, `digital_token`) has been replaced by [Calendrical](https://hex.pm/packages/calendrical) for calendar functionality and by `Localize.Utils.Math` / `Localize.Utils.Digits` for numeric helpers. The default calendar is now `Calendrical.Gregorian` instead of `Cldr.Calendar.Gregorian`. Calendrical bundles all 17 CLDR-aligned calendars directly and has broader calendar coverage than the previous setup.
+
 * Reduce parser compile time by ~85% (from ~190s to ~28s) and generated BEAM size by ~61% by converting high-fanout NimbleParsec combinators to `defparsecp` function boundaries. No runtime performance regression.
 
 ### Bug Fixes

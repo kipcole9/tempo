@@ -23,7 +23,7 @@ defmodule Tempo.Event.Easter do
   def gregorian_easter(gregorian_year, calendar \\ Calendar.ISO)
       when is_integer(gregorian_year) do
     paschal_moon = gregorian_paschal_moon(gregorian_year, calendar)
-    Cldr.Calendar.Kday.kday_after(paschal_moon, Cldr.Calendar.sunday())
+    Calendrical.Kday.kday_after(paschal_moon, Calendrical.sunday())
   end
 
   defp gregorian_paschal_moon(gregorian_year, calendar)
@@ -37,10 +37,10 @@ defmodule Tempo.Event.Easter do
     adjusted_epact = adjusted_epact(shifted_epact, metonic_phase)
 
     Date.new!(gregorian_year, 4, 19)
-    |> Cldr.Calendar.date_to_iso_days()
+    |> Calendrical.date_to_iso_days()
     |> Kernel.-(adjusted_epact)
     |> trunc()
-    |> Cldr.Calendar.date_from_iso_days(Cldr.Calendar.Gregorian)
+    |> Calendrical.date_from_iso_days(Calendrical.Gregorian)
     |> Date.convert!(calendar)
   end
 

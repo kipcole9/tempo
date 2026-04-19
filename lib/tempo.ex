@@ -183,7 +183,7 @@ defmodule Tempo do
   @type error_reason :: atom() | binary()
 
   @doc false
-  def new(tokens, calendar \\ Cldr.Calendar.Gregorian)
+  def new(tokens, calendar \\ Calendrical.Gregorian)
 
   def new({:range, [first, last]}, calendar) do
     Tempo.Range.new(first, last, calendar)
@@ -269,7 +269,7 @@ defmodule Tempo do
     followed by an IXDTF suffix.
 
   * `calendar` is any `t:Calendar.calendar/0`. The default is
-    `Cldr.Calendar.Gregorian`.
+    `Calendrical.Gregorian`.
 
   ### Returns
 
@@ -301,7 +301,7 @@ defmodule Tempo do
   """
   @spec from_iso8601(string :: String.t(), calendar :: Calendar.calendar()) ::
           {:ok, t} | {:error, error_reason()}
-  def from_iso8601(string, calendar \\ Cldr.Calendar.Gregorian) do
+  def from_iso8601(string, calendar \\ Calendrical.Gregorian) do
     with {:ok, {tokens, extended}} <- Tokenizer.tokenize(string),
          {:ok, parsed} <- Parser.parse(tokens, calendar),
          {:ok, expanded} <- Group.expand_groups(parsed) do
@@ -337,7 +337,7 @@ defmodule Tempo do
   * `string` is any ISO8601 formatted string
 
   * `calendar` is any `t:Calendar.t/0`. The default is
-    `Cldr.Calendar.Gregorian`.
+    `Calendrical.Gregorian`.
 
   ### Returns
 
@@ -355,7 +355,7 @@ defmodule Tempo do
 
   """
   @spec from_iso8601!(string :: String.t(), calendar :: Calendar.calendar()) :: t | no_return()
-  def from_iso8601!(string, calendar \\ Cldr.Calendar.Gregorian) do
+  def from_iso8601!(string, calendar \\ Calendrical.Gregorian) do
     case from_iso8601(string, calendar) do
       {:ok, tempo} -> tempo
       {:error, reason} -> raise Tempo.ParseError, reason
@@ -386,7 +386,7 @@ defmodule Tempo do
     new(year: year, month: month, day: day)
   end
 
-  def from_date(%{year: year, month: month, day: day, calendar: Cldr.Calendar.Gregorian}) do
+  def from_date(%{year: year, month: month, day: day, calendar: Calendrical.Gregorian}) do
     new(year: year, month: month, day: day)
   end
 
@@ -457,7 +457,7 @@ defmodule Tempo do
         hour: hour,
         minute: minute,
         second: second,
-        calendar: Cldr.Calendar.Gregorian
+        calendar: Calendrical.Gregorian
       }) do
     new(year: year, month: month, day: day, hour: hour, minute: minute, second: second)
   end

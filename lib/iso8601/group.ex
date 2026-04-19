@@ -12,7 +12,7 @@ defmodule Tempo.Iso8601.Group do
   @quadrimesters_in_year 3
   @semestrals_in_year 2
 
-  def expand_groups(tempo, calendar \\ Cldr.Calendar.Gregorian)
+  def expand_groups(tempo, calendar \\ Calendrical.Gregorian)
 
   def expand_groups(%Tempo{time: time} = tempo, calendar) do
     case expand_groups(time, calendar) do
