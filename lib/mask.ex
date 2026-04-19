@@ -21,6 +21,28 @@ defmodule Tempo.Mask do
     |> List.wrap()
   end
 
+  def fill_unspecified(unit, [:negative | rest_mask], calendar, previous)
+      when unit in [:year, :month, :day] do
+    # Negative-year mask (e.g. `-1XXX` → `[:negative, 1, :X, :X, :X]`).
+    # Generate negative candidates whose absolute-value digits match
+    # the mask pattern.
+    [target_range] = fill_unspecified(unit, :any, calendar, previous)
+    digit_count = length(rest_mask)
+    # Bound the negative range to numbers with `digit_count` digits.
+    min = -(integer_pow10(digit_count) - 1)
+    max = -integer_pow10(digit_count - 1)
+
+    Enum.reduce(target_range, [], fn candidate, acc ->
+      neg = -candidate
+
+      if neg in max..min//-1 and matches_mask?(abs(neg), rest_mask) do
+        [neg | acc]
+      else
+        acc
+      end
+    end)
+  end
+
   def fill_unspecified(unit, mask, calendar, previous) when unit in [:year, :month, :day] do
     [target_range] = fill_unspecified(unit, :any, calendar, previous)
 
@@ -28,6 +50,12 @@ defmodule Tempo.Mask do
       if matches_mask?(candidate, mask), do: [candidate | acc], else: acc
     end)
   end
+
+  def matches_mask?(candidate, [:negative | rest_mask]) when candidate < 0 do
+    matches_mask?(abs(candidate), rest_mask)
+  end
+
+  def matches_mask?(_candidate, [:negative | _rest_mask]), do: false
 
   def matches_mask?(candidate, mask) do
     digits = Integer.digits(candidate)
@@ -50,6 +78,9 @@ defmodule Tempo.Mask do
       false
     end
   end
+
+  defp integer_pow10(0), do: 1
+  defp integer_pow10(n) when n > 0, do: 10 * integer_pow10(n - 1)
 
   def matches?(_digit, _mask) do
     true

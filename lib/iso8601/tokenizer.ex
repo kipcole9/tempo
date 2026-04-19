@@ -103,21 +103,45 @@ defmodule Tempo.Iso8601.Tokenizer do
   defparsec :interval_parser,
             optional(recurrence())
             |> choice([
-              parsec(:datetime_or_date_or_time)
+              # date/date — each endpoint may carry an EDTF qualification
+              parsec(:qualified_endpoint)
               |> ignore(string("/"))
-              |> parsec(:datetime_or_date_or_time),
-              parsec(:datetime_or_date_or_time)
+              |> parsec(:qualified_endpoint),
+
+              # date/duration
+              parsec(:qualified_endpoint)
               |> ignore(string("/"))
               |> parsec(:duration_parser),
+
+              # duration/date
               parsec(:duration_parser)
               |> ignore(string("/"))
-              |> parsec(:datetime_or_date_or_time),
-              parsec(:datetime_or_date_or_time)
+              |> parsec(:qualified_endpoint),
+
+              # date/..
+              parsec(:qualified_endpoint)
               |> ignore(string("/"))
               |> replace(string(".."), :undefined),
+
+              # ../date
               replace(string(".."), :undefined)
               |> ignore(string("/"))
-              |> parsec(:datetime_or_date_or_time)
+              |> parsec(:qualified_endpoint),
+
+              # date/ (trailing slash — open upper endpoint)
+              parsec(:qualified_endpoint)
+              |> ignore(string("/"))
+              |> replace(empty(), :undefined),
+
+              # /date (leading slash — open lower endpoint)
+              replace(empty(), :undefined)
+              |> ignore(string("/"))
+              |> parsec(:qualified_endpoint),
+
+              # ../.. or /.. or ../ or / (both endpoints open)
+              replace(choice([string(".."), empty()]), :undefined)
+              |> ignore(string("/"))
+              |> replace(choice([string(".."), empty()]), :undefined)
             ])
             |> optional(parsec(:repeat_rule))
             |> reduce(:adjust_interval)
@@ -131,6 +155,18 @@ defmodule Tempo.Iso8601.Tokenizer do
               parsec(:time_parser)
             ])
             |> label("datetime_or_date_or_time")
+
+  # A date/datetime/time endpoint with an optional EDTF
+  # qualification prefix or suffix (`?`, `~`, `%`). The qualifier,
+  # when present, is merged into the tagged date's inner keyword
+  # list so that each interval endpoint retains its own
+  # qualification. Defined as `defparsecp` so the `reduce` scope
+  # is local to this combinator.
+  defparsecp :qualified_endpoint,
+             optional(qualification())
+             |> parsec(:datetime_or_date_or_time)
+             |> optional(qualification())
+             |> reduce(:merge_endpoint_qualification)
 
   # Private parsec definitions to reduce compile-time code expansion.
   # Each defparsecp creates a function call boundary instead of inlining

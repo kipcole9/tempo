@@ -20,6 +20,10 @@ defmodule Tempo.Interval do
     %__MODULE__{from: :undefined, to: Tempo.new(time)}
   end
 
+  def new([:undefined, :undefined]) do
+    %__MODULE__{from: :undefined, to: :undefined}
+  end
+
   def new([{_from, time}, {_to, to}]) do
     %__MODULE__{from: Tempo.new(time), to: Tempo.new(to)}
   end

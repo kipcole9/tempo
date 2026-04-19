@@ -108,7 +108,7 @@ defmodule Tempo do
   alias Tempo.Validation
   alias Tempo.Rounding
 
-  defstruct [:time, :shift, :calendar, :extended, :qualification]
+  defstruct [:time, :shift, :calendar, :extended, :qualification, :qualifications]
 
   # TODO refine this to be more specific
   @type token :: integer() | list() | tuple()
@@ -162,12 +162,23 @@ defmodule Tempo do
   @type qualification ::
           :uncertain | :approximate | :uncertain_and_approximate | nil
 
+  @typedoc """
+  Per-component qualifications parsed from an EDTF Level 2 date.
+
+  A map from the component unit (`:year`, `:month`, `:day`) to its
+  qualification atom. `nil` when no component-level qualification
+  was present in the parsed string.
+
+  """
+  @type qualifications :: %{optional(atom()) => qualification()} | nil
+
   @type t :: %__MODULE__{
           time: token_list(),
           shift: time_shift(),
           calendar: Calendar.calendar() | nil,
           extended: extended_info() | nil,
-          qualification: qualification()
+          qualification: qualification(),
+          qualifications: qualifications()
         }
   @type error_reason :: atom() | binary()
 
@@ -183,8 +194,57 @@ defmodule Tempo do
   end
 
   def new(tokens, calendar) when is_list(tokens) do
-    {shift, time} = Keyword.pop(tokens, :time_shift)
-    %__MODULE__{time: time, shift: shift, calendar: calendar}
+    {shift, tokens} = Keyword.pop(tokens, :time_shift)
+    {qualification, tokens} = Keyword.pop(tokens, :qualification)
+    {component_qualifications, time} = pop_component_qualifications(tokens)
+
+    %__MODULE__{
+      time: time,
+      shift: shift,
+      calendar: calendar,
+      qualification: qualification,
+      qualifications: component_qualifications
+    }
+  end
+
+  # Removes any `{<unit>_qualification, value}` entries from `tokens`
+  # and returns them as a plain `%{unit => value}` map. Returns `nil`
+  # for the map when no component-level qualifications were present
+  # so that the `%Tempo{}` struct stays compact when the feature
+  # isn't used.
+  defp pop_component_qualifications(tokens) do
+    {remaining, acc} =
+      Enum.reduce(tokens, {[], %{}}, fn
+        {key, value}, {rest, acc} when is_atom(key) ->
+          case unit_from_qualification_key(key) do
+            nil -> {[{key, value} | rest], acc}
+            unit -> {rest, Map.put(acc, unit, value)}
+          end
+
+        other, {rest, acc} ->
+          {[other | rest], acc}
+      end)
+
+    result = if map_size(acc) == 0, do: nil, else: acc
+    {result, Enum.reverse(remaining)}
+  end
+
+  @qualification_suffix "_qualification"
+  @qualification_suffix_size byte_size(@qualification_suffix)
+
+  defp unit_from_qualification_key(key) do
+    key_string = Atom.to_string(key)
+    size = byte_size(key_string)
+
+    if size > @qualification_suffix_size and
+         binary_part(key_string, size - @qualification_suffix_size, @qualification_suffix_size) ==
+           @qualification_suffix do
+      key_string
+      |> binary_part(0, size - @qualification_suffix_size)
+      |> String.to_existing_atom()
+    else
+      nil
+    end
   end
 
   @doc """

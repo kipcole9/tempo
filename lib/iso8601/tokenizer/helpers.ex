@@ -105,6 +105,65 @@ defmodule Tempo.Iso8601.Tokenizer.Helpers do
     |> unwrap_and_tag(:qualification)
   end
 
+  @doc """
+  Qualification that attaches to a specific component.
+
+  Emitted as `{unit_qualification: qualifier}` so that downstream
+  consumers can identify which component is being qualified
+  (e.g. `{:year_qualification, :uncertain}`).
+
+  """
+  def component_qualification(combinator \\ empty(), unit) do
+    tag = :"#{unit}_qualification"
+
+    combinator
+    |> choice([
+      replace(string("?"), :uncertain),
+      replace(string("~"), :approximate),
+      replace(string("%"), :uncertain_and_approximate)
+    ])
+    |> unwrap_and_tag(tag)
+  end
+
+  @doc """
+  Merge a trailing `{:qualification, _}` token into the preceding
+  tagged date/datetime/time inner list. Used by the
+  `:qualified_endpoint` parsec to keep each interval endpoint and
+  its qualification paired.
+
+  Returns a single tuple so that the reduce emits one value into
+  the enclosing parser accumulator, matching the shape emitted by
+  `parsec(:datetime_or_date_or_time)` when no qualifier is present.
+
+  """
+  def merge_endpoint_qualification([{tag, inner}]) when tag in [:date, :datetime, :time_of_day] do
+    {tag, inner}
+  end
+
+  def merge_endpoint_qualification([{tag, inner}, {:qualification, q}])
+      when tag in [:date, :datetime, :time_of_day] do
+    {tag, inner ++ [qualification: q]}
+  end
+
+  def merge_endpoint_qualification([{:qualification, q}, {tag, inner}])
+      when tag in [:date, :datetime, :time_of_day] do
+    {tag, inner ++ [qualification: q]}
+  end
+
+  # Both leading and trailing qualifiers present. The leading
+  # applies to the whole expression; the trailing applies to the
+  # last component. We keep the leading one on the expression-level
+  # field and leave the trailing to be handled as a component
+  # qualifier by the inner grammar.
+  def merge_endpoint_qualification([{:qualification, q1}, {tag, inner}, {:qualification, q2}])
+      when tag in [:date, :datetime, :time_of_day] do
+    {tag, inner ++ [qualification: q1] ++ [trailing_qualification: q2]}
+  end
+
+  # Single-value pass-through (e.g. a duration or interval token that
+  # was not wrapped by date/datetime/time_of_day).
+  def merge_endpoint_qualification(other), do: other
+
   # Some calendars have 13 months
   # Seasons are recognised as months 21..32 so we have to allow them
   # Quarters are recognised as months 33..36 so we have to allow them

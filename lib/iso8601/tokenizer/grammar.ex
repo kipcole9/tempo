@@ -11,7 +11,8 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
   # See ISO8601 4.4.1.7 and 4.4.1.8
 
   def iso8601_tokenizer do
-    choice([
+    optional(qualification())
+    |> choice([
       interval_or_time_or_duration(),
       parsec(:set)
     ])
@@ -28,6 +29,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
       parsec(:datetime_or_date_or_time)
     ])
   end
+
 
   # Date Time
 
@@ -67,18 +69,38 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
   def extended_date do
     choice([
       extended_week_date(),
+
+      # Year-Month-Day, with EDTF Level 2 component-level
+      # qualification at each hyphen boundary.
       parsec(:implicit_year_p)
+      |> optional(component_qualification(:year))
       |> ignore(dash())
+      |> optional(component_qualification(:month))
       |> concat(parsec(:implicit_month_p))
+      |> optional(component_qualification(:month))
       |> ignore(dash())
-      |> concat(parsec(:implicit_day_of_month_p)),
+      |> optional(component_qualification(:day))
+      |> concat(parsec(:implicit_day_of_month_p))
+      |> optional(component_qualification(:day)),
+
+      # Year-Month, with qualifiers.
       parsec(:implicit_year_p)
+      |> optional(component_qualification(:year))
       |> ignore(dash())
+      |> optional(component_qualification(:month))
       |> concat(parsec(:implicit_month_p))
+      |> optional(component_qualification(:month))
       |> lookahead_not(digit()),
-      parsec(:implicit_month_p)
+
+      # Month-Day (no year) with qualifiers.
+      optional(component_qualification(:month))
+      |> concat(parsec(:implicit_month_p))
+      |> optional(component_qualification(:month))
       |> ignore(dash())
-      |> concat(parsec(:implicit_day_of_month_p)),
+      |> optional(component_qualification(:day))
+      |> concat(parsec(:implicit_day_of_month_p))
+      |> optional(component_qualification(:day)),
+
       extended_ordinal_date()
     ])
     |> label("extended date")

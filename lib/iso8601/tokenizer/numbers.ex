@@ -273,6 +273,15 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
     form_number([{-integer, options} | rest])
   end
 
+  # A negative year with unspecified digits (e.g. `-1XXX`, `-XXXX-XX`).
+  # The mask list is tagged with a leading `:negative` sentinel so
+  # downstream consumers (`Tempo.Mask.fill_unspecified/4`,
+  # `Tempo.Mask.matches_mask?/2`, enumeration, inspect) can treat
+  # the mask as bounded below zero.
+  def form_number([?-, {:mask, list} | rest]) do
+    form_number([{:mask, [:negative | list]} | rest])
+  end
+
   def form_number([integer, {:fraction, fraction} | rest])
       when is_integer(integer) and is_integer(fraction) do
     digits = Cldr.Digits.number_of_integer_digits(fraction)

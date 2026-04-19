@@ -117,6 +117,10 @@ defmodule Tempo.Inspect do
     Kernel.inspect(number) <> "±" <> Kernel.inspect(margin)
   end
 
+  defp inspect_value({:mask, [:negative | rest]}) do
+    [?-, inspect_value({:mask, rest})]
+  end
+
   defp inspect_value({:mask, mask}) do
     Enum.reduce(mask, [], fn
       :X, acc ->
@@ -197,6 +201,15 @@ defmodule Tempo.Inspect do
       ?F,
       inspect_value(repeat_rule)
     ]
+  end
+
+  defp inspect_value(%Tempo.Interval{
+         recurrence: 1,
+         from: :undefined,
+         to: :undefined,
+         duration: nil
+       }) do
+    [?., ?., ?/, ?., ?.]
   end
 
   defp inspect_value(%Tempo.Interval{
