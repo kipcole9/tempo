@@ -44,6 +44,12 @@
 
 * Fix a range of Dialyzer warnings, including incorrect `@type time_unit` (was a list type, now a union of atoms), missing `nil` in struct field types, a `Calendat.t()` typo, and specs that did not include `{:error, _}` returns for `Tempo.trunc/2` and `Tempo.round/2`.
 
+* Fix `Enum.take/2` and related Enumerable operations on values with unspecified-digit year masks. `Tempo.Mask.fill_unspecified/4` previously routed year masks through a broken `:year, :any` path that returned `[current_year]` (a bare integer wrapped in a list) and then tried to `Enum.reduce` over it; year masks now compute their `min..max` bounds directly from the mask digits and iterate that range. Affects `156X`, `1XXX`, `-1XXX-XX`, and similar patterns.
+
+* Fix `Enum.take/2` on year-month-day masks where the day is unspecified (e.g. `1985-XX-XX`, `1985-12-XX`). The `Tempo.Validation.resolve/2` clause for year-month-day resolution previously only accepted `is_number(day) or is_struct(day, Range)` in its guard; extending it to also accept `is_list(day)` lets the `[1..-1//1]` relative-range day value conform against `days_in_month`.
+
+* `Tempo.Enumeration.add_implicit_enumeration/1` now raises a clear `ArgumentError` when `Tempo.Iso8601.Unit.implicit_enumerator/2` returns `nil` (e.g. trying to enumerate a fully-specified second-precision datetime — no finer unit exists). Replaces an opaque `(MatchError) no match of right hand side value: nil`.
+
 ## Tempo v0.1.0
 
 This is the changelog for Tempo v0.1.0 released on _____ 2023.  For older changelogs please consult the release tag on [GitHub](https://github.com/elixir-cldr/cldr/tags)

@@ -16,19 +16,46 @@ defmodule Tempo.Mask do
 
   def fill_unspecified(unit, :any, calendar, previous)
       when unit in [:month, :day, :hour, :minute, :second] do
+    # The list wrapping is load-bearing: `adjusted_range/4` routes
+    # through `Validation.resolve/2`, whose clause matching the
+    # `year+month` or `year+month+day` shapes guards on
+    # `is_list(value) or is_integer(value)`. Passing the range
+    # wrapped in a list lets that clause conform `1..-1//1` to
+    # the concrete `1..months_in_year`/`1..days_in_month` range.
     [1..-1//1]
     |> adjusted_range(unit, calendar, backtrack(previous, calendar))
     |> List.wrap()
   end
 
+  # Year masks are bounded entirely by their digit pattern — there
+  # is no calendar context that narrows them further. Compute the
+  # `min..max` range directly from the mask (each `:X` spans
+  # `0..9` at its position) and filter to candidates that match
+  # the concrete digits.
+  def fill_unspecified(:year, [:negative | rest_mask], _calendar, _previous) do
+    {min, max} = mask_bounds(rest_mask)
+
+    Enum.reduce(max..min//-1, [], fn candidate, acc ->
+      if matches_mask?(candidate, rest_mask), do: [-candidate | acc], else: acc
+    end)
+  end
+
+  def fill_unspecified(:year, mask, _calendar, _previous) when is_list(mask) do
+    {min, max} = mask_bounds(mask)
+
+    Enum.reduce(min..max, [], fn candidate, acc ->
+      if matches_mask?(candidate, mask), do: [candidate | acc], else: acc
+    end)
+    |> Enum.reverse()
+  end
+
+  # Month and day masks still need calendar context (month-of-year
+  # bounds, days-in-month), so they route through `:any` which
+  # returns a calendar-adjusted range.
   def fill_unspecified(unit, [:negative | rest_mask], calendar, previous)
-      when unit in [:year, :month, :day] do
-    # Negative-year mask (e.g. `-1XXX` → `[:negative, 1, :X, :X, :X]`).
-    # Generate negative candidates whose absolute-value digits match
-    # the mask pattern.
+      when unit in [:month, :day] do
     [target_range] = fill_unspecified(unit, :any, calendar, previous)
     digit_count = length(rest_mask)
-    # Bound the negative range to numbers with `digit_count` digits.
     min = -(integer_pow10(digit_count) - 1)
     max = -integer_pow10(digit_count - 1)
 
@@ -43,12 +70,25 @@ defmodule Tempo.Mask do
     end)
   end
 
-  def fill_unspecified(unit, mask, calendar, previous) when unit in [:year, :month, :day] do
+  def fill_unspecified(unit, mask, calendar, previous) when unit in [:month, :day] do
     [target_range] = fill_unspecified(unit, :any, calendar, previous)
 
     Enum.reduce(target_range, [], fn candidate, acc ->
       if matches_mask?(candidate, mask), do: [candidate | acc], else: acc
     end)
+  end
+
+  # For mask `[1, 5, 6, :X]` returns `{1560, 1569}`.
+  # For mask `[:X, :X, :X, :X]` returns `{0, 9999}`.
+  defp mask_bounds(mask) when is_list(mask) do
+    {min_digits, max_digits} =
+      Enum.reduce(mask, {[], []}, fn
+        :X, {lo, hi} -> {[0 | lo], [9 | hi]}
+        d, {lo, hi} when is_integer(d) -> {[d | lo], [d | hi]}
+      end)
+
+    {Integer.undigits(Enum.reverse(min_digits)),
+     Integer.undigits(Enum.reverse(max_digits))}
   end
 
   def matches_mask?(candidate, [:negative | rest_mask]) when candidate < 0 do

@@ -255,7 +255,8 @@ defmodule Tempo.Validation do
   end
 
   def resolve([{:year, year}, {:month, month}, {:day, day} | rest], calendar)
-      when is_integer(year) and is_integer(month) and (is_number(day) or is_struct(day, Range)) do
+      when is_integer(year) and is_integer(month) and
+             (is_number(day) or is_struct(day, Range) or is_list(day)) do
     with [{:year, year}, {:month, month}] <- resolve([{:year, year}, {:month, month}], calendar) do
       days_in_month = calendar.days_in_month(year, month)
 

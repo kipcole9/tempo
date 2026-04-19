@@ -243,8 +243,20 @@ defmodule Tempo.Enumeration do
 
   def add_implicit_enumeration(%Tempo{time: time, calendar: calendar} = tempo) do
     {unit, _span} = Tempo.resolution(tempo)
-    {unit, range} = Unit.implicit_enumerator(unit, calendar)
-    %{tempo | time: time ++ [{unit, [range]}]}
+
+    case Unit.implicit_enumerator(unit, calendar) do
+      nil ->
+        # No finer unit exists for implicit enumeration. A fully
+        # resolved value at `:second` precision (or any other
+        # finest-grained unit) is a bounded one-unit interval with
+        # no sub-units to iterate over.
+        raise ArgumentError,
+              "Cannot enumerate a Tempo at #{inspect(unit)} resolution " <>
+                "— no finer unit is defined. Got: #{inspect(tempo)}"
+
+      {enum_unit, range} ->
+        %{tempo | time: time ++ [{enum_unit, [range]}]}
+    end
   end
 
   def maybe_add_implicit_enumeration(%Tempo{} = tempo) do
