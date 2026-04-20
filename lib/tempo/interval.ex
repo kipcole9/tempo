@@ -165,10 +165,9 @@ defmodule Tempo.Interval do
     end
   end
 
-  # A `Range` or integer supplied by `Unit.implicit_enumerator/2`
-  # — we take the first value as the unit's start-of-span.
+  # A `Range` supplied by `Unit.implicit_enumerator/2` — we take
+  # its first value as the unit's start-of-span.
   defp range_first(%Range{first: first}), do: first
-  defp range_first(int) when is_integer(int), do: int
 
   # Mask path: scan the time list for the first masked unit.
   # The rule:

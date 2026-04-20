@@ -1224,7 +1224,6 @@ defmodule Tempo do
   end
 
   defp range_first(%Range{first: first}), do: first
-  defp range_first(int) when is_integer(int), do: int
 
   @doc """
   Return a Tempo at the specified resolution, dispatching to
@@ -1347,6 +1346,21 @@ defmodule Tempo do
   * `value` is a `t:#{__MODULE__}.t/0`, `t:Tempo.Interval.t/0`,
     `t:Tempo.IntervalSet.t/0`, or `t:Tempo.Set.t/0`.
 
+  ### Options
+
+  * `:bound` is a Tempo value whose upper endpoint limits
+    expansion of an unbounded recurrence (`recurrence: :infinity`
+    with no `UNTIL`). Required to materialise such rules;
+    ignored otherwise.
+
+  * `:coalesce` controls whether the resulting IntervalSet
+    merges adjacent or overlapping intervals (`true`, the
+    default) or preserves each expanded occurrence as a
+    distinct interval (`false`). Expansion consumers that care
+    about event identity — `Tempo.ICal`, the RRULE expander —
+    pass `false`; ordinary implicit-span materialisation uses
+    the default.
+
   ### Returns
 
   * `{:ok, interval}` when the value materialises to a single
@@ -1357,10 +1371,10 @@ defmodule Tempo do
 
   * `{:error, reason}` when the input cannot be materialised — a
     bare `Tempo.Duration` (no anchor), a `Tempo` already at its
-    finest resolution (no finer unit to bound the span), or a
+    finest resolution (no finer unit to bound the span), a
     one-of `Tempo.Set` (epistemic disjunction is not an interval
     list; the user must pick one or handle the disjunction
-    themselves).
+    themselves), or an unbounded recurrence with no `:bound`.
 
   ### Examples
 
@@ -1386,10 +1400,11 @@ defmodule Tempo do
           | Tempo.Interval.t()
           | Tempo.IntervalSet.t()
           | Tempo.Set.t()
-          | Tempo.Duration.t()
+          | Tempo.Duration.t(),
+          keyword()
         ) ::
           {:ok, Tempo.Interval.t() | Tempo.IntervalSet.t()} | {:error, error_reason()}
-  def to_interval(value)
+  def to_interval(value, opts \\ [])
 
   # A bounded recurrence (`R3/1985-01/P1M`) expands to N disjoint
   # intervals. Each occurrence starts at `from + i*duration` and
@@ -1400,30 +1415,94 @@ defmodule Tempo do
           direction: direction,
           from: %Tempo{} = from,
           duration: %Tempo.Duration{} = duration
-        } = _interval
+        } = interval,
+        opts
       )
       when is_integer(n) and n > 1 do
     step = if direction == -1, do: negate_duration(duration), else: duration
+    occurrence_end_fn = occurrence_end_fn(from, duration, interval)
 
     intervals =
       0..(n - 1)
       |> Enum.map(fn i ->
         start = add_n_durations(from, step, i)
-        fin = Tempo.Math.add(start, step)
-        %Tempo.Interval{from: start, to: fin}
+        fin = occurrence_end_fn.(start, i)
+        %Tempo.Interval{from: start, to: fin, metadata: interval.metadata}
       end)
 
-    Tempo.IntervalSet.new(intervals)
+    Tempo.IntervalSet.new(intervals, coalesce: coalesce_opt(opts))
+  end
+
+  # An unbounded recurrence with UNTIL: `recurrence: :infinity`
+  # plus `to: %Tempo{}`. Iterate by one cadence at a time and stop
+  # the step before the first occurrence whose start is at or past
+  # the UNTIL endpoint. `from + i*duration` while `from(i) ≤ to`.
+  def to_interval(
+        %Tempo.Interval{
+          recurrence: :infinity,
+          from: %Tempo{} = from,
+          duration: %Tempo.Duration{} = duration,
+          to: %Tempo{} = until
+        } = interval,
+        opts
+      ) do
+    occurrence_end_fn = occurrence_end_fn(from, duration, interval)
+    intervals =
+      iterate_recurrence(from, duration, occurrence_end_fn, &under_until?(&1, until), interval.metadata)
+
+    Tempo.IntervalSet.new(intervals, coalesce: coalesce_opt(opts))
+  end
+
+  # An unbounded recurrence with `:bound` option: `recurrence:
+  # :infinity`, `to` is nil/:undefined, and the caller has
+  # supplied a `:bound` Tempo value. Iterate while every new
+  # occurrence's start falls strictly before the bound's upper
+  # endpoint.
+  def to_interval(
+        %Tempo.Interval{
+          recurrence: :infinity,
+          from: %Tempo{} = from,
+          duration: %Tempo.Duration{} = duration,
+          to: to
+        } = interval,
+        opts
+      )
+      when to in [nil, :undefined] do
+    case Keyword.get(opts, :bound) do
+      nil ->
+        {:error,
+         "Cannot materialise an unbounded recurrence (recurrence: :infinity, no UNTIL). " <>
+           "Supply a :bound option — any Tempo value whose upper endpoint limits the " <>
+           "expansion."}
+
+      bound ->
+        case bound_upper(bound) do
+          {:ok, bound_to} ->
+            occurrence_end_fn = occurrence_end_fn(from, duration, interval)
+            predicate = &under_bound?(&1, bound_to)
+
+            intervals =
+              iterate_recurrence(from, duration, occurrence_end_fn, predicate, interval.metadata)
+
+            Tempo.IntervalSet.new(intervals, coalesce: coalesce_opt(opts))
+
+          {:error, _} = err ->
+            err
+        end
+    end
   end
 
   # A `from + duration` interval (`1985-01/P3M`). Materialise to
   # a closed `[from, from + duration)` interval.
-  def to_interval(%Tempo.Interval{
-        from: %Tempo{} = from,
-        duration: %Tempo.Duration{} = duration,
-        to: to,
-        recurrence: 1
-      })
+  def to_interval(
+        %Tempo.Interval{
+          from: %Tempo{} = from,
+          duration: %Tempo.Duration{} = duration,
+          to: to,
+          recurrence: 1
+        },
+        _opts
+      )
       when to in [nil, :undefined] do
     to_tempo = Tempo.Math.add(from, duration)
     {:ok, %Tempo.Interval{from: from, to: to_tempo}}
@@ -1431,25 +1510,28 @@ defmodule Tempo do
 
   # A `duration + to` interval (`P1M/1985-06`). Materialise to a
   # closed `[to - duration, to)` interval.
-  def to_interval(%Tempo.Interval{
-        from: :undefined,
-        duration: %Tempo.Duration{} = duration,
-        to: %Tempo{} = to,
-        recurrence: 1
-      }) do
+  def to_interval(
+        %Tempo.Interval{
+          from: :undefined,
+          duration: %Tempo.Duration{} = duration,
+          to: %Tempo{} = to,
+          recurrence: 1
+        },
+        _opts
+      ) do
     from_tempo = Tempo.Math.subtract(to, duration)
     {:ok, %Tempo.Interval{from: from_tempo, to: to}}
   end
 
-  def to_interval(%Tempo.Interval{} = interval) do
+  def to_interval(%Tempo.Interval{} = interval, _opts) do
     {:ok, interval}
   end
 
-  def to_interval(%Tempo.IntervalSet{} = set) do
+  def to_interval(%Tempo.IntervalSet{} = set, _opts) do
     {:ok, set}
   end
 
-  def to_interval(%Tempo{} = tempo) do
+  def to_interval(%Tempo{} = tempo, _opts) do
     # Step 1: if the Tempo has a non-contiguous mask (a mask
     # followed by concrete units — e.g. `1985-XX-15`), rewrite the
     # time list to substitute the mask with the list of valid
@@ -1480,18 +1562,18 @@ defmodule Tempo do
   # these, I don't know which") and stays as a set; flattening it
   # to an IntervalSet would assert all members happened, which is
   # the opposite of what the user wrote.
-  def to_interval(%Tempo.Set{type: :all, set: members}) do
+  def to_interval(%Tempo.Set{type: :all, set: members}, _opts) do
     members_to_interval_set(members)
   end
 
-  def to_interval(%Tempo.Set{type: :one}) do
+  def to_interval(%Tempo.Set{type: :one}, _opts) do
     {:error,
      "Cannot materialise a one-of Tempo.Set (epistemic disjunction) " <>
        "into an interval list. Pick a specific member or handle the " <>
        "disjunction in calling code."}
   end
 
-  def to_interval(%Tempo.Duration{}) do
+  def to_interval(%Tempo.Duration{}, _opts) do
     {:error,
      "Cannot materialise a Tempo.Duration into an interval — " <>
        "a duration has no anchor on the time line."}
@@ -1511,6 +1593,132 @@ defmodule Tempo do
   defp negate_duration(%Tempo.Duration{time: time}) do
     negated = Enum.map(time, fn {unit, amount} -> {unit, -amount} end)
     %Tempo.Duration{time: negated}
+  end
+
+  ## ---------------------------------------------------------
+  ## Recurrence-expansion helpers
+  ##
+  ## `iterate_recurrence/5` is the single stepwise expander used
+  ## by both the UNTIL and :bound clauses above. The only
+  ## difference between the two is the termination predicate;
+  ## factoring it out keeps the interpreter's loop authoritative
+  ## and eliminates parallel engines in calling modules.
+  ## ---------------------------------------------------------
+
+  # Hard safety ceiling on how many occurrences any single
+  # recurrence can materialise. Matches `Tempo.ICal.@safety_cap`.
+  @recurrence_safety_cap 10_000
+
+  # Coalescing is the default for back-compat with `to_interval/1`
+  # semantics: an `R3/1985-01/P1M` interval is a single 3-month
+  # span post-coalesce, which matches the documented contract.
+  # Expansion consumers that care about event identity
+  # (Tempo.ICal, the RRULE expander) pass `coalesce: false`.
+  defp coalesce_opt(opts) do
+    case Keyword.get(opts, :coalesce) do
+      false -> false
+      _ -> true
+    end
+  end
+
+  defp iterate_recurrence(
+         %Tempo{} = from,
+         %Tempo.Duration{} = cadence,
+         occurrence_end_fn,
+         predicate,
+         metadata
+       )
+       when is_function(occurrence_end_fn, 2) and is_function(predicate, 1) do
+    0
+    |> Stream.iterate(&(&1 + 1))
+    |> Stream.map(fn i ->
+      start = add_n_durations(from, cadence, i)
+      %Tempo.Interval{from: start, to: occurrence_end_fn.(start, i), metadata: metadata}
+    end)
+    |> Stream.take_while(fn %Tempo.Interval{from: f} -> predicate.(f) end)
+    |> Stream.take(@recurrence_safety_cap)
+    |> Enum.to_list()
+  end
+
+  # Resolve a "given this iteration's start, what's the
+  # occurrence's `to`?" function from the interval's metadata or
+  # its AST fields. Priority order:
+  #
+  # 1. `metadata.occurrence_base_to` — an occurrence-0 `to` Tempo.
+  #    Each occurrence's `to` is `base_to` shifted by `i × cadence`.
+  #    This matches iCal semantics where DTEND − DTSTART defines
+  #    the event span and every occurrence carries it forward.
+  #
+  # 2. `metadata.occurrence_duration` — an explicit Duration for
+  #    each occurrence's span. Used when a caller knows the span
+  #    as a Duration (hand-built AST, adapter layers).
+  #
+  # 3. The AST's `duration` — when no override is supplied, each
+  #    occurrence spans one cadence.
+  #
+  # 4. The natural unit span of the anchor — a pragmatic fallback
+  #    that keeps simple ISO `R5/2022/P1D` inputs working.
+  defp occurrence_end_fn(
+         %Tempo{} = from,
+         %Tempo.Duration{} = cadence,
+         %Tempo.Interval{metadata: metadata, duration: duration}
+       ) do
+    cond do
+      match?(%{occurrence_base_to: %Tempo{}}, metadata) ->
+        base_to = metadata.occurrence_base_to
+        fn _start, i -> add_n_durations(base_to, cadence, i) end
+
+      match?(%{occurrence_duration: %Tempo.Duration{}}, metadata) ->
+        span = metadata.occurrence_duration
+        fn start, _i -> Tempo.Math.add(start, span) end
+
+      match?(%Tempo.Duration{}, duration) ->
+        fn start, _i -> Tempo.Math.add(start, duration) end
+
+      true ->
+        span = natural_span_duration(from)
+        fn start, _i -> Tempo.Math.add(start, span) end
+    end
+  end
+
+  # Fallback: derive an occurrence duration from the anchor's
+  # natural resolution when nothing else is specified.
+  defp natural_span_duration(%Tempo{} = tempo) do
+    {unit, _span} = resolution(tempo)
+    %Tempo.Duration{time: [{unit, 1}]}
+  end
+
+  # Termination predicates for the recurrence loop.
+  defp under_until?(%Tempo{} = from, %Tempo{} = until) do
+    Tempo.Compare.compare_endpoints(from, until) in [:earlier, :same]
+  end
+
+  defp under_bound?(%Tempo{} = from, %Tempo{} = bound_to) do
+    Tempo.Compare.compare_endpoints(from, bound_to) == :earlier
+  end
+
+  # Compute the upper endpoint of a `:bound` option. Accepts any
+  # Tempo value that `to_interval_set/1` handles; uses the
+  # highest `:to` across the set's intervals as the termination
+  # boundary.
+  defp bound_upper(bound) do
+    case to_interval_set(bound) do
+      {:ok, %Tempo.IntervalSet{intervals: intervals}} when intervals != [] ->
+        upper =
+          intervals
+          |> Enum.map(& &1.to)
+          |> Enum.reduce(fn a, b ->
+            if Tempo.Compare.compare_endpoints(a, b) == :later, do: a, else: b
+          end)
+
+        {:ok, upper}
+
+      {:ok, _} ->
+        {:error, "Empty `:bound` — nothing to terminate the recurrence against."}
+
+      {:error, _} = err ->
+        err
+    end
   end
 
   # A "non-contiguous mask" is a mask at some unit followed by

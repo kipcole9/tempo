@@ -213,17 +213,20 @@ if Code.ensure_loaded?(ICal) do
 
     ## Recurrence expansion.
     ##
-    ## The supported core (FREQ + INTERVAL + COUNT|UNTIL) covers
-    ## the large majority of real-world recurring events: weekly
-    ## standups, monthly bills, daily habits, yearly birthdays. Each
-    ## occurrence is the first-occurrence interval shifted forward
-    ## by `i × cadence` via `Tempo.Math.add/2`.
+    ## Delegates to `Tempo.RRule.Expander.expand/3`, which is the
+    ## single source of truth for RRULE materialisation. This
+    ## module is only responsible for:
     ##
-    ## BY* rules (BYDAY, BYMONTH, BYSETPOS, …) and RDATE/EXDATE
-    ## are a full RRULE expander's own project. When any of those
-    ## is present in the rule, we fall back to emitting the first
-    ## occurrence plus a `:recurrence_note` in metadata so callers
-    ## know more sophistication is coming.
+    ## * shaping the base event (`DTSTART`/`DTEND` → `%Interval{}`),
+    ## * mapping `%ICal.Recurrence{}` fields to the Expander's
+    ##   options,
+    ## * carrying event metadata onto every occurrence,
+    ## * deciding the "BY* rules → first-occurrence fallback"
+    ##   policy while Phase B of the expander is in flight.
+    ##
+    ## When BY* rule support lands in the interpreter, the
+    ## fallback goes away and this function becomes unconditional
+    ## delegation.
 
     defp expand_recurrence(event, %ICal.Recurrence{} = rule, opts) do
       cond do
@@ -237,12 +240,23 @@ if Code.ensure_loaded?(ICal) do
              "value within which the recurrence will be materialised."}
 
         true ->
-          case compute_cadence(rule) do
-            {:ok, cadence} -> do_expand(event, rule, cadence, opts)
-            {:error, _} = err -> err
+          with {:ok, base} <- single_event_to_interval(event) do
+            expander_opts =
+              []
+              |> maybe_put(:bound, Keyword.get(opts, :bound))
+              |> Keyword.put(:metadata, base.metadata)
+              |> Keyword.put(:base_to, base.to)
+
+            case Tempo.RRule.Expander.expand(rule, base.from, expander_opts) do
+              {:ok, occurrences} -> {:ok, Enum.take(occurrences, @safety_cap)}
+              {:error, _} = err -> err
+            end
           end
       end
     end
+
+    defp maybe_put(keyword, _key, nil), do: keyword
+    defp maybe_put(keyword, key, value), do: Keyword.put(keyword, key, value)
 
     defp has_by_rules?(%ICal.Recurrence{} = rule) do
       Enum.any?(
@@ -259,107 +273,6 @@ if Code.ensure_loaded?(ICal) do
         ],
         &(&1 != nil and &1 != [])
       )
-    end
-
-    # Build a `%Tempo.Duration{}` representing one step of the
-    # recurrence cadence.
-    defp compute_cadence(%ICal.Recurrence{frequency: freq, interval: interval}) do
-      unit =
-        case freq do
-          :secondly -> :second
-          :minutely -> :minute
-          :hourly -> :hour
-          :daily -> :day
-          :weekly -> :week
-          :monthly -> :month
-          :yearly -> :year
-          other -> other
-        end
-
-      if unit in [:second, :minute, :hour, :day, :week, :month, :year] do
-        {:ok, %Tempo.Duration{time: [{unit, interval || 1}]}}
-      else
-        {:error, "Unsupported RRULE FREQ: #{inspect(freq)}"}
-      end
-    end
-
-    defp do_expand(event, rule, cadence, opts) do
-      with {:ok, base} <- single_event_to_interval(event) do
-        occurrences =
-          0
-          |> Stream.iterate(&(&1 + 1))
-          |> Stream.map(fn i -> shift_interval(base, cadence, i) end)
-          |> apply_count(rule.count)
-          |> Stream.take_while(&within_bounds?(&1, rule, opts))
-          |> Stream.take(@safety_cap)
-          |> Enum.to_list()
-
-        {:ok, occurrences}
-      end
-    end
-
-    defp apply_count(stream, nil), do: stream
-    defp apply_count(stream, count) when is_integer(count), do: Stream.take(stream, count)
-
-    defp shift_interval(%Interval{from: from, to: to, metadata: metadata}, _cadence, 0) do
-      %Interval{from: from, to: to, metadata: metadata}
-    end
-
-    defp shift_interval(%Interval{from: from, to: to, metadata: metadata}, cadence, i) do
-      shifted_from = add_n_times(from, cadence, i)
-      shifted_to = add_n_times(to, cadence, i)
-      %Interval{from: shifted_from, to: shifted_to, metadata: metadata}
-    end
-
-    defp add_n_times(tempo, _cadence, 0), do: tempo
-
-    defp add_n_times(tempo, cadence, n) when n > 0 do
-      tempo
-      |> Tempo.Math.add(cadence)
-      |> add_n_times(cadence, n - 1)
-    end
-
-    # Termination check. A candidate occurrence is within bounds
-    # when:
-    #
-    # * COUNT bounds are handled AFTER Stream.take_while via
-    #   `maybe_take_count/2` (so we don't terminate before hitting
-    #   COUNT).
-    # * UNTIL present: occurrence's `from` must be ≤ UNTIL.
-    # * `:bound` option present: occurrence must overlap the bound.
-    # * Safety cap: 10 000 occurrences. Unbounded infinite
-    #   recurrences shouldn't ever get this far (we error earlier),
-    #   but the cap protects against a malformed rule slipping
-    #   through.
-    defp within_bounds?(%Interval{from: from}, rule, opts) do
-      under_until?(from, rule.until) and under_bound?(from, Keyword.get(opts, :bound)) and
-        true
-    end
-
-    defp under_until?(_from, nil), do: true
-
-    defp under_until?(%Tempo{} = from, %DateTime{} = until) do
-      tempo_until = Tempo.from_elixir(until)
-      Tempo.Compare.compare_endpoints(from, tempo_until) in [:earlier, :same]
-    end
-
-    defp under_until?(%Tempo{} = from, %Date{} = until) do
-      tempo_until = Tempo.from_elixir(until)
-      Tempo.Compare.compare_endpoints(from, tempo_until) in [:earlier, :same]
-    end
-
-    defp under_until?(_from, _other), do: true
-
-    defp under_bound?(_from, nil), do: true
-
-    defp under_bound?(%Tempo{} = from, bound) do
-      with {:ok, %Tempo.IntervalSet{intervals: intervals}} <- Tempo.to_interval_set(bound) do
-        Enum.any?(intervals, fn %Interval{to: bound_to} ->
-          Tempo.Compare.compare_endpoints(from, bound_to) == :earlier
-        end)
-      else
-        _ -> true
-      end
     end
 
     defp first_occurrence_only(event, reason) do

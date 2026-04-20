@@ -406,8 +406,6 @@ defmodule Tempo.ICal.Test do
     end
 
     test "IntervalSet-level metadata follows the first operand" do
-      import Tempo.Sigil
-
       a_ics = """
       BEGIN:VCALENDAR
       VERSION:2.0

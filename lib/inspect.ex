@@ -241,10 +241,6 @@ defmodule Tempo.Inspect do
     []
   end
 
-  defp inspect_value(list) when is_list(list) do
-    [?{, Enum.map_join(list, ",", &inspect_value/1), ?}]
-  end
-
   defp inspect_value(%Range{first: first, last: last, step: 1}) do
     [inspect_value(first), "..", inspect_value(last)]
   end

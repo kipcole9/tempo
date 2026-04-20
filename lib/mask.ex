@@ -1,6 +1,5 @@
 defmodule Tempo.Mask do
   @moduledoc false
-  @dialyzer {:nowarn_function, matches_mask?: 2}
 
   import Tempo.Enumeration, only: [adjusted_range: 4, backtrack: 2]
 
@@ -214,30 +213,25 @@ defmodule Tempo.Mask do
 
   def matches_mask?(candidate, mask) do
     digits = Integer.digits(candidate)
-
-    if length(digits) == length(mask) do
-      digits
-      |> Enum.zip(mask)
-      |> Enum.reduce_while(true, fn
-        {_digit, :X}, acc ->
-          {:cont, acc}
-
-        {digit, mask}, acc ->
-          if matches?(digit, mask) do
-            {:cont, acc}
-          else
-            {:halt, false}
-          end
-      end)
-    else
-      false
-    end
+    length(digits) == length(mask) and digits_equal_or_wildcard?(digits, mask)
   end
+
+  # Per-position match between candidate digits and mask elements.
+  # `:X` is a wildcard; any other element (an integer digit) must
+  # match the candidate's digit exactly. Mirrors the `digits_match?/2`
+  # helper used by `padded_matches_mask?/3` above.
+  defp digits_equal_or_wildcard?([], []), do: true
+
+  defp digits_equal_or_wildcard?([_digit | rest_d], [:X | rest_m]) do
+    digits_equal_or_wildcard?(rest_d, rest_m)
+  end
+
+  defp digits_equal_or_wildcard?([digit | rest_d], [digit | rest_m]) when is_integer(digit) do
+    digits_equal_or_wildcard?(rest_d, rest_m)
+  end
+
+  defp digits_equal_or_wildcard?(_, _), do: false
 
   defp integer_pow10(0), do: 1
   defp integer_pow10(n) when n > 0, do: 10 * integer_pow10(n - 1)
-
-  def matches?(_digit, _mask) do
-    true
-  end
 end
