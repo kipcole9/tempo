@@ -163,7 +163,11 @@ defmodule Tempo.RRule.Expander do
 
     metadata =
       base_metadata
-      |> put_if_given(:occurrence_duration, Keyword.get(options, :duration), &match?(%Tempo.Duration{}, &1))
+      |> put_if_given(
+        :occurrence_duration,
+        Keyword.get(options, :duration),
+        &match?(%Tempo.Duration{}, &1)
+      )
       |> put_if_given(:occurrence_base_to, Keyword.get(options, :base_to), &match?(%Tempo{}, &1))
 
     {:ok,
