@@ -24,7 +24,8 @@ defmodule Tempo.MixProject do
         "CHANGELOG.md",
         "guides/iso8601-conformance.md",
         "guides/shared-ast-iso8601-and-rrule.md",
-        "guides/enumeration-semantics.md"
+        "guides/enumeration-semantics.md",
+        "guides/set-operations.md"
       ]
     ]
   end

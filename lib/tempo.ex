@@ -934,6 +934,59 @@ defmodule Tempo do
   end
 
   @doc """
+  Combine a date-like value with a time-of-day value into a
+  datetime.
+
+  This is **axis composition**, not a set operation. Set
+  operations require both operands to share an anchor class;
+  `anchor/2` is how the user explicitly composes cross-axis
+  values before set operations run. No set-algebra laws apply
+  to `anchor/2` — it's a constructor, not an operator.
+
+  ### Arguments
+
+  * `anchored` is an anchored `t:#{__MODULE__}.t/0` (has a year
+    component) — typically a date like `~o"2026-01-04"`.
+
+  * `non_anchored` is a non-anchored `t:#{__MODULE__}.t/0` (pure
+    time-of-day) — typically a time like `~o"T10:30"`.
+
+  ### Returns
+
+  * A new `t:t/0` combining the two. The date components come
+    from `anchored`; the time components come from `non_anchored`.
+
+  ### Raises
+
+  * `ArgumentError` when either argument has the wrong anchor
+    class — if `anchored` is non-anchored or `non_anchored` is
+    already anchored.
+
+  ### Examples
+
+      iex> Tempo.anchor(~o"2026-01-04", ~o"T10:30")
+      ~o"2026Y1M4DT10H30M"
+
+  """
+  @spec anchor(t, t) :: t
+  def anchor(%__MODULE__{} = anchored, %__MODULE__{} = non_anchored) do
+    cond do
+      not anchored?(anchored) ->
+        raise ArgumentError,
+              "anchor/2: first argument must be anchored (have a year component). " <>
+                "Got: #{inspect(anchored)}"
+
+      anchored?(non_anchored) ->
+        raise ArgumentError,
+              "anchor/2: second argument must be non-anchored (time-of-day only). " <>
+                "Got: #{inspect(non_anchored)}"
+
+      true ->
+        merge(anchored, non_anchored)
+    end
+  end
+
+  @doc """
   Adds an extended enumeration to a Tempo.
 
   This has the effect of increasing the
@@ -1670,6 +1723,66 @@ defmodule Tempo do
       {:error, reason} -> raise ArgumentError, reason
     end
   end
+
+  @doc """
+  Union of two Tempo values — every instant in either operand.
+  See `Tempo.Operations.union/3` for full details.
+  """
+  defdelegate union(a, b, opts \\ []), to: Tempo.Operations
+
+  @doc """
+  Intersection of two Tempo values — every instant in both
+  operands. See `Tempo.Operations.intersection/3`.
+  """
+  defdelegate intersection(a, b, opts \\ []), to: Tempo.Operations
+
+  @doc """
+  Complement of a Tempo value within a bounding universe. The
+  `:bound` option is required. See `Tempo.Operations.complement/2`.
+  """
+  defdelegate complement(set, opts), to: Tempo.Operations
+
+  @doc """
+  Difference `a \\ b` — every instant in `a` that is not in
+  `b`. See `Tempo.Operations.difference/3`.
+  """
+  defdelegate difference(a, b, opts \\ []), to: Tempo.Operations
+
+  @doc """
+  Symmetric difference `a △ b` — instants in exactly one of
+  the two operands. See `Tempo.Operations.symmetric_difference/3`.
+  """
+  defdelegate symmetric_difference(a, b, opts \\ []), to: Tempo.Operations
+
+  @doc """
+  `true` when `a` and `b` share no instants.
+  See `Tempo.Operations.disjoint?/3`.
+  """
+  defdelegate disjoint?(a, b, opts \\ []), to: Tempo.Operations
+
+  @doc """
+  `true` when `a` and `b` share at least one instant.
+  See `Tempo.Operations.overlaps?/3`.
+  """
+  defdelegate overlaps?(a, b, opts \\ []), to: Tempo.Operations
+
+  @doc """
+  `true` when every instant of `a` is also in `b`.
+  See `Tempo.Operations.subset?/3`.
+  """
+  defdelegate subset?(a, b, opts \\ []), to: Tempo.Operations
+
+  @doc """
+  `true` when every instant of `b` is also in `a`. Alias for
+  `subset?(b, a, opts)`. See `Tempo.Operations.contains?/3`.
+  """
+  defdelegate contains?(a, b, opts \\ []), to: Tempo.Operations
+
+  @doc """
+  `true` when `a` and `b` span the same instants (at their
+  aligned resolution). See `Tempo.Operations.equal?/3`.
+  """
+  defdelegate equal?(a, b, opts \\ []), to: Tempo.Operations
 
   @valid_units Unit.units()
 

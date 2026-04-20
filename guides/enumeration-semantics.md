@@ -162,7 +162,7 @@ iex> length(set.intervals)
 
 Enumeration walks each interval in time order, crossing interval boundaries seamlessly: `Enum.to_list(set)` on four month-sized intervals yields every day in each month, one interval at a time.
 
-IntervalSet is the form used by set operations (`union/2`, `intersection/2`, `coalesce/1` — next milestone). Any call that needs a uniform-shape input can use `Tempo.to_interval_set/1`.
+IntervalSet is the form used by set operations — `Tempo.union/2`, `Tempo.intersection/2`, `Tempo.complement/2`, `Tempo.difference/2`, and predicates. See `guides/set-operations.md` for the full treatment. Any call that needs a uniform-shape input can use `Tempo.to_interval_set/1`.
 
 ### 2.10. Seasons
 

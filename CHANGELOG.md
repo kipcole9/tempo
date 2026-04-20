@@ -4,6 +4,12 @@
 
 ### Enhancements
 
+* **Set operations.** `Tempo.union/2`, `intersection/2`, `complement/2`, `difference/2`, `symmetric_difference/2`, and predicates (`disjoint?`, `overlaps?`, `subset?`, `contains?`, `equal?`) on any Tempo value. Results are always `%Tempo.IntervalSet{}`. Shared preflight in `Tempo.Operations.align/3` enforces the anchor-class rule, aligns operands to the finer resolution, and projects to UTC on demand for cross-zone comparison.
+
+* **`Tempo.anchor/2`.** Axis composition primitive — combines a date-like value with a time-of-day into a datetime. Not a set operation; used to prepare cross-axis values for set algebra.
+
+* **`Tempo.Compare`.** New shared module with `compare_time/2` (start-moment keyword-list comparison, padding missing trailing units with their unit minimum) and `to_utc_seconds/1` (zone-aware projection via `Tzdata`, per-call, no cache).
+
 * **`Tempo.Math.add/2` and `subtract/2`.** Calendar-aware Tempo-plus-Duration arithmetic with end-of-month day clamping (`Jan 31 + P1M = Feb 28`, `Feb 29 + P1Y = Feb 28`). Weeks expand to days; negative components subtract.
 
 * **Non-contiguous mask expansion.** `1985-XX-15` now materialises to an IntervalSet of 12 day-intervals (the 15th of each month) instead of widening to year. Partial masks (`1985-X5-15`) narrow to valid candidates.
