@@ -626,6 +626,88 @@ defmodule Tempo do
   end
 
   @doc """
+  Creates a `t:Tempo.t/0` struct from a `t:DateTime.t/0`.
+
+  The DateTime's time zone information is preserved on the Tempo:
+  the total offset (`utc_offset + std_offset`) populates the
+  `:shift` field, and the IANA zone identifier is stored on the
+  `:extended` map under `:zone_id`. Iteration on the returned
+  Tempo carries both pieces of metadata through.
+
+  ### Arguments
+
+  * `date_time` is any `t:DateTime.t/0`.
+
+  ### Returns
+
+  * `t:t/0`.
+
+  ### Examples
+
+      iex> Tempo.from_date_time(~U[2022-11-20 10:37:00Z]).time
+      [year: 2022, month: 11, day: 20, hour: 10, minute: 37, second: 0]
+
+      iex> Tempo.from_date_time(~U[2022-11-20 10:37:00Z]).shift
+      [hour: 0]
+
+      iex> Tempo.from_date_time(~U[2022-11-20 10:37:00Z]).extended.zone_id
+      "Etc/UTC"
+
+  """
+  @spec from_date_time(date_time :: DateTime.t()) :: t()
+  def from_date_time(%DateTime{
+        year: year,
+        month: month,
+        day: day,
+        hour: hour,
+        minute: minute,
+        second: second,
+        time_zone: time_zone,
+        utc_offset: utc_offset,
+        std_offset: std_offset,
+        calendar: calendar
+      }) do
+    tempo_calendar =
+      case calendar do
+        Calendar.ISO -> Calendrical.Gregorian
+        other -> other
+      end
+
+    time = [year: year, month: month, day: day, hour: hour, minute: minute, second: second]
+    total_offset = utc_offset + std_offset
+
+    %__MODULE__{
+      time: time,
+      shift: offset_to_shift(total_offset),
+      calendar: tempo_calendar,
+      extended: %{
+        zone_id: time_zone,
+        zone_offset: div(total_offset, 60),
+        calendar: nil,
+        tags: %{}
+      }
+    }
+  end
+
+  # Convert a UTC offset in seconds to the `[hour: h, minute: m]`
+  # keyword list used by `%Tempo{}.shift`. Sign is carried on the
+  # hour component (matching the `resolve_shift/1` tokenizer output
+  # for negative offsets).
+  defp offset_to_shift(0), do: [hour: 0]
+
+  defp offset_to_shift(seconds) do
+    sign = if seconds < 0, do: -1, else: 1
+    magnitude = abs(seconds)
+    hours = div(magnitude, 3600)
+    minutes = div(rem(magnitude, 3600), 60)
+
+    case {hours, minutes} do
+      {h, 0} -> [hour: sign * h]
+      {h, m} -> [hour: sign * h, minute: sign * m]
+    end
+  end
+
+  @doc """
   Returns the resolution of a `t:Tempo.t/0` struct.
 
   The resolution is the smallest time unit of the
@@ -877,6 +959,265 @@ defmodule Tempo do
     case extend(tempo, unit) do
       {:ok, zoomed} -> zoomed
       {:error, reason} -> raise Tempo.ParseError, reason
+    end
+  end
+
+  @doc """
+  Create a `t:Tempo.t/0` from any Elixir date/time type.
+
+  Unifies `Date.t`, `Time.t`, `NaiveDateTime.t`, and `DateTime.t`
+  into the single `Tempo.t` representation under the principle
+  that every date/time value is a bounded interval on the time
+  line at some resolution.
+
+  The intended resolution is either given explicitly via the
+  `:resolution` option or inferred from the input:
+
+  * `Date.t` → `:day` (Date has no time components).
+
+  * `Time.t`, `NaiveDateTime.t`, `DateTime.t` → the finest
+    Tempo-supported component that is non-zero. If all time
+    components are zero (e.g. midnight on a date), the resolution
+    falls back to `:day` for datetime types or `:hour` for a bare
+    `Time.t`. Microsecond is discarded (Tempo does not yet model
+    sub-second resolution).
+
+  When an explicit `:resolution` is given, the resulting Tempo is
+  passed through `at_resolution/2` to either truncate or pad to
+  that resolution.
+
+  ### Arguments
+
+  * `value` is any `t:Date.t/0`, `t:Time.t/0`,
+    `t:NaiveDateTime.t/0`, or `t:DateTime.t/0`.
+
+  ### Options
+
+  * `:resolution` is a time unit atom (`:year`, `:month`, `:day`,
+    `:hour`, `:minute`, `:second`) overriding the inferred
+    resolution.
+
+  ### Returns
+
+  * The `t:t/0` at the chosen resolution, or
+
+  * `{:error, reason}` if `:resolution` is incompatible with the
+    input.
+
+  ### Examples
+
+      iex> Tempo.from_elixir(~D[2022-06-15])
+      ~o"2022Y6M15D"
+
+      iex> Tempo.from_elixir(~T[10:30:00])
+      ~o"T10H30M"
+
+      iex> Tempo.from_elixir(~N[2022-06-15 10:30:00])
+      ~o"2022Y6M15DT10H30M"
+
+      iex> Tempo.from_elixir(~N[2022-06-15 00:00:00])
+      ~o"2022Y6M15D"
+
+      iex> Tempo.from_elixir(~D[2022-06-15], resolution: :hour)
+      ~o"2022Y6M15DT0H"
+
+      iex> Tempo.from_elixir(~N[2022-06-15 10:30:00], resolution: :day)
+      ~o"2022Y6M15D"
+
+  """
+  @spec from_elixir(
+          value :: Date.t() | Time.t() | NaiveDateTime.t() | DateTime.t(),
+          options :: Keyword.t()
+        ) :: t() | {:error, error_reason()}
+  def from_elixir(value, options \\ [])
+
+  def from_elixir(%Date{} = date, options) do
+    resolution = Keyword.get(options, :resolution, :day)
+
+    date
+    |> from_date()
+    |> at_resolution(resolution)
+  end
+
+  def from_elixir(%Time{} = time, options) do
+    resolution = Keyword.get(options, :resolution) || infer_time_resolution(time)
+
+    time
+    |> from_time()
+    |> at_resolution(resolution)
+  end
+
+  def from_elixir(%NaiveDateTime{} = naive, options) do
+    resolution = Keyword.get(options, :resolution) || infer_datetime_resolution(naive)
+
+    naive
+    |> from_naive_date_time()
+    |> at_resolution(resolution)
+  end
+
+  def from_elixir(%DateTime{} = dt, options) do
+    resolution = Keyword.get(options, :resolution) || infer_datetime_resolution(dt)
+
+    dt
+    |> from_date_time()
+    |> at_resolution(resolution)
+  end
+
+  # Infer the intended resolution of a `Time.t` by finding the
+  # finest Tempo-supported component that is non-zero. Microsecond
+  # is discarded (Tempo has no sub-second unit). All-zero falls
+  # back to `:hour`.
+  defp infer_time_resolution(%Time{hour: _h, minute: m, second: s}) do
+    cond do
+      s != 0 -> :second
+      m != 0 -> :minute
+      true -> :hour
+    end
+  end
+
+  # Datetime types have date components always non-zero, so the
+  # fallback when all time components are zero is `:day` (not
+  # `:hour` as for a bare Time).
+  defp infer_datetime_resolution(%{hour: h, minute: m, second: s}) do
+    cond do
+      s != 0 -> :second
+      m != 0 -> :minute
+      h != 0 -> :hour
+      true -> :day
+    end
+  end
+
+  @doc """
+  Extend a Tempo's resolution by padding finer units with their
+  start-of-unit minimum values.
+
+  `extend_resolution/2` is the scalar counterpart to `extend/2`:
+  where `extend/2` adds an implicit enumeration (turning `~o"2020Y"`
+  into `~o"2020Y{1..12}M"` — a range), `extend_resolution/2` fills
+  in concrete minimums (turning `~o"2020Y"` into `~o"2020Y1M1D"`
+  when extended to `:day`). This is the operation needed to align
+  resolutions before interval comparison.
+
+  ### Arguments
+
+  * `tempo` is any `t:#{__MODULE__}.t/0`.
+
+  * `target_unit` is the finer resolution to pad to. Must be
+    finer than or equal to `tempo`'s current resolution.
+
+  ### Returns
+
+  * The padded `t:t/0`, or
+
+  * `{:error, reason}` when `target_unit` is coarser than the
+    current resolution (use `trunc/2` for that direction) or when
+    no path exists from the current unit to `target_unit` under
+    the tempo's calendar.
+
+  ### Examples
+
+      iex> Tempo.extend_resolution(~o"2020Y", :day)
+      ~o"2020Y1M1D"
+
+      iex> Tempo.extend_resolution(~o"2020Y6M", :hour)
+      ~o"2020Y6M1DT0H"
+
+  """
+  @spec extend_resolution(tempo :: t, target_unit :: time_unit()) ::
+          t | {:error, error_reason()}
+  def extend_resolution(%Tempo{time: time, calendar: calendar} = tempo, target_unit) do
+    with {:ok, target_unit} <- validate_unit(target_unit) do
+      {current_unit, _span} = resolution(tempo)
+
+      case Unit.compare(target_unit, current_unit) do
+        :eq ->
+          tempo
+
+        :gt ->
+          {:error,
+           "Target resolution #{inspect(target_unit)} is coarser than the current " <>
+             "resolution #{inspect(current_unit)}. Use `Tempo.trunc/2` to reduce " <>
+             "resolution."}
+
+        :lt ->
+          case fill_to_resolution(time, current_unit, target_unit, calendar) do
+            {:ok, new_time} -> %{tempo | time: new_time}
+            {:error, _} = err -> err
+          end
+      end
+    end
+  end
+
+  # Walk the standard unit-successor chain, appending one
+  # `{next_unit, unit_minimum}` at each step until `target_unit` is
+  # reached. If the chain runs out before `target_unit` (no
+  # `implicit_enumerator` for the current unit), return an error.
+  defp fill_to_resolution(time, current_unit, target_unit, _calendar)
+       when current_unit == target_unit do
+    {:ok, time}
+  end
+
+  defp fill_to_resolution(time, current_unit, target_unit, calendar) do
+    case Unit.implicit_enumerator(current_unit, calendar) do
+      nil ->
+        {:error,
+         "No path from #{inspect(current_unit)} to #{inspect(target_unit)} under " <>
+           "calendar #{inspect(calendar)} — no finer unit is defined."}
+
+      {next_unit, range} ->
+        min_value = range_first(range)
+        new_time = time ++ [{next_unit, min_value}]
+        fill_to_resolution(new_time, next_unit, target_unit, calendar)
+    end
+  end
+
+  defp range_first(%Range{first: first}), do: first
+  defp range_first(int) when is_integer(int), do: int
+
+  @doc """
+  Return a Tempo at the specified resolution, dispatching to
+  `trunc/2` or `extend_resolution/2` based on whether `target_unit`
+  is coarser or finer than the current resolution.
+
+  This is the unified entry point for normalising resolution. It
+  is idempotent when `target_unit` matches the current resolution.
+
+  ### Arguments
+
+  * `tempo` is any `t:#{__MODULE__}.t/0`.
+
+  * `target_unit` is any time unit atom (`:year`, `:month`,
+    `:day`, `:hour`, `:minute`, `:second`, …).
+
+  ### Returns
+
+  * The Tempo at the requested resolution, or
+
+  * `{:error, reason}`.
+
+  ### Examples
+
+      iex> Tempo.at_resolution(~o"2020Y", :day)
+      ~o"2020Y1M1D"
+
+      iex> Tempo.at_resolution(~o"2020Y6M15DT10H", :day)
+      ~o"2020Y6M15D"
+
+      iex> Tempo.at_resolution(~o"2020Y6M15D", :day)
+      ~o"2020Y6M15D"
+
+  """
+  @spec at_resolution(tempo :: t, target_unit :: time_unit()) ::
+          t | {:error, error_reason()}
+  def at_resolution(%Tempo{} = tempo, target_unit) do
+    with {:ok, target_unit} <- validate_unit(target_unit) do
+      {current_unit, _span} = resolution(tempo)
+
+      case Unit.compare(target_unit, current_unit) do
+        :eq -> tempo
+        :gt -> trunc(tempo, target_unit)
+        :lt -> extend_resolution(tempo, target_unit)
+      end
     end
   end
 
