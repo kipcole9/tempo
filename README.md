@@ -12,17 +12,17 @@ This conceptual shift — *time as interval, not instant* — removes a surprisi
 
 Every mainstream language treats `date`, `time`, and `datetime` as distinct scalar types. That fragmentation creates three classes of common bugs that Tempo eliminates by construction:
 
-**1. The "what does this value mean" ambiguity.** Is `~D[2026-06-15]` the instant of midnight on June 15, or the whole day? Most libraries can't say — the type is a scalar but it's being *used* as a span, with every developer inventing their own `end_of_day/1` helper. In Tempo, `~o"2026-06-15"` *is* the interval `[2026-06-15T00:00, 2026-06-16T00:00)`. No helpers needed; the semantics are the type.
+1. *The "what does this value mean" ambiguity:* Is `~D[2026-06-15]` the instant of midnight on June 15, or the whole day? Most libraries can't say — the type is a scalar but it's being *used* as a span, with every developer inventing their own `end_of_day/1` helper. In Tempo, `~o"2026-06-15"` *is* the interval `[2026-06-15T00:00, 2026-06-16T00:00)`. No helpers needed; the semantics are the type.
 
-**2. The type-per-resolution explosion.** `Date` for days, `Time` for hours/minutes/seconds, `DateTime` for the combination — and conversions between them are lossy in confusing directions. Tempo's single `%Tempo{}` struct carries its own resolution. A year, a month, a meeting, a millennium — same type, different resolution.
+2. *The type-per-resolution explosion:* `Date` for days, `Time` for hours/minutes/seconds, `DateTime` for the combination — and conversions between them are lossy in confusing directions. Tempo's single `%Tempo{}` struct carries its own resolution. A year, a month, a meeting, a millennium — same type, different resolution.
 
-**3. The "I can't express that" ceiling.** Archaeological dates ("sometime in the 1560s"), EDTF-qualified values ("approximately 2022"), open-ended intervals ("from 1985 onwards"), Hebrew-to-Gregorian queries, recurrences, free-busy spans — all awkward or impossible to express cleanly as scalar instants. All natural in Tempo.
+3. *The "I can't express that" ceiling:* Archaeological dates ("sometime in the 1560s"), EDTF-qualified values ("approximately 2022"), open-ended intervals ("from 1985 onwards"), Hebrew-to-Gregorian queries, recurrences, free-busy spans — all awkward or impossible to express cleanly as scalar instants. All natural in Tempo.
 
-Once every value is a bounded interval, **set operations follow naturally**: union, intersection, complement, difference, and predicates (`overlaps?`, `subset?`, `contains?`) all work on any combination of Tempo values, across resolutions, across timezones, across calendars.
+Once every value is a bounded interval, set operations follow naturally: union, intersection, complement, difference, and predicates (`overlaps?`, `subset?`, `contains?`) all work on any combination of Tempo values, across resolutions, across timezones, across calendars.
 
 ## What it looks like
 
-The professional side first — full ISO 8601-2 / EDTF / IXDTF support, calendar-aware arithmetic, cross-zone set operations:
+Full ISO 8601-2 / EDTF / IXDTF support, calendar-aware arithmetic, cross-zone set operations. In fact, probably the only fully ISO 8601 Parts 1 and 2 in existence (really, I couldn't find one anywhere - please let me know if you know of one).
 
 ```elixir
 # A date is an interval
@@ -32,18 +32,18 @@ iex> ~o"2026-06-15"
 # Its bounds are real — Tempo.Interval construction, not a helper
 iex> {:ok, %Tempo.Interval{from: from, to: to}} = Tempo.to_interval(~o"2026-06-15")
 iex> {from.time, to.time}
-{[year: 2026, month: 6, day: 15], [year: 2026, month: 6, day: 16]}
+{[year: 2026, month: 6, day: 15, hour: 0], [year: 2026, month: 6, day: 16, hour: 0]}
 
 # Cross-zone set operations compare by UTC, preserve the first operand's zone
-iex> paris = Tempo.from_date_time(DateTime.new!(~D[2026-06-15], ~T[10:00:00], "Europe/Paris"))
-iex> utc = ~o"2026-06-15T08:00:00Z"
-iex> Tempo.overlaps?(paris, utc)
-true
+iex> paris = Tempo.from_elixir(DateTime.new!(~D[2026-06-15], ~T[10:00:00], "Europe/Paris"))
+iex> utc_window = ~o"2026-06-15T07/2026-06-15T09"   # UTC 07:00..09:00
+iex> Tempo.overlaps?(paris, utc_window)
+true   # Paris 10:00 CEST == UTC 08:00 — inside the window
 
 # Cross-calendar comparison, no manual conversion
-iex> hebrew = %Tempo{time: [year: 5786, month: 4, day: 1], calendar: Calendrical.Hebrew}
+iex> hebrew = %Tempo{time: [year: 5786, month: 10, day: 30], calendar: Calendrical.Hebrew}
 iex> Tempo.overlaps?(hebrew, ~o"2026-06-15")
-true
+true   # Hebrew 5786-10-30 is Gregorian 2026-06-15
 ```
 
 Now the playful side — what you actually get to write:
@@ -93,7 +93,7 @@ Tempo draws on several bodies of work:
 
 * **PostgreSQL multirange types.** Postgres 14+ ships sorted, non-overlapping, coalesced interval sets. Tempo's `%Tempo.IntervalSet{}` follows the same conceptual model; set operations follow the same sweep-line algorithms.
 
-* **Wojciech Mach's [`calendar_interval`](https://github.com/wojtekmach/calendar_interval).** A partial-but-elegant implementation of calendar intervals in Elixir. Concepts from this library informed Tempo's implicit-span semantics.
+* **Wojtek Mach's [`calendar_interval`](https://github.com/wojtekmach/calendar_interval).** A partial-but-elegant implementation of calendar intervals in Elixir. Concepts from this library informed Tempo's implicit-span semantics.
 
 * **ISO 8601-2 / EDTF.** The 2019 extension to ISO 8601 formalises archaeological and approximate dates. The `unt-libraries/edtf-validate` conformance corpus — the only public test suite for EDTF — is exercised in full.
 
@@ -106,14 +106,14 @@ Tempo draws on several bodies of work:
 ```elixir
 def deps do
   [
-    {:tempo, github: "kipcole9/tempo"},
+    {:ex_tempo, github: "kipcole9/tempo"},
     # Optional, only needed for iCalendar import:
     {:ical, github: "expothecary/ical"}
   ]
 end
 ```
 
-A hex release is imminent. Docs at [https://hexdocs.pm/tempo](https://hexdocs.pm/tempo).
+A hex release is imminent. The package name is `ex_tempo` because the `tempo` name on hex was already taken; the library is imported as `use Tempo` / `alias Tempo` and feels like `tempo` in code. Docs at [https://hexdocs.pm/ex_tempo](https://hexdocs.pm/ex_tempo).
 
 ## Guides
 

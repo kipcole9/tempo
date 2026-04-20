@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Tempo — social / OG preview card (light).
+
+  Sized 1280×640 per GitHub's recommended social-preview
+  dimensions. Also suitable for the Hex.pm card.
+
+  Layout matches `logo-social.svg` (dark variant): mark +
+  wordmark lockup horizontally and vertically centred, tagline
+  and subtitle stacked below.
+-->
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 1280 640"
+     font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif">
+  <rect width="1280" height="640" fill="#f7f8fa"/>
+
+  <!-- The mark. -->
+  <g transform="translate(295, 170)"
+     fill="none"
+     stroke="#0b0d10"
+     stroke-width="24"
+     stroke-linecap="round"
+     stroke-linejoin="round">
+    <path d="M 88 56 H 56 V 200 H 88"/>
+    <circle cx="128" cy="128" r="18" fill="#0b0d10" stroke="none"/>
+    <path d="M 168 56 Q 212 128 168 200"/>
+  </g>
+
+  <!-- Wordmark. -->
+  <text x="527" y="314"
+        font-size="140"
+        font-weight="700"
+        letter-spacing="-0.02em"
+        fill="#0b0d10">Tempo</text>
+
+  <!-- Tagline. -->
+  <text x="529" y="376"
+        font-size="30"
+        font-weight="500"
+        letter-spacing="0.01em"
+        fill="#4b5563">Time as an interval, not an instant.</text>
+
+  <!-- Subtitle. -->
+  <text x="529" y="418"
+        font-size="22"
+        font-weight="400"
+        fill="#6b7280">ISO 8601 Parts 1 &amp; 2 · EDTF · IXDTF</text>
+</svg>

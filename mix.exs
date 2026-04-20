@@ -5,7 +5,7 @@ defmodule Tempo.MixProject do
 
   def project do
     [
-      app: :tempo,
+      app: :ex_tempo,
       version: @version,
       elixir: "~> 1.13",
       elixirc_paths: elixirc_paths(Mix.env()),
