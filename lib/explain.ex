@@ -271,7 +271,8 @@ defmodule Tempo.Explain do
   defp qualification_text(%Tempo{qualification: q, qualifications: qs}) do
     parts =
       [
-        q && "Expression-level qualification: #{qualification_word(q)} (EDTF #{qualification_symbol(q)}).",
+        q &&
+          "Expression-level qualification: #{qualification_word(q)} (EDTF #{qualification_symbol(q)}).",
         qs && map_size(qs) > 0 && "Per-component qualifications: #{inspect(qs)}."
       ]
       |> Enum.reject(&(&1 in [nil, false]))
@@ -410,8 +411,7 @@ defmodule Tempo.Explain do
       |> Enum.with_index(1)
       |> Enum.map(fn {iv, i} ->
         summary = (iv.metadata || %{})[:summary] || "(no summary)"
-        {:member,
-         "#{i}. #{render_endpoint(iv.from)} → #{render_endpoint(iv.to)}  · #{summary}"}
+        {:member, "#{i}. #{render_endpoint(iv.from)} → #{render_endpoint(iv.to)}  · #{summary}"}
       end)
 
     more =
