@@ -496,42 +496,46 @@ defmodule Tempo.ICal.Test do
     end
   end
 
-  describe "from_ical/2 — real Apple Calendar export" do
-    @describetag :real_ical_fixture
+  # The Apple Calendar fixture is gitignored (see .gitignore) — it's
+  # a real personal calendar used locally as a "real-world" parse
+  # target, not committed to the repo. CI never sees it. Compile
+  # the describe block only when the fixture is present so CI
+  # doesn't try to run tests whose setup can't produce an `ics`
+  # context.
+  if File.exists?(@apple_fixture) do
+    describe "from_ical/2 — real Apple Calendar export" do
+      @describetag :real_ical_fixture
 
-    setup do
-      if File.exists?(@apple_fixture) do
+      setup do
         {:ok, ics: File.read!(@apple_fixture)}
-      else
-        :ok
       end
-    end
 
-    test "parses without error and produces an IntervalSet", %{ics: ics} do
-      assert {:ok, set} = Tempo.ICal.from_ical(ics)
-      assert %Tempo.IntervalSet{} = set
-      assert length(set.intervals) > 0
-    end
+      test "parses without error and produces an IntervalSet", %{ics: ics} do
+        assert {:ok, set} = Tempo.ICal.from_ical(ics)
+        assert %Tempo.IntervalSet{} = set
+        assert length(set.intervals) > 0
+      end
 
-    test "preserves every event's summary on its interval", %{ics: ics} do
-      {:ok, set} = Tempo.ICal.from_ical(ics)
-      # Every interval should have a summary (optional in RFC 5545
-      # but present in every real export we've seen).
-      summaries =
-        set.intervals
-        |> Enum.map(& &1.metadata[:summary])
-        |> Enum.reject(&is_nil/1)
+      test "preserves every event's summary on its interval", %{ics: ics} do
+        {:ok, set} = Tempo.ICal.from_ical(ics)
+        # Every interval should have a summary (optional in RFC 5545
+        # but present in every real export we've seen).
+        summaries =
+          set.intervals
+          |> Enum.map(& &1.metadata[:summary])
+          |> Enum.reject(&is_nil/1)
 
-      assert length(summaries) > 0
-    end
+        assert length(summaries) > 0
+      end
 
-    test "calendar name from X-WR-CALNAME is captured", %{ics: ics} do
-      {:ok, set} = Tempo.ICal.from_ical(ics)
-      # The Apple export carries an X-WR-CALNAME; it should come
-      # through as a plain string, not a wrapped struct.
-      case set.metadata[:name] do
-        nil -> :ok
-        name when is_binary(name) -> :ok
+      test "calendar name from X-WR-CALNAME is captured", %{ics: ics} do
+        {:ok, set} = Tempo.ICal.from_ical(ics)
+        # The Apple export carries an X-WR-CALNAME; it should come
+        # through as a plain string, not a wrapped struct.
+        case set.metadata[:name] do
+          nil -> :ok
+          name when is_binary(name) -> :ok
+        end
       end
     end
   end
