@@ -42,7 +42,7 @@ defmodule Tempo.MixProject do
       {:nimble_parsec, "~> 1.0"},
       {:calendrical, "~> 0.2"},
       {:astro, "~> 2.0"},
-      {:localize, path: "../localize/localize", override: true},
+      {:localize, "~> 0.19"},
       {:tzdata, "~> 1.1"},
       {:ical, github: "expothecary/ical", optional: true},
       {:plug, "~> 1.15", optional: true},
