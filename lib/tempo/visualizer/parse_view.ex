@@ -212,7 +212,9 @@ defmodule Tempo.Visualizer.ParseView do
 
   defp segment_for_set_member(%Tempo{} = t), do: tempo_segments(t, true)
   defp segment_for_set_member({:range, [a, b]}), do: range_segments(a, b)
-  defp segment_for_set_member(other), do: [%{glyph: inspect(other), label: "Member", detail: "", kind: "separator"}]
+
+  defp segment_for_set_member(other),
+    do: [%{glyph: inspect(other), label: "Member", detail: "", kind: "separator"}]
 
   defp range_segments(a, b) do
     a_segs = segment_or_undefined(a)
@@ -225,7 +227,9 @@ defmodule Tempo.Visualizer.ParseView do
 
   defp segment_or_undefined(%Tempo{} = t), do: tempo_segments(t, true)
   defp segment_or_undefined(list) when is_list(list), do: tempo_segments(%Tempo{time: list}, true)
-  defp segment_or_undefined(other), do: [%{glyph: inspect(other), label: "", detail: "", kind: "separator"}]
+
+  defp segment_or_undefined(other),
+    do: [%{glyph: inspect(other), label: "", detail: "", kind: "separator"}]
 
   # Build segments for a single `%Tempo{}`. When `is_endpoint?` is true
   # the year is rendered without a leading `-` separator, since it's
@@ -254,7 +258,9 @@ defmodule Tempo.Visualizer.ParseView do
   defp endpoint_segments(nil), do: []
   defp endpoint_segments(%Tempo{} = t), do: tempo_segments(t, true)
   defp endpoint_segments(%Tempo.Duration{} = d), do: segments_for(d)
-  defp endpoint_segments(other), do: [%{glyph: inspect(other), label: "", detail: "", kind: "separator"}]
+
+  defp endpoint_segments(other),
+    do: [%{glyph: inspect(other), label: "", detail: "", kind: "separator"}]
 
   defp recurrence_segment(1), do: nil
 
@@ -507,14 +513,28 @@ defmodule Tempo.Visualizer.ParseView do
   defp qualification_segments(expression_q, component_qs) do
     expr =
       case expression_q do
-        nil -> []
-        q -> [%{glyph: qualifier_glyph(q), label: "Qualification", detail: qualifier_name(q), kind: "qualification"}]
+        nil ->
+          []
+
+        q ->
+          [
+            %{
+              glyph: qualifier_glyph(q),
+              label: "Qualification",
+              detail: qualifier_name(q),
+              kind: "qualification"
+            }
+          ]
       end
 
     comp =
       case component_qs do
-        nil -> []
-        map when map_size(map) == 0 -> []
+        nil ->
+          []
+
+        map when map_size(map) == 0 ->
+          []
+
         map ->
           [
             %{

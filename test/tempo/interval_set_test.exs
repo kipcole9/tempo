@@ -16,6 +16,7 @@ defmodule Tempo.IntervalSet.Test do
       {:ok, set} = Tempo.IntervalSet.new([may, jan, mar])
 
       assert length(set.intervals) == 3
+
       assert Enum.map(set.intervals, & &1.from.time) == [
                [year: 2022, month: 1, day: 1],
                [year: 2022, month: 3, day: 1],

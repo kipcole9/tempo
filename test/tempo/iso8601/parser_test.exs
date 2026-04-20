@@ -27,8 +27,7 @@ defmodule Tempo.Iso8601.Parser.Test do
 
     # 5.4.1 Example 1
     assert Tempo.from_iso8601("2018Y4G60DU6D") ==
-             {:ok,
-              %Tempo{calendar: Calendrical.Gregorian, time: [year: 2018, month: 7, day: 5]}}
+             {:ok, %Tempo{calendar: Calendrical.Gregorian, time: [year: 2018, month: 7, day: 5]}}
 
     # 5.4.1 Example 3
     assert Tempo.from_iso8601("2018Y9M2DT3GT8HU30M")
@@ -85,8 +84,7 @@ defmodule Tempo.Iso8601.Parser.Test do
 
     # 5.4.2 Example 7
     assert Tempo.from_iso8601("2018Y2G3MU50D") ==
-             {:ok,
-              %Tempo{calendar: Calendrical.Gregorian, time: [year: 2018, month: 5, day: 20]}}
+             {:ok, %Tempo{calendar: Calendrical.Gregorian, time: [year: 2018, month: 5, day: 20]}}
 
     # 5.4.2 Example 8
     assert Tempo.from_iso8601("201J2G5YU3DT10H0S") ==
@@ -98,8 +96,7 @@ defmodule Tempo.Iso8601.Parser.Test do
 
     # 5.4.2 Example 9
     assert Tempo.from_iso8601("2018Y3G60DU6D") ==
-             {:ok,
-              %Tempo{calendar: Calendrical.Gregorian, time: [year: 2018, month: 5, day: 6]}}
+             {:ok, %Tempo{calendar: Calendrical.Gregorian, time: [year: 2018, month: 5, day: 6]}}
 
     # 5.4.2 Example 10
     assert Tempo.from_iso8601("2018Y20GT12HU3H") ==
@@ -111,8 +108,7 @@ defmodule Tempo.Iso8601.Parser.Test do
 
     # 5.4.3 Example 1
     assert Tempo.from_iso8601("2018Y1G2MU30D") ==
-             {:ok,
-              %Tempo{calendar: Calendrical.Gregorian, time: [year: 2018, month: 1, day: 30]}}
+             {:ok, %Tempo{calendar: Calendrical.Gregorian, time: [year: 2018, month: 1, day: 30]}}
 
     # 5.4.3 Example 2
     assert Tempo.from_iso8601("2018Y1G2MU60D") ==
@@ -213,13 +209,11 @@ defmodule Tempo.Iso8601.Parser.Test do
   test "Section 7 Dates" do
     # Section 7.2.3 Example 1
     assert Tempo.from_iso8601("1985Y102O") ==
-             {:ok,
-              %Tempo{calendar: Calendrical.Gregorian, time: [year: 1985, month: 4, day: 12]}}
+             {:ok, %Tempo{calendar: Calendrical.Gregorian, time: [year: 1985, month: 4, day: 12]}}
 
     # Section 7.2.4 Example 1 with month based calendar
     assert Tempo.from_iso8601("1985Y15W7K") ==
-             {:ok,
-              %Tempo{calendar: Calendrical.Gregorian, time: [year: 1985, month: 4, day: 14]}}
+             {:ok, %Tempo{calendar: Calendrical.Gregorian, time: [year: 1985, month: 4, day: 14]}}
 
     # Section 7.2.4 Example 1 with week based calendar
     assert Tempo.from_iso8601("1985Y15W7K", Calendrical.ISOWeek) ==
@@ -238,8 +232,7 @@ defmodule Tempo.Iso8601.Parser.Test do
 
     # Section 7.3.2
     assert Tempo.from_iso8601("T0H0M0S") ==
-             {:ok,
-              %Tempo{calendar: Calendrical.Gregorian, time: [hour: 0, minute: 0, second: 0]}}
+             {:ok, %Tempo{calendar: Calendrical.Gregorian, time: [hour: 0, minute: 0, second: 0]}}
 
     # Section 7.4 Example 1
     assert Tempo.from_iso8601("Z-5H") ==
@@ -255,8 +248,7 @@ defmodule Tempo.Iso8601.Parser.Test do
 
     # Section 7.4 Example 4
     assert Tempo.from_iso8601("Z6H0M") ==
-             {:ok,
-              %Tempo{calendar: Calendrical.Gregorian, time: [], shift: [hour: 6, minute: 0]}}
+             {:ok, %Tempo{calendar: Calendrical.Gregorian, time: [], shift: [hour: 6, minute: 0]}}
 
     # Section 7.4 Example 5
     assert Tempo.from_iso8601("Z7H33M14S") ==
@@ -273,8 +265,7 @@ defmodule Tempo.Iso8601.Parser.Test do
 
     # Section 7.4 Example 7
     assert Tempo.from_iso8601("Z0H0M") ==
-             {:ok,
-              %Tempo{calendar: Calendrical.Gregorian, time: [], shift: [hour: 0, minute: 0]}}
+             {:ok, %Tempo{calendar: Calendrical.Gregorian, time: [], shift: [hour: 0, minute: 0]}}
 
     # Section 7.4 Example 8
     assert Tempo.from_iso8601("Z0S")

@@ -20,7 +20,7 @@ defmodule Tempo.Iso8601.Edtf.Corpus do
     "1985-04-12T23:20:30Z",
     "1985-04-12T23:20:30-04",
     "1985-04-12T23:20:30+04:30",
-    "2004-01-01T10:10:10+00:59",
+    "2004-01-01T10:10:10+00:59"
   ]
   def level0_dates, do: @level0_dates
 
@@ -51,7 +51,7 @@ defmodule Tempo.Iso8601.Edtf.Corpus do
     "-1985-04-12T23:20:30Z",
     "-1985-04-12T23:20:30-04",
     "-1985-04-12T23:20:30+04:30",
-    "-2001-02-03",
+    "-2001-02-03"
   ]
   def level1_dates, do: @level1_dates
 
@@ -81,7 +81,7 @@ defmodule Tempo.Iso8601.Edtf.Corpus do
     "-2001-38",
     "-2001-39",
     "-2001-40",
-    "-2001-41",
+    "-2001-41"
   ]
   def level2_dates, do: @level2_dates
 
@@ -98,7 +98,7 @@ defmodule Tempo.Iso8601.Edtf.Corpus do
     "0000-01/0000-01-03",
     "0000-01-13/0000-01-23",
     "1111-01-01/1111",
-    "0000-01/0000",
+    "0000-01/0000"
   ]
   def level0_intervals, do: @level0_intervals
 
@@ -141,7 +141,7 @@ defmodule Tempo.Iso8601.Edtf.Corpus do
     "../..",
     "-1985-04-12/..",
     "-1985-04/..",
-    "-1985/",
+    "-1985/"
   ]
   def level1_intervals, do: @level1_intervals
 
@@ -196,7 +196,7 @@ defmodule Tempo.Iso8601.Edtf.Corpus do
     "1112-08-22/1112-08-2X",
     "2015-02-27/2015-02-X8",
     "2016-02-28/2016-02-X9",
-    "1984-06-?02/2004-06-11%",
+    "1984-06-?02/2004-06-11%"
   ]
   def level2_intervals, do: @level2_intervals
 
@@ -219,7 +219,7 @@ defmodule Tempo.Iso8601.Edtf.Corpus do
     "2000/12-12",
     "2012-10-10T1:10:10",
     "2012-10-10T10:1:10",
-    "2005-07-25T10:10:10Z/2006-01-01T10:10:10Z",
+    "2005-07-25T10:10:10Z/2006-01-01T10:10:10Z"
   ]
   def invalid_dates, do: @invalid_dates
 
@@ -242,7 +242,7 @@ defmodule Tempo.Iso8601.Edtf.Corpus do
     "2004-06-11%/2004-06~",
     "2005-07-25T10:10:10Z/2006-01-01T10:10:10Z",
     "2005-07-25T10:10:10Z/2006-01",
-    "2005-07-25/2006-01-01T10:10:10Z",
+    "2005-07-25/2006-01-01T10:10:10Z"
   ]
   def invalid_intervals, do: @invalid_intervals
 
@@ -259,7 +259,7 @@ defmodule Tempo.Iso8601.Edtf.Corpus do
     "2004-01-01T10:10:10+02:00:30",
     "2004-01-01T10:10:1000:59",
     "-1985-04-12T23:20:30+24",
-    "-1985-04-12T23:20:30Z12:00",
+    "-1985-04-12T23:20:30Z12:00"
   ]
   def invalid_datetimes, do: @invalid_datetimes
 end

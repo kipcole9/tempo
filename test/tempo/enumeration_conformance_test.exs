@@ -216,9 +216,7 @@ defmodule Tempo.EnumerationConformance.Test do
       # endpoint failed to parse. This test pins the fix and confirms
       # the per-endpoint zone_id is preserved through enumeration.
       {:ok, interval} =
-        Tempo.from_iso8601(
-          "2022-06-15T10:00[Europe/Paris]/2022-06-15T13:00[Europe/London]"
-        )
+        Tempo.from_iso8601("2022-06-15T10:00[Europe/Paris]/2022-06-15T13:00[Europe/London]")
 
       assert interval.from.extended.zone_id == "Europe/Paris"
       assert interval.to.extended.zone_id == "Europe/London"
@@ -325,7 +323,12 @@ defmodule Tempo.EnumerationConformance.Test do
       # still halts as expected.
       {:ok, interval} = Tempo.from_iso8601("1985-01/P3M")
       list = Enum.take(interval, 3)
-      assert Enum.map(list, & &1.time) == [[year: 1985, month: 1], [year: 1985, month: 2], [year: 1985, month: 3]]
+
+      assert Enum.map(list, & &1.time) == [
+               [year: 1985, month: 1],
+               [year: 1985, month: 2],
+               [year: 1985, month: 3]
+             ]
     end
 
     test "Enum.take/2 on `duration/to` iterates from (to - duration) to to" do
@@ -340,7 +343,12 @@ defmodule Tempo.EnumerationConformance.Test do
     test "Enum.take/2 on a week-resolution interval advances weeks" do
       {:ok, interval} = Tempo.from_iso8601("2022-W05/2022-W08")
       list = Enum.to_list(interval)
-      assert Enum.map(list, & &1.time) == [[year: 2022, week: 5], [year: 2022, week: 6], [year: 2022, week: 7]]
+
+      assert Enum.map(list, & &1.time) == [
+               [year: 2022, week: 5],
+               [year: 2022, week: 6],
+               [year: 2022, week: 7]
+             ]
     end
   end
 

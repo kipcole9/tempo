@@ -419,9 +419,8 @@ defmodule Tempo do
       "1984Y?/2004Y~"
 
   """
-  @spec to_iso8601(
-          Tempo.t() | Tempo.Interval.t() | Tempo.Duration.t() | Tempo.Set.t()
-        ) :: String.t()
+  @spec to_iso8601(Tempo.t() | Tempo.Interval.t() | Tempo.Duration.t() | Tempo.Set.t()) ::
+          String.t()
   def to_iso8601(value) do
     value
     |> Tempo.Inspect.to_iodata()

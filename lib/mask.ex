@@ -203,8 +203,7 @@ defmodule Tempo.Mask do
         d, {lo, hi} when is_integer(d) -> {[d | lo], [d | hi]}
       end)
 
-    {Integer.undigits(Enum.reverse(min_digits)),
-     Integer.undigits(Enum.reverse(max_digits))}
+    {Integer.undigits(Enum.reverse(min_digits)), Integer.undigits(Enum.reverse(max_digits))}
   end
 
   def matches_mask?(candidate, [:negative | rest_mask]) when candidate < 0 do

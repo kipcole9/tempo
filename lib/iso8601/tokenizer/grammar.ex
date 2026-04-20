@@ -30,7 +30,6 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
     ])
   end
 
-
   # Date Time
 
   def implicit_date_time do
@@ -100,7 +99,6 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
       |> optional(component_qualification(:day))
       |> concat(parsec(:implicit_day_of_month_p))
       |> optional(component_qualification(:day)),
-
       extended_ordinal_date()
     ])
     |> label("extended date")
@@ -388,7 +386,6 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
 
       # Short `Y`-prefix form (`Y2022`) — exactly 4 digits.
       ignore(string("Y")) |> maybe_negative_number(4) |> unwrap_and_tag(:year),
-
       maybe_negative_integer(4) |> unwrap_and_tag(:year)
     ])
     |> label("implicit year")

@@ -155,12 +155,10 @@ defmodule Tempo.RRule.Encoder do
         {:ok, "#{pad(y, 4)}#{pad(m, 2)}#{pad(d, 2)}"}
 
       [year: y, month: m, day: d, hour: h, minute: mm, second: s] ->
-        {:ok,
-         "#{pad(y, 4)}#{pad(m, 2)}#{pad(d, 2)}T#{pad(h, 2)}#{pad(mm, 2)}#{pad(s, 2)}"}
+        {:ok, "#{pad(y, 4)}#{pad(m, 2)}#{pad(d, 2)}T#{pad(h, 2)}#{pad(mm, 2)}#{pad(s, 2)}"}
 
       [year: y, month: m, day: d, hour: h, minute: mm, second: s, time_shift: [hour: 0]] ->
-        {:ok,
-         "#{pad(y, 4)}#{pad(m, 2)}#{pad(d, 2)}T#{pad(h, 2)}#{pad(mm, 2)}#{pad(s, 2)}Z"}
+        {:ok, "#{pad(y, 4)}#{pad(m, 2)}#{pad(d, 2)}T#{pad(h, 2)}#{pad(mm, 2)}#{pad(s, 2)}Z"}
 
       _ ->
         {:error,
@@ -247,8 +245,9 @@ defmodule Tempo.RRule.Encoder do
   # must be split into BYDAY + BYSETPOS.
   defp compatible_pair?(day, pos) when is_integer(day) and is_integer(pos), do: true
 
-  defp compatible_pair?(day, pos) when is_list(day) and is_list(pos) and length(day) == length(pos),
-    do: true
+  defp compatible_pair?(day, pos)
+       when is_list(day) and is_list(pos) and length(day) == length(pos),
+       do: true
 
   defp compatible_pair?(_, _), do: false
 
@@ -274,7 +273,9 @@ defmodule Tempo.RRule.Encoder do
   ## Small helpers
 
   defp list_csv(n) when is_integer(n), do: Integer.to_string(n)
-  defp list_csv(list) when is_list(list), do: list |> Enum.map(&Integer.to_string/1) |> Enum.join(",")
+
+  defp list_csv(list) when is_list(list),
+    do: list |> Enum.map(&Integer.to_string/1) |> Enum.join(",")
 
   defp pad(n, width) when is_integer(n) and n >= 0 do
     n |> Integer.to_string() |> String.pad_leading(width, "0")

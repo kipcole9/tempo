@@ -71,8 +71,7 @@ defmodule Tempo.Visualizer.Standalone do
 
     %{
       id: __MODULE__,
-      start:
-        {Bandit, :start_link, [[plug: Tempo.Visualizer, port: port, ip: ip_tuple(ip)]]},
+      start: {Bandit, :start_link, [[plug: Tempo.Visualizer, port: port, ip: ip_tuple(ip)]]},
       type: :supervisor
     }
   end

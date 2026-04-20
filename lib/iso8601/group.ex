@@ -248,9 +248,16 @@ defmodule Tempo.Iso8601.Group do
     {:ok, interval} =
       [
         interval: [
-          datetime:
-            [{:year, start_date.year}, {:month, start_date.month}, {:day, start_date.day} | rest],
-          datetime: [{:year, end_date.year}, {:month, end_date.month}, {:day, end_date.day} | rest]
+          datetime: [
+            {:year, start_date.year},
+            {:month, start_date.month},
+            {:day, start_date.day} | rest
+          ],
+          datetime: [
+            {:year, end_date.year},
+            {:month, end_date.month},
+            {:day, end_date.day} | rest
+          ]
         ]
       ]
       |> Tempo.Iso8601.Parser.parse()

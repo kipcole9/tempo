@@ -120,11 +120,13 @@ defmodule Tempo.Math.Test do
 
   describe "subtract_unit/3 — primitive" do
     test "day with month borrow" do
-      assert Tempo.Math.subtract_unit(~o"2022Y2M1D", :day, Calendrical.Gregorian) == ~o"2022Y1M31D"
+      assert Tempo.Math.subtract_unit(~o"2022Y2M1D", :day, Calendrical.Gregorian) ==
+               ~o"2022Y1M31D"
     end
 
     test "day with year borrow" do
-      assert Tempo.Math.subtract_unit(~o"2023Y1M1D", :day, Calendrical.Gregorian) == ~o"2022Y12M31D"
+      assert Tempo.Math.subtract_unit(~o"2023Y1M1D", :day, Calendrical.Gregorian) ==
+               ~o"2022Y12M31D"
     end
 
     test "month across year boundary" do

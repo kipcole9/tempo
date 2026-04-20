@@ -10,13 +10,11 @@ defmodule TempoTest do
               %Tempo{calendar: Calendrical.Gregorian, time: [year: 2018, month: {:group, 1..6}]}}
 
     assert Tempo.from_iso8601("2018Y1G2MU30D") ==
-             {:ok,
-              %Tempo{calendar: Calendrical.Gregorian, time: [year: 2018, month: 1, day: 30]}}
+             {:ok, %Tempo{calendar: Calendrical.Gregorian, time: [year: 2018, month: 1, day: 30]}}
 
     # 5.4.2 Group Example 7
     assert Tempo.from_iso8601("2018Y2G3MU50D") ==
-             {:ok,
-              %Tempo{calendar: Calendrical.Gregorian, time: [year: 2018, month: 5, day: 20]}}
+             {:ok, %Tempo{calendar: Calendrical.Gregorian, time: [year: 2018, month: 5, day: 20]}}
   end
 
   test "times with invalid groups" do

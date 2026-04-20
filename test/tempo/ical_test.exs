@@ -399,6 +399,7 @@ defmodule Tempo.ICal.Test do
       # Event is split into pre-break and post-break, both tagged
       # with the original event's metadata.
       assert length(remaining.intervals) == 2
+
       assert Enum.all?(remaining.intervals, fn iv ->
                iv.metadata.summary == "Long session"
              end)

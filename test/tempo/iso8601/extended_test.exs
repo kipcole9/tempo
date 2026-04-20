@@ -275,9 +275,7 @@ defmodule Tempo.Iso8601.Extended.Test do
 
     test "1996-12-19T16:39:57-08:00[America/Los_Angeles][u-ca=hebrew]" do
       assert {:ok, {_, extended}} =
-               Tokenizer.tokenize(
-                 "1996-12-19T16:39:57-08:00[America/Los_Angeles][u-ca=hebrew]"
-               )
+               Tokenizer.tokenize("1996-12-19T16:39:57-08:00[America/Los_Angeles][u-ca=hebrew]")
 
       assert extended.zone_id == "America/Los_Angeles"
       assert extended.calendar == :hebrew
@@ -310,9 +308,7 @@ defmodule Tempo.Iso8601.Extended.Test do
   describe "IXDTF on interval endpoints" do
     test "both endpoints carry their own zone" do
       assert {:ok, interval} =
-               Tempo.from_iso8601(
-                 "2022-06-15T10:00[Europe/Paris]/2022-06-15T12:00[Europe/Paris]"
-               )
+               Tempo.from_iso8601("2022-06-15T10:00[Europe/Paris]/2022-06-15T12:00[Europe/Paris]")
 
       assert interval.from.extended.zone_id == "Europe/Paris"
       assert interval.to.extended.zone_id == "Europe/Paris"
@@ -379,9 +375,7 @@ defmodule Tempo.Iso8601.Extended.Test do
       # validation in place, the specific `Unknown IANA time zone`
       # error is surfaced.
       assert {:error, msg} =
-               Tempo.from_iso8601(
-                 "2022-06-15T10:00[!Continent/Imaginary]/2022-06-15T12:00"
-               )
+               Tempo.from_iso8601("2022-06-15T10:00[!Continent/Imaginary]/2022-06-15T12:00")
 
       assert msg =~ "Unknown IANA time zone"
       assert msg =~ "Continent/Imaginary"

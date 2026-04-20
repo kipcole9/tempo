@@ -105,8 +105,11 @@ defmodule Tempo.IntervalSet do
   defp validate_all_bounded(intervals) do
     Enum.reduce_while(intervals, :ok, fn interval, :ok ->
       case bounded?(interval) do
-        true -> {:cont, :ok}
-        false -> {:halt, {:error, "Cannot include open-ended interval in a set: #{inspect(interval)}"}}
+        true ->
+          {:cont, :ok}
+
+        false ->
+          {:halt, {:error, "Cannot include open-ended interval in a set: #{inspect(interval)}"}}
       end
     end)
   end

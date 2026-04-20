@@ -427,9 +427,7 @@ defmodule Tempo.Operations.Test do
       {:ok, na} = Tempo.from_iso8601("T23:00/T01:00")
 
       {:ok, r} =
-        Tempo.intersection(~o"2026-01-01/2026-01-04", na,
-          bound: ~o"2026-01-01/2026-01-04"
-        )
+        Tempo.intersection(~o"2026-01-01/2026-01-04", na, bound: ~o"2026-01-01/2026-01-04")
 
       assert length(r.intervals) == 3
     end

@@ -4,18 +4,26 @@ defmodule Tempo.Parser.DatesTimes.Test do
   alias Tempo.Iso8601.Tokenizer
 
   test "Date Parsing" do
-    assert Tokenizer.tokenize("2018-08-01") == {:ok, {[date: [year: 2018, month: 8, day: 1]], nil}}
+    assert Tokenizer.tokenize("2018-08-01") ==
+             {:ok, {[date: [year: 2018, month: 8, day: 1]], nil}}
+
     assert Tokenizer.tokenize("1985") == {:ok, {[date: [year: 1985]], nil}}
     assert Tokenizer.tokenize("12Y") == {:ok, {[date: [year: 12]], nil}}
     assert Tokenizer.tokenize("8M") == {:ok, {[date: [month: 8]], nil}}
     assert Tokenizer.tokenize("25D") == {:ok, {[date: [day: 25]], nil}}
     assert Tokenizer.tokenize("10W") == {:ok, {[date: [week: 10]], nil}}
     assert Tokenizer.tokenize("19850412") == {:ok, {[date: [year: 1985, month: 4, day: 12]], nil}}
-    assert Tokenizer.tokenize("1985-04-12") == {:ok, {[date: [year: 1985, month: 4, day: 12]], nil}}
+
+    assert Tokenizer.tokenize("1985-04-12") ==
+             {:ok, {[date: [year: 1985, month: 4, day: 12]], nil}}
+
     assert Tokenizer.tokenize("1985-04") == {:ok, {[date: [year: 1985, month: 4]], nil}}
     assert Tokenizer.tokenize("1985") == {:ok, {[date: [year: 1985]], nil}}
     assert Tokenizer.tokenize("1985102") == {:ok, {[date: [year: 1985, day: 102]], nil}}
-    assert Tokenizer.tokenize("1985W155") == {:ok, {[date: [year: 1985, week: 15, day_of_week: 5]], nil}}
+
+    assert Tokenizer.tokenize("1985W155") ==
+             {:ok, {[date: [year: 1985, week: 15, day_of_week: 5]], nil}}
+
     assert Tokenizer.tokenize("1985W15") == {:ok, {[date: [year: 1985, week: 15]], nil}}
     assert Tokenizer.tokenize("19") == {:ok, {[date: [century: 19]], nil}}
     assert Tokenizer.tokenize("198") == {:ok, {[date: [decade: 198]], nil}}
@@ -50,7 +58,9 @@ defmodule Tempo.Parser.DatesTimes.Test do
   end
 
   test "Exponential values section 4.4.2" do
-    assert Tokenizer.tokenize("1230S2") == {:ok, {[date: [year: {1230, significant_digits: 2}]], nil}}
+    assert Tokenizer.tokenize("1230S2") ==
+             {:ok, {[date: [year: {1230, significant_digits: 2}]], nil}}
+
     assert Tokenizer.tokenize("3E3Y") == {:ok, {[date: [year: 3000]], nil}}
   end
 
@@ -97,7 +107,9 @@ defmodule Tempo.Parser.DatesTimes.Test do
 
     assert Tokenizer.tokenize("T2320,8") == {:ok, {[time_of_day: [hour: 23, minute: 20.8]], nil}}
     assert Tokenizer.tokenize("T2320.8") == {:ok, {[time_of_day: [hour: 23, minute: 20.8]], nil}}
-    assert Tokenizer.tokenize("T000000") == {:ok, {[time_of_day: [hour: 0, minute: 0, second: 0]], nil}}
+
+    assert Tokenizer.tokenize("T000000") ==
+             {:ok, {[time_of_day: [hour: 0, minute: 0, second: 0]], nil}}
   end
 
   # This is not valid in ISO8601 but it makes quarter handling
@@ -110,104 +122,114 @@ defmodule Tempo.Parser.DatesTimes.Test do
 
   test "Time With Zone Parsing" do
     assert Tokenizer.tokenize("T23:20:30Z") ==
-             {:ok, {[time_of_day: [hour: 23, minute: 20, second: 30, time_shift: [hour: 0]]], nil}}
+             {:ok,
+              {[time_of_day: [hour: 23, minute: 20, second: 30, time_shift: [hour: 0]]], nil}}
 
     assert Tokenizer.tokenize("T232030Z") ==
-             {:ok, {[
-                time_of_day: [
-                  hour: 23,
-                  minute: 20,
-                  second: 30,
-                  time_shift: [hour: 0]
-                ]
-              ], nil}}
+             {:ok,
+              {[
+                 time_of_day: [
+                   hour: 23,
+                   minute: 20,
+                   second: 30,
+                   time_shift: [hour: 0]
+                 ]
+               ], nil}}
 
     assert Tokenizer.tokenize("T152746+0100") ==
-             {:ok, {[
-                time_of_day: [
-                  hour: 15,
-                  minute: 27,
-                  second: 46,
-                  time_shift: [hour: 1, minute: 0]
-                ]
-              ], nil}}
+             {:ok,
+              {[
+                 time_of_day: [
+                   hour: 15,
+                   minute: 27,
+                   second: 46,
+                   time_shift: [hour: 1, minute: 0]
+                 ]
+               ], nil}}
 
     assert Tokenizer.tokenize("T152746-0500") ==
-             {:ok, {[
-                time_of_day: [
-                  hour: 15,
-                  minute: 27,
-                  second: 46,
-                  time_shift: [hour: -5, minute: 0]
-                ]
-              ], nil}}
+             {:ok,
+              {[
+                 time_of_day: [
+                   hour: 15,
+                   minute: 27,
+                   second: 46,
+                   time_shift: [hour: -5, minute: 0]
+                 ]
+               ], nil}}
 
     assert Tokenizer.tokenize("T152746-05") ==
-             {:ok, {[
-                time_of_day: [
-                  hour: 15,
-                  minute: 27,
-                  second: 46,
-                  time_shift: [hour: -5]
-                ]
-              ], nil}}
+             {:ok,
+              {[
+                 time_of_day: [
+                   hour: 15,
+                   minute: 27,
+                   second: 46,
+                   time_shift: [hour: -5]
+                 ]
+               ], nil}}
 
     assert Tokenizer.tokenize("15:27:46+01:00") ==
-             {:ok, {[
-                time_of_day: [
-                  hour: 15,
-                  minute: 27,
-                  second: 46,
-                  time_shift: [hour: 1, minute: 0]
-                ]
-              ], nil}}
+             {:ok,
+              {[
+                 time_of_day: [
+                   hour: 15,
+                   minute: 27,
+                   second: 46,
+                   time_shift: [hour: 1, minute: 0]
+                 ]
+               ], nil}}
 
     assert Tokenizer.tokenize("15:27:46+01") ==
-             {:ok, {[
-                time_of_day: [
-                  hour: 15,
-                  minute: 27,
-                  second: 46,
-                  time_shift: [hour: 1]
-                ]
-              ], nil}}
+             {:ok,
+              {[
+                 time_of_day: [
+                   hour: 15,
+                   minute: 27,
+                   second: 46,
+                   time_shift: [hour: 1]
+                 ]
+               ], nil}}
 
     assert Tokenizer.tokenize("15:27:46-05") ==
-             {:ok, {[
-                time_of_day: [
-                  hour: 15,
-                  minute: 27,
-                  second: 46,
-                  time_shift: [hour: -5]
-                ]
-              ], nil}}
+             {:ok,
+              {[
+                 time_of_day: [
+                   hour: 15,
+                   minute: 27,
+                   second: 46,
+                   time_shift: [hour: -5]
+                 ]
+               ], nil}}
   end
 
   test "Date Time parsing" do
     assert Tokenizer.tokenize("19850412T232030") ==
-             {:ok, {[
-                datetime: [
-                  year: 1985,
-                  month: 4,
-                  day: 12,
-                  hour: 23,
-                  minute: 20,
-                  second: 30
-                ]
-              ], nil}}
+             {:ok,
+              {[
+                 datetime: [
+                   year: 1985,
+                   month: 4,
+                   day: 12,
+                   hour: 23,
+                   minute: 20,
+                   second: 30
+                 ]
+               ], nil}}
 
     assert Tokenizer.tokenize("19850412T232030Z") ==
-             {:ok, {[
-                datetime: [
-                  year: 1985,
-                  month: 4,
-                  day: 12,
-                  hour: 23,
-                  minute: 20,
-                  second: 30,
-                  time_shift: [hour: 0]
-                ]
-              ], nil}}
+             {:ok,
+              {[
+                 datetime: [
+                   year: 1985,
+                   month: 4,
+                   day: 12,
+                   hour: 23,
+                   minute: 20,
+                   second: 30,
+                   time_shift: [hour: 0]
+                 ]
+               ], nil}}
 
     assert Tokenizer.tokenize("19850412T232030+0400")
 
@@ -287,129 +309,139 @@ defmodule Tempo.Parser.DatesTimes.Test do
              {:ok, {[datetime: [year: 1985, day: 102, hour: 23, minute: 20, second: 30]], nil}}
 
     assert Tokenizer.tokenize("1985102T232030Z") ==
-             {:ok, {[
-                datetime: [
-                  year: 1985,
-                  day: 102,
-                  hour: 23,
-                  minute: 20,
-                  second: 30,
-                  time_shift: [hour: 0]
-                ]
-              ], nil}}
+             {:ok,
+              {[
+                 datetime: [
+                   year: 1985,
+                   day: 102,
+                   hour: 23,
+                   minute: 20,
+                   second: 30,
+                   time_shift: [hour: 0]
+                 ]
+               ], nil}}
 
     assert Tokenizer.tokenize("1985-102T23:20:30+04:00") ==
-             {:ok, {[
-                datetime: [
-                  year: 1985,
-                  day: 102,
-                  hour: 23,
-                  minute: 20,
-                  second: 30,
-                  time_shift: [hour: 4, minute: 0]
-                ]
-              ], nil}}
+             {:ok,
+              {[
+                 datetime: [
+                   year: 1985,
+                   day: 102,
+                   hour: 23,
+                   minute: 20,
+                   second: 30,
+                   time_shift: [hour: 4, minute: 0]
+                 ]
+               ], nil}}
 
     assert Tokenizer.tokenize("1985-102T23:20:30+04") ==
-             {:ok, {[
-                datetime: [
-                  year: 1985,
-                  day: 102,
-                  hour: 23,
-                  minute: 20,
-                  second: 30,
-                  time_shift: [hour: 4]
-                ]
-              ], nil}}
+             {:ok,
+              {[
+                 datetime: [
+                   year: 1985,
+                   day: 102,
+                   hour: 23,
+                   minute: 20,
+                   second: 30,
+                   time_shift: [hour: 4]
+                 ]
+               ], nil}}
 
     assert Tokenizer.tokenize("1985W155T232030") ==
-             {:ok, {[
-                datetime: [
-                  year: 1985,
-                  week: 15,
-                  day_of_week: 5,
-                  hour: 23,
-                  minute: 20,
-                  second: 30
-                ]
-              ], nil}}
+             {:ok,
+              {[
+                 datetime: [
+                   year: 1985,
+                   week: 15,
+                   day_of_week: 5,
+                   hour: 23,
+                   minute: 20,
+                   second: 30
+                 ]
+               ], nil}}
 
     assert Tokenizer.tokenize("1985W155T232030Z") ==
-             {:ok, {[
-                datetime: [
-                  year: 1985,
-                  week: 15,
-                  day_of_week: 5,
-                  hour: 23,
-                  minute: 20,
-                  second: 30,
-                  time_shift: [hour: 0]
-                ]
-              ], nil}}
+             {:ok,
+              {[
+                 datetime: [
+                   year: 1985,
+                   week: 15,
+                   day_of_week: 5,
+                   hour: 23,
+                   minute: 20,
+                   second: 30,
+                   time_shift: [hour: 0]
+                 ]
+               ], nil}}
 
     assert Tokenizer.tokenize("1985W155T232030+0400") ==
-             {:ok, {[
-                datetime: [
-                  year: 1985,
-                  week: 15,
-                  day_of_week: 5,
-                  hour: 23,
-                  minute: 20,
-                  second: 30,
-                  time_shift: [hour: 4, minute: 0]
-                ]
-              ], nil}}
+             {:ok,
+              {[
+                 datetime: [
+                   year: 1985,
+                   week: 15,
+                   day_of_week: 5,
+                   hour: 23,
+                   minute: 20,
+                   second: 30,
+                   time_shift: [hour: 4, minute: 0]
+                 ]
+               ], nil}}
 
     assert Tokenizer.tokenize("1985-W15-5T23:20:30") ==
-             {:ok, {[
-                datetime: [
-                  year: 1985,
-                  week: 15,
-                  day_of_week: 5,
-                  hour: 23,
-                  minute: 20,
-                  second: 30
-                ]
-              ], nil}}
+             {:ok,
+              {[
+                 datetime: [
+                   year: 1985,
+                   week: 15,
+                   day_of_week: 5,
+                   hour: 23,
+                   minute: 20,
+                   second: 30
+                 ]
+               ], nil}}
 
     assert Tokenizer.tokenize("1985-W15-5T23:20:30Z") ==
-             {:ok, {[
-                datetime: [
-                  year: 1985,
-                  week: 15,
-                  day_of_week: 5,
-                  hour: 23,
-                  minute: 20,
-                  second: 30,
-                  time_shift: [hour: 0]
-                ]
-              ], nil}}
+             {:ok,
+              {[
+                 datetime: [
+                   year: 1985,
+                   week: 15,
+                   day_of_week: 5,
+                   hour: 23,
+                   minute: 20,
+                   second: 30,
+                   time_shift: [hour: 0]
+                 ]
+               ], nil}}
 
     assert Tokenizer.tokenize("1985-W15-5T23:20:30+04:00") ==
-             {:ok, {[
-                datetime: [
-                  year: 1985,
-                  week: 15,
-                  day_of_week: 5,
-                  hour: 23,
-                  minute: 20,
-                  second: 30,
-                  time_shift: [hour: 4, minute: 0]
-                ]
-              ], nil}}
+             {:ok,
+              {[
+                 datetime: [
+                   year: 1985,
+                   week: 15,
+                   day_of_week: 5,
+                   hour: 23,
+                   minute: 20,
+                   second: 30,
+                   time_shift: [hour: 4, minute: 0]
+                 ]
+               ], nil}}
 
     assert Tokenizer.tokenize("1985-W15-5T23:20:30+04") ==
-             {:ok, {[
-                datetime: [
-                  year: 1985,
-                  week: 15,
-                  day_of_week: 5,
-                  hour: 23,
-                  minute: 20,
-                  second: 30,
-                  time_shift: [hour: 4]
-                ]
-              ], nil}}
+             {:ok,
+              {[
+                 datetime: [
+                   year: 1985,
+                   week: 15,
+                   day_of_week: 5,
+                   hour: 23,
+                   minute: 20,
+                   second: 30,
+                   time_shift: [hour: 4]
+                 ]
+               ], nil}}
 
     assert Tokenizer.tokenize("19850412T1015") ==
              {:ok, {[datetime: [year: 1985, month: 4, day: 12, hour: 10, minute: 15]], nil}}
@@ -418,15 +450,16 @@ defmodule Tempo.Parser.DatesTimes.Test do
              {:ok, {[datetime: [year: 1985, month: 4, day: 12, hour: 10, minute: 15]], nil}}
 
     assert Tokenizer.tokenize("1985102T1015Z") ==
-             {:ok, {[
-                datetime: [
-                  year: 1985,
-                  day: 102,
-                  hour: 10,
-                  minute: 15,
-                  time_shift: [hour: 0]
-                ]
-              ], nil}}
+             {:ok,
+              {[
+                 datetime: [
+                   year: 1985,
+                   day: 102,
+                   hour: 10,
+                   minute: 15,
+                   time_shift: [hour: 0]
+                 ]
+               ], nil}}
 
     assert Tokenizer.tokenize("1985-102T10:15Z")
 
@@ -442,33 +475,36 @@ defmodule Tempo.Parser.DatesTimes.Test do
      ]}
 
     assert Tokenizer.tokenize("1985W155T1015+0400") ==
-             {:ok, {[
-                datetime: [
-                  year: 1985,
-                  week: 15,
-                  day_of_week: 5,
-                  hour: 10,
-                  minute: 15,
-                  time_shift: [hour: 4, minute: 0]
-                ]
-              ], nil}}
+             {:ok,
+              {[
+                 datetime: [
+                   year: 1985,
+                   week: 15,
+                   day_of_week: 5,
+                   hour: 10,
+                   minute: 15,
+                   time_shift: [hour: 4, minute: 0]
+                 ]
+               ], nil}}
 
     assert Tokenizer.tokenize("1985-W15-5T10:15+04") ==
-             {:ok, {[
-                datetime: [
-                  year: 1985,
-                  week: 15,
-                  day_of_week: 5,
-                  hour: 10,
-                  minute: 15,
-                  time_shift: [hour: 4]
-                ]
-              ], nil}}
+             {:ok,
+              {[
+                 datetime: [
+                   year: 1985,
+                   week: 15,
+                   day_of_week: 5,
+                   hour: 10,
+                   minute: 15,
+                   time_shift: [hour: 4]
+                 ]
+               ], nil}}
   end
 
   test "Date with timezone (but no time)" do
     assert Tokenizer.tokenize("2018Y3G60DU6DZ8H") ==
-             {:ok, {[date: [year: 2018, group: [nth: 3, day: 60], day: 6, time_shift: [hour: 8]]], nil}}
+             {:ok,
+              {[date: [year: 2018, group: [nth: 3, day: 60], day: 6, time_shift: [hour: 8]]], nil}}
 
     assert Tokenizer.tokenize("2018Y1G60DUZ-5H") ==
              {:ok, {[date: [year: 2018, group: [nth: 1, day: 60], time_shift: [hour: -5]]], nil}}
@@ -479,11 +515,12 @@ defmodule Tempo.Parser.DatesTimes.Test do
              {:ok, {[date: [year: {-13_787_000_000, [margin_of_error: 20_000_000]}]], nil}}
 
     assert Tokenizer.tokenize("-13.787E9S4±20E6Y") ==
-             {:ok, {[
-                date: [
-                  year: {-13_787_000_000, [significant_digits: 4, margin_of_error: 20_000_000]}
-                ]
-              ], nil}}
+             {:ok,
+              {[
+                 date: [
+                   year: {-13_787_000_000, [significant_digits: 4, margin_of_error: 20_000_000]}
+                 ]
+               ], nil}}
   end
 
   test "Date Error parsing" do

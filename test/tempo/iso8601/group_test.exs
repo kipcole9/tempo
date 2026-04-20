@@ -69,14 +69,15 @@ defmodule Tempo.Parser.Group.Test do
     # group and the `H`.
 
     assert Tokenizer.tokenize("2018Y9M2DT3GT8HU30M") ==
-             {:ok, {[
-                datetime: [
-                  year: 2018,
-                  month: 9,
-                  day: 2,
-                  group: [nth: 3, hour: 8],
-                  minute: 30
-                ]
-              ], nil}}
+             {:ok,
+              {[
+                 datetime: [
+                   year: 2018,
+                   month: 9,
+                   day: 2,
+                   group: [nth: 3, hour: 8],
+                   minute: 30
+                 ]
+               ], nil}}
   end
 end

@@ -657,12 +657,10 @@ defmodule Tempo.Validation do
         {:error, "A second value of 60 (leap second) is only valid at 23:59 UTC"}
 
       is_integer(month) and {month, day} not in [{6, 30}, {12, 31}, {6, nil}, {12, nil}] ->
-        {:error,
-         "A second value of 60 (leap second) is only valid on 30 June or 31 December"}
+        {:error, "A second value of 60 (leap second) is only valid on 30 June or 31 December"}
 
       is_list(shift) and leap_offset_nonzero?(shift) ->
-        {:error,
-         "A second value of 60 (leap second) is only valid with a UTC time-zone offset"}
+        {:error, "A second value of 60 (leap second) is only valid with a UTC time-zone offset"}
 
       true ->
         :ok

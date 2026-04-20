@@ -295,8 +295,7 @@ defmodule Tempo.Iso8601.Tokenizer.Extended do
   # IXDTF construction.  We reject critical duplicates and ignore
   # elective ones.
   defp apply_payload({:zone, zone}, true, _acc, _index) do
-    {:error,
-     "Only one time zone may appear in an IXDTF suffix, got duplicate #{inspect(zone)}"}
+    {:error, "Only one time zone may appear in an IXDTF suffix, got duplicate #{inspect(zone)}"}
   end
 
   defp apply_payload({:zone, _zone}, false, acc, _index) do

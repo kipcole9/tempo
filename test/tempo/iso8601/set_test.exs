@@ -15,12 +15,13 @@ defmodule Tempo.Parser.Set.Test do
     {:ok, [all_of: [datetime: [month: 1, second: 2]]]}
 
     assert Tokenizer.tokenize("{T1M2S,T1M3S}") ==
-             {:ok, {[
-                all_of: [
-                  time_of_day: [minute: 1, second: 2],
-                  time_of_day: [minute: 1, second: 3]
-                ]
-              ], nil}}
+             {:ok,
+              {[
+                 all_of: [
+                   time_of_day: [minute: 1, second: 2],
+                   time_of_day: [minute: 1, second: 3]
+                 ]
+               ], nil}}
 
     assert Tokenizer.tokenize("{PT1M2S..PT1M5S}")
 
@@ -102,12 +103,13 @@ defmodule Tempo.Parser.Set.Test do
                ], nil}}
 
     assert Tokenizer.tokenize("{1M2S..1M5S}") ==
-             {:ok, {[
-                all_of: [
-                  {:range,
-                   [time_of_day: [minute: 1, second: 2], time_of_day: [minute: 1, second: 5]]}
-                ]
-              ], nil}}
+             {:ok,
+              {[
+                 all_of: [
+                   {:range,
+                    [time_of_day: [minute: 1, second: 2], time_of_day: [minute: 1, second: 5]]}
+                 ]
+               ], nil}}
   end
 
   test "Group sets" do

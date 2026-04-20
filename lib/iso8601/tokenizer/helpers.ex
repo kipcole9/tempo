@@ -136,6 +136,7 @@ defmodule Tempo.Iso8601.Tokenizer.Helpers do
   `parsec(:datetime_or_date_or_time)` when no qualifier is present.
 
   """
+
   # Strip out an optional IXDTF extended-info segment from the
   # reducer input first, then delegate to the qualification-only
   # clauses below. When present, the `{:extended, segments}` entry
