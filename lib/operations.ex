@@ -73,10 +73,70 @@ defmodule Tempo.Operations do
          {:ok, a_set} <- to_aligned_set(a, class_a, opts),
          {:ok, b_set} <- to_aligned_set(b, class_b, opts),
          {:ok, a_set, b_set} <- maybe_anchor_to_bound(a_set, b_set, class_a, class_b, opts),
+         {:ok, a_set, b_set} <- maybe_split_midnight_crossers(a_set, b_set, class_a, class_b),
          {:ok, b_set} <- convert_calendar(b_set, a_set),
          {:ok, a_set, b_set} <- align_resolution(a_set, b_set) do
       {:ok, {a_set, b_set}}
     end
+  end
+
+  ## Midnight-crossing normalisation for time-of-day set ops.
+  ##
+  ## A non-anchored interval like `T23:30/T01:00` represents a
+  ## 1.5-hour span that wraps around midnight on the time-of-day
+  ## axis. For set operations to sweep-line cleanly, split any
+  ## such interval into two non-wrapping sub-intervals:
+  ##
+  ##     [T23:30, T24:00) ∪ [T00:00, T01:00)
+  ##
+  ## The split only runs when both operands are non-anchored.
+  ## Anchored intervals that cross midnight (after materialisation
+  ## to a specific day) are already concrete — they live on the
+  ## universal time line and their endpoints don't wrap.
+
+  defp maybe_split_midnight_crossers(a, b, :non_anchored, :non_anchored) do
+    {:ok, split_crossers(a), split_crossers(b)}
+  end
+
+  defp maybe_split_midnight_crossers(a, b, _class_a, _class_b), do: {:ok, a, b}
+
+  defp split_crossers(%IntervalSet{intervals: intervals} = set) do
+    split = Enum.flat_map(intervals, &maybe_split/1)
+
+    case IntervalSet.new(split) do
+      {:ok, sorted} -> sorted
+      # Should never error — split intervals are always bounded.
+      # Fall back to unsorted form rather than raise.
+      _ -> %{set | intervals: split}
+    end
+  end
+
+  defp maybe_split(%Interval{from: from, to: to} = interval) do
+    if crosses_midnight?(from, to) do
+      [
+        %Interval{from: from, to: %{from | time: end_of_day_time(from.time)}},
+        %Interval{from: %{to | time: start_of_day_time(to.time)}, to: to}
+      ]
+    else
+      [interval]
+    end
+  end
+
+  # For a time-of-day keyword list, replace `:hour` with 24 and
+  # everything finer with 0 — yields a synthetic midnight-upper
+  # endpoint that `compare_time/2` treats as later than any
+  # `[hour: 23, minute: X, ...]` value.
+  defp end_of_day_time(time) do
+    Enum.map(time, fn
+      {:hour, _} -> {:hour, 24}
+      {unit, _} -> {unit, 0}
+    end)
+  end
+
+  # Zero out every time-of-day unit — yields the start-of-day
+  # endpoint for the second half of a midnight-crossing interval.
+  defp start_of_day_time(time) do
+    Enum.map(time, fn {unit, _} -> {unit, 0} end)
   end
 
   ## Cross-axis materialisation — when one operand is
@@ -155,10 +215,30 @@ defmodule Tempo.Operations do
     %{tempo | time: [year: year, month: month, day: day]}
   end
 
-  defp anchor_interval_to_day(%Interval{from: na_from, to: na_to}, %Tempo{time: day_time}) do
-    new_from = %{na_from | time: day_time ++ na_from.time}
-    new_to = %{na_to | time: day_time ++ na_to.time}
-    %Interval{from: new_from, to: new_to}
+  defp anchor_interval_to_day(
+         %Interval{from: na_from, to: na_to},
+         %Tempo{time: day_time, calendar: calendar}
+       ) do
+    if crosses_midnight?(na_from, na_to) do
+      # Non-anchored interval like `T23:30/T01:00` anchored to
+      # day D → `[D T23:30, (D+1) T01:00)`. Advance `to`'s day.
+      next_day_time = Tempo.Math.add_unit(day_time, :day, calendar)
+      new_from = %{na_from | time: day_time ++ na_from.time}
+      new_to = %{na_to | time: next_day_time ++ na_to.time}
+      %Interval{from: new_from, to: new_to}
+    else
+      new_from = %{na_from | time: day_time ++ na_from.time}
+      new_to = %{na_to | time: day_time ++ na_to.time}
+      %Interval{from: new_from, to: new_to}
+    end
+  end
+
+  # A non-anchored interval "crosses midnight" when its `from`
+  # time-of-day is at or after its `to` time-of-day — e.g.
+  # `T23:30/T01:00`. Zero-width cases (`from == to`) are treated
+  # as not crossing.
+  defp crosses_midnight?(%Tempo{time: from_time}, %Tempo{time: to_time}) do
+    Compare.compare_time(from_time, to_time) == :gt
   end
 
   ## Operand validation — reject durations and one-of sets up-front.
@@ -241,34 +321,91 @@ defmodule Tempo.Operations do
   end
 
   ## Calendar alignment — second operand converts to first's
-  ## calendar. When calendars agree, no work needed. For v1 we
-  ## require calendars match; cross-calendar conversion needs a
-  ## follow-up task because it's non-trivial (year numbers
-  ## differ across calendars; epoch-based conversion via
-  ## `Date.convert/2` works for dates but needs care for longer
-  ## time windows).
+  ## calendar. Non-anchored intervals (pure time-of-day) skip this
+  ## step because their time components are calendar-independent.
+  ##
+  ## For anchored intervals, we extend every endpoint to day+
+  ## resolution, convert year/month/day via `Date.convert!/2`, and
+  ## preserve hour/minute/second (those don't change under
+  ## calendar conversion). The converted struct's `:calendar` is
+  ## updated to match the target.
 
   defp convert_calendar(%IntervalSet{intervals: []} = empty, _other), do: {:ok, empty}
 
   defp convert_calendar(%IntervalSet{intervals: [b_first | _]} = b_set, %IntervalSet{
          intervals: [a_first | _]
        }) do
-    a_cal = a_first.from.calendar
-    b_cal = b_first.from.calendar
+    a_cal = endpoint_calendar(a_first)
+    b_cal = endpoint_calendar(b_first)
 
     cond do
       a_cal == b_cal ->
         {:ok, b_set}
 
+      # Non-anchored intervals don't have calendar-bound components;
+      # their time-of-day units work the same in any calendar.
+      not Tempo.anchored?(b_first.from) ->
+        {:ok, b_set}
+
       true ->
-        {:error,
-         "Cross-calendar set operations are not yet implemented. " <>
-           "Operand A uses #{inspect(a_cal)}; operand B uses #{inspect(b_cal)}. " <>
-           "Convert operands to a common calendar before calling set operations."}
+        convert_calendar_intervals(b_set, a_cal)
     end
   end
 
   defp convert_calendar(b_set, _a_set), do: {:ok, b_set}
+
+  defp endpoint_calendar(%Interval{from: %Tempo{calendar: cal}}), do: cal
+  defp endpoint_calendar(%Interval{to: %Tempo{calendar: cal}}), do: cal
+  defp endpoint_calendar(_), do: nil
+
+  defp convert_calendar_intervals(%IntervalSet{intervals: intervals} = set, target_calendar) do
+    converted =
+      Enum.map(intervals, fn %Interval{from: from, to: to} = interval ->
+        %{
+          interval
+          | from: convert_tempo_calendar(from, target_calendar),
+            to: convert_tempo_calendar(to, target_calendar)
+        }
+      end)
+
+    {:ok, %{set | intervals: converted}}
+  end
+
+  # Convert a single %Tempo{}'s year/month/day into the target
+  # calendar. Non-anchored Tempos (no :year) pass through
+  # unchanged — their components are calendar-independent.
+  defp convert_tempo_calendar(%Tempo{} = tempo, target_calendar) do
+    if Tempo.anchored?(tempo) do
+      source_calendar = tempo.calendar
+
+      # Extend to day precision so we have year/month/day to
+      # feed Date.convert.
+      extended =
+        case Tempo.extend_resolution(tempo, :day) do
+          %Tempo{} = ext -> ext
+          _ -> tempo
+        end
+
+      year = Keyword.fetch!(extended.time, :year)
+      month = Keyword.fetch!(extended.time, :month)
+      day = Keyword.fetch!(extended.time, :day)
+
+      src_date = Date.new!(year, month, day, source_calendar)
+      tgt_date = Date.convert!(src_date, target_calendar)
+
+      # Preserve any hour/minute/second on the input.
+      time_tail =
+        extended.time
+        |> Enum.drop_while(fn {k, _} -> k not in [:hour, :minute, :second] end)
+
+      new_time =
+        [year: tgt_date.year, month: tgt_date.month, day: tgt_date.day] ++ time_tail
+
+      %{extended | time: new_time, calendar: target_calendar}
+    else
+      tempo
+    end
+  end
 
   ## Resolution alignment — extend the coarser operand's endpoints
   ## to the finer resolution.

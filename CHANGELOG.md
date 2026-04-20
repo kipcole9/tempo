@@ -4,7 +4,11 @@
 
 ### Enhancements
 
-* **Set operations.** `Tempo.union/2`, `intersection/2`, `complement/2`, `difference/2`, `symmetric_difference/2`, and predicates (`disjoint?`, `overlaps?`, `subset?`, `contains?`, `equal?`) on any Tempo value. Results are always `%Tempo.IntervalSet{}`. Shared preflight in `Tempo.Operations.align/3` enforces the anchor-class rule, aligns operands to the finer resolution, and projects to UTC on demand for cross-zone comparison.
+* **Set operations.** `Tempo.union/2`, `intersection/2`, `complement/2`, `difference/2`, `symmetric_difference/2`, and predicates (`disjoint?`, `overlaps?`, `subset?`, `contains?`, `equal?`) on any Tempo value. Results are always `%Tempo.IntervalSet{}`.
+
+* **Cross-calendar set operations.** Operands in different calendars (e.g. Hebrew vs Gregorian) are converted via `Date.convert!/2`; the result inherits the first operand's calendar.
+
+* **Midnight-crossing non-anchored intervals.** `T23:30/T01:00` anchored to day D materialises as `[D T23:30, D+1 T01:00)`; on the pure time-of-day axis, such intervals are split before set-op sweep-line runs.
 
 * **`Tempo.anchor/2`.** Axis composition primitive — combines a date-like value with a time-of-day into a datetime. Not a set operation; used to prepare cross-axis values for set algebra.
 

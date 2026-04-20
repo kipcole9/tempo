@@ -27,7 +27,18 @@ A Paris 12:00 CEST interval compares equal to a UTC 10:00 interval because they 
 
 ### 1.3. Calendar — first operand's calendar wins
 
-If the operands are in different calendars (Gregorian vs Hebrew, say), the second is converted to the first's calendar before math runs. In the current version, cross-calendar operations return an error; convert operands to a common calendar manually. Cross-calendar conversion is tracked as a follow-up.
+If the operands are in different calendars (Gregorian vs Hebrew, say), the second is converted to the first's calendar before math runs. Each endpoint of the second operand is extended to day precision, then year/month/day are converted via `Date.convert!/2`; hour/minute/second pass through unchanged (those units are calendar-independent). The result's calendar is the first operand's.
+
+```elixir
+hebrew_day = %Tempo{time: [year: 5782, month: 10, day: 16], calendar: Calendrical.Hebrew}
+# Hebrew 5782-10-16 corresponds to Gregorian 2022-06-15.
+
+Tempo.overlaps?(hebrew_day, ~o"2022-06-15")
+# => true
+
+Tempo.disjoint?(hebrew_day, ~o"2023-01")
+# => true
+```
 
 ## 2. The anchor-class rule
 
@@ -176,14 +187,14 @@ Tempo's test suite covers all of these.
 | Unbounded recurrence (`R/.../P1M`) | Raises — same reason |
 | `Tempo.Duration` | Raises — durations aren't instant sets |
 | One-of `Tempo.Set` (`[a,b,c]`) | Raises — epistemic disjunction, not IntervalSet |
-| Cross-calendar operands | Returns error in the current version |
+| Cross-calendar operands | Second operand converted to first's calendar via `Date.convert!/2`; result inherits first's calendar |
 | Cross-zone operands | Compared via UTC; result inherits first operand's zone |
+| Midnight-crossing non-anchored interval (`T23:30/T01:00`) | Anchored to day D materialises as `[D T23:30, D+1 T01:00)`; on the time-of-day axis, split into `[T23:30, T24:00)` ∪ `[T00:00, T01:00)` before sweep-line |
 
 ## 6. Not in scope
 
 - **Rule-algebra** — intersecting two infinite recurrences to produce a closed-form rule. Intentionally deferred; see `plans/set-operations.md` for the rationale.
 - **UTC caching on IntervalSet** — projections are recomputed per operation. Enables stability across Tzdata updates; revisit if profiling shows the recomputation matters.
-- **Non-anchored intervals crossing midnight** — e.g. `T23:30/T01:00`. Partially supported today but semantics aren't fully specified.
 
 ## 7. Implementation notes
 

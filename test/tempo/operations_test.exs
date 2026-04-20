@@ -340,6 +340,146 @@ defmodule Tempo.Operations.Test do
     end
   end
 
+  describe "cross-calendar operations" do
+    test "Hebrew ∩ Gregorian converts B to A's calendar" do
+      # Gregorian 2022-06-15 corresponds to Hebrew 5782-10-16.
+      # The Hebrew month 10 of year 5782 contains that date.
+      hebrew_month = %Tempo{
+        time: [year: 5782, month: 10],
+        calendar: Calendrical.Hebrew
+      }
+
+      {:ok, r} = Tempo.intersection(hebrew_month, ~o"2022-06-15")
+      assert length(r.intervals) == 1
+
+      # Result inherits first operand's calendar (Hebrew).
+      [iv] = r.intervals
+      assert iv.from.calendar == Calendrical.Hebrew
+      assert iv.from.time[:year] == 5782
+      assert iv.from.time[:month] == 10
+      assert iv.from.time[:day] == 16
+    end
+
+    test "Gregorian ∩ Hebrew converts B to A's calendar" do
+      hebrew_day = %Tempo{
+        time: [year: 5782, month: 10, day: 16],
+        calendar: Calendrical.Hebrew
+      }
+
+      {:ok, r} = Tempo.intersection(~o"2022-06", hebrew_day)
+      assert length(r.intervals) == 1
+
+      # Result inherits first operand's calendar (Gregorian).
+      [iv] = r.intervals
+      assert iv.from.calendar == Calendrical.Gregorian
+      assert iv.from.time[:year] == 2022
+      assert iv.from.time[:month] == 6
+      assert iv.from.time[:day] == 15
+    end
+
+    test "disjoint dates across calendars are correctly identified" do
+      hebrew_day = %Tempo{
+        time: [year: 5782, month: 10, day: 16],
+        calendar: Calendrical.Hebrew
+      }
+
+      # Hebrew 5782-10-16 = Greg 2022-06-15, which is NOT in Greg 2023-01.
+      assert Tempo.disjoint?(hebrew_day, ~o"2023-01")
+      refute Tempo.overlaps?(hebrew_day, ~o"2023-01")
+    end
+
+    test "overlaps? across calendars" do
+      hebrew_day = %Tempo{
+        time: [year: 5782, month: 10, day: 16],
+        calendar: Calendrical.Hebrew
+      }
+
+      assert Tempo.overlaps?(hebrew_day, ~o"2022-06-15")
+    end
+  end
+
+  describe "midnight-crossing non-anchored intervals" do
+    test "anchor to a single day — crossing materialises on the correct days" do
+      {:ok, na} = Tempo.from_iso8601("T23:30/T01:00")
+
+      # The non-anchored interval crosses midnight, so anchored
+      # to Jan 4 it becomes [Jan 4 23:30, Jan 5 01:00). Intersected
+      # with the date `2026-01-04` span [Jan 4, Jan 5), the result
+      # is [Jan 4 23:30, Jan 5 00:00) — the pre-midnight portion.
+      {:ok, r} = Tempo.intersection(~o"2026-01-04", na, bound: ~o"2026-01-04")
+      assert length(r.intervals) == 1
+
+      [iv] = r.intervals
+      assert iv.from.time[:day] == 4
+      assert iv.from.time[:hour] == 23
+      assert iv.from.time[:minute] == 30
+      # Intersection clamped to the bound's upper edge: midnight
+      # of Jan 5 (which equals start-of-Jan-5, not Jan 4 24:00).
+      assert iv.to.time[:day] == 5
+      assert iv.to.time[:hour] == 0
+    end
+
+    test "crossing materialises on each day of a multi-day bound" do
+      # 3-day bound (2026-01-01/2026-01-04 is the half-open span
+      # covering Jan 1, 2, 3). The non-anchored crossing interval
+      # produces 3 anchored intervals (one anchored to each day),
+      # but the last one's upper endpoint is clamped by the bound.
+      {:ok, na} = Tempo.from_iso8601("T23:00/T01:00")
+
+      {:ok, r} =
+        Tempo.intersection(~o"2026-01-01/2026-01-04", na,
+          bound: ~o"2026-01-01/2026-01-04"
+        )
+
+      assert length(r.intervals) == 3
+    end
+
+    test "time-of-day union: crossing ∪ non-crossing" do
+      {:ok, crossing} = Tempo.from_iso8601("T23:00/T01:00")
+      {:ok, morning} = Tempo.from_iso8601("T00:30/T02:00")
+
+      {:ok, r} = Tempo.union(crossing, morning)
+
+      # Split produces [T00:00, T01:00) from the crossing and
+      # [T00:30, T02:00) from morning, which overlap and coalesce
+      # to [T00:00, T02:00). Plus [T23:00, T24:00) from the
+      # crossing. Total: 2 intervals.
+      assert length(r.intervals) == 2
+    end
+
+    test "time-of-day intersection: crossing ∩ non-crossing" do
+      {:ok, crossing} = Tempo.from_iso8601("T23:00/T01:00")
+      {:ok, morning} = Tempo.from_iso8601("T00:30/T02:00")
+
+      {:ok, r} = Tempo.intersection(crossing, morning)
+
+      # Only the post-midnight portion of the crossing
+      # ([T00:00, T01:00)) overlaps morning ([T00:30, T02:00)).
+      assert length(r.intervals) == 1
+      [iv] = r.intervals
+      assert iv.from.time[:hour] == 0
+      assert iv.from.time[:minute] == 30
+      assert iv.to.time[:hour] == 1
+    end
+
+    test "time-of-day disjoint: two non-crossing on opposite sides of midnight" do
+      {:ok, evening} = Tempo.from_iso8601("T22:00/T23:30")
+      {:ok, morning} = Tempo.from_iso8601("T02:00/T04:00")
+
+      assert Tempo.disjoint?(evening, morning)
+    end
+
+    test "zero-width non-anchored interval is treated as empty" do
+      # `T12:00/T12:00` — from == to. compare_time gives :eq, which
+      # is not :gt, so crosses_midnight? returns false and the
+      # interval stays as zero-width.
+      {:ok, zero} = Tempo.from_iso8601("T12:00/T12:00")
+      {:ok, r} = Tempo.intersection(zero, zero)
+      # Zero-width intersected with zero-width is empty.
+      assert r.intervals == []
+    end
+  end
+
   describe "De Morgan's laws" do
     # ¬(A ∪ B) = ¬A ∩ ¬B
     # ¬(A ∩ B) = ¬A ∪ ¬B
