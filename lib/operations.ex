@@ -475,7 +475,7 @@ defmodule Tempo.Operations do
           {:ok, IntervalSet.t()} | {:error, term()}
   def union(a, b, opts \\ []) do
     with {:ok, {a_set, b_set}} <- align(a, b, opts) do
-      IntervalSet.new(a_set.intervals ++ b_set.intervals)
+      IntervalSet.new(a_set.intervals ++ b_set.intervals, metadata: a_set.metadata)
     end
   end
 
@@ -486,7 +486,9 @@ defmodule Tempo.Operations do
           {:ok, IntervalSet.t()} | {:error, term()}
   def intersection(a, b, opts \\ []) do
     with {:ok, {a_set, b_set}} <- align(a, b, opts) do
-      IntervalSet.new(sweep_intersection(a_set.intervals, b_set.intervals))
+      IntervalSet.new(sweep_intersection(a_set.intervals, b_set.intervals),
+        metadata: a_set.metadata
+      )
     end
   end
 
@@ -504,7 +506,12 @@ defmodule Tempo.Operations do
 
     case Compare.compare_endpoints(overlap_from, overlap_to) do
       :earlier ->
-        [%Interval{from: overlap_from, to: overlap_to} | advance(a, a_rest, b, b_rest)]
+        # Result interval inherits A's metadata (first-operand-wins
+        # policy). The metadata describes "what was happening at
+        # this time in A's world" — intersecting with B doesn't
+        # change that event's identity.
+        result = %Interval{from: overlap_from, to: overlap_to, metadata: a.metadata}
+        [result | advance(a, a_rest, b, b_rest)]
 
       _ ->
         advance(a, a_rest, b, b_rest)
@@ -568,7 +575,9 @@ defmodule Tempo.Operations do
           {:ok, IntervalSet.t()} | {:error, term()}
   def difference(a, b, opts \\ []) do
     with {:ok, {a_set, b_set}} <- align(a, b, opts) do
-      IntervalSet.new(sweep_difference(a_set.intervals, b_set.intervals))
+      IntervalSet.new(sweep_difference(a_set.intervals, b_set.intervals),
+        metadata: a_set.metadata
+      )
     end
   end
 
@@ -585,27 +594,29 @@ defmodule Tempo.Operations do
 
   # Subtract all overlapping B intervals from a single A interval.
   # Returns `{list_of_uncovered_parts_of_a, remaining_b_list}`.
-  # The remaining B list is whatever B intervals haven't been
-  # fully consumed (i.e. start at or after the current A's `from`
-  # but also extend past A's `to`).
+  # Every emitted fragment carries A's metadata — the surviving
+  # portions of A "are" A, with its event identity intact.
 
-  defp subtract_from(%Interval{from: a_from, to: a_to}, []) do
-    {maybe_emit(a_from, a_to), []}
+  defp subtract_from(%Interval{from: a_from, to: a_to, metadata: a_meta}, []) do
+    {maybe_emit(a_from, a_to, a_meta), []}
   end
 
-  defp subtract_from(%Interval{from: a_from, to: a_to}, [%Interval{} = b | b_rest]) do
+  defp subtract_from(
+         %Interval{from: a_from, to: a_to, metadata: a_meta} = a,
+         [%Interval{} = b | b_rest]
+       ) do
     cond do
       # B is entirely before A — skip it.
       not after_or_eq?(b.to, a_from) ->
-        subtract_from(%Interval{from: a_from, to: a_to}, b_rest)
+        subtract_from(a, b_rest)
 
       # B is entirely after A — no more overlaps; emit current A.
       not after_or_eq?(a_to, b.from) ->
-        {[%Interval{from: a_from, to: a_to}], [b | b_rest]}
+        {[%Interval{from: a_from, to: a_to, metadata: a_meta}], [b | b_rest]}
 
       # B starts inside A (or at its edge).
       true ->
-        left = maybe_emit(a_from, b.from)
+        left = maybe_emit(a_from, b.from, a_meta)
         rest_from = later_endpoint(b.to, a_from)
 
         cond do
@@ -615,18 +626,18 @@ defmodule Tempo.Operations do
 
           # B ends inside A — continue subtracting from the rest.
           true ->
-            {right, remaining_b} =
-              subtract_from(%Interval{from: rest_from, to: a_to}, b_rest)
-
+            rest_a = %Interval{from: rest_from, to: a_to, metadata: a_meta}
+            {right, remaining_b} = subtract_from(rest_a, b_rest)
             {left ++ right, remaining_b}
         end
     end
   end
 
   # Emit a one-interval list if `from < to`, empty otherwise.
-  defp maybe_emit(from, to) do
+  # `metadata` is carried on the emitted interval.
+  defp maybe_emit(from, to, metadata) do
     case Compare.compare_endpoints(from, to) do
-      :earlier -> [%Interval{from: from, to: to}]
+      :earlier -> [%Interval{from: from, to: to, metadata: metadata}]
       _ -> []
     end
   end
@@ -644,7 +655,9 @@ defmodule Tempo.Operations do
   def symmetric_difference(a, b, opts \\ []) do
     with {:ok, a_minus_b} <- difference(a, b, opts),
          {:ok, b_minus_a} <- difference(b, a, opts) do
-      IntervalSet.new(a_minus_b.intervals ++ b_minus_a.intervals)
+      IntervalSet.new(a_minus_b.intervals ++ b_minus_a.intervals,
+        metadata: a_minus_b.metadata
+      )
     end
   end
 

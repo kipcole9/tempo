@@ -1,29 +1,135 @@
 # Tempo
 
-> “Time has no divisions to mark its passage, there is never a thunderstorm or blare of trumpets to announce the beginning of a new month or year. Even when a new century begins it is only we mortals who ring bells and fire off pistols.” Thomas Mann, The Magic Mountain, ch. 5, “Whims of Mercurius,” (1924), trans. by Helen T. Lowe-Porter (1928).
+**Time as an interval, not an instant.**
 
-A Time library based upon conceptualizing time as intervals rather than instants.  A blog of the ideas behind this library is at [https://kipcole9.github.io/tempo/](https://kipcole9.github.io/tempo/).
+![Tempo](assets/logo-social.svg)
 
-## ElixirConf 22 Video on Time Algebra
+Tempo is an Elixir library that models time the way humans actually use it — as bounded spans on a shared timeline rather than as scalar instants. One type represents every temporal value you might deal with: a year, a month, an afternoon, a meeting, an archaeological period, a recurring event, a free-busy calendar. Every value is a bounded interval at some resolution, and every operation (iteration, comparison, set-theoretic combination) is defined uniformly.
 
-A talk that introduces a unified time type and builds on the idea of time as intervals is [now on Youtube](https://www.youtube.com/watch?v=4VfPvCI901c).
+This conceptual shift — *time as interval, not instant* — removes a surprising number of real-world bugs (off-by-one day errors, ambiguous "end of day", DST edge cases, "what date does this year mean?") while unlocking queries that are awkward or impossible in other libraries.
+
+## Why intervals, not instants
+
+Every mainstream language treats `date`, `time`, and `datetime` as distinct scalar types. That fragmentation creates three classes of common bugs that Tempo eliminates by construction:
+
+**1. The "what does this value mean" ambiguity.** Is `~D[2026-06-15]` the instant of midnight on June 15, or the whole day? Most libraries can't say — the type is a scalar but it's being *used* as a span, with every developer inventing their own `end_of_day/1` helper. In Tempo, `~o"2026-06-15"` *is* the interval `[2026-06-15T00:00, 2026-06-16T00:00)`. No helpers needed; the semantics are the type.
+
+**2. The type-per-resolution explosion.** `Date` for days, `Time` for hours/minutes/seconds, `DateTime` for the combination — and conversions between them are lossy in confusing directions. Tempo's single `%Tempo{}` struct carries its own resolution. A year, a month, a meeting, a millennium — same type, different resolution.
+
+**3. The "I can't express that" ceiling.** Archaeological dates ("sometime in the 1560s"), EDTF-qualified values ("approximately 2022"), open-ended intervals ("from 1985 onwards"), Hebrew-to-Gregorian queries, recurrences, free-busy spans — all awkward or impossible to express cleanly as scalar instants. All natural in Tempo.
+
+Once every value is a bounded interval, **set operations follow naturally**: union, intersection, complement, difference, and predicates (`overlaps?`, `subset?`, `contains?`) all work on any combination of Tempo values, across resolutions, across timezones, across calendars.
+
+## What it looks like
+
+The professional side first — full ISO 8601-2 / EDTF / IXDTF support, calendar-aware arithmetic, cross-zone set operations:
+
+```elixir
+# A date is an interval
+iex> ~o"2026-06-15"
+~o"2026Y6M15D"
+
+# Its bounds are real — Tempo.Interval construction, not a helper
+iex> {:ok, %Tempo.Interval{from: from, to: to}} = Tempo.to_interval(~o"2026-06-15")
+iex> {from.time, to.time}
+{[year: 2026, month: 6, day: 15], [year: 2026, month: 6, day: 16]}
+
+# Cross-zone set operations compare by UTC, preserve the first operand's zone
+iex> paris = Tempo.from_date_time(DateTime.new!(~D[2026-06-15], ~T[10:00:00], "Europe/Paris"))
+iex> utc = ~o"2026-06-15T08:00:00Z"
+iex> Tempo.overlaps?(paris, utc)
+true
+
+# Cross-calendar comparison, no manual conversion
+iex> hebrew = %Tempo{time: [year: 5786, month: 4, day: 1], calendar: Calendrical.Hebrew}
+iex> Tempo.overlaps?(hebrew, ~o"2026-06-15")
+true
+```
+
+Now the playful side — what you actually get to write:
+
+```elixir
+# "Sometime in the 1560s"
+iex> Enum.take(~o"156X", 5)
+[~o"1560Y", ~o"1561Y", ~o"1562Y", ~o"1563Y", ~o"1564Y"]
+
+# "The 15th of every month in 1985" — not one span, a real set of days
+iex> {:ok, %Tempo.IntervalSet{intervals: ivs}} = Tempo.to_interval(~o"1985-XX-15")
+iex> length(ivs)
+12
+
+# Free time, accounting for meetings in a real calendar
+iex> {:ok, calendar} = Tempo.ICal.from_ical_file("~/work.ics")
+iex> {:ok, free} = Tempo.difference(~o"2026-06-15T09/2026-06-15T17", calendar)
+```
+
+## Objectives
+
+* **A single type for every temporal value.** No more `Date` for days, `Time` for hours, `DateTime` for both, `NaiveDateTime` for "I don't know what I have." One `%Tempo{}` representing any interval at any resolution. Conversion from native Elixir types is `Tempo.from_elixir/2`.
+
+* **Correctness by construction.** Every value is a bounded interval under the half-open `[from, to)` convention. Adjacent intervals concatenate cleanly (`[a, b) ++ [b, c) == [a, c)`). "End of day" ambiguity, midnight off-by-ones, and DST-hour confusion vanish at the type level.
+
+* **Full support for the time standards that matter.** ISO 8601 Parts 1 and 2, EDTF Levels 0–2, IXDTF. 100% of the `unt-libraries/edtf-validate` corpus passes. Leap seconds, long years (`Y17E8`), significant-digits notation, mask syntax, open-ended intervals, per-endpoint qualifications — all parsed and queryable.
+
+* **First-class set algebra on time.** Union, intersection, complement, difference, symmetric difference — plus the predicate set (`disjoint?`, `overlaps?`, `subset?`, `contains?`, `equal?`) — all defined over any Tempo value. Cross-zone, cross-calendar, across resolutions.
+
+* **iCalendar import with metadata that travels.** `Tempo.ICal.from_ical/2` parses RFC 5545 `.ics` data and every event's metadata (summary, location, attendees, status, …) rides along through every downstream operation. Intersect your calendar with work hours, get back *which meetings* are in work hours.
+
+* **Unlocking queries that used to be hard.** "Every Friday the 13th this century." "When was I both in Japan and enrolled at my university?" "Free time on Tuesday, accounting for meetings across three zones." "Does this dig layer overlap with this dynasty?" All direct expressions over the same `Tempo` API.
+
+## Talks and background
+
+The [ElixirConf '22 talk](https://www.youtube.com/watch?v=4VfPvCI901c) introduces the core idea of a unified time type and builds toward intervals as the primary representation. The talk is still a good overview of the thesis; the library has evolved substantially since — full ISO 8601-2 support, set operations, cross-calendar comparisons, iCalendar import, and recurring events have all landed in the years that followed.
+
+## Prior art
+
+Tempo draws on several bodies of work:
+
+* **Allen's Interval Algebra** — James F. Allen's 13 relations between intervals (`precedes`, `meets`, `overlaps`, `finishes`, `contains`, `starts`, `equals`, and their inverses). [See the survey](https://ics.uci.edu/~alspaugh/cls/shr/allen.html). Tempo's interval relations and `overlaps?/2` / `contains?/2` predicates descend directly from this work.
+
+* **Temporal databases and the chronon concept.** Jensen, Dyreson, and Tansel's *Consensus Glossary of Temporal Database Concepts* (1998) defines the *chronon* — an indivisible time unit whose resolution determines how the surrounding value is interpreted. Tempo's "resolution" field is the direct analogue.
+
+* **Eric Evans' "Exploring Time"** talk. Evans makes the case for considering time as an interval rather than an instant in a domain-driven-design setting. His framing influenced the earliest design sketches of Tempo.
+
+* **PostgreSQL multirange types.** Postgres 14+ ships sorted, non-overlapping, coalesced interval sets. Tempo's `%Tempo.IntervalSet{}` follows the same conceptual model; set operations follow the same sweep-line algorithms.
+
+* **Wojciech Mach's [`calendar_interval`](https://github.com/wojtekmach/calendar_interval).** A partial-but-elegant implementation of calendar intervals in Elixir. Concepts from this library informed Tempo's implicit-span semantics.
+
+* **ISO 8601-2 / EDTF.** The 2019 extension to ISO 8601 formalises archaeological and approximate dates. The `unt-libraries/edtf-validate` conformance corpus — the only public test suite for EDTF — is exercised in full.
+
+* **RFC 5545 (iCalendar) / RFC 7529 (RSCALE).** The iCalendar specification for RRULE, RDATE, EXDATE, VTIMEZONE. Tempo imports `.ics` data via `Tempo.ICal.from_ical/2`.
+
+* **IETF draft-ietf-sedate-datetime-extended (IXDTF).** The extended date-time format for annotations such as `[Europe/Paris][u-ca=hebrew]`. Supported in both parse and round-trip.
 
 ## Installation
-
-Tempo is not yet available for installation from `hex.pm`. And since it has basically no functional utility at the moment, installing it would only be for experimentation and amusement.
 
 ```elixir
 def deps do
   [
-    {:tempo, "~> 0.1.0", github: "kipcole9/tempo"}
+    {:tempo, github: "kipcole9/tempo"},
+    # Optional, only needed for iCalendar import:
+    {:ical, github: "expothecary/ical"}
   ]
 end
 ```
 
-The docs will be found at [https://hexdocs.pm/tempo](https://hexdocs.pm/tempo).
+A hex release is imminent. Docs at [https://hexdocs.pm/tempo](https://hexdocs.pm/tempo).
 
-## Links
+## Guides
 
-* [Computerphile on Timezones](https://www.youtube.com/watch?v=-5wpm-gesOY)
-* [RFC3339 and ISO8601 formats](https://ijmacd.github.io/rfc3339-iso8601/)
-* [Allen's Interval Algebra](https://en.wikipedia.org/wiki/Allen%27s_interval_algebra)
+* [ISO 8601 conformance](guides/iso8601-conformance.md) — what's supported from the standards.
+* [Enumeration semantics](guides/enumeration-semantics.md) — iterating across Tempo values.
+* [Set operations](guides/set-operations.md) — union, intersection, complement, difference, predicates.
+* [iCalendar integration](guides/ical-integration.md) — importing `.ics` calendars with metadata preserved.
+* [Shared AST for ISO 8601 and RRULE](guides/shared-ast-iso8601-and-rrule.md) — the internal representation that unifies both.
+
+## Related links
+
+* [Computerphile on Timezones](https://www.youtube.com/watch?v=-5wpm-gesOY) — excellent primer on why timezones are hard.
+* [Allen's Interval Algebra](https://ics.uci.edu/~alspaugh/cls/shr/allen.html) — the reference.
+* [RFC 3339 and ISO 8601](https://ijmacd.github.io/rfc3339-iso8601/) — helpful visual crossref.
+* [EDTF specification](https://www.loc.gov/standards/datetime/) — Library of Congress.
+
+## Licence
+
+See [LICENSE.md](LICENSE.md). Copyright © Kip Cole.

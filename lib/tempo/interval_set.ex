@@ -39,10 +39,11 @@ defmodule Tempo.IntervalSet do
   alias Tempo.Interval
 
   @type t :: %__MODULE__{
-          intervals: [Interval.t()]
+          intervals: [Interval.t()],
+          metadata: map()
         }
 
-  defstruct intervals: []
+  defstruct intervals: [], metadata: %{}
 
   @doc """
   Construct a `t:t/0` from a list of intervals.
@@ -75,24 +76,25 @@ defmodule Tempo.IntervalSet do
       [year: 2022, month: 1, day: 1]
 
   """
-  @spec new([Interval.t()]) :: {:ok, t()} | {:error, term()}
-  def new(intervals) when is_list(intervals) do
+  @spec new([Interval.t()], keyword()) :: {:ok, t()} | {:error, term()}
+  def new(intervals, opts \\ []) when is_list(intervals) do
     with :ok <- validate_all_bounded(intervals) do
-      sorted =
-        intervals
-        |> Enum.sort(&compare_from/2)
-        |> coalesce()
+      coalesce? = Keyword.get(opts, :coalesce, true)
 
-      {:ok, %__MODULE__{intervals: sorted}}
+      sorted = Enum.sort(intervals, &compare_from/2)
+      final = if coalesce?, do: coalesce(sorted), else: sorted
+      metadata = Keyword.get(opts, :metadata, %{})
+
+      {:ok, %__MODULE__{intervals: final, metadata: metadata}}
     end
   end
 
   @doc """
   Raising version of `new/1`.
   """
-  @spec new!([Interval.t()]) :: t()
-  def new!(intervals) do
-    case new(intervals) do
+  @spec new!([Interval.t()], keyword()) :: t()
+  def new!(intervals, opts \\ []) do
+    case new(intervals, opts) do
       {:ok, set} -> set
       {:error, reason} -> raise ArgumentError, inspect(reason)
     end

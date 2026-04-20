@@ -55,7 +55,7 @@
         font-size="30"
         font-weight="500"
         letter-spacing="0.01em"
-        fill="#9ca3af">Time is an interval, not an instant.</text>
+        fill="#9ca3af">Time as an interval, not an instant.</text>
 
   <!-- Subtitle. -->
   <text x="590" y="406"

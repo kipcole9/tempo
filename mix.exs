@@ -25,7 +25,8 @@ defmodule Tempo.MixProject do
         "guides/iso8601-conformance.md",
         "guides/shared-ast-iso8601-and-rrule.md",
         "guides/enumeration-semantics.md",
-        "guides/set-operations.md"
+        "guides/set-operations.md",
+        "guides/ical-integration.md"
       ]
     ]
   end
@@ -43,6 +44,7 @@ defmodule Tempo.MixProject do
       {:astro, "~> 2.0"},
       {:localize, path: "../localize/localize", override: true},
       {:tzdata, "~> 1.1"},
+      {:ical, github: "expothecary/ical", optional: true},
       {:plug, "~> 1.15", optional: true},
       {:bandit, "~> 1.5", optional: true},
       {:ex_doc, "~> 0.21", runtime: false},

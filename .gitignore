@@ -30,8 +30,11 @@ tempo-*.tar
 
 # Claude
 .claude
+plans/
 
 # Mise and asdf
 mise.toml
 .tool-versions
 
+# Test iCal file (has personal data in it)
+ical_apple_example_export.ics

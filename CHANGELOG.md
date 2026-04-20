@@ -4,6 +4,12 @@
 
 ### Enhancements
 
+* **iCalendar import.** `Tempo.ICal.from_ical/2` and `from_ical_file/2` parse RFC 5545 `.ics` data (via the optional `ical` dependency) into `%Tempo.IntervalSet{}` with per-event metadata on each interval. Overlapping events are preserved.
+
+* **`RRULE` recurrence expansion in iCal import.** `FREQ`, `INTERVAL`, `COUNT`, and `UNTIL` fully materialise each occurrence as its own interval with the event's metadata. `BY*` rules fall back to first-occurrence + note; unbounded rules require `:bound`.
+
+* **Metadata on `%Tempo.Interval{}` and `%Tempo.IntervalSet{}`.** Free-form `:metadata` maps travel through set operations — intersection and difference tag result fragments with the A-operand's metadata; set-level metadata follows the first operand.
+
 * **Set operations.** `Tempo.union/2`, `intersection/2`, `complement/2`, `difference/2`, `symmetric_difference/2`, and predicates (`disjoint?`, `overlaps?`, `subset?`, `contains?`, `equal?`) on any Tempo value. Results are always `%Tempo.IntervalSet{}`.
 
 * **Cross-calendar set operations.** Operands in different calendars (e.g. Hebrew vs Gregorian) are converted via `Date.convert!/2`; the result inherits the first operand's calendar.

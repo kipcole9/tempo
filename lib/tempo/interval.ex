@@ -11,7 +11,8 @@ defmodule Tempo.Interval do
           from: Tempo.t() | Tempo.Duration.t() | :undefined | nil,
           to: Tempo.t() | :undefined | nil,
           duration: Tempo.Duration.t() | nil,
-          repeat_rule: Tempo.t() | nil
+          repeat_rule: Tempo.t() | nil,
+          metadata: map()
         }
 
   defstruct recurrence: 1,
@@ -19,7 +20,8 @@ defmodule Tempo.Interval do
             from: nil,
             to: nil,
             duration: nil,
-            repeat_rule: nil
+            repeat_rule: nil,
+            metadata: %{}
 
   # Clause ordering matters. The `:recurrence` peeler is the first
   # defence — it strips a leading recurrence token and recurses so
