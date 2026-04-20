@@ -1783,6 +1783,19 @@ defmodule Tempo do
   """
   defdelegate equal?(a, b, opts \\ []), to: Tempo.Operations
 
+  @doc """
+  Return a multi-line prose explanation of any Tempo value —
+  what it is, what it spans, and how to work with it.
+
+  Returns a plain string suitable for iex. For structured output
+  that renderers can style (ANSI, HTML, visualizer components),
+  use `Tempo.Explain.explain/1` directly and pick a formatter.
+  """
+  @spec explain(term()) :: String.t()
+  def explain(value) do
+    value |> Tempo.Explain.explain() |> Tempo.Explain.to_string()
+  end
+
   @valid_units Unit.units()
 
   @doc false

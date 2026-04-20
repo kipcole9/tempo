@@ -30,20 +30,32 @@ defmodule Tempo.Inspect do
   # non-default calendars.
 
   def inspect(%Tempo{calendar: Calendrical.Gregorian} = tempo) do
-    @sigil_o <> Tempo.to_iso8601(tempo) <> "\""
+    @sigil_o <> Tempo.to_iso8601(tempo) <> extended_trailer(tempo) <> "\""
   end
 
   def inspect(%Tempo{calendar: Calendrical.ISOWeek} = tempo) do
-    @sigil_o <> Tempo.to_iso8601(tempo) <> "\"W"
+    @sigil_o <> Tempo.to_iso8601(tempo) <> extended_trailer(tempo) <> "\"W"
   end
 
   def inspect(%Tempo{calendar: calendar} = tempo) do
     @from_iso8601 <>
-      Tempo.to_iso8601(tempo) <> "\", " <> Kernel.inspect(calendar) <> ")"
+      Tempo.to_iso8601(tempo) <>
+      extended_trailer(tempo) <>
+      "\", " <> Kernel.inspect(calendar) <> ")"
   end
 
-  def inspect(%Tempo.Interval{} = interval) do
+  def inspect(%Tempo.Interval{metadata: metadata} = interval)
+      when metadata == %{} or is_nil(metadata) do
     @sigil_o <> Tempo.to_iso8601(interval) <> "\""
+  end
+
+  def inspect(%Tempo.Interval{metadata: metadata} = interval) do
+    body = @sigil_o <> Tempo.to_iso8601(interval) <> "\""
+
+    case interval_metadata_tag(metadata) do
+      "" -> body
+      tag -> "#Tempo.Interval<" <> body <> " " <> tag <> ">"
+    end
   end
 
   def inspect(%Tempo.Duration{} = duration) do
@@ -52,6 +64,125 @@ defmodule Tempo.Inspect do
 
   def inspect(%Tempo.Set{} = set) do
     @sigil_o <> Tempo.to_iso8601(set) <> "\""
+  end
+
+  # --------------------------------------------------------------
+  # IXDTF trailer helpers — used by the Tempo clauses above to
+  # append `[zone]`, `[u-ca=cal]`, and `[key=val]` tags to the
+  # sigil body so round-trip through `Tempo.from_iso8601/1` is
+  # faithful.
+  # --------------------------------------------------------------
+
+  defp extended_trailer(%Tempo{extended: nil}), do: ""
+
+  defp extended_trailer(%Tempo{extended: extended}) do
+    [
+      zone_id_trailer(extended),
+      calendar_trailer(extended),
+      tags_trailer(extended)
+    ]
+    |> IO.iodata_to_binary()
+  end
+
+  defp zone_id_trailer(%{zone_id: zone_id}) when is_binary(zone_id) and zone_id != "" do
+    ["[", zone_id, "]"]
+  end
+
+  defp zone_id_trailer(_), do: []
+
+  defp calendar_trailer(%{calendar: cal}) when is_atom(cal) and not is_nil(cal) do
+    ["[u-ca=", Atom.to_string(cal), "]"]
+  end
+
+  defp calendar_trailer(_), do: []
+
+  defp tags_trailer(%{tags: tags}) when is_map(tags) and map_size(tags) > 0 do
+    Enum.map(tags, fn {k, v} ->
+      ["[", k, "=", format_tag_value(v), "]"]
+    end)
+  end
+
+  defp tags_trailer(_), do: []
+
+  defp format_tag_value(values) when is_list(values), do: Enum.join(values, "-")
+  defp format_tag_value(value), do: to_string(value)
+
+  # --------------------------------------------------------------
+  # Interval metadata compact label. Shown as the trailing tag
+  # inside `#Tempo.Interval<...>` when metadata is non-empty.
+  # --------------------------------------------------------------
+
+  defp interval_metadata_tag(nil), do: ""
+
+  defp interval_metadata_tag(metadata) when map_size(metadata) == 0, do: ""
+
+  defp interval_metadata_tag(%{summary: s} = metadata) when is_binary(s) do
+    location = Map.get(metadata, :location)
+
+    cond do
+      is_binary(location) and location != "" -> "· " <> s <> " @ " <> location
+      true -> "· " <> s
+    end
+  end
+
+  defp interval_metadata_tag(%{uid: uid}) when is_binary(uid), do: "· uid=" <> uid
+
+  defp interval_metadata_tag(metadata) do
+    "· " <> Integer.to_string(map_size(metadata)) <> " metadata key(s)"
+  end
+
+  @doc """
+  Inspect a `t:Tempo.IntervalSet.t/0`.
+
+  Renders as `#Tempo.IntervalSet<[...]>` with each interval
+  inspected via its own protocol implementation. Set-level
+  metadata appears as a trailing label when present. Empty sets
+  render as `#Tempo.IntervalSet<[]>`.
+
+  """
+  def inspect_interval_set(%Tempo.IntervalSet{intervals: [], metadata: metadata}, _opts) do
+    "#Tempo.IntervalSet<[]" <> set_metadata_tag(metadata) <> ">"
+  end
+
+  def inspect_interval_set(
+        %Tempo.IntervalSet{intervals: intervals, metadata: metadata},
+        opts
+      ) do
+    body =
+      intervals
+      |> Enum.map(fn iv -> Kernel.inspect(iv, opts |> Map.from_struct() |> Enum.into([])) end)
+      |> Enum.join(", ")
+
+    count = length(intervals)
+    header = "#Tempo.IntervalSet<" <> Integer.to_string(count) <> " intervals"
+    tail = set_metadata_tag(metadata) <> ">"
+
+    case count do
+      n when n <= 3 ->
+        "#Tempo.IntervalSet<[" <> body <> "]" <> set_metadata_tag(metadata) <> ">"
+
+      _ ->
+        header <> tail
+    end
+  end
+
+  # Set-level metadata tag. For a calendar import the most
+  # interesting fields are the calendar name and the prodid; show
+  # those verbatim when present.
+  defp set_metadata_tag(nil), do: ""
+
+  defp set_metadata_tag(metadata) when map_size(metadata) == 0, do: ""
+
+  defp set_metadata_tag(%{name: name}) when is_binary(name) do
+    " · " <> name
+  end
+
+  defp set_metadata_tag(%{prodid: prodid}) when is_binary(prodid) do
+    " · " <> prodid
+  end
+
+  defp set_metadata_tag(metadata) do
+    " · " <> Integer.to_string(map_size(metadata)) <> " metadata key(s)"
   end
 
   # inspect_value/1 for everything else

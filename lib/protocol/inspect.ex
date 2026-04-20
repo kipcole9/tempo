@@ -21,3 +21,9 @@ defimpl Inspect, for: Tempo.Duration do
     Tempo.Inspect.inspect(tempo)
   end
 end
+
+defimpl Inspect, for: Tempo.IntervalSet do
+  def inspect(set, opts) do
+    Tempo.Inspect.inspect_interval_set(set, opts)
+  end
+end

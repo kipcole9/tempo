@@ -2,43 +2,47 @@
 
 ## Tempo v0.2.0 - April 23rd, 2026
 
-### Enhancements
+### Adds
 
-* *iCalendar import.* `Tempo.ICal.from_ical/2` and `from_ical_file/2` parse RFC 5545 `.ics` data (via the optional `ical` dependency) into `%Tempo.IntervalSet{}` with per-event metadata on each interval. Overlapping events are preserved.
+* `Tempo.explain/1`. Returns a structured, prose explanation of any Tempo value. `Tempo.Explain` provides `to_string/1`, `to_ansi/1`, and `to_iodata/1` formatters so renderers (the visualizer, terminals, HTML surfaces) can style each tagged part independently.
 
-* *`RRULE` recurrence expansion in iCal import.* `FREQ`, `INTERVAL`, `COUNT`, and `UNTIL` fully materialise each occurrence as its own interval with the event's metadata. `BY*` rules fall back to first-occurrence + note; unbounded rules require `:bound`.
+* Inspect polish. Zoned Tempos round-trip via the sigil with the `[zone_id]` IXDTF trailer. `%Tempo.IntervalSet{}` inspects as `#Tempo.IntervalSet<…>` with a preview and metadata summary. `%Tempo.Interval{}` with non-empty `:metadata` shows the event summary inline.
 
-* *Metadata on `%Tempo.Interval{}` and `%Tempo.IntervalSet{}`.* Free-form `:metadata` maps travel through set operations — intersection and difference tag result fragments with the A-operand's metadata; set-level metadata follows the first operand.
+* iCalendar import. `Tempo.ICal.from_ical/2` and `from_ical_file/2` parse RFC 5545 `.ics` data (via the optional `ical` dependency) into `%Tempo.IntervalSet{}` with per-event metadata on each interval. Overlapping events are preserved.
 
-* *Set operations.* `Tempo.union/2`, `intersection/2`, `complement/2`, `difference/2`, `symmetric_difference/2`, and predicates (`disjoint?`, `overlaps?`, `subset?`, `contains?`, `equal?`) on any Tempo value. Results are always `%Tempo.IntervalSet{}`.
+* `RRULE` recurrence expansion in iCal import. `FREQ`, `INTERVAL`, `COUNT`, and `UNTIL` fully materialise each occurrence as its own interval with the event's metadata. `BY*` rules fall back to first-occurrence + note; unbounded rules require `:bound`.
 
-* *Cross-calendar set operations.* Operands in different calendars (e.g. Hebrew vs Gregorian) are converted via `Date.convert!/2`; the result inherits the first operand's calendar.
+* Metadata on `%Tempo.Interval{}` and `%Tempo.IntervalSet{}`. Free-form `:metadata` maps travel through set operations — intersection and difference tag result fragments with the A-operand's metadata; set-level metadata follows the first operand.
 
-* *Midnight-crossing non-anchored intervals.* `T23:30/T01:00` anchored to day D materialises as `[D T23:30, D+1 T01:00)`; on the pure time-of-day axis, such intervals are split before set-op sweep-line runs.
+* Set operations. `Tempo.union/2`, `intersection/2`, `complement/2`, `difference/2`, `symmetric_difference/2`, and predicates (`disjoint?`, `overlaps?`, `subset?`, `contains?`, `equal?`) on any Tempo value. Results are always `%Tempo.IntervalSet{}`.
 
-* *`Tempo.anchor/2`.* Axis composition primitive — combines a date-like value with a time-of-day into a datetime. Not a set operation; used to prepare cross-axis values for set algebra.
+* Cross-calendar set operations. Operands in different calendars (e.g. Hebrew vs Gregorian) are converted via `Date.convert!/2`; the result inherits the first operand's calendar.
 
-* *`Tempo.Compare`.* New shared module with `compare_time/2` (start-moment keyword-list comparison, padding missing trailing units with their unit minimum) and `to_utc_seconds/1` (zone-aware projection via `Tzdata`, per-call, no cache).
+* Midnight-crossing non-anchored intervals. `T23:30/T01:00` anchored to day D materialises as `[D T23:30, D+1 T01:00)`; on the pure time-of-day axis, such intervals are split before set-op sweep-line runs.
 
-* *`Tempo.Math.add/2` and `subtract/2`.* Calendar-aware Tempo-plus-Duration arithmetic with end-of-month day clamping (`Jan 31 + P1M = Feb 28`, `Feb 29 + P1Y = Feb 28`). Weeks expand to days; negative components subtract.
+* `Tempo.anchor/2`. Axis composition primitive — combines a date-like value with a time-of-day into a datetime. Not a set operation; used to prepare cross-axis values for set algebra.
 
-* *Non-contiguous mask expansion.* `1985-XX-15` now materialises to an IntervalSet of 12 day-intervals (the 15th of each month) instead of widening to year. Partial masks (`1985-X5-15`) narrow to valid candidates.
+* `Tempo.Compare`. New shared module with `compare_time/2` (start-moment keyword-list comparison, padding missing trailing units with their unit minimum) and `to_utc_seconds/1` (zone-aware projection via `Tzdata`, per-call, no cache).
 
-* *Bounded recurrence and duration-bounded intervals.* `R3/1985-01/P1M` expands to N occurrences (coalesced if touching); `1985-01/P3M` and `P1M/1985-06` materialise to closed intervals via `Tempo.Math` arithmetic. `Enum.to_list/1` on a duration-bounded interval now respects the bound instead of running unbounded.
+* `Tempo.Math.add/2` and `subtract/2`. Calendar-aware Tempo-plus-Duration arithmetic with end-of-month day clamping (`Jan 31 + P1M = Feb 28`, `Feb 29 + P1Y = Feb 28`). Weeks expand to days; negative components subtract.
 
-* *`%Tempo.IntervalSet{}` — multi-interval values.* Sorted, non-overlapping, coalesced list of intervals. `to_interval/1` now returns `Interval | IntervalSet` depending on expansion; use `to_interval_set/1` when a uniform shape is wanted.
+* Non-contiguous mask expansion. `1985-XX-15` now materialises to an IntervalSet of 12 day-intervals (the 15th of each month) instead of widening to year. Partial masks (`1985-X5-15`) narrow to valid candidates.
 
-* *Multi-interval materialisation.* Range-in-slot (`{1..3}M`), stepped ranges, cartesian ranges, and all-of sets expand to an IntervalSet. One-of sets (`[a,b,c]`) return an error — they're epistemic disjunctions, not free/busy lists.
+* Bounded recurrence and duration-bounded intervals. `R3/1985-01/P1M` expands to N occurrences (coalesced if touching); `1985-01/P3M` and `P1M/1985-06` materialise to closed intervals via `Tempo.Math` arithmetic. `Enum.to_list/1` on a duration-bounded interval now respects the bound instead of running unbounded.
 
-* *Unified conversion from Elixir date/time types.* `Tempo.from_elixir/2` accepts `Date.t`, `Time.t`, `NaiveDateTime.t`, or `DateTime.t` and returns a `%Tempo{}` at an inferred or explicit resolution.
+* `%Tempo.IntervalSet{}` — multi-interval values. Sorted, non-overlapping, coalesced list of intervals. `to_interval/1` now returns `Interval | IntervalSet` depending on expansion; use `to_interval_set/1` when a uniform shape is wanted.
 
-* *`Tempo.from_date_time/1`.* Previously missing for `DateTime.t` — the existing `from_date/1`, `from_time/1`, `from_naive_date_time/1` family now has its fourth member. UTC offset (including DST) populates `:shift`; the IANA zone name and numeric offset in minutes populate `:extended`.
+* Multi-interval materialisation. Range-in-slot (`{1..3}M`), stepped ranges, cartesian ranges, and all-of sets expand to an IntervalSet. One-of sets (`[a,b,c]`) return an error — they're epistemic disjunctions, not free/busy lists.
 
-* *`Tempo.extend_resolution/2`* fills finer units with their start-of-unit minimum values up to a target resolution.
+* Unified conversion from Elixir date/time types. `Tempo.from_elixir/2` accepts `Date.t`, `Time.t`, `NaiveDateTime.t`, or `DateTime.t` and returns a `%Tempo{}` at an inferred or explicit resolution.
 
-* *`Tempo.at_resolution/2`* dispatches to `trunc/2` or `extend_resolution/2` based on whether the target is coarser or finer than the current resolution. Idempotent when the target matches. The single entry point for normalising a Tempo to a known resolution.
+* `Tempo.from_date_time/1`. Previously missing for `DateTime.t` — the existing `from_date/1`, `from_time/1`, `from_naive_date_time/1` family now has its fourth member. UTC offset (including DST) populates `:shift`; the IANA zone name and numeric offset in minutes populate `:extended`.
 
-* *Implicit-to-explicit interval conversion.* `Tempo.to_interval/1` and `Tempo.to_interval!/1` materialise any implicit-span `%Tempo{}` into the equivalent `%Tempo.Interval{}`.
+* `Tempo.extend_resolution/2`* fills finer units with their start-of-unit minimum values up to a target resolution.
+
+* `Tempo.at_resolution/2`* dispatches to `trunc/2` or `extend_resolution/2` based on whether the target is coarser or finer than the current resolution. Idempotent when the target matches. The single entry point for normalising a Tempo to a known resolution.
+
+* Implicit-to-explicit interval conversion. `Tempo.to_interval/1` and `Tempo.to_interval!/1` materialise any implicit-span `%Tempo{}` into the equivalent `%Tempo.Interval{}`.
 
 * Support the Internet Extended Date/Time Format (IXDTF) as defined in [draft-ietf-sedate-datetime-extended-09](https://www.ietf.org/archive/id/draft-ietf-sedate-datetime-extended-09.html). An optional suffix such as `[Europe/Paris][u-ca=hebrew]` may follow an ISO 8601 datetime.
 
@@ -46,31 +50,31 @@
 
 * `Tempo.Iso8601.Tokenizer.tokenize/1` now returns `{:ok, {tokens, extended_info}}` where `extended_info` is either `nil` or the parsed IXDTF map.
 
-* *Astronomical seasons.* ISO 8601-2 season codes 25–28 (Northern) and 29–32 (Southern) now expand to intervals bounded by the relevant March/September equinox and June/December solstice as computed by the `Astro` library. Codes 21–24 remain meteorological calendar approximations.
+* Astronomical seasons. ISO 8601-2 season codes 25–28 (Northern) and 29–32 (Southern) now expand to intervals bounded by the relevant March/September equinox and June/December solstice as computed by the `Astro` library. Codes 21–24 remain meteorological calendar approximations.
 
-* *Leap-second validation.* ISO 8601 permits `second = 60` as a positive leap second. Tempo now accepts it only when the minute is 59, the hour is 23, the calendar date (if present) is 30 June or 31 December, and any time-zone offset is zero. All other uses of `second = 60` are rejected.
+* Leap-second validation. ISO 8601 permits `second = 60` as a positive leap second. Tempo now accepts it only when the minute is 59, the hour is 23, the calendar date (if present) is 30 June or 31 December, and any time-zone offset is zero. All other uses of `second = 60` are rejected.
 
-* *ISO 8601-2 / EDTF qualification operators.* Expression-level `?` (uncertain), `~` (approximate) and `%` (both) are now parsed. The parsed qualification is carried on the new `:qualification` field of `%Tempo{}`; the bounded interval semantics of the value are unchanged.
+* ISO 8601-2 / EDTF qualification operators. Expression-level `?` (uncertain), `~` (approximate) and `%` (both) are now parsed. The parsed qualification is carried on the new `:qualification` field of `%Tempo{}`; the bounded interval semantics of the value are unchanged.
 
-* *EDTF conformance corpus.* 200+ valid and invalid strings from the `unt-libraries/edtf-validate` corpus (BSD-3-Clause) are now exercised as ExUnit tests. The known-failure list is tracked in `test/tempo/iso8601/edtf_corpus_test.exs`.
+* EDTF conformance corpus. 200+ valid and invalid strings from the `unt-libraries/edtf-validate` corpus (BSD-3-Clause) are now exercised as ExUnit tests. The known-failure list is tracked in `test/tempo/iso8601/edtf_corpus_test.exs`.
 
-* *EDTF Level 2 component-level qualification.* `?`, `~` and `%` qualifiers can now appear adjacent to individual date components (`2022-?06-15`, `2022-06?-15`, `?2022-06-15`, `%-2011-06-13`). The qualification is stored per-component on the new `:qualifications` field of `%Tempo{}` (a `%{unit => qualifier}` map). Expression-level qualifiers continue to populate the single `:qualification` field.
+* EDTF Level 2 component-level qualification. `?`, `~` and `%` qualifiers can now appear adjacent to individual date components (`2022-?06-15`, `2022-06?-15`, `?2022-06-15`, `%-2011-06-13`). The qualification is stored per-component on the new `:qualifications` field of `%Tempo{}` (a `%{unit => qualifier}` map). Expression-level qualifiers continue to populate the single `:qualification` field.
 
-* *Per-endpoint qualification in intervals.* Each endpoint of an interval may now carry its own qualifier (`1984?/2004~`, `2019-12/2020%`). The qualifier attaches to that endpoint's `%Tempo{}` struct rather than the interval as a whole.
+* Per-endpoint qualification in intervals. Each endpoint of an interval may now carry its own qualifier (`1984?/2004~`, `2019-12/2020%`). The qualifier attaches to that endpoint's `%Tempo{}` struct rather than the interval as a whole.
 
-* *Open-ended intervals.* `1985/..`, `../1985`, and `../..` now parse, along with the equivalent trailing-/leading-slash forms `1985/`, `/1985`, `/`, `/..`, `../`. Open endpoints are represented as `:undefined` on the `%Tempo.Interval{}` struct.
+* Open-ended intervals. `1985/..`, `../1985`, and `../..` now parse, along with the equivalent trailing-/leading-slash forms `1985/`, `/1985`, `/`, `/..`, `../`. Open endpoints are represented as `:undefined` on the `%Tempo.Interval{}` struct.
 
-* *Unspecified digits in negative years.* Strings like `-1XXX-XX`, `-XXXX-12-XX`, and `-1X32-X1-X2` now parse. The negative sign was previously discarded by `form_number`, causing a crash in `parse_date/1`; it is now carried on the mask as a `:negative` sentinel.
+* Unspecified digits in negative years. Strings like `-1XXX-XX`, `-XXXX-12-XX`, and `-1X32-X1-X2` now parse. The negative sign was previously discarded by `form_number`, causing a crash in `parse_date/1`; it is now carried on the mask as a `:negative` sentinel.
 
-* *EDTF long-year notation.* `Y`-prefix years with exponent notation (`Y17E8`, `Y-17E7`) or significant-digit annotations (`Y171010000S3`, `Y-171010000S2`) now parse. Combined with existing support for 4-digit `Y`-prefix years (`Y2022`) and plain 5+ digit years (`Y170000002`), this completes Tempo's coverage of the geological-scale year syntax.
+* EDTF long-year notation. `Y`-prefix years with exponent notation (`Y17E8`, `Y-17E7`) or significant-digit annotations (`Y171010000S3`, `Y-171010000S2`) now parse. Combined with existing support for 4-digit `Y`-prefix years (`Y2022`) and plain 5+ digit years (`Y170000002`), this completes Tempo's coverage of the geological-scale year syntax.
 
-* *100% EDTF corpus coverage.* The `unt-libraries/edtf-validate` corpus — the only publicly-available conformance test suite we could find for ISO 8601-2 Part 2 — now passes in full. 183 strings exercised, 0 known failures.
+* 100% EDTF corpus coverage. The `unt-libraries/edtf-validate` corpus — the only publicly-available conformance test suite we could find for ISO 8601-2 Part 2 — now passes in full. 183 strings exercised, 0 known failures.
 
-* *Web visualizer.* `Tempo.Visualizer` is a `Plug.Router` that shows a parsed ISO 8601 / ISO 8601-2 / IXDTF string as a large-font echo followed by a component-by-component breakdown.
+* Web visualizer. `Tempo.Visualizer` is a `Plug.Router` that shows a parsed ISO 8601 / ISO 8601-2 / IXDTF string as a large-font echo followed by a component-by-component breakdown.
 
 ### Changed
 
-* *Removed all CLDR-family dependencies.* `ex_cldr_calendars` has been replaced by [Calendrical](https://hex.pm/packages/calendrical) for calendar functionality and by `Localize.Utils.Math` / `Localize.Utils.Digits` for numeric helpers.
+* Removed all CLDR-family dependencies. `ex_cldr_calendars` has been replaced by [Calendrical](https://hex.pm/packages/calendrical) for calendar functionality and by `Localize.Utils.Math` / `Localize.Utils.Digits` for numeric helpers.
 
 * Reduce parser compile time by ~85% (from ~190s to ~28s) and generated BEAM size by ~61% by converting high-fanout NimbleParsec combinators to `defparsecp` function boundaries. No runtime performance regression.
 
