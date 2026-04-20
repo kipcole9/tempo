@@ -127,14 +127,21 @@ defmodule Tempo.ToInterval.Test do
       assert interval.to.time == [year: 1985, month: 7]
     end
 
-    test "non-contiguous `1985-XX-15` still widens to year" do
-      # Day is specified but month isn't — the covered moments
-      # aren't a single contiguous interval. Widen to the coarsest
-      # un-masked unit (year) and accept the looser bound.
+    test "non-contiguous `1985-XX-15` expands to 12 day-intervals" do
+      # Day is specified but month is masked — the covered moments
+      # are 12 disjoint days (the 15th of each month). `to_interval/1`
+      # substitutes the mask with the valid month values and
+      # materialises each as a day-resolution interval.
       {:ok, tempo} = Tempo.from_iso8601("1985-XX-15")
-      {:ok, interval} = Tempo.to_interval(tempo)
-      assert interval.from.time == [year: 1985]
-      assert interval.to.time == [year: 1986]
+      {:ok, %Tempo.IntervalSet{intervals: intervals}} = Tempo.to_interval(tempo)
+      assert length(intervals) == 12
+
+      assert Enum.map(intervals, & &1.from.time[:month]) ==
+               [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+
+      assert Enum.all?(intervals, fn i ->
+               i.from.time[:year] == 1985 and i.from.time[:day] == 15
+             end)
     end
   end
 

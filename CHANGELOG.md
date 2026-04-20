@@ -4,6 +4,12 @@
 
 ### Enhancements
 
+* **`Tempo.Math.add/2` and `subtract/2`.** Calendar-aware Tempo-plus-Duration arithmetic with end-of-month day clamping (`Jan 31 + P1M = Feb 28`, `Feb 29 + P1Y = Feb 28`). Weeks expand to days; negative components subtract.
+
+* **Non-contiguous mask expansion.** `1985-XX-15` now materialises to an IntervalSet of 12 day-intervals (the 15th of each month) instead of widening to year. Partial masks (`1985-X5-15`) narrow to valid candidates.
+
+* **Bounded recurrence and duration-bounded intervals.** `R3/1985-01/P1M` expands to N occurrences (coalesced if touching); `1985-01/P3M` and `P1M/1985-06` materialise to closed intervals via `Tempo.Math` arithmetic. `Enum.to_list/1` on a duration-bounded interval now respects the bound instead of running unbounded.
+
 * **`%Tempo.IntervalSet{}` — multi-interval values.** Sorted, non-overlapping, coalesced list of intervals. `to_interval/1` now returns `Interval | IntervalSet` depending on expansion; use `to_interval_set/1` when a uniform shape is wanted.
 
 * **Multi-interval materialisation.** Range-in-slot (`{1..3}M`), stepped ranges, cartesian ranges, and all-of sets expand to an IntervalSet. One-of sets (`[a,b,c]`) return an error — they're epistemic disjunctions, not free/busy lists.

@@ -79,6 +79,107 @@ defmodule Tempo.Mask do
   end
 
   @doc """
+  Return the list of valid values a mask can take at a given
+  unit, constrained by the calendar and the preceding units.
+
+  Unlike `fill_unspecified/4` (which drives enumeration and
+  folds a heuristic for multi-digit widths), this function
+  returns the exact candidate set: for `:month` with no leading
+  constraint, that's `1..months_in_year(year)` filtered by the
+  zero-padded digit pattern.
+
+  ### Arguments
+
+  * `unit` is one of `:year`, `:month`, `:day`, `:hour`,
+    `:minute`, `:second`.
+
+  * `mask` is the digit-pattern list (e.g. `[:X, :X]` or
+    `[:X, 5]`).
+
+  * `previous` is a keyword list of already-resolved units
+    coarser than `unit` (e.g. `[year: 1985]` when matching
+    `:month`).
+
+  * `calendar` is the calendar module used to derive valid
+    ranges (`months_in_year`, `days_in_month`, etc.).
+
+  ### Returns
+
+  * A sorted list of integers that are (a) in the valid range
+    for the unit given `previous`, and (b) match the mask
+    pattern when formatted to the mask's width with zero-padding.
+
+  ### Examples
+
+      iex> Tempo.Mask.valid_values(:month, [:X, :X], [year: 1985], Calendrical.Gregorian)
+      [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+
+      iex> Tempo.Mask.valid_values(:month, [:X, 5], [year: 1985], Calendrical.Gregorian)
+      [5]
+
+      iex> Tempo.Mask.valid_values(:day, [:X, :X], [year: 1985, month: 2], Calendrical.Gregorian)
+      [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28]
+
+  """
+  @spec valid_values(
+          unit :: atom(),
+          mask :: list(),
+          previous :: keyword(),
+          calendar :: module()
+        ) :: [integer()]
+  def valid_values(unit, mask, previous, calendar) do
+    width = length(mask)
+
+    unit
+    |> valid_range(previous, calendar)
+    |> Enum.filter(&padded_matches_mask?(&1, mask, width))
+  end
+
+  defp valid_range(:month, previous, calendar) do
+    year = Keyword.fetch!(previous, :year)
+    1..calendar.months_in_year(year)
+  end
+
+  defp valid_range(:day, previous, calendar) do
+    year = Keyword.fetch!(previous, :year)
+    month = Keyword.fetch!(previous, :month)
+    1..calendar.days_in_month(year, month)
+  end
+
+  defp valid_range(:hour, _previous, _calendar), do: 0..23
+  defp valid_range(:minute, _previous, _calendar), do: 0..59
+  defp valid_range(:second, _previous, _calendar), do: 0..59
+
+  # Pad candidate to the mask's width with leading zeros, then
+  # compare digit-by-digit: `:X` matches any digit; any other
+  # element must match exactly.
+  defp padded_matches_mask?(candidate, mask, width) do
+    padded =
+      candidate
+      |> Integer.to_string()
+      |> String.pad_leading(width, "0")
+
+    digits =
+      padded
+      |> String.graphemes()
+      |> Enum.map(&String.to_integer/1)
+
+    length(digits) == width and digits_match?(digits, mask)
+  end
+
+  defp digits_match?([], []), do: true
+
+  defp digits_match?([_digit | rest_d], [:X | rest_m]) do
+    digits_match?(rest_d, rest_m)
+  end
+
+  defp digits_match?([digit | rest_d], [digit | rest_m]) when is_integer(digit) do
+    digits_match?(rest_d, rest_m)
+  end
+
+  defp digits_match?(_, _), do: false
+
+  @doc """
   Return the `{min, max}` numeric range spanned by a digit mask.
 
   Each `:X` position contributes `0..9` at its digit weight; each

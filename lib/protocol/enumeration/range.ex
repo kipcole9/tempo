@@ -53,30 +53,41 @@ defimpl Enumerable, for: Tempo.Interval do
   end
 
   def reduce(
-        %Tempo.Interval{from: :undefined, to: %Tempo{}, duration: %Tempo.Duration{}},
-        _acc,
-        _fun
+        %Tempo.Interval{
+          from: :undefined,
+          to: %Tempo{} = to,
+          duration: %Tempo.Duration{} = duration
+        },
+        acc,
+        fun
       ) do
-    # `P1M/1985-06` — duration + to. `from` could be computed as
-    # `to - duration`, but Tempo.Duration subtraction isn't yet a
-    # public API. Raise with a clear message rather than mislead.
-    raise ArgumentError,
-          "Cannot enumerate a duration-anchored interval of the shape `P…/to` yet. " <>
-            "Tempo-duration subtraction is required to compute the lower bound and is " <>
-            "not yet implemented."
+    # `P1M/1985-06` — duration + to. Compute the lower bound via
+    # `Tempo.Math.subtract/2` and iterate as a closed interval.
+    from = Tempo.Math.subtract(to, duration)
+    do_reduce(from, to, acc, fun)
+  end
+
+  def reduce(
+        %Tempo.Interval{
+          from: %Tempo{} = from,
+          to: to,
+          duration: %Tempo.Duration{} = duration
+        },
+        acc,
+        fun
+      )
+      when to in [nil, :undefined] do
+    # `from + duration` — compute the upper bound and iterate as
+    # a closed interval. This respects the duration bound; the
+    # sequence terminates naturally.
+    computed_to = Tempo.Math.add(from, duration)
+    do_reduce(from, computed_to, acc, fun)
   end
 
   def reduce(%Tempo.Interval{from: %Tempo{} = from, to: to}, acc, fun)
       when is_struct(to, Tempo) or to in [:undefined, nil] do
-    # `to: nil` arises from `from + duration` intervals (`1985-01/P3M`)
-    # where the upper bound is expressed as a Duration rather than a
-    # concrete Tempo. We treat it as open-upper for iteration — the
-    # sequence is bounded by the duration but computing that bound
-    # requires Tempo-Duration arithmetic (not yet implemented).
-    # Callers relying on termination should use `Enum.take/2` or a
-    # `{:halt, acc}` accumulator. Once Tempo-Duration addition lands,
-    # this clause can compute `to = from + duration` and delegate to
-    # the closed-interval path.
+    # Closed `[from, to)` or open-upper `from/..`. Iteration is
+    # driven by `do_reduce/4` below.
     do_reduce(from, to, acc, fun)
   end
 

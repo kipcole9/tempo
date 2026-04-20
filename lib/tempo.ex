@@ -1339,6 +1339,56 @@ defmodule Tempo do
           {:ok, Tempo.Interval.t() | Tempo.IntervalSet.t()} | {:error, error_reason()}
   def to_interval(value)
 
+  # A bounded recurrence (`R3/1985-01/P1M`) expands to N disjoint
+  # intervals. Each occurrence starts at `from + i*duration` and
+  # runs for one duration. Requires `Tempo.Math.add/2`.
+  def to_interval(
+        %Tempo.Interval{
+          recurrence: n,
+          direction: direction,
+          from: %Tempo{} = from,
+          duration: %Tempo.Duration{} = duration
+        } = _interval
+      )
+      when is_integer(n) and n > 1 do
+    step = if direction == -1, do: negate_duration(duration), else: duration
+
+    intervals =
+      0..(n - 1)
+      |> Enum.map(fn i ->
+        start = add_n_durations(from, step, i)
+        fin = Tempo.Math.add(start, step)
+        %Tempo.Interval{from: start, to: fin}
+      end)
+
+    Tempo.IntervalSet.new(intervals)
+  end
+
+  # A `from + duration` interval (`1985-01/P3M`). Materialise to
+  # a closed `[from, from + duration)` interval.
+  def to_interval(%Tempo.Interval{
+        from: %Tempo{} = from,
+        duration: %Tempo.Duration{} = duration,
+        to: to,
+        recurrence: 1
+      })
+      when to in [nil, :undefined] do
+    to_tempo = Tempo.Math.add(from, duration)
+    {:ok, %Tempo.Interval{from: from, to: to_tempo}}
+  end
+
+  # A `duration + to` interval (`P1M/1985-06`). Materialise to a
+  # closed `[to - duration, to)` interval.
+  def to_interval(%Tempo.Interval{
+        from: :undefined,
+        duration: %Tempo.Duration{} = duration,
+        to: %Tempo{} = to,
+        recurrence: 1
+      }) do
+    from_tempo = Tempo.Math.subtract(to, duration)
+    {:ok, %Tempo.Interval{from: from_tempo, to: to}}
+  end
+
   def to_interval(%Tempo.Interval{} = interval) do
     {:ok, interval}
   end
@@ -1348,11 +1398,19 @@ defmodule Tempo do
   end
 
   def to_interval(%Tempo{} = tempo) do
-    # Detect whether this Tempo expands to multiple intervals. A
-    # "multi" shape is any time slot whose value is a list
-    # containing more than one candidate (ranges, multi-element
-    # lists). Masks, scalars, and single-element lists use the
-    # existing single-interval path in `next_unit_boundary/1`.
+    # Step 1: if the Tempo has a non-contiguous mask (a mask
+    # followed by concrete units — e.g. `1985-XX-15`), rewrite the
+    # time list to substitute the mask with the list of valid
+    # values. This turns a previously-widened case into a proper
+    # multi-interval expansion.
+    tempo = expand_non_contiguous_mask(tempo)
+
+    # Step 2: detect whether the resulting Tempo expands to
+    # multiple intervals. A "multi" shape is any time slot whose
+    # value is a list containing more than one candidate (ranges,
+    # multi-element lists). Masks, scalars, and single-element
+    # lists use the existing single-interval path in
+    # `next_unit_boundary/1`.
     if multi_tempo?(tempo) do
       materialise_multi(tempo)
     else
@@ -1386,6 +1444,79 @@ defmodule Tempo do
      "Cannot materialise a Tempo.Duration into an interval — " <>
        "a duration has no anchor on the time line."}
   end
+
+  # Apply a duration N times (scalar multiplication by recursive
+  # add). Keeps the clamp semantic per-step, which matches the
+  # intuition that each occurrence is its own "+ duration" step.
+  defp add_n_durations(tempo, _duration, 0), do: tempo
+
+  defp add_n_durations(tempo, duration, n) when n > 0 do
+    tempo
+    |> Tempo.Math.add(duration)
+    |> add_n_durations(duration, n - 1)
+  end
+
+  defp negate_duration(%Tempo.Duration{time: time}) do
+    negated = Enum.map(time, fn {unit, amount} -> {unit, -amount} end)
+    %Tempo.Duration{time: negated}
+  end
+
+  # A "non-contiguous mask" is a mask at some unit followed by
+  # one or more concrete units: `1985-XX-15` (month masked, day
+  # concrete) produces 12 disjoint day-intervals, not a single
+  # year-wide span. When detected, rewrite the mask position to
+  # the list of valid candidate values (calendar-aware) so the
+  # existing multi-expansion path handles it.
+  #
+  # A mask with only masks after it (`1985-XX-XX`) is still
+  # "contiguous widening" — no concrete unit pins a sub-span, so
+  # the enclosing year interval is the right representation.
+  defp expand_non_contiguous_mask(%Tempo{time: time, calendar: calendar} = tempo) do
+    case find_non_contiguous_mask(time, [], calendar) do
+      nil ->
+        tempo
+
+      {new_time} ->
+        %{tempo | time: new_time}
+    end
+  end
+
+  defp find_non_contiguous_mask([], _previous, _calendar), do: nil
+
+  defp find_non_contiguous_mask([{unit, {:mask, mask}} | rest], previous, calendar) do
+    if tail_has_concrete?(rest) do
+      # Non-contiguous: substitute the mask with candidate values.
+      # Use a scalar when exactly one candidate survives the
+      # calendar constraint; otherwise a list (which the multi
+      # path expands via Enumerable).
+      candidates = Tempo.Mask.valid_values(unit, mask, Enum.reverse(previous), calendar)
+      prefix = Enum.reverse(previous)
+
+      value =
+        case candidates do
+          [single] -> single
+          many -> many
+        end
+
+      {prefix ++ [{unit, value}] ++ rest}
+    else
+      nil
+    end
+  end
+
+  defp find_non_contiguous_mask([entry | rest], previous, calendar) do
+    find_non_contiguous_mask(rest, [entry | previous], calendar)
+  end
+
+  defp tail_has_concrete?([]), do: false
+  defp tail_has_concrete?([{_unit, {:mask, _}} | rest]), do: tail_has_concrete?(rest)
+  defp tail_has_concrete?([{_unit, :any} | rest]), do: tail_has_concrete?(rest)
+
+  defp tail_has_concrete?([{_unit, value} | _rest]) when is_integer(value) do
+    true
+  end
+
+  defp tail_has_concrete?([_ | rest]), do: tail_has_concrete?(rest)
 
   # A Tempo is "multi" if any of its time slots holds a list of
   # more than one candidate value. The existing Enumerable

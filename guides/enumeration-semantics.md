@@ -235,17 +235,7 @@ The parsed value itself is usable for comparison, equality, and round-trip seria
 
 These *will* be enumerable in future versions, but are not today. Each is pinned by a test that will force a conscious update when the implementation lands.
 
-### 4.1. Duration-anchored intervals
-
-| Shape | Example | Current behaviour | Future behaviour |
-|---|---|---|---|
-| `from + duration` | `1985-01/P3M` | Iterates forward from `from` but does *not* respect the 3-month upper bound. Effectively open-upper; use `Enum.take/2` to halt. | Iterates exactly the span `[from, from + duration)` — 3 months here. |
-| `duration / to` | `P1M/1985-06` | Raises `ArgumentError` naming the missing capability. | Iterates `[to − duration, to)` — computed lower bound. |
-| Recurrence from duration | `R3/1985-01/P1M` | Same as `from + duration` — iterates forward unbounded. | Respects the recurrence count and per-iteration duration. |
-
-Both cases need **`Tempo + Tempo.Duration`** and **`Tempo − Tempo.Duration`** arithmetic, which belong in `Tempo.Math` as first-class operations. They are deliberately deferred until after the **implicit-to-explicit interval conversion** milestone, which shares the same primitives.
-
-### 4.2. `count/1`, `member?/2`, `slice/1` on `Tempo.Interval`
+### 4.1. `count/1`, `member?/2`, `slice/1` on `Tempo.Interval`
 
 All three currently return `{:error, Enumerable.Tempo.Interval}`, which tells Elixir's `Enum` module to fall back to iterating via `reduce/3`.
 
@@ -259,7 +249,7 @@ Precise implementations need:
 
 Tracked with the set-operations milestone, which also depends on `Tempo.compare/2`.
 
-### 4.3. `count/1` and `member?/2` on `%Tempo{}` and `%Tempo.Set{}`
+### 4.2. `count/1` and `member?/2` on `%Tempo{}` and `%Tempo.Set{}`
 
 Both return `{:error, Enumerable.Tempo}` / `{:error, Enumerable.Tempo.Set}` today. Will be filled in alongside the same comparison primitives as §4.2.
 
@@ -334,4 +324,4 @@ Known divergences:
 |---|---|
 | **Enumerable** | every standard ISO 8601 / EDTF value with a concrete anchor — single values, ranges, sets, masks, long years, qualified values, IXDTF-tagged values, closed intervals, open-upper intervals, seasons, mixed-resolution intervals |
 | **Not enumerable by design** | bare `%Tempo.Duration{}`, fully open intervals `../..`, open-lower intervals `../to`, values at finest resolution, significant-digits blocks > 10 000 candidates |
-| **Not enumerable (deferred)** | `from + duration` intervals respecting the bound, `duration + to` intervals, exact `count/1` / `member?/2` / `slice/1` on intervals, `count/1` / `member?/2` on `%Tempo{}` and `%Tempo.Set{}` |
+| **Not enumerable (deferred)** | exact `count/1` / `member?/2` / `slice/1` on intervals, `count/1` / `member?/2` on `%Tempo{}` and `%Tempo.Set{}` |

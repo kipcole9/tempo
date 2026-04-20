@@ -328,15 +328,13 @@ defmodule Tempo.EnumerationConformance.Test do
       assert Enum.map(list, & &1.time) == [[year: 1985, month: 1], [year: 1985, month: 2], [year: 1985, month: 3]]
     end
 
-    test "Enum.take/2 on `duration/to` raises a clear error" do
-      # `P1M/1985-06` — duration-anchored lower bound. Computing
-      # `from = to - duration` requires Tempo-Duration subtraction
-      # (not yet implemented).
+    test "Enum.take/2 on `duration/to` iterates from (to - duration) to to" do
+      # `P1M/1985-06` — lower bound computed via `Tempo.Math.subtract/2`
+      # as `1985-06 − P1M = 1985-05`. Interval `[1985-05, 1985-06)`
+      # yields one month: May 1985.
       {:ok, interval} = Tempo.from_iso8601("P1M/1985-06")
-
-      assert_raise ArgumentError, ~r/duration-anchored interval/, fn ->
-        Enum.take(interval, 3)
-      end
+      list = Enum.to_list(interval)
+      assert Enum.map(list, & &1.time) == [[year: 1985, month: 5]]
     end
 
     test "Enum.take/2 on a week-resolution interval advances weeks" do
