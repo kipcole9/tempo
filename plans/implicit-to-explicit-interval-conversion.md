@@ -26,6 +26,75 @@ Add a single public function, `Tempo.to_interval/1`, that takes any `%Tempo{}` v
 
 The upper bound is always the next-unit boundary, never "the last instant". This lets adjacent intervals concatenate cleanly (`[a, b) ++ [b, c) == [a, c)`).
 
+## Design revision: multi-interval values and `%Tempo.IntervalSet{}`
+
+The original plan assumed every `%Tempo{}` would materialise to a single `%Tempo.Interval{}`. In practice, several AST shapes expand to a sorted list of disjoint intervals, not one contiguous span. This revision introduces `%Tempo.IntervalSet{}` as the multi-interval representation and records the reasoning so we don't have to re-derive it later.
+
+### Shapes that expand to multiple intervals
+
+| AST shape | Example | Expansion |
+|---|---|---|
+| All-of set (range form) | `{2020,2021,2022}Y` | 3 year-intervals |
+| All-of set (explicit members) | `%Tempo.Set{type: :all, …}` | N intervals |
+| **One-of set** | `[2020Y,2021Y,2022Y]` = `%Tempo.Set{type: :one, …}` | **stays as epistemic disjunction — NOT an IntervalSet** |
+| Non-contiguous mask | `1985-XX-15` | 12 day-intervals (the 15th of each month) |
+| Stepped range | `{1..-1//7}D` in 2022 | ~52 day-intervals |
+| Group iterated over a range | `{1..6}G1MU` | 6 intervals |
+| Recurrence | `R3/1985-01/P1M` | 3 disjoint month-intervals |
+| Repeat rule | `.../F...` | list driven by the rule |
+
+The **one-of set is the important asymmetry**. `{a,b,c}` means "each of these values" (all-of, free/busy semantics) → expand to IntervalSet. `[a,b,c]` means "it was one of these, I don't know which" (epistemic disjunction) → stay as `Tempo.Set{type: :one}`. Flattening the epistemic form to an IntervalSet would lie about certainty.
+
+### Why list-of-intervals is the right operational form
+
+We considered two alternatives: (a) a **rule form** that keeps the AST unexpanded and evaluates lazily (RFC 5545 RRULE style — Tempo already emits this via `to_rrule/1`), and (b) the **materialised list** form.
+
+| | Compact | Handles unbounded | Set ops |
+|---|---|---|---|
+| Rule form | yes | yes | very hard |
+| Materialised list | no (O(n)) | no | easy (sweep-line) |
+
+Rule-based set operations fall into three bands of difficulty:
+
+1. **Tractable.** Rule ∩ bounded interval. Materialise within the window, run interval math. This is what every production calendar system does (Google Calendar, Outlook, Apple Calendar, `dateutil.rrule`, `rrule.js`). Membership testing is well-defined and O(1) for most RRULE shapes.
+
+2. **Very hard.** General rule ∩ rule in closed form. RRULE isn't closed under intersection — "every Monday" ∩ "every 3rd day" isn't an RRULE. A richer AST ("AND of rules") and closure proofs would be needed. The iCalendar workaround (RRULE + EXRULE + EXDATE + RDATE per VEVENT) is a compound ad-hoc representation, not an algebra. No production system ships rule-on-rule set operations as a first-class feature.
+
+3. **Very hard plus non-stationary, once timezones are in play.** `Tzdata` (the IANA database) updates several times a year — countries change DST rules, skip days (Samoa 2011), drop DST permanently (Turkey 2016). Rule expansions are re-derived every time they're evaluated and change silently when the zone database updates. IntervalSet endpoints, by contrast, are pinned wall-clock + zone at construction and remain stable; only the UTC projection is re-derived per op, and that re-derivation is automatic.
+
+Additionally, two rules in different zones share no common reference frame until you materialise both. DST gaps and overlaps force policy decisions (RRULE is silent on whether "01:30 every day" fires once or twice on fall-back day). Every path through rule-on-rule set operations touches those policies.
+
+The conclusion: **IntervalSet is the operational form**. Rule form stays as a compact AST for enumeration, membership tests, and round-trip to RRULE / ISO-8601. Any set operation that encounters a rule requires a bounding context — the rule is materialised within the bound, then IntervalSet math runs.
+
+### Timezone handling
+
+The same-as-industry pattern:
+
+* **Wall-clock + zone is the source of truth.** `%Tempo{}.time` holds the wall-clock; `%Tempo{}.extended.zone_id` holds the IANA zone name; `%Tempo{}.shift` holds the current UTC offset (derived, but stored for fast access).
+
+* **UTC projection is computed on demand, per set operation.** `to_utc_instant(tempo, Tzdata.current)` runs when set ops need a common reference frame across zones. The result is not cached on the struct.
+
+* **No caching in v1.** Future profiling may justify a `%Tempo.IntervalSet{tzdata_version: _, utc_endpoints: _}` cache with invalidation, but v1 recomputes per operation. Correctness first, speed later. Users with hot workloads can cache externally.
+
+* **Zoned interval construction resolves DST ambiguity at build time.** A `policy:` argument on the constructor picks `:earlier | :later | :error` for spring-forward gaps and `:first | :last | :error` for fall-back overlaps. Defaults match RFC 5545.
+
+This mirrors iCalendar's design (wall-clock + `TZID` is authoritative; UTC is derivation) and matches what Google / Microsoft / Apple actually do — they cache UTC projections, invalidate on Tzdata update, and occasionally notify users when events shift. Not caching in v1 sidesteps the invalidation layer entirely.
+
+### Forms that stay as rules
+
+The following stay as their AST form — `to_interval/1` either refuses with a "bounding context required" error or passes through unchanged:
+
+* Unbounded recurrence (`R/2022-01/P1M` without a count or end).
+* Unbounded repeat rules.
+* Future: selections with open-ended instance counts.
+
+A future `Tempo.intersection/3`, `Tempo.union/3`, etc. accept a `bound:` option that materialises unbounded inputs within the given window before running set math.
+
+### Forms that never produce IntervalSets
+
+* **`%Tempo.Duration{}`** — no anchor, returns an error (unchanged from the single-interval plan).
+* **`%Tempo.Set{type: :one}`** — epistemic disjunction, stays a Set. Renaming to `Tempo.Disjunction` is considered but deferred to avoid a naming churn before v1.
+
 ## Step-by-step
 
 ### Step 1 — canonicalisation helper (1 day)
@@ -126,22 +195,98 @@ No code change here. Document in `guides/iso8601-conformance.md` (and a future `
 * Update `guides/iso8601-conformance.md` with a new "Implicit vs explicit intervals" subsection.
 * CHANGELOG entry.
 
+### Step 8 — `%Tempo.IntervalSet{}` struct (1 day)
+
+Define the multi-interval type:
+
+```elixir
+defmodule Tempo.IntervalSet do
+  @type t :: %__MODULE__{
+          intervals: [Tempo.Interval.t()]
+        }
+
+  defstruct intervals: []
+
+  def new(intervals) when is_list(intervals) do
+    intervals
+    |> Enum.sort_by(&from_key/1)
+    |> coalesce()
+    |> wrap()
+  end
+end
+```
+
+The constructor sorts by `from` endpoint and coalesces adjacent or overlapping intervals (sweep-line pass). The invariant on a `%Tempo.IntervalSet{}` is: *sorted ascending by `from`, with no overlaps and no adjacencies that could be merged.* Construction takes O(n log n).
+
+### Step 9 — `Enumerable.Tempo.IntervalSet` (0.5 days)
+
+Iterate each interval in time order, yielding each interval's forward-stepping sequence via `Enumerable.Tempo.Interval`. Essentially a `Stream.flat_map` over `intervals`, but implemented directly on the protocol for consistency with how the other Tempo enumerables work.
+
+`count/1`, `member?/2`, `slice/1` return `{:error, __MODULE__}` for v1 — same deferral as `Enumerable.Tempo.Interval`.
+
+### Step 10 — extend `Tempo.to_interval/1` to return `Interval | IntervalSet` (2 days)
+
+Re-route the existing routing logic so multi-interval AST shapes materialise to `%Tempo.IntervalSet{}`:
+
+| Input | Output |
+|---|---|
+| Single concrete `%Tempo{}` at a resolution | `%Tempo.Interval{}` |
+| Masked `%Tempo{}` (contiguous widening) | `%Tempo.Interval{}` |
+| Non-contiguous mask (`1985-XX-15`) | `%Tempo.IntervalSet{}` of 12 day-intervals |
+| Range value inside `%Tempo{}.time` | `%Tempo.IntervalSet{}` |
+| Stepped range | `%Tempo.IntervalSet{}` |
+| Group iterated over a range | `%Tempo.IntervalSet{}` |
+| `%Tempo.Set{type: :all}` | `%Tempo.IntervalSet{}` |
+| `%Tempo.Set{type: :one}` | `%Tempo.Set{}` (unchanged — epistemic) |
+| Bounded recurrence `%Tempo.Interval{recurrence: n, …}` | `%Tempo.IntervalSet{}` of n occurrences |
+| Unbounded recurrence | `{:error, "provide a bounding context"}` |
+| `%Tempo.Duration{}` | `{:error, "no anchor"}` |
+
+Return shape changes from `{:ok, interval}` to `{:ok, interval_or_set}`. The existing Step 3 test suite extends accordingly.
+
+Also add `Tempo.to_interval_set/1` — a convenience wrapper that always returns `%Tempo.IntervalSet{}` (wrapping a single interval in a 1-element set). Callers that want uniform handling use this; callers that want to distinguish single vs multi use `to_interval/1`.
+
+### Step 11 — timezone projection helper (1 day)
+
+Add a private `Tempo.Interval.to_utc_endpoints/1` that returns `{utc_from, utc_to}` for a zoned `%Tempo.Interval{}`. This is the primitive future set operations will use to align intervals across zones. Wall-clock + zone stays on the struct; the UTC projection is computed per call, not cached. See the "Timezone handling" design discussion for the rationale.
+
+A failing `to_utc_endpoints/1` (ambiguous DST boundary on an already-constructed interval — shouldn't happen if the constructor resolved ambiguity, but we surface a clear error if it does) returns `{:error, reason}`.
+
+### Step 12 — tests and docs for IntervalSet (1 day)
+
+* `test/tempo/interval_set_test.exs` — constructor (sort + coalesce), enumerable protocol, round-trip to_interval_set / to_interval.
+* Extend `test/tempo/to_interval_test.exs` with the multi-interval shapes from the Step 10 table.
+* Update `guides/enumeration-semantics.md` with a new subsection on `IntervalSet`.
+* CHANGELOG entry.
+
 ## Proposed API summary
 
 ```elixir
-Tempo.to_interval(tempo)         # {:ok, %Tempo.Interval{}} | {:error, reason}
-Tempo.to_interval!(tempo)        # %Tempo.Interval{} | raises
+Tempo.to_interval(tempo)
+# {:ok, %Tempo.Interval{} | %Tempo.IntervalSet{}} | {:error, reason}
+
+Tempo.to_interval!(tempo)
+# %Tempo.Interval{} | %Tempo.IntervalSet{} | raises
+
+Tempo.to_interval_set(tempo)
+# {:ok, %Tempo.IntervalSet{}} | {:error, reason}
+# Convenience wrapper that always returns an IntervalSet.
 
 # Convenience for the common case:
 Tempo.from_iso8601("2026-01") |> elem(1) |> Tempo.to_interval!()
 # => %Tempo.Interval{from: ~o"2026Y1M1D", to: ~o"2026Y2M1D"}
+
+Tempo.from_iso8601("1985-XX-15") |> elem(1) |> Tempo.to_interval!()
+# => %Tempo.IntervalSet{intervals: [%Tempo.Interval{...}, ...]}  # 12 intervals
 ```
 
-Existing `%Tempo.Interval{}` values (parsed from `a/b` syntax) pass through unchanged — the function is idempotent on the explicit form.
+Existing `%Tempo.Interval{}` values (parsed from `a/b` syntax) pass through unchanged — the function is idempotent on the explicit form. `%Tempo.IntervalSet{}` inputs also pass through unchanged.
 
 ## Estimated effort
 
-Approximately **5–7 working days**. Step 2 (next-unit boundary across all calendar constructs) is the most work; Step 5 (iteration parity) is where bugs are likely to surface.
+**Steps 1–7 (single-interval path):** landed. Approximately 5–7 days as originally estimated.
+
+**Steps 8–12 (multi-interval path):** approximately 5–6 working days. Step 10 (routing all AST shapes) and Step 8 (coalesce correctness) are where bugs are likely to surface.
 
 ## Dependencies
 

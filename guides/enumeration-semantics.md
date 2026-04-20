@@ -115,7 +115,9 @@ Mismatched-resolution endpoints are compared as their concrete start-moments: mi
 
 ### 2.9. Implicit-to-explicit conversion (`Tempo.to_interval/1`)
 
-Every enumerable `%Tempo{}` has an explicit `%Tempo.Interval{}` equivalent. `Tempo.to_interval/1` materialises it under the half-open `[from, to)` convention. The conversion preserves every piece of source metadata (`:qualification`, `:qualifications`, `:extended`, `:shift`, `:calendar`) on both endpoints.
+Every enumerable `%Tempo{}` has an explicit equivalent — either a single `%Tempo.Interval{}` (contiguous span) or a `%Tempo.IntervalSet{}` (sorted, coalesced list of disjoint spans). `Tempo.to_interval/1` materialises the appropriate form under the half-open `[from, to)` convention. The conversion preserves every piece of source metadata (`:qualification`, `:qualifications`, `:extended`, `:shift`, `:calendar`) on both endpoints.
+
+Call `Tempo.to_interval_set/1` if you always want the IntervalSet form (a single interval is wrapped in a one-element set).
 
 | Input | `from.time` | `to.time` |
 |---|---|---|
@@ -136,7 +138,31 @@ Mask rules:
 
 * `1985-XX-15` (day specified, month masked) is semantically non-contiguous — the covered moments are "the 15th of any 1985 month" which isn't a single interval. `to_interval/1` accepts the looser bound (`[year: 1985]..[year: 1986]`) rather than returning a set.
 
-`to_interval/1` is idempotent on existing intervals, maps over `%Tempo.Set{}` members, and returns an error for bare `%Tempo.Duration{}` values (they have no anchor on the time line).
+`to_interval/1` is idempotent on existing intervals and interval sets. Multi-valued AST shapes (ranges, stepped ranges, iterated groups, all-of sets) materialise to `%Tempo.IntervalSet{}` with touching intervals coalesced under the half-open `[from, to)` rule. One-of sets (`[a,b,c]`) are *epistemic* (the value is one of these, we don't know which) and return an error from `to_interval/1` — flattening them would assert all members happened, which is semantically wrong. Bare `%Tempo.Duration{}` values also return an error (no anchor on the time line).
+
+| Input shape | Result |
+|---|---|
+| Scalar `~o"2022Y"` | `%Tempo.Interval{}` |
+| Contiguous range `~o"2022Y{1..3}M"` | `%Tempo.IntervalSet{}` with 1 coalesced member |
+| Stepped range `~o"2022Y{1..-1//3}M"` | `%Tempo.IntervalSet{}` with N disjoint members |
+| All-of set `~o"{2020,2021,2022}Y"` | `%Tempo.IntervalSet{}` (coalesced to 1 if touching) |
+| One-of set `~o"[2020Y,2021Y,2022Y]"` | `{:error, "... epistemic disjunction ..."}` |
+| Bare Duration `~o"P3M"` | `{:error, "... no anchor ..."}` |
+
+### 2.10. `%Tempo.IntervalSet{}` — multi-interval values
+
+`%Tempo.IntervalSet{intervals: [%Tempo.Interval{}, ...]}` holds a sorted, non-overlapping, coalesced list. The constructor `Tempo.IntervalSet.new/1` sorts by `from` endpoint and coalesces adjacent or overlapping intervals in a single sweep-line pass.
+
+```
+iex> {:ok, tempo} = Tempo.from_iso8601("2022Y{1..-1//3}M")
+iex> {:ok, set} = Tempo.to_interval(tempo)
+iex> length(set.intervals)
+4
+```
+
+Enumeration walks each interval in time order, crossing interval boundaries seamlessly: `Enum.to_list(set)` on four month-sized intervals yields every day in each month, one interval at a time.
+
+IntervalSet is the form used by set operations (`union/2`, `intersection/2`, `coalesce/1` — next milestone). Any call that needs a uniform-shape input can use `Tempo.to_interval_set/1`.
 
 ### 2.10. Seasons
 

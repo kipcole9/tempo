@@ -176,19 +176,25 @@ defmodule Tempo.ToInterval.Test do
   end
 
   describe "Tempo.Set mapping" do
-    test "maps to_interval over each member" do
-      # `[…]` is one-of set syntax which produces a `%Tempo.Set{}`.
-      # `{…}Y` would produce a single `%Tempo{}` with a range value
-      # inside, not a set-of-intervals.
+    test "one-of set (`[a,b,c]`) is epistemic disjunction — returns an error" do
+      # `[…]` is one-of set syntax: "it was one of these, I don't
+      # know which." Flattening to an IntervalSet would lie about
+      # certainty.
       {:ok, set} = Tempo.from_iso8601("[2020Y,2021Y,2022Y]")
-      {:ok, intervals} = Tempo.to_interval(set)
-      assert length(intervals) == 3
+      assert {:error, message} = Tempo.to_interval(set)
+      assert message =~ "one-of"
+      assert message =~ "epistemic"
+    end
 
-      assert Enum.map(intervals, & &1.from.time) == [
-               [year: 2020, month: 1],
-               [year: 2021, month: 1],
-               [year: 2022, month: 1]
-             ]
+    test "all-of range (`{a..c}Y`) materialises to a coalesced IntervalSet" do
+      # `{…}Y` is the range-in-a-slot form. Three touching years
+      # coalesce to a single 3-year span.
+      {:ok, tempo} = Tempo.from_iso8601("{2020,2021,2022}Y")
+      {:ok, %Tempo.IntervalSet{intervals: intervals}} = Tempo.to_interval(tempo)
+      assert length(intervals) == 1
+      [interval] = intervals
+      assert interval.from.time == [year: 2020, month: 1]
+      assert interval.to.time == [year: 2023, month: 1]
     end
   end
 

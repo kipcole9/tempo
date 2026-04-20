@@ -1273,7 +1273,8 @@ defmodule Tempo do
 
   @doc """
   Convert an implicit-span `t:#{__MODULE__}.t/0` into the
-  equivalent explicit `t:Tempo.Interval.t/0`.
+  equivalent explicit `t:Tempo.Interval.t/0` or
+  `t:Tempo.IntervalSet.t/0`.
 
   Every Tempo value represents a bounded interval on the time
   line. `~o"2026-01"` *is* the interval `[2026-01-01, 2026-02-01)`
@@ -1283,25 +1284,31 @@ defmodule Tempo do
   representation used by the upcoming set-operations API
   (`union/2`, `intersection/2`, `coalesce/1`).
 
-  The conversion is idempotent on the explicit form: passing an
-  existing `%Tempo.Interval{}` returns it unchanged.
+  When the input expands to multiple disjoint spans — a set of
+  explicit values, a range over a time unit, a stepped range —
+  the result is a `%Tempo.IntervalSet{}` with intervals sorted
+  and coalesced. The conversion is idempotent on values that are
+  already explicit.
 
   ### Arguments
 
-  * `tempo` is a `t:#{__MODULE__}.t/0`, a `t:Tempo.Interval.t/0`,
-    or a `t:Tempo.Set.t/0`.
+  * `value` is a `t:#{__MODULE__}.t/0`, `t:Tempo.Interval.t/0`,
+    `t:Tempo.IntervalSet.t/0`, or `t:Tempo.Set.t/0`.
 
   ### Returns
 
-  * `{:ok, interval}` where `interval` is a `t:Tempo.Interval.t/0`
-    with concrete `from` and `to` endpoints.
+  * `{:ok, interval}` when the value materialises to a single
+    contiguous span.
 
-  * `{:ok, [interval, ...]}` when the input is a `Tempo.Set` — one
-    materialised interval per set member, in source order.
+  * `{:ok, interval_set}` when the value expands to multiple
+    disjoint spans.
 
-  * `{:error, reason}` when the input cannot be materialised, such
-    as a bare `Tempo.Duration` (no anchor) or a `Tempo` already at
-    its finest resolution (no finer unit to bound the span).
+  * `{:error, reason}` when the input cannot be materialised — a
+    bare `Tempo.Duration` (no anchor), a `Tempo` already at its
+    finest resolution (no finer unit to bound the span), or a
+    one-of `Tempo.Set` (epistemic disjunction is not an interval
+    list; the user must pick one or handle the disjunction
+    themselves).
 
   ### Examples
 
@@ -1322,31 +1329,56 @@ defmodule Tempo do
       {:error, "Cannot materialise a Tempo.Duration into an interval — a duration has no anchor on the time line."}
 
   """
-  @spec to_interval(Tempo.t() | Tempo.Interval.t() | Tempo.Set.t() | Tempo.Duration.t()) ::
-          {:ok, Tempo.Interval.t() | [Tempo.Interval.t()]} | {:error, error_reason()}
+  @spec to_interval(
+          Tempo.t()
+          | Tempo.Interval.t()
+          | Tempo.IntervalSet.t()
+          | Tempo.Set.t()
+          | Tempo.Duration.t()
+        ) ::
+          {:ok, Tempo.Interval.t() | Tempo.IntervalSet.t()} | {:error, error_reason()}
   def to_interval(value)
 
   def to_interval(%Tempo.Interval{} = interval) do
     {:ok, interval}
   end
 
+  def to_interval(%Tempo.IntervalSet{} = set) do
+    {:ok, set}
+  end
+
   def to_interval(%Tempo{} = tempo) do
-    with {:ok, {lower, upper}} <- Tempo.Interval.next_unit_boundary(tempo) do
-      {:ok, %Tempo.Interval{from: lower, to: upper}}
+    # Detect whether this Tempo expands to multiple intervals. A
+    # "multi" shape is any time slot whose value is a list
+    # containing more than one candidate (ranges, multi-element
+    # lists). Masks, scalars, and single-element lists use the
+    # existing single-interval path in `next_unit_boundary/1`.
+    if multi_tempo?(tempo) do
+      materialise_multi(tempo)
+    else
+      case Tempo.Interval.next_unit_boundary(tempo) do
+        {:ok, {lower, upper}} -> {:ok, %Tempo.Interval{from: lower, to: upper}}
+        {:error, _} = err -> err
+      end
     end
   end
 
-  def to_interval(%Tempo.Set{set: members}) do
-    Enum.reduce_while(members, {:ok, []}, fn member, {:ok, acc} ->
-      case to_interval(member) do
-        {:ok, interval} -> {:cont, {:ok, [interval | acc]}}
-        {:error, _} = err -> {:halt, err}
-      end
-    end)
-    |> case do
-      {:ok, reversed} -> {:ok, Enum.reverse(reversed)}
-      {:error, _} = err -> err
-    end
+  # An all-of `%Tempo.Set{}` (`{a,b,c}` syntax at the expression
+  # level) is free/busy semantics — every member is materialised
+  # and coalesced into an `IntervalSet`. A one-of set
+  # (`[a,b,c]`) is an epistemic disjunction ("it was one of
+  # these, I don't know which") and stays as a set; flattening it
+  # to an IntervalSet would assert all members happened, which is
+  # the opposite of what the user wrote.
+  def to_interval(%Tempo.Set{type: :all, set: members}) do
+    members_to_interval_set(members)
+  end
+
+  def to_interval(%Tempo.Set{type: :one}) do
+    {:error,
+     "Cannot materialise a one-of Tempo.Set (epistemic disjunction) " <>
+       "into an interval list. Pick a specific member or handle the " <>
+       "disjunction in calling code."}
   end
 
   def to_interval(%Tempo.Duration{}) do
@@ -1355,18 +1387,130 @@ defmodule Tempo do
        "a duration has no anchor on the time line."}
   end
 
+  # A Tempo is "multi" if any of its time slots holds a list of
+  # more than one candidate value. The existing Enumerable
+  # protocol handles the expansion — we just detect the trigger
+  # here and let Enumerable do the walk.
+  defp multi_tempo?(%Tempo{time: time}) do
+    Enum.any?(time, &multi_slot?/1)
+  end
+
+  defp multi_slot?({_unit, value}) when is_integer(value), do: false
+  defp multi_slot?({_unit, {:mask, _}}), do: false
+  defp multi_slot?({_unit, :any}), do: false
+  defp multi_slot?({_unit, {_value, meta}}) when is_list(meta), do: false
+
+  defp multi_slot?({_unit, values}) when is_list(values) do
+    case values do
+      [] -> false
+      [%Range{first: f, last: l, step: s}] -> Enum.count(f..l//s) > 1
+      [_single] -> false
+      _ -> true
+    end
+  end
+
+  defp multi_slot?(_), do: false
+
+  defp materialise_multi(%Tempo{} = tempo) do
+    # The existing Enumerable.Tempo yields one concrete Tempo per
+    # cartesian-product combination. Each of those is a single
+    # Tempo we can pass through the single-interval path. Collect
+    # the intervals, then build a coalesced IntervalSet.
+    intervals =
+      tempo
+      |> Enum.to_list()
+      |> Enum.map(&to_interval/1)
+
+    case Enum.find(intervals, &match?({:error, _}, &1)) do
+      nil ->
+        intervals
+        |> Enum.map(fn {:ok, i} -> i end)
+        |> Tempo.IntervalSet.new()
+
+      {:error, _} = err ->
+        err
+    end
+  end
+
+  defp members_to_interval_set(members) do
+    intervals =
+      Enum.reduce_while(members, {:ok, []}, fn member, {:ok, acc} ->
+        case to_interval(member) do
+          {:ok, %Tempo.Interval{} = i} ->
+            {:cont, {:ok, [i | acc]}}
+
+          {:ok, %Tempo.IntervalSet{intervals: inner}} ->
+            {:cont, {:ok, Enum.reverse(inner) ++ acc}}
+
+          {:error, _} = err ->
+            {:halt, err}
+        end
+      end)
+
+    case intervals do
+      {:ok, reversed} ->
+        reversed |> Enum.reverse() |> Tempo.IntervalSet.new()
+
+      {:error, _} = err ->
+        err
+    end
+  end
+
+  @doc """
+  Convert any Tempo value to a `t:Tempo.IntervalSet.t/0`.
+
+  Unlike `to_interval/1` (which may return either a single
+  interval or an IntervalSet), `to_interval_set/1` always returns
+  an IntervalSet — wrapping a single interval in a one-element
+  set if needed. This is the convenient form when the caller
+  wants a uniform shape (e.g. to pipe into set operations).
+
+  ### Arguments
+
+  * `value` is a `t:#{__MODULE__}.t/0`, `t:Tempo.Interval.t/0`,
+    `t:Tempo.IntervalSet.t/0`, or `t:Tempo.Set.t/0`.
+
+  ### Returns
+
+  * `{:ok, interval_set}` on success, or `{:error, reason}` for
+    the same cases that `to_interval/1` errors on.
+
+  ### Examples
+
+      iex> {:ok, tempo} = Tempo.from_iso8601("2026-01")
+      iex> {:ok, set} = Tempo.to_interval_set(tempo)
+      iex> length(set.intervals)
+      1
+
+  """
+  @spec to_interval_set(
+          Tempo.t()
+          | Tempo.Interval.t()
+          | Tempo.IntervalSet.t()
+          | Tempo.Set.t()
+          | Tempo.Duration.t()
+        ) ::
+          {:ok, Tempo.IntervalSet.t()} | {:error, error_reason()}
+  def to_interval_set(value) do
+    case to_interval(value) do
+      {:ok, %Tempo.IntervalSet{} = set} -> {:ok, set}
+      {:ok, %Tempo.Interval{} = interval} -> Tempo.IntervalSet.new([interval])
+      {:error, _} = err -> err
+    end
+  end
+
   @doc """
   Raising version of `to_interval/1`.
 
   ### Arguments
 
-  * `tempo` is a `t:#{__MODULE__}.t/0`, a `t:Tempo.Interval.t/0`,
-    or a `t:Tempo.Set.t/0`.
+  * `value` is a `t:#{__MODULE__}.t/0`, `t:Tempo.Interval.t/0`,
+    `t:Tempo.IntervalSet.t/0`, or `t:Tempo.Set.t/0`.
 
   ### Returns
 
-  * The materialised `t:Tempo.Interval.t/0` (or a list of them for
-    a `Tempo.Set`).
+  * The materialised `t:Tempo.Interval.t/0` or
+    `t:Tempo.IntervalSet.t/0`.
 
   ### Raises
 
@@ -1381,8 +1525,14 @@ defmodule Tempo do
       {[year: 2026, month: 1], [year: 2027, month: 1]}
 
   """
-  @spec to_interval!(Tempo.t() | Tempo.Interval.t() | Tempo.Set.t() | Tempo.Duration.t()) ::
-          Tempo.Interval.t() | [Tempo.Interval.t()]
+  @spec to_interval!(
+          Tempo.t()
+          | Tempo.Interval.t()
+          | Tempo.IntervalSet.t()
+          | Tempo.Set.t()
+          | Tempo.Duration.t()
+        ) ::
+          Tempo.Interval.t() | Tempo.IntervalSet.t()
   def to_interval!(value) do
     case to_interval(value) do
       {:ok, result} -> result

@@ -4,6 +4,10 @@
 
 ### Enhancements
 
+* **`%Tempo.IntervalSet{}` — multi-interval values.** Sorted, non-overlapping, coalesced list of intervals. `to_interval/1` now returns `Interval | IntervalSet` depending on expansion; use `to_interval_set/1` when a uniform shape is wanted.
+
+* **Multi-interval materialisation.** Range-in-slot (`{1..3}M`), stepped ranges, cartesian ranges, and all-of sets expand to an IntervalSet. One-of sets (`[a,b,c]`) return an error — they're epistemic disjunctions, not free/busy lists.
+
 * **Unified conversion from Elixir date/time types.** `Tempo.from_elixir/2` accepts `Date.t`, `Time.t`, `NaiveDateTime.t`, or `DateTime.t` and returns a `%Tempo{}` at an inferred or explicit resolution.
 
 * **`Tempo.from_date_time/1`.** Previously missing for `DateTime.t` — the existing `from_date/1`, `from_time/1`, `from_naive_date_time/1` family now has its fourth member. UTC offset (including DST) populates `:shift`; the IANA zone name and numeric offset in minutes populate `:extended`.
@@ -12,11 +16,9 @@
 
 * **`Tempo.at_resolution/2`** dispatches to `trunc/2` or `extend_resolution/2` based on whether the target is coarser or finer than the current resolution. Idempotent when the target matches. The single entry point for normalising a Tempo to a known resolution.
 
-* **Implicit-to-explicit interval conversion.** `Tempo.to_interval/1` and `Tempo.to_interval!/1` materialise any implicit-span `%Tempo{}` into the equivalent `%Tempo.Interval{}` with concrete `from` and `to` endpoints under the half-open `[from, to)` convention. `~o"2026-01"` becomes `from: ~o"2026Y1M1D"`, `to: ~o"2026Y2M1D"`; `~o"156X"` becomes `from: ~o"1560Y"`, `to: ~o"1570Y"`. Masked values widen to the coarsest un-masked prefix (`~o"1985-XX-XX"` → year-resolution bounds). Idempotent on existing intervals, maps over `%Tempo.Set{}` members, returns an error for bare `%Tempo.Duration{}` (no anchor). All source metadata (`:qualification`, `:qualifications`, `:extended`, `:shift`, `:calendar`) propagates to both endpoints. This is the canonical representation used by the upcoming set-operations API.
+* **Implicit-to-explicit interval conversion.** `Tempo.to_interval/1` and `Tempo.to_interval!/1` materialise any implicit-span `%Tempo{}` into the equivalent `%Tempo.Interval{}`.
 
-* **`Tempo.Math` module.** New public primitives for time-unit arithmetic: `add_unit/3` (advance a Tempo or time-keyword-list by one unit at a given resolution, carrying into coarser units via calendar callbacks) and `unit_minimum/1` (the start-of-unit value — 1 for `:month` / `:day` / `:week` / `:day_of_year` / `:day_of_week`, 0 for everything else). Extracted from the private helpers in `Enumerable.Tempo.Interval` so both enumeration and interval materialisation share the same calendar-aware carry logic. `Tempo.Mask.mask_bounds/1` is also now public for computing the `{min, max}` numeric range of a digit-mask list.
-
-* Support the Internet Extended Date/Time Format (IXDTF) as defined in [draft-ietf-sedate-datetime-extended-09](https://www.ietf.org/archive/id/draft-ietf-sedate-datetime-extended-09.html). An optional suffix such as `[Europe/Paris][u-ca=hebrew]` may follow an ISO 8601 datetime. Time zones are validated against `Tzdata` and calendars are validated against `Localize.validate_calendar/1`. The critical flag (`!`) is honoured — unknown critical segments cause the parse to fail while unknown elective segments are retained on the struct's new `:extended` field.
+* Support the Internet Extended Date/Time Format (IXDTF) as defined in [draft-ietf-sedate-datetime-extended-09](https://www.ietf.org/archive/id/draft-ietf-sedate-datetime-extended-09.html). An optional suffix such as `[Europe/Paris][u-ca=hebrew]` may follow an ISO 8601 datetime.
 
 * Add an `:extended` field to `%Tempo{}` holding `%{calendar:, zone_id:, zone_offset:, tags:}` parsed from the IXDTF suffix (or `nil` when no suffix is present).
 
