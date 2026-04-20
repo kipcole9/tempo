@@ -4,7 +4,7 @@ defmodule Tempo.Iso8601.UnspecifiedDigit.Test do
   # Unspecified digits (`X`) in date components are a core ISO 8601-2
   # / EDTF feature. Archaeologists and historians routinely write
   # `156X` ("sometime in the 1560s"), `1XXX` ("the first millennium"),
-  # or `1985-XX-XX` ("sometime in 1985") when full precision isn't
+  # or `1985-XX-XX` ("sometime in 1985") when full resolution isn't
   # available.
 
   describe "positive years" do

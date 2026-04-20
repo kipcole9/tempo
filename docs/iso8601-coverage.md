@@ -170,7 +170,7 @@ These are **project-specific additions** and may diverge from implementations ta
 | **Truncated date ambiguity** (is `99` a year or century?) | 2019 edition removed truncation; pre-2019 was ambiguous | Tempo uses **suffix-based disambiguation**: `99` (no suffix) = century, `99Y` (with Y) = year 99 |
 | **Negative zero for centuries** | ISO allows `-00C` (century zero, spanning −99 to 0) | Elixir limitation: cannot represent as `{-0}`; noted in comments but not enforced; likely a bug |
 | **Offset in IXDTF brackets vs. datetime offset** | RFC 3339 + IXDTF not fully clear on precedence | Tempo **parses both** but does not explicitly validate or merge; documentation silent on which takes precedence |
-| **Fraction applied to lowest precision only** | ISO specifies fraction applies only to lowest component | Tempo enforces via `apply_fraction()` in `numbers.ex:307–318` — correct |
+| **Fraction applied to lowest resolution only** | ISO specifies fraction applies only to lowest component | Tempo enforces via `apply_fraction()` in `numbers.ex:307–318` — correct |
 | **Astronomical vs meteorological seasons** | ISO 8601-2 specifies both (codes differ) | Tempo implements **meteorological only** (21–24); astronomical (25–28) absent |
 
 ---

@@ -26,27 +26,27 @@ Every Tempo value is a span on the time line. Spans come in two forms and the di
 
 ### Implicit span
 
-A single ISO 8601 datetime **is** an interval. Its span runs from the stated datetime to the same datetime incremented by one unit **at the next-higher-precision-that-is-not-defined**. For example:
+A single ISO 8601 datetime **is** an interval. Its span runs from the stated datetime to the same datetime incremented by one unit **at the next-higher-resolution-that-is-not-defined**. For example:
 
-* `2026` → `2026-01-01 .. 2027-01-01` (year precision, span of one year)
+* `2026` → `2026-01-01 .. 2027-01-01` (year resolution, span of one year)
 
-* `2026-01` → `2026-01-01 .. 2026-02-01` (month precision, span of one month)
+* `2026-01` → `2026-01-01 .. 2026-02-01` (month resolution, span of one month)
 
-* `2026-01-15` → `2026-01-15 .. 2026-01-16` (day precision, span of one day)
+* `2026-01-15` → `2026-01-15 .. 2026-01-16` (day resolution, span of one day)
 
-* `2026-01-15T10` → `2026-01-15T10:00 .. 2026-01-15T11:00` (hour precision, span of one hour)
+* `2026-01-15T10` → `2026-01-15T10:00 .. 2026-01-15T11:00` (hour resolution, span of one hour)
 
-Map and reduce on implicit spans is already implemented. The iteration unit is the **next-higher-precision below what is stated** — e.g., iterating over `2026-01` yields days, iterating over `2026` yields months (or weeks, depending on calendar).
+Map and reduce on implicit spans is already implemented. The iteration unit is the **next-higher-resolution below what is stated** — e.g., iterating over `2026-01` yields days, iterating over `2026` yields months (or weeks, depending on calendar).
 
 ### Explicit span
 
-An explicit span is a pair of datetimes written with a range operator, such as `2026-01-01..2026-02-01`. It is always iterated at **its own highest precision** — the precision of the boundaries. Iterating `2026-01-01..2026-02-01` yields days, not months.
+An explicit span is a pair of datetimes written with a range operator, such as `2026-01-01..2026-02-01`. It is always iterated at **its own highest resolution** — the resolution of the boundaries. Iterating `2026-01-01..2026-02-01` yields days, not months.
 
 ### Half-open convention
 
 **Every span is inclusive of the first boundary and exclusive of the last boundary** — `[first, last)`. This is deliberate, not incidental. It:
 
-* Makes map/reduce work uniformly regardless of the iteration precision.
+* Makes map/reduce work uniformly regardless of the iteration resolution.
 
 * Makes adjacent spans concatenate cleanly: `[a, b)` followed by `[b, c)` is exactly `[a, c)` with no overlap or gap.
 

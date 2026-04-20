@@ -200,11 +200,11 @@
     <span class="p">(</span><span class="n">elixir</span> <span class="m">1.11</span><span class="o">.</span><span class="m">2</span><span class="p">)</span> <span class="n">lib</span><span class="o">/</span><span class="n">enum</span><span class="o">.</span><span class="ss">ex:</span><span class="m">3461</span><span class="p">:</span> <span class="no">Enum</span><span class="o">.</span><span class="n">map</span><span class="o">/</span><span class="m">2</span>
 </code></pre></div></div>
 
-<p>No, <code class="highlighter-rouge">Date</code> is not enumerable in Elixir (and other languages). It’s implemented as a scalar. It represents a moment in time with a precision of one day.</p>
+<p>No, <code class="highlighter-rouge">Date</code> is not enumerable in Elixir (and other languages). It’s implemented as a scalar. It represents a moment in time with a resolution of one day.</p>
 
 <h3 id="what-is-a-time">What is a Time?</h3>
 
-<p>You have been invited to a call at <code class="highlighter-rouge">11:00</code> for 30 minutes. What does that signify to you? Mostly likely that the call will start at <code class="highlighter-rouge">11:00</code> (ignoring cultural expectations for “on time” for now).  Would you think differently is the call was scheduled for <code class="highlighter-rouge">11:00:00</code>?  Probably, because there is a higher precision being applied.</p>
+<p>You have been invited to a call at <code class="highlighter-rouge">11:00</code> for 30 minutes. What does that signify to you? Mostly likely that the call will start at <code class="highlighter-rouge">11:00</code> (ignoring cultural expectations for “on time” for now).  Would you think differently is the call was scheduled for <code class="highlighter-rouge">11:00:00</code>?  Probably, because there is a higher resolution being applied.</p>
 
 <p>Depending on how the invitation was written, you may also need to ask the question “on which date”?</p>
 
@@ -218,7 +218,7 @@
     <span class="ss">iex:</span><span class="m">1</span><span class="p">:</span> <span class="p">(</span><span class="n">file</span><span class="p">)</span>
 </code></pre></div></div>
 
-<p>Oh, looks like we can’t create a <code class="highlighter-rouge">Time</code> with minute precision, event though thats what we wanted. We have to specify the second and milliseconds even though thats not the precision we are after.</p>
+<p>Oh, looks like we can’t create a <code class="highlighter-rouge">Time</code> with minute resolution, event though thats what we wanted. We have to specify the second and milliseconds even though thats not the resolution we are after.</p>
 
 <p>Let’s try again:</p>
 
@@ -237,7 +237,7 @@
 
 <ol>
   <li>
-    <p><code class="highlighter-rouge">Date</code> and <code class="highlighter-rouge">Time</code> are representations of the same idea - moments of time. Albeit with different levels of precision (date with a precision of day and time with a precision of milliseconds..microseconds in Elixir).</p>
+    <p><code class="highlighter-rouge">Date</code> and <code class="highlighter-rouge">Time</code> are representations of the same idea - moments of time. Albeit with different levels of resolution (date with a resolution of day and time with a resolution of milliseconds..microseconds in Elixir).</p>
   </li>
   <li>
     <p><code class="highlighter-rouge">Date</code> establishes a concrete moment in time, it is anchored on the universal timeline. <code class="highlighter-rouge">Time</code> establishes a moment of time within any <code class="highlighter-rouge">Date</code> and is therefore a set of moments.</p>
@@ -253,16 +253,16 @@
 
 <ul>
   <li>
-    <p><code class="highlighter-rouge">Time</code> is always an interval, with a given precision.  A date, therefore, is a a time interval with a precision of one day. <code class="highlighter-rouge">11:00</code> is a time interval with a precision of one minute.</p>
+    <p><code class="highlighter-rouge">Time</code> is always an interval, with a given resolution.  A date, therefore, is a a time interval with a resolution of one day. <code class="highlighter-rouge">11:00</code> is a time interval with a resolution of one minute.</p>
   </li>
   <li>
     <p><code class="highlighter-rouge">Time</code> can be anchored or not anchored.  A date is anchored since it can be uniquely identified on the universal timeline. A time is not anchored since without knowing the date, we cannot position it on the timeline.</p>
   </li>
   <li>
-    <p><code class="highlighter-rouge">Time</code> is a unified structure able to represent the current Elixir <code class="highlighter-rouge">Date</code>, <code class="highlighter-rouge">Time</code> and <code class="highlighter-rouge">DateTime</code> structures. The differences are, after all, only two:  the precision of the time, and the anchor point of the time (dates being anchored, time being not anchored).</p>
+    <p><code class="highlighter-rouge">Time</code> is a unified structure able to represent the current Elixir <code class="highlighter-rouge">Date</code>, <code class="highlighter-rouge">Time</code> and <code class="highlighter-rouge">DateTime</code> structures. The differences are, after all, only two:  the resolution of the time, and the anchor point of the time (dates being anchored, time being not anchored).</p>
   </li>
   <li>
-    <p><code class="highlighter-rouge">Time</code> can always be enumerated since it is an interval with a precision.</p>
+    <p><code class="highlighter-rouge">Time</code> can always be enumerated since it is an interval with a resolution.</p>
   </li>
   <li>
     <p>Any form of time can be represented, not just <code class="highlighter-rouge">Date</code>, <code class="highlighter-rouge">Time</code> and <code class="highlighter-rouge">DateTime</code>. For example, it can represent “February 3rd” or even just “February”. If you’ve made it this far then you may be thinking “hold on, you can’t enumerate February without knowing if its a leap year or not!”. True, <code class="highlighter-rouge">February</code> would first need to be composed with <code class="highlighter-rouge">2021</code> before enumeration.</p>

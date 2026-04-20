@@ -70,8 +70,8 @@ defmodule Tempo.EnumerationConformance.Test do
   ## Step 2 — metadata propagation.
 
   describe "metadata propagation" do
-    # The harness uses minute-precision inputs here (not second)
-    # because second-precision values are now a documented
+    # The harness uses minute-resolution inputs here (not second)
+    # because second-resolution values are now a documented
     # ArgumentError: there's no finer unit to iterate over.
 
     test "IXDTF zone_id survives enumeration" do
@@ -199,7 +199,7 @@ defmodule Tempo.EnumerationConformance.Test do
       assert {:ok, _list} = take("2022-06-15T10:30[+05:30][u-ca=hebrew]")
     end
 
-    test "second-precision datetime raises ArgumentError (documented)" do
+    test "second-resolution datetime raises ArgumentError (documented)" do
       # A fully-specified datetime at second resolution has no
       # finer unit to iterate over. `Tempo.Enumeration.add_implicit_enumeration/1`
       # raises with a clear message.

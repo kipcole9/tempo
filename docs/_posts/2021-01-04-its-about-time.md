@@ -28,11 +28,11 @@ iex> Enum.map ~D[2021-01-01], &IO.puts/1
     (elixir 1.11.2) lib/enum.ex:3461: Enum.map/2
 ```
 
-No, `Date` is not enumerable in Elixir (and other languages). It's implemented as a scalar. It represents an instant in time with a precision of one day.
+No, `Date` is not enumerable in Elixir (and other languages). It's implemented as a scalar. It represents an instant in time with a resolution of one day.
 
 ### What is a Time?
 
-You have been invited to a call at `11:00` for 30 minutes. What does that signify to you? Mostly likely that the call will start at `11:00` (ignoring cultural expectations for "on time" for now).  Would you think differently is the call was scheduled for `11:00:00`?  Probably, because there is a higher precision being applied.
+You have been invited to a call at `11:00` for 30 minutes. What does that signify to you? Mostly likely that the call will start at `11:00` (ignoring cultural expectations for "on time" for now).  Would you think differently is the call was scheduled for `11:00:00`?  Probably, because there is a higher resolution being applied.
 
 Depending on how the invitation was written, you may also need to ask the question "on which date"?
 
@@ -47,7 +47,7 @@ iex> Enum.map ~T[11:00], &IO.puts/1
     iex:1: (file)
 ```
 
-Oh, looks like we can't create a `Time` with minute precision, event though thats what we wanted. We have to specify the second and milliseconds even though thats not the precision we are after.
+Oh, looks like we can't create a `Time` with minute resolution, event though thats what we wanted. We have to specify the second and milliseconds even though thats not the resolution we are after.
 
 Let's try again:
 
@@ -65,7 +65,7 @@ No, can't do that either. `Time` is also a scalar.
 
 In this short story we have considered that:
 
-1. `Date` and `Time` are representations of the same idea - instants of time. Albeit with different levels of precision (date with a precision of day and time with a precision of milliseconds..microseconds in Elixir).
+1. `Date` and `Time` are representations of the same idea - instants of time. Albeit with different levels of resolution (date with a resolution of day and time with a resolution of milliseconds..microseconds in Elixir).
 
 2. `Date` establishes a concrete instant in time, it is anchored on the universal timeline. `Time` establishes an instant of time within any `Date` and is therefore a set of instants.
 
@@ -75,13 +75,13 @@ In this short story we have considered that:
 
 I've started a new project, [Tempo](https://github.com/kipcole9/tempo) that is experimentally implementing a unified `Time` type with the following characteristics:
 
-* `Time` is always an interval, with a given precision.  A date, therefore, is a a time interval with a precision of one day. `11:00` is a time interval with a precision of one minute.
+* `Time` is always an interval, with a given resolution.  A date, therefore, is a a time interval with a resolution of one day. `11:00` is a time interval with a resolution of one minute.
 
 * `Time` can be anchored or not anchored.  A date is anchored since it can be uniquely identified on the universal timeline. A time is not anchored since without knowing the date, we cannot position it on the timeline.
 
-* `Time` is a unified structure able to represent the current Elixir `Date`, `Time` and `DateTime` structures. The differences are, after all, only two:  the precision of the time, and the anchor point of the time (dates being anchored, time being not anchored).
+* `Time` is a unified structure able to represent the current Elixir `Date`, `Time` and `DateTime` structures. The differences are, after all, only two:  the resolution of the time, and the anchor point of the time (dates being anchored, time being not anchored).
 
-* `Time` can always be enumerated since it is an interval with a precision.
+* `Time` can always be enumerated since it is an interval with a resolution.
 
 * Any form of time can be represented, not just `Date`, `Time` and `DateTime`. For example, it can represent "February 3rd" or even just "February". If you've made it this far then you may be thinking "hold on, you can't enumerate February without knowing if its a leap year or not!". True, `February` would first need to be composed with `2021` before enumeration.
 

@@ -11,7 +11,7 @@ All gaps the harness surfaced are now closed. Status after this session:
 | # | Category | Status |
 |---|---|---|
 | 1 | Mask filling on year (`156X`, `-1XXX-XX`) | **Fixed** |
-| 2 | Full second-precision enumeration | **Fixed** (raises clear `ArgumentError`) |
+| 2 | Full second-resolution enumeration | **Fixed** (raises clear `ArgumentError`) |
 | 3 | Metadata propagation (`extended`, `qualification`, `qualifications`) | **Verified** (regression tests pinned) |
 | 4 | Group expansion (`2022Y5G2MU`) | **Fixed** |
 | 5 | Selection enumeration (`2022YL1MN`) | **Fixed** |
@@ -39,7 +39,7 @@ iex> Enum.take(Tempo.from_iso8601!("156X"), 3)
 
 Compute year-mask bounds directly from the mask rather than routing through the `:any` path. For mask `[1, 5, 6, :X]` the bounds are `1560..1569`. Works for positive and negative masks alike and avoids the current-year dependency for masked years.
 
-### 2. Full second-precision values crash
+### 2. Full second-resolution values crash
 
 **Reproducer**
 
@@ -108,7 +108,7 @@ Verified reachable once gap 1 is fixed (the mask path is independent of qualific
 
 * **Gap 2b** (year+month+day with day-list) — `Tempo.Validation.resolve/2`'s year-month-day clause's guard was `is_number(day) or is_struct(day, Range)`. Extended to also accept `is_list(day)` so the `1985-XX-XX` / `1985-12-XX` / `-1XXX-XX-XX` paths conform the relative `[1..-1//1]` day range against days-in-month.
 
-* **Gap 2** (second-precision crash) — `Tempo.Enumeration.add_implicit_enumeration/1` now raises a clear `ArgumentError` when `Unit.implicit_enumerator/2` returns `nil`. Instead of `** (MatchError) no match of right hand side value: nil`, callers see `"Cannot enumerate a Tempo at :second resolution — no finer unit is defined."`.
+* **Gap 2** (second-resolution crash) — `Tempo.Enumeration.add_implicit_enumeration/1` now raises a clear `ArgumentError` when `Unit.implicit_enumerator/2` returns `nil`. Instead of `** (MatchError) no match of right hand side value: nil`, callers see `"Cannot enumerate a Tempo at :second resolution — no finer unit is defined."`.
 
 * **Gap 3** (metadata propagation) — verified via the harness. `%Tempo{}` struct updates in `Enumeration.collect/1` preserve `:extended`, `:qualification`, and `:qualifications` without any code change. Four regression tests pin this down.
 
@@ -122,7 +122,7 @@ Verified reachable once gap 1 is fixed (the mask path is independent of qualific
 
 * **Gap 2c** (year-range + month-resolve) — extended `Tempo.Validation.resolve/2`'s `{:year, year}, {:month, months}` clause guard from `is_list(months) or is_integer(months)` to also accept `is_struct(months, Range)`. This lets the implicit month enumerator (`1..-1//-1`) conform against `months_in_year` when the year is itself a range (as it is during significant-digits iteration).
 
-* **Gap 6** (`Enumerable.Tempo.Interval`) — implemented. `lib/protocol/enumeration/range.ex` is no longer empty. Closed intervals and open-upper intervals iterate forward one resolution-unit at a time from the `:from` endpoint; fully-open and open-lower intervals raise `ArgumentError` with a clear message. Iteration honours the half-open `[from, to)` convention — the upper bound is exclusive, matching `CLAUDE.md`'s architectural rule. `count/1`, `member?/2`, and `slice/1` return `{:error, __MODULE__}` for now; precise implementations are tracked with the set-operations milestone.
+* **Gap 6** (`Enumerable.Tempo.Interval`) — implemented. `lib/protocol/enumeration/range.ex` is no longer empty. Closed intervals and open-upper intervals iterate forward one resolution-unit at a time from the `:from` endpoint; fully-open and open-lower intervals raise `ArgumentError` with a clear message. Iteration honours the half-open `[from, to)` convention — the upper bound is exclusive, matching `CLAUDE.md`'s architectural rule. `count/1`, `member?/2`, and `slice/1` return `{:error, __MODULE__}` for now; exact implementations are tracked with the set-operations milestone.
 
   Increment is calendar-aware: `increment_time/3` uses `calendar.months_in_year/1` and `calendar.days_in_month/2` for carry. All Keyword updates use `Keyword.replace!/3` (preserves position) rather than `Keyword.put/3` (removes + prepends) because the keyword-list order is the invariant `compare_time/2`, `inspect`, and `to_iso8601` all depend on.
 

@@ -114,7 +114,7 @@ defmodule Tempo.Interval do
 
   Returns `{:ok, {lower, upper}}` where both are `%Tempo{}` values,
   or `{:error, reason}` when the input has no finer unit that could
-  produce a bounded span (e.g. a fully-specified second-precision
+  produce a bounded span (e.g. a fully-specified second-resolution
   datetime).
 
   The lower bound is the input's time extended with the minimum of

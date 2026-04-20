@@ -57,7 +57,7 @@ Yes, and this is the single highest-leverage finding.
 EDTF was drafted by the Library of Congress and folded wholesale into ISO 8601-2:2019 Part 2. The three levels map directly:
 
 * **EDTF Level 0** — dates, date-times, intervals (8601-1 subset).
-* **EDTF Level 1** — uncertain `?`, approximate `~`, both `%`; unspecified digits `X`; open-ended intervals `..` / blank; negative years; seasons; year precision `198X`.
+* **EDTF Level 1** — uncertain `?`, approximate `~`, both `%`; unspecified digits `X`; open-ended intervals `..` / blank; negative years; seasons; year resolution `198X`.
 * **EDTF Level 2** — qualification of individual components (`1984?-06`), set `{}`, one-of `[]`, extended seasons with qualifiers, year scientific `Y170000002`, multi-valued unspecified digits.
 
 Concretely, from `unt-libraries/edtf-validate/tests/test_valid_edtf.py` (BSD-3):

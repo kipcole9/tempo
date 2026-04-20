@@ -2,7 +2,7 @@ defmodule Tempo.ToInterval.Test do
   use ExUnit.Case, async: true
 
   # Tests for `Tempo.to_interval/1` — implicit-to-explicit interval
-  # materialisation. Covers the table of input-precision rules from
+  # materialisation. Covers the table of input-resolution rules from
   # `plans/implicit-to-explicit-interval-conversion.md` plus mask
   # widening, metadata propagation, and iteration parity.
 
@@ -112,7 +112,7 @@ defmodule Tempo.ToInterval.Test do
       assert interval.to.time == [year: -999]
     end
 
-    test "month-day masked widens to year precision" do
+    test "month-day masked widens to year resolution" do
       {:ok, tempo} = Tempo.from_iso8601("1985-XX-XX")
       {:ok, interval} = Tempo.to_interval(tempo)
       # First masked unit is month; widen to year prefix.
@@ -120,7 +120,7 @@ defmodule Tempo.ToInterval.Test do
       assert interval.to.time == [year: 1986]
     end
 
-    test "day-only masked widens to month precision" do
+    test "day-only masked widens to month resolution" do
       {:ok, tempo} = Tempo.from_iso8601("1985-06-XX")
       {:ok, interval} = Tempo.to_interval(tempo)
       assert interval.from.time == [year: 1985, month: 6]
@@ -166,7 +166,7 @@ defmodule Tempo.ToInterval.Test do
       end
     end
 
-    test "to_interval!/1 raises on second-precision Tempo" do
+    test "to_interval!/1 raises on second-resolution Tempo" do
       {:ok, tempo} = Tempo.from_iso8601("2026-01-15T10:30:00")
 
       assert_raise ArgumentError, ~r/no finer unit/, fn ->

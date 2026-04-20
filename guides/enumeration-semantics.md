@@ -132,7 +132,7 @@ Mask rules:
 
 * A **year mask** (`156X`, `-1XXX`) translates directly to a year range via `Tempo.Mask.mask_bounds/1`. The signed half-open upper bound is computed as `-magnitude_min + 1` for negative masks.
 
-* A **finer-unit mask** (`1985-XX-XX`, `1985-06-XX`, `1985-XX-15`) widens to the coarsest un-masked prefix and increments there. `1985-XX-XX` becomes year-precision bounds because the mask at month-level can't map cleanly to a valid-month range; `1985-06-XX` keeps month precision because only the day is masked.
+* A **finer-unit mask** (`1985-XX-XX`, `1985-06-XX`, `1985-XX-15`) widens to the coarsest un-masked prefix and increments there. `1985-XX-XX` becomes year-resolution bounds because the mask at month-level can't map cleanly to a valid-month range; `1985-06-XX` keeps month resolution because only the day is masked.
 
 * `1985-XX-15` (day specified, month masked) is semantically non-contiguous — the covered moments are "the 15th of any 1985 month" which isn't a single interval. `to_interval/1` accepts the looser bound (`[year: 1985]..[year: 1986]`) rather than returning a set.
 
@@ -298,7 +298,7 @@ true
 
 Known divergences:
 
-* **Second-precision values.** `~o"2026-01-15T10:30:00"` has no finer unit to drill into. Implicit iteration raises `ArgumentError`; `to_interval/1` raises a matching error. Neither form yields a value.
+* **Second-resolution values.** `~o"2026-01-15T10:30:00"` has no finer unit to drill into. Implicit iteration raises `ArgumentError`; `to_interval/1` raises a matching error. Neither form yields a value.
 
 * **Masked values iterated implicitly.** The current implicit enumeration of masked values (`1985-XX-XX`) has known quirks — it does not always walk the full cartesian product of valid month/day pairs. `to_interval/1` widens to the coarsest un-masked prefix and produces a clean span; iterating that interval yields the straightforward forward-stepped sequence. Prefer the explicit form for set operations on masked values.
 
@@ -308,4 +308,4 @@ Known divergences:
 |---|---|
 | **Enumerable** | every standard ISO 8601 / EDTF value with a concrete anchor — single values, ranges, sets, masks, long years, qualified values, IXDTF-tagged values, closed intervals, open-upper intervals, seasons, mixed-resolution intervals |
 | **Not enumerable by design** | bare `%Tempo.Duration{}`, fully open intervals `../..`, open-lower intervals `../to`, values at finest resolution, significant-digits blocks > 10 000 candidates |
-| **Not enumerable (deferred)** | `from + duration` intervals respecting the bound, `duration + to` intervals, precise `count/1` / `member?/2` / `slice/1` on intervals, `count/1` / `member?/2` on `%Tempo{}` and `%Tempo.Set{}` |
+| **Not enumerable (deferred)** | `from + duration` intervals respecting the bound, `duration + to` intervals, exact `count/1` / `member?/2` / `slice/1` on intervals, `count/1` / `member?/2` on `%Tempo{}` and `%Tempo.Set{}` |

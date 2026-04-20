@@ -337,7 +337,7 @@ defmodule Tempo.Enumeration do
     case Unit.implicit_enumerator(unit, calendar) do
       nil ->
         # No finer unit exists for implicit enumeration. A fully
-        # resolved value at `:second` precision (or any other
+        # resolved value at `:second` resolution (or any other
         # finest-grained unit) is a bounded one-unit interval with
         # no sub-units to iterate over.
         raise ArgumentError,

@@ -4,11 +4,11 @@
 
 Tempo's architecture (see `CLAUDE.md`) distinguishes two forms of bounded interval:
 
-* **Implicit span**: a single datetime value whose stated precision defines the span. `2026-01` *is* the interval `[2026-01-01, 2026-02-01)` — the span runs to the next unit at the given precision.
+* **Implicit span**: a single datetime value whose stated resolution defines the span. `2026-01` *is* the interval `[2026-01-01, 2026-02-01)` — the span runs to the next unit at the given resolution.
 
 * **Explicit span**: a pair of datetimes written with a range operator, such as `%Tempo.Interval{from: ..., to: ...}` or the EDTF form `2026-01-01/2026-02-01`.
 
-Map and reduce on the implicit form is already implemented and iterates at the **next-higher precision below what is stated** — iterating `2026-01` yields days; iterating `2026` yields months. Map and reduce on the explicit form iterates at the **precision of its boundaries**.
+Map and reduce on the implicit form is already implemented and iterates at the **next-higher resolution below what is stated** — iterating `2026-01` yields days; iterating `2026` yields months. Map and reduce on the explicit form iterates at the **resolution of its boundaries**.
 
 The two forms are semantically equivalent for single values but diverge in iteration and set operations. The set-operations milestone (union / intersection / coalesce on lists of intervals) is dramatically simpler if every input is first materialised into the explicit form. This plan defines the conversion.
 
@@ -40,9 +40,9 @@ This helper is the pre-flight check for Step 2. If canonicalisation fails (e.g. 
 
 ### Step 2 — resolve the "next unit" upper bound (2 days)
 
-Write `Tempo.Interval.next_unit_boundary/1`: given a `%Tempo{}` whose smallest stated precision is `unit`, return the datetime that's one unit larger. Concretely:
+Write `Tempo.Interval.next_unit_boundary/1`: given a `%Tempo{}` whose smallest stated resolution is `unit`, return the datetime that's one unit larger. Concretely:
 
-| Input precision | Upper-bound rule |
+| Input resolution | Upper-bound rule |
 |---|---|
 | year only | same year + 1 |
 | year-month | same year, month + 1 (carry to next year if 12) |

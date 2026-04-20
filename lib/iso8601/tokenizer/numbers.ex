@@ -4,7 +4,7 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
   the extension formats. In some situations they may:
 
   * Have exponents
-  * Have precision
+  * Have significant digits (the `S` suffix)
   * Have unspecified digits
 
   And how these are formed varies by whether the

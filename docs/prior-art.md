@@ -22,9 +22,9 @@ TSQL2 (1993–94, committee of Snodgrass, Jensen, Dyreson, Tansel et al.) was th
 
 ### 1.3 Jensen, Dyreson, Tansel — the temporal-DB research canon
 
-Christian S. Jensen and Curtis E. Dyreson edited the 1998 *Consensus Glossary of Temporal Database Concepts* — the authoritative terminology reference. Abdullah Tansel co-edited *Temporal Databases: Theory, Design, and Implementation* (1993). Together these define the precise meanings of "valid time", "transaction time", "bitemporal", "chronon" (an indivisible time unit — directly analogous to Tempo's "precision"), and "now-relative".
+Christian S. Jensen and Curtis E. Dyreson edited the 1998 *Consensus Glossary of Temporal Database Concepts* — the authoritative terminology reference. Abdullah Tansel co-edited *Temporal Databases: Theory, Design, and Implementation* (1993). Together these define the exact meanings of "valid time", "transaction time", "bitemporal", "chronon" (an indivisible time unit — directly analogous to Tempo's "resolution"), and "now-relative".
 
-**Relevance:** Informative. The concept of a *chronon* is the closest academic match to Tempo's notion that every value has a precision and that precision determines the implicit span. Worth reading if only to borrow vocabulary.
+**Relevance:** Informative. The concept of a *chronon* is the closest academic match to Tempo's notion that every value has a resolution and that resolution determines the implicit span. Worth reading if only to borrow vocabulary.
 
 **URL:** [Snodgrass publications](http://www2.cs.arizona.edu/~rts/publications.html) (consensus glossary linked there).
 
@@ -45,9 +45,9 @@ Very few libraries actually do this:
 - **PostgreSQL date/timestamp** — always an instant; ranges are a separate type.
 - **Clojure `tick`** has `t/year`, `t/year-month` but treats them as identifiers, not spans.
 
-The idea that `2026-01` **is** the interval `2026-01-01..2026-02-01` appears to be genuinely novel as a primary API convention. The closest precedent is Snodgrass's period literals in TSQL2/SQL:2011, but even there the granularity of the endpoints is explicit (two dates), not implied by the precision of a single literal.
+The idea that `2026-01` **is** the interval `2026-01-01..2026-02-01` appears to be genuinely novel as a primary API convention. The closest precedent is Snodgrass's period literals in TSQL2/SQL:2011, but even there the granularity of the endpoints is explicit (two dates), not implied by the resolution of a single literal.
 
-**Relevance:** Tempo's implicit-span-from-precision is the distinctive contribution of the library. There is no prior art to clone here — only vocabulary (chronon, period) to borrow.
+**Relevance:** Tempo's implicit-span-from-resolution is the distinctive contribution of the library. There is no prior art to clone here — only vocabulary (chronon, period) to borrow.
 
 ## 2. Prior art for set operations on datetime intervals
 
@@ -112,7 +112,7 @@ So Allen's algebra is the *classification* layer; the set ops are the *construct
 
 **Crucially, `interval` operates on pairs of intervals, not lists.** There is no multirange/interval-set construct and no coalescing-of-a-list function documented. This is the gap Tempo would fill.
 
-**Relevance:** Directly applicable as an API reference for the pair-level ops. Study its module layout and naming. Consider whether Tempo should depend on it for the primitive bounds handling or reimplement (I lean reimplement — Tempo's implicit-span-from-precision semantics don't match `interval`'s "construct with explicit bounds" model cleanly, and pulling in a dep for three small operations is not worth the coupling).
+**Relevance:** Directly applicable as an API reference for the pair-level ops. Study its module layout and naming. Consider whether Tempo should depend on it for the primitive bounds handling or reimplement (I lean reimplement — Tempo's implicit-span-from-resolution semantics don't match `interval`'s "construct with explicit bounds" model cleanly, and pulling in a dep for three small operations is not worth the coupling).
 
 **URLs:** [GitHub: tudborg/elixir_interval](https://github.com/tudborg/elixir_interval), [hex: interval](https://hex.pm/packages/interval).
 
@@ -230,17 +230,17 @@ For half-open intervals specifically, the overlap test is `next.lower < prev.upp
 
 1. **Mimic PostgreSQL multirange as the conceptual model.** Introduce a `Tempo.IntervalSet` (or `Tempo.Multirange`, or similar) type that stores a sorted list of non-overlapping half-open intervals, auto-coalescing on construction. Pair-level ops return a single `Tempo.Interval` or error; list-level ops return an `IntervalSet`. Offer `union/2`, `intersection/2`, `difference/2`, `complement/1`, `contains?/2`, `overlaps?/2`, `adjacent?/2`, `merge/2` (range_merge — smallest span containing both), and a coalesce/normalise entry point that accepts an arbitrary list. This is the minimum viable surface.
 
-2. **Do not depend on `interval` (the hex package).** It's a good reference but its "explicit bounds per interval" model conflicts with Tempo's "precision determines the span" model, and it doesn't have the multirange concept Tempo needs. Reimplement and credit it in docs. Do study its module structure and naming.
+2. **Do not depend on `interval` (the hex package).** It's a good reference but its "explicit bounds per interval" model conflicts with Tempo's "resolution determines the span" model, and it doesn't have the multirange concept Tempo needs. Reimplement and credit it in docs. Do study its module structure and naming.
 
 3. **Use the sweep-line coalesce as the canonical algorithm** (sort by lower bound, single pass, O(n log n)). Ship **two coalescing behaviours** via an option: `merge_adjacent: true` (default — `[a,b)` and `[b,c)` collapse to `[a,c)`, consistent with Tempo's half-open / concatenate-cleanly design) and `merge_adjacent: false` (overlap-only, matching PostgreSQL multirange).
 
 4. **Use Allen's 13 relations (already in `Tempo.Comparison`) as the dispatch table for pair-level set ops**, rather than re-deriving case analysis in each function. Intersection, union-possible-as-single-interval, and difference each partition the 13 relations cleanly. This keeps the set-op code short and the correctness argument easy.
 
-5. **Before writing code, materialise the implicit-to-explicit span conversion that CLAUDE.md flags as a near-term todo.** Every set-op function should call that normaliser on entry, so `union(~d"2026-01", ~d"2026-02-01..2026-03-01")` works without duplicating the precision-aware logic in each op. This is the "bridge" the CLAUDE.md describes, and it's the single most valuable piece of plumbing to land before union/intersection.
+5. **Before writing code, materialise the implicit-to-explicit span conversion that CLAUDE.md flags as a near-term todo.** Every set-op function should call that normaliser on entry, so `union(~d"2026-01", ~d"2026-02-01..2026-03-01")` works without duplicating the resolution-aware logic in each op. This is the "bridge" the CLAUDE.md describes, and it's the single most valuable piece of plumbing to land before union/intersection.
 
 ## Gaps and uncertainties in this research
 
-* I did not read the PostgreSQL source for the exact multirange coalescing implementation. The documented semantics match the sweep-line description, but the precise handling of adjacency-merge, empty ranges, and bound-inclusivity edge cases should be verified against the C source (`src/backend/utils/adt/multirangetypes.c`) before Tempo makes final decisions.
+* I did not read the PostgreSQL source for the exact multirange coalescing implementation. The documented semantics match the sweep-line description, but the exact handling of adjacency-merge, empty ranges, and bound-inclusivity edge cases should be verified against the C source (`src/backend/utils/adt/multirangetypes.c`) before Tempo makes final decisions.
 * I did not verify whether `tick.alpha.interval` actually returns canonical-form collections or just does pairwise ops over a sequence. The "alpha, unmaintained" status means it's probably not worth deeper study.
-* I could not confirm whether any major system uses Tempo's specific convention of *implying* the span from the precision of a single literal (e.g., `2026-01` = `2026-01-01..2026-02-01`). I believe this is genuinely novel as a primary API, but a longer lit review of calendar systems (ICU, CLDR, SAS, R's `lubridate`) could turn up precedent.
+* I could not confirm whether any major system uses Tempo's specific convention of *implying* the span from the resolution of a single literal (e.g., `2026-01` = `2026-01-01..2026-02-01`). I believe this is genuinely novel as a primary API, but a longer lit review of calendar systems (ICU, CLDR, SAS, R's `lubridate`) could turn up precedent.
 * I did not check Oracle / DB2 / SQL Server temporal implementations in detail beyond noting they implement SQL:2011 PERIODs. If cross-vendor SQL compatibility ever matters, those need a separate pass.
