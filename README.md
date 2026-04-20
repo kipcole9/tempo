@@ -63,6 +63,40 @@ iex> {:ok, calendar} = Tempo.ICal.from_ical_file("~/work.ics")
 iex> {:ok, free} = Tempo.difference(~o"2026-06-15T09/2026-06-15T17", calendar)
 ```
 
+The inspect output carries metadata inline — iCalendar events show their summary and location on every interval that survives set operations:
+
+```elixir
+iex> ics = File.read!("~/work.ics")
+iex> {:ok, calendar} = Tempo.ICal.from_ical(ics)
+iex> calendar
+#Tempo.IntervalSet<[
+  #Tempo.Interval<~o"2026Y6M15DT10HZ/2026Y6M15DT11HZ" · Design review @ Room 101>,
+  #Tempo.Interval<~o"2026Y6M16DT14HZ/2026Y6M16DT15HZ" · 1:1 with Ada>,
+  #Tempo.Interval<~o"2026Y6M17DT09HZ/2026Y6M17DT09HZ30MZ" · Standup>
+] · Work>
+```
+
+And when you're looking at an unfamiliar value in iex, ask it to explain itself:
+
+```elixir
+iex> Tempo.explain(~o"156X")
+"""
+A masked year spanning the 1560s.
+Span: [1560-01-01, 1570-01-01).
+Iterates at :month granularity.
+Materialise as an interval with `Tempo.to_interval/1`.
+"""
+
+iex> Tempo.explain(~o"1984?/2004~")
+"""
+A closed interval.
+From: 1984-01-01.
+To:   2004-01-01 (exclusive — half-open `[from, to)`).
+"""
+```
+
+`Tempo.Explain.explain/1` returns a structured form with semantic part tags (`:headline`, `:span`, `:qualification`, `:metadata`, …); `to_string/1`, `to_ansi/1`, and `to_iodata/1` format it for terminal, coloured terminal, and HTML/visualizer surfaces respectively.
+
 ## Objectives
 
 * **A single type for every temporal value.** No more `Date` for days, `Time` for hours, `DateTime` for both, `NaiveDateTime` for "I don't know what I have." One `%Tempo{}` representing any interval at any resolution. Conversion from native Elixir types is `Tempo.from_elixir/2`.
