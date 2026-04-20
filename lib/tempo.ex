@@ -1409,6 +1409,10 @@ defmodule Tempo do
   # A bounded recurrence (`R3/1985-01/P1M`) expands to N disjoint
   # intervals. Each occurrence starts at `from + i*duration` and
   # runs for one duration. Requires `Tempo.Math.add/2`.
+  #
+  # When `repeat_rule` is present, BY-rule selections apply
+  # before the COUNT cap: N = "the first N occurrences that
+  # survived the BY-rule filter," per RFC 5545.
   def to_interval(
         %Tempo.Interval{
           recurrence: n,
@@ -1420,15 +1424,17 @@ defmodule Tempo do
       )
       when is_integer(n) and n > 1 do
     step = if direction == -1, do: negate_duration(duration), else: duration
-    occurrence_end_fn = occurrence_end_fn(from, duration, interval)
 
     intervals =
-      0..(n - 1)
-      |> Enum.map(fn i ->
-        start = add_n_durations(from, step, i)
-        fin = occurrence_end_fn.(start, i)
-        %Tempo.Interval{from: start, to: fin, metadata: interval.metadata}
-      end)
+      iterate_recurrence(
+        from,
+        step,
+        occurrence_end_fn(from, duration, interval),
+        fn _start -> true end,
+        selection_fn(interval, duration),
+        interval.metadata,
+        n
+      )
 
     Tempo.IntervalSet.new(intervals, coalesce: coalesce_opt(opts))
   end
@@ -1446,9 +1452,15 @@ defmodule Tempo do
         } = interval,
         opts
       ) do
-    occurrence_end_fn = occurrence_end_fn(from, duration, interval)
     intervals =
-      iterate_recurrence(from, duration, occurrence_end_fn, &under_until?(&1, until), interval.metadata)
+      iterate_recurrence(
+        from,
+        duration,
+        occurrence_end_fn(from, duration, interval),
+        &under_until?(&1, until),
+        selection_fn(interval, duration),
+        interval.metadata
+      )
 
     Tempo.IntervalSet.new(intervals, coalesce: coalesce_opt(opts))
   end
@@ -1478,11 +1490,15 @@ defmodule Tempo do
       bound ->
         case bound_upper(bound) do
           {:ok, bound_to} ->
-            occurrence_end_fn = occurrence_end_fn(from, duration, interval)
-            predicate = &under_bound?(&1, bound_to)
-
             intervals =
-              iterate_recurrence(from, duration, occurrence_end_fn, predicate, interval.metadata)
+              iterate_recurrence(
+                from,
+                duration,
+                occurrence_end_fn(from, duration, interval),
+                &under_bound?(&1, bound_to),
+                selection_fn(interval, duration),
+                interval.metadata
+              )
 
             Tempo.IntervalSet.new(intervals, coalesce: coalesce_opt(opts))
 
@@ -1621,24 +1637,66 @@ defmodule Tempo do
     end
   end
 
+  # The stepwise expander. Shared by all three recurrence shapes:
+  #
+  # * `start_predicate` drives upstream termination — returns
+  #   `true` while the candidate's start is still in-bounds
+  #   (pre-filter), `false` once we're past UNTIL / the `:bound`.
+  #
+  # * `selection_fn` is the BY-rule resolver. It takes one
+  #   candidate `%Interval{}` and returns a list (0 for LIMIT
+  #   rejection, 1 for passthrough, N for EXPAND). Delegates to
+  #   `Tempo.RRule.Selection.apply/3`.
+  #
+  # * `output_limit` is the downstream cap — `n` for a bounded
+  #   recurrence, `@recurrence_safety_cap` otherwise. BY-rule
+  #   filtering happens before this cap, so a COUNT of 3 with
+  #   `BYMONTH=6` really means "first 3 June occurrences."
+  #
+  # The upstream `@recurrence_safety_cap` on the candidate stream
+  # is a belt-and-braces guard against impossible BY-rule
+  # combinations (e.g. `BYMONTHDAY=31` for months that never have
+  # 31 days — the filter would reject every candidate forever).
   defp iterate_recurrence(
          %Tempo{} = from,
          %Tempo.Duration{} = cadence,
          occurrence_end_fn,
-         predicate,
-         metadata
+         start_predicate,
+         selection_fn,
+         metadata,
+         output_limit \\ @recurrence_safety_cap
        )
-       when is_function(occurrence_end_fn, 2) and is_function(predicate, 1) do
+       when is_function(occurrence_end_fn, 2) and is_function(start_predicate, 1) and
+              is_function(selection_fn, 1) do
     0
     |> Stream.iterate(&(&1 + 1))
     |> Stream.map(fn i ->
       start = add_n_durations(from, cadence, i)
-      %Tempo.Interval{from: start, to: occurrence_end_fn.(start, i), metadata: metadata}
+      {start, %Tempo.Interval{from: start, to: occurrence_end_fn.(start, i), metadata: metadata}}
     end)
-    |> Stream.take_while(fn %Tempo.Interval{from: f} -> predicate.(f) end)
+    |> Stream.take_while(fn {start, _} -> start_predicate.(start) end)
     |> Stream.take(@recurrence_safety_cap)
+    |> Stream.flat_map(fn {_start, candidate} -> selection_fn.(candidate) end)
+    |> Stream.take(output_limit)
     |> Enum.to_list()
   end
+
+  # Build the per-candidate selection filter/expand function. When
+  # `repeat_rule` is nil, returns a passthrough (identity). When
+  # non-nil, delegates to `Tempo.RRule.Selection.apply/3` with the
+  # enclosing FREQ derived from the cadence's primary unit.
+  defp selection_fn(%Tempo.Interval{repeat_rule: nil}, _cadence) do
+    fn candidate -> [candidate] end
+  end
+
+  defp selection_fn(%Tempo.Interval{repeat_rule: %Tempo{} = rule}, %Tempo.Duration{} = cadence) do
+    freq = freq_of(cadence)
+    fn candidate -> Tempo.RRule.Selection.apply(candidate, rule, freq) end
+  end
+
+  # The FREQ of a recurrence is the primary unit of its cadence —
+  # e.g. `%Duration{time: [week: 1]}` → `:week`.
+  defp freq_of(%Tempo.Duration{time: [{unit, _amount} | _]}), do: unit
 
   # Resolve a "given this iteration's start, what's the
   # occurrence's `to`?" function from the interval's metadata or

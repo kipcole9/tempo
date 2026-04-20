@@ -1,102 +1,98 @@
 name: Elixir CI
 
-# Define workflow that runs when changes are pushed to the
-# `main` branch or pushed to a PR branch that targets the `main`
-# branch. Change the branch name if your project uses a
-# different name for the main branch like "master" or "production".
 on:
   push:
-    branches: [ "main" ]  # adapt branch for project
+    branches: [main]
   pull_request:
-    branches: [ "main" ]  # adapt branch for project
+    branches: [main]
 
-# Sets the ENV `MIX_ENV` to `test` for running tests
 env:
   MIX_ENV: test
+  LOCALIZE_DEFAULT_LOCALE: en
 
 permissions:
   contents: read
 
 jobs:
   test:
+    name: "Elixir ${{ matrix.elixir }} / OTP ${{ matrix.otp }}${{ matrix.lint && ' (lint)' || '' }}"
     runs-on: ubuntu-latest
-    name: Test on OTP ${{matrix.otp}} / Elixir ${{matrix.elixir}}
+
     strategy:
-      # Specify the OTP and Elixir versions to use when building
-      # and running the workflow steps.
+      fail-fast: false
       matrix:
         include:
-          # minimum required versions
-          - otp: "27.2.4"
-            elixir: "1.18.4-otp-27"
-          - otp: "28.3.1"
-            elixir: "1.18.4-otp-28"
-          - otp: "27.2.4"
-            elixir: "1.19.5-otp-27"
-          - otp: "28.3.1"
-            elixir: "1.19.5-otp-28"
-          - otp: "28.3.1"
-            elixir: "1.20.0-rc.4-otp-28"
+          # Elixir 1.17 — supports OTP 25–27
+          - elixir: "1.17-otp-26"
+            otp: "26"
+          - elixir: "1.17-otp-27"
+            otp: "27"
+
+          # # Elixir 1.18 — supports OTP 25–27
+          - elixir: "1.18-otp-26"
+            otp: "26"
+          - elixir: "1.18-otp-27"
+            otp: "27"
+
+          # # Elixir 1.19 — supports OTP 26–28
+          - elixir: "1.19-otp-26"
+            otp: "26"
+          - elixir: "1.19-otp-27"
+            otp: "27"
+          - elixir: "1.19-otp-28"
+            otp: "28"
+
+          # Elixir 1.20 — supports OTP 27–28
+          - elixir: "1.20.0-rc.4-otp-27"
+            otp: "27"
+          - elixir: "1.20.0-rc.4-otp-28"
+            otp: "28"
             lint: true
+
     steps:
-    # Step: Setup Elixir + Erlang image as the base.
-    - name: Set up Elixir
-      uses: erlef/setup-beam@v1
-      with:
-        otp-version: ${{matrix.otp}}
-        elixir-version: ${{matrix.elixir}}
+      - name: Checkout
+        uses: actions/checkout@v6
 
-    # Step: Check out the code.
-    - name: Checkout code
-      uses: actions/checkout@v5
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: ${{ matrix.elixir }}
+          otp-version: ${{ matrix.otp }}
 
-    # Step: Define how to cache deps. Restores existing cache if present.
-    - name: Cache deps
-      id: cache-deps
-      uses: actions/cache@v3
-      env:
-        cache-name: cache-elixir-deps
-      with:
-        path: deps
-        key: ${{ runner.os }}-mix-${{ env.cache-name }}-${{ hashFiles('**/mix.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-mix-${{ env.cache-name }}-
+      - name: Restore dependency cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            deps
+            _build
+          key: mix-${{ matrix.elixir }}-${{ matrix.otp }}-${{ hashFiles('mix.lock') }}
+          restore-keys: |
+            mix-${{ matrix.elixir }}-${{ matrix.otp }}-
 
-    # Step: Define how to cache the `_build` directory. After the first run,
-    # this speeds up tests runs a lot. This includes not re-compiling our
-    # project's downloaded deps every run.
-    - name: Cache compiled build
-      id: cache-build
-      uses: actions/cache@v3
-      env:
-        cache-name: cache-compiled-build
-      with:
-        path: _build
-        key: ${{ runner.os }}-mix-${{ env.cache-name }}-${{ hashFiles('**/mix.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-mix-${{ env.cache-name }}-
-          ${{ runner.os }}-mix-
+      - name: Install dependencies
+        run: mix deps.get
 
-    # Step: Download project dependencies. If unchanged, uses
-    # the cached version.
-    - name: Install dependencies
-      run: mix deps.get
+      - name: Check formatting
+        if: matrix.lint
+        run: mix format --check-formatted
 
-    # Step: Compile the project treating any warnings as errors.
-    # Customize this step if a different behavior is desired.
-    - name: Compiles without warnings
-      run: mix compile --warnings-as-errors
+      - name: Compile (warnings as errors)
+        run: mix compile --warnings-as-errors
 
-    # Step: Check that the checked in code has already been formatted.
-    # This step fails if something was found unformatted.
-    # Customize this step as desired.
-    # - name: Check Formatting
-    #   run: mix format --check-formatted
+      - name: Run tests
+        run: mix test
 
-    # Step: Execute the tests.
-    - name: Run tests
-      run: mix test
+      - name: Restore PLT cache
+        if: matrix.lint
+        uses: actions/cache@v5
+        with:
+          path: _build/dev/dialyxir_*
+          key: plt-${{ matrix.elixir }}-${{ matrix.otp }}-${{ hashFiles('mix.lock') }}
+          restore-keys: |
+            plt-${{ matrix.elixir }}-${{ matrix.otp }}-
 
-    # Step: Execute dialyzer.
-    - name: Run dialyzer
-      run: mix dialyzer
+      - name: Run dialyzer
+        if: matrix.lint
+        env:
+          MIX_ENV: dev
+        run: mix dialyzer
