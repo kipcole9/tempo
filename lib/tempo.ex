@@ -1695,8 +1695,18 @@ defmodule Tempo do
     |> Stream.take_while(fn {start, _} -> start_predicate.(start) end)
     |> Stream.take(@recurrence_safety_cap)
     |> Stream.flat_map(fn {_start, candidate} -> selection_fn.(candidate) end)
+    # DTSTART floor — per RFC 5545, DTSTART is always the first
+    # occurrence. BY-rule EXPAND can legitimately produce dates
+    # earlier in the DTSTART-containing period (e.g.
+    # BYMONTHDAY=1 with DTSTART=Sep 30 → also Sep 1). Drop any
+    # such pre-DTSTART candidates.
+    |> Stream.reject(fn %Tempo.Interval{from: f} -> before_dtstart?(f, from) end)
     |> Stream.take(output_limit)
     |> Enum.to_list()
+  end
+
+  defp before_dtstart?(%Tempo{} = candidate_from, %Tempo{} = dtstart) do
+    Tempo.Compare.compare_endpoints(candidate_from, dtstart) == :earlier
   end
 
   # Build the per-candidate selection filter/expand function. When

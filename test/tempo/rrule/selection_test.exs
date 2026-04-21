@@ -119,10 +119,16 @@ defmodule Tempo.RRule.SelectionTest do
       assert Selection.apply(candidate, rule, :month) == [candidate]
     end
 
-    test "negative day: -1 rejects a non-last-day candidate" do
+    test "EXPAND for MONTHLY — swaps candidate day to the requested" do
+      # BYMONTHDAY with FREQ=MONTHLY is EXPAND per RFC 5545
+      # §3.3.10. The resolver rewrites the candidate's day to
+      # each listed value (signed indexing resolved against the
+      # enclosing month's length).
       candidate = %Tempo.Interval{from: ~o"2022-06-29"}
       rule = %Tempo{time: [selection: [day: -1]], calendar: Calendrical.Gregorian}
-      assert Selection.apply(candidate, rule, :month) == []
+
+      [result] = Selection.apply(candidate, rule, :month)
+      assert result.from.time[:day] == 30
     end
 
     test "YEARLY + BYMONTH + BYMONTHDAY end-to-end" do
@@ -164,26 +170,41 @@ defmodule Tempo.RRule.SelectionTest do
     end
   end
 
-  describe "BYWEEKNO — LIMIT, YEARLY-only per RFC" do
-    test "ISO week 1 of 2022 starts Mon Jan 3" do
+  describe "BYWEEKNO — EXPAND for YEARLY" do
+    test "EXPAND emits all 7 days of the matching ISO week" do
+      # BYWEEKNO with FREQ=YEARLY is EXPAND per RFC 5545
+      # §3.3.10. Each listed week expands to its 7 constituent
+      # days (Mon..Sun, ISO).
       candidate = %Tempo.Interval{from: ~o"2022-01-03"}
       rule = %Tempo{time: [selection: [week: 1]], calendar: Calendrical.Gregorian}
-      assert Selection.apply(candidate, rule, :year) == [candidate]
+
+      results = Selection.apply(candidate, rule, :year)
+      assert length(results) == 7
+
+      days = Enum.map(results, & &1.from.time[:day])
+      assert days == [3, 4, 5, 6, 7, 8, 9]
     end
 
-    test "Jan 1 2022 is in ISO 2021-W52, so BYWEEKNO=1 rejects it" do
-      candidate = %Tempo.Interval{from: ~o"2022-01-01"}
-      rule = %Tempo{time: [selection: [week: 1]], calendar: Calendrical.Gregorian}
-      assert Selection.apply(candidate, rule, :year) == []
-    end
-
-    test "end-to-end: FREQ=YEARLY;BYWEEKNO=1 anchored at Jan 3" do
-      rule = %Rule{freq: :year, interval: 1, byweekno: [1], count: 2}
+    test "end-to-end: FREQ=YEARLY;BYWEEKNO=1 — 2 years of week-1 days (filtered by DTSTART floor)" do
+      rule = %Rule{freq: :year, interval: 1, byweekno: [1], count: 5}
       {:ok, occ} = Expander.expand(rule, ~o"2022-01-03")
 
-      assert Enum.map(occ, fn iv ->
-               {iv.from.time[:year], iv.from.time[:month], iv.from.time[:day]}
-             end) == [{2022, 1, 3}, {2023, 1, 3}]
+      # Year 1: Jan 3-9 (7 days), all ≥ DTSTART.
+      # Year 2 starts Jan 2 2023 (Mon) — expansion yields Jan
+      # 2-8 (7 more), all ≥ DTSTART.
+      # COUNT=5 takes the first 5.
+      pairs =
+        Enum.map(occ, fn iv ->
+          {iv.from.time[:year], iv.from.time[:month], iv.from.time[:day]}
+        end)
+
+      assert pairs == [
+               {2022, 1, 3},
+               {2022, 1, 4},
+               {2022, 1, 5},
+               {2022, 1, 6},
+               {2022, 1, 7}
+             ]
     end
   end
 

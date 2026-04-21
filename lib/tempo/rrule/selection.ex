@@ -103,27 +103,17 @@ defmodule Tempo.RRule.Selection do
   # AST. We sort the selection at apply time so the resolver is
   # robust to whatever order the parser/adapter emitted.
   #
-  # Context fields computed once per-selection:
-  #
-  # * `byday_scope` — for BYDAY with ordinals. Depends on FREQ
-  #   and the presence of BYMONTH elsewhere in the selection.
-  #   RFC 5545 §3.3.10: "if a BYDAY rule with an ordinal is
-  #   used in a YEARLY recurrence that includes a BYMONTH rule
-  #   part, then BYDAY is treated as a monthly-scoped filter
-  #   within each month specified by BYMONTH."
-  #
-  # * `wkst` — week-start day (1..7, Monday=1). Affects BYDAY
-  #   expansion under FREQ=WEEKLY (which week the candidate
-  #   belongs to) and is the source of truth for downstream
-  #   week-boundary calculations. Default Monday (1).
+  # The full `selection` list is threaded to each handler so
+  # BYDAY (and future co-dependent rules) can consult sibling
+  # tokens — e.g. Note 1/2 downgrades BYDAY from EXPAND to LIMIT
+  # when BYMONTHDAY or BYYEARDAY is co-present.
   defp apply_selection(candidate, selection, freq) do
-    scope = byday_scope(freq, selection)
     wkst = Keyword.get(selection, :wkst, 1)
 
     selection
     |> Enum.sort_by(&application_order_key/1)
     |> Enum.reduce([candidate], fn entry, candidates ->
-      apply_entry(entry, candidates, freq, scope, wkst)
+      apply_entry(entry, candidates, freq, selection, wkst)
     end)
   end
 
@@ -145,70 +135,86 @@ defmodule Tempo.RRule.Selection do
     Enum.find_index(@application_order, &(&1 == token)) || length(@application_order)
   end
 
-  # BYDAY-with-ordinal's period scope:
-  #
-  # * FREQ=MONTHLY → `:month`.
-  # * FREQ=YEARLY with BYMONTH present → `:month` (per RFC).
-  # * FREQ=YEARLY without BYMONTH → `:year`.
-  # * Otherwise BYDAY ordinals are not meaningful per RFC, so we
-  #   default to the widest (`:year`) — the `:byday` handler
-  #   tolerates this since nth_kday simply operates relative to
-  #   the period's endpoint.
-  defp byday_scope(:month, _selection), do: :month
-
-  defp byday_scope(:year, selection) do
-    if Keyword.has_key?(selection, :month), do: :month, else: :year
-  end
-
-  defp byday_scope(_, _), do: :year
-
   # WKST — context-only token consumed by `apply_selection`.
   # Already extracted before the reduce fires, so by the time it
   # shows up here it's a no-op.
-  defp apply_entry({:wkst, _}, candidates, _freq, _scope, _wkst), do: candidates
+  defp apply_entry({:wkst, _}, candidates, _freq, _selection, _wkst), do: candidates
 
-  # BYMONTH — always LIMIT.
-  defp apply_entry({:month, months}, candidates, _freq, _scope, _wkst) do
+  # BYMONTH — EXPAND for FREQ=YEARLY, LIMIT otherwise. Per RFC
+  # 5545 §3.3.10, a YEARLY rule with BYMONTH=6,7 produces an
+  # occurrence in each listed month of each year; finer FREQs
+  # already iterate at finer-than-year granularity, so they
+  # just filter.
+  defp apply_entry({:month, months}, candidates, :year, _selection, _wkst) do
+    Enum.flat_map(candidates, fn candidate ->
+      expand_candidate_months(candidate, List.wrap(months))
+    end)
+  end
+
+  defp apply_entry({:month, months}, candidates, _freq, _selection, _wkst) do
     limit(candidates, months, &month_of/1)
   end
 
-  # BYMONTHDAY — LIMIT. RFC forbids it with FREQ=WEEKLY; we don't
-  # reject such rules here (malformed rules are a parser concern),
-  # we just filter by matching day-of-month using positive and/or
-  # negative values. `-1` is the last day of the enclosing month.
-  defp apply_entry({:day, days}, candidates, _freq, _scope, _wkst) do
+  # BYMONTHDAY — EXPAND for FREQ=MONTHLY or YEARLY, LIMIT
+  # otherwise. RFC forbids it with FREQ=WEEKLY; we don't reject
+  # (malformed rules are a parser concern). `-1` is the last
+  # day of the enclosing month.
+  defp apply_entry({:day, days}, candidates, freq, _selection, _wkst)
+       when freq in [:month, :year] do
+    Enum.flat_map(candidates, fn candidate ->
+      expand_candidate_days(candidate, List.wrap(days))
+    end)
+  end
+
+  defp apply_entry({:day, days}, candidates, _freq, _selection, _wkst) do
     Enum.filter(candidates, fn candidate ->
       in_month_day_list?(candidate, List.wrap(days))
     end)
   end
 
-  # BYYEARDAY — LIMIT. Day-of-year, 1..366, supports negatives
-  # (`-1` = last day of year). Forbidden by RFC with FREQ=DAILY,
-  # WEEKLY, or MONTHLY; we don't reject, we just filter.
-  defp apply_entry({:day_of_year, days}, candidates, _freq, _scope, _wkst) do
+  # BYYEARDAY — EXPAND for YEARLY, LIMIT otherwise. Signed
+  # indexing: `-1` is the last day of the year.
+  defp apply_entry({:day_of_year, days}, candidates, :year, _selection, _wkst) do
+    Enum.flat_map(candidates, fn candidate ->
+      expand_candidate_year_days(candidate, List.wrap(days))
+    end)
+  end
+
+  defp apply_entry({:day_of_year, days}, candidates, _freq, _selection, _wkst) do
     Enum.filter(candidates, fn candidate ->
       in_year_day_list?(candidate, List.wrap(days))
     end)
   end
 
-  # BYWEEKNO — LIMIT. Only valid with FREQ=YEARLY per RFC.
-  # Week numbers are ISO weeks (Monday-first, week 1 has ≥4
-  # days in the year) as RFC 5545 §3.3.10 mandates. WKST and
-  # BYWEEKNO are orthogonal — WKST affects BYDAY week
-  # boundaries, not ISO week numbering.
-  defp apply_entry({:week, weeks}, candidates, _freq, _scope, _wkst) do
+  # BYWEEKNO — EXPAND for YEARLY (only valid FREQ per RFC).
+  # Each listed ISO week number expands to 7 occurrences (the
+  # days of that week). Signed indexing: `-1` is the last week.
+  defp apply_entry({:week, weeks}, candidates, :year, _selection, _wkst) do
+    Enum.flat_map(candidates, fn candidate ->
+      expand_candidate_week_numbers(candidate, List.wrap(weeks))
+    end)
+  end
+
+  defp apply_entry({:week, weeks}, candidates, _freq, _selection, _wkst) do
     Enum.filter(candidates, fn candidate ->
       in_week_no_list?(candidate, List.wrap(weeks))
     end)
   end
 
-  # BYDAY without ordinal — pure day-of-week filter/expander
-  # driven by FREQ. LIMIT for DAILY/finer, EXPAND for
-  # WEEKLY/MONTHLY/YEARLY into all matching weekdays in the
-  # period. `WEEKLY` expansion uses `wkst` to decide where the
-  # enclosing 7-day window begins.
-  defp apply_entry({:day_of_week, days}, candidates, freq, _scope, wkst) do
-    case byday_role(freq) do
+  # BYDAY without ordinal — filter/expander driven by FREQ and
+  # by which other BY-rules are co-present. RFC 5545 §3.3.10
+  # Note 1 / Note 2:
+  #
+  #   MONTHLY: LIMIT if BYMONTHDAY is present; else EXPAND
+  #            within the month.
+  #   YEARLY:  LIMIT if BYYEARDAY or BYMONTHDAY is present; else
+  #            EXPAND within the year (or within BYMONTH-selected
+  #            months when BYMONTH is also present).
+  #
+  # The `selection` list lets us detect the sibling tokens and
+  # downgrade EXPAND → LIMIT per Notes 1/2.
+  defp apply_entry({:day_of_week, days}, candidates, freq, selection, wkst) do
+    case no_ordinal_byday_role(freq, selection) do
       :limit ->
         Enum.filter(candidates, fn candidate ->
           weekday_of(candidate) in List.wrap(days)
@@ -227,14 +233,11 @@ defmodule Tempo.RRule.Selection do
 
   # BYDAY with ordinals — EXPAND. Each `{ordinal, weekday}` pair
   # picks one (or more) specific date within the enclosing
-  # period (month or year, as determined by `scope`). Backed by
-  # `Calendrical.Kday.nth_kday/3` which handles both positive
-  # and negative ordinals.
-  #
-  # Entries with `nil` ordinal behave like a no-ordinal BYDAY
-  # entry at the same scope (all matching weekdays in the
-  # period).
-  defp apply_entry({:byday, pairs}, candidates, _freq, scope, wkst) do
+  # period. Backed by `Calendrical.Kday.nth_kday/3` which
+  # handles both positive and negative ordinals.
+  defp apply_entry({:byday, pairs}, candidates, freq, selection, wkst) do
+    scope = byday_ordinal_scope(freq, selection)
+
     Enum.flat_map(candidates, fn candidate ->
       expand_byday_pairs(candidate, pairs, scope, wkst)
     end)
@@ -242,15 +245,15 @@ defmodule Tempo.RRule.Selection do
 
   # BYHOUR / BYMINUTE / BYSECOND — EXPAND when FREQ is coarser
   # than the unit, LIMIT when FREQ is the same unit or finer.
-  defp apply_entry({:hour, values}, candidates, freq, _scope, _wkst) do
+  defp apply_entry({:hour, values}, candidates, freq, _selection, _wkst) do
     expand_or_limit_time(candidates, :hour, List.wrap(values), freq)
   end
 
-  defp apply_entry({:minute, values}, candidates, freq, _scope, _wkst) do
+  defp apply_entry({:minute, values}, candidates, freq, _selection, _wkst) do
     expand_or_limit_time(candidates, :minute, List.wrap(values), freq)
   end
 
-  defp apply_entry({:second, values}, candidates, freq, _scope, _wkst) do
+  defp apply_entry({:second, values}, candidates, freq, _selection, _wkst) do
     expand_or_limit_time(candidates, :second, List.wrap(values), freq)
   end
 
@@ -258,14 +261,53 @@ defmodule Tempo.RRule.Selection do
   # accumulated `candidates` list as the per-period set and
   # picks the Nth element. Positive ordinals count from the
   # start (1-based), negative from the end (`-1` = last).
-  # Out-of-range ordinals are silently dropped, matching the
-  # RFC's "no occurrence" semantic.
-  defp apply_entry({:set_position, positions}, candidates, _freq, _scope, _wkst) do
+  defp apply_entry({:set_position, positions}, candidates, _freq, _selection, _wkst) do
     pick_set_positions(candidates, List.wrap(positions))
   end
 
   # Unknown tokens pass through unchanged.
-  defp apply_entry(_entry, candidates, _freq, _scope, _wkst), do: candidates
+  defp apply_entry(_entry, candidates, _freq, _selection, _wkst), do: candidates
+
+  # BYDAY-no-ordinal role dispatcher (RFC §3.3.10 notes).
+  defp no_ordinal_byday_role(:month, selection) do
+    if Keyword.has_key?(selection, :day), do: :limit, else: {:expand, :month}
+  end
+
+  defp no_ordinal_byday_role(:year, selection) do
+    cond do
+      Keyword.has_key?(selection, :day) or Keyword.has_key?(selection, :day_of_year) ->
+        :limit
+
+      # When BYMONTH is also present, BYMONTH's EXPAND has
+      # already projected each candidate into a specific month.
+      # BYDAY must then walk THAT month, not the whole year —
+      # "every Thursday in March" ≠ "every Thursday in any month".
+      Keyword.has_key?(selection, :month) ->
+        {:expand, :month}
+
+      true ->
+        {:expand, :year}
+    end
+  end
+
+  defp no_ordinal_byday_role(:week, _selection), do: {:expand, :week}
+  defp no_ordinal_byday_role(_, _), do: :limit
+
+  # BYDAY-with-ordinal period scope (for `nth_kday` anchoring):
+  #
+  # * FREQ=MONTHLY → `:month`.
+  # * FREQ=YEARLY with BYMONTH present → `:month` (per RFC).
+  # * FREQ=YEARLY without BYMONTH → `:year`.
+  # * Otherwise BYDAY ordinals aren't meaningful per RFC; default
+  #   widest (`:year`) so `nth_kday` operates relative to year
+  #   boundaries.
+  defp byday_ordinal_scope(:month, _selection), do: :month
+
+  defp byday_ordinal_scope(:year, selection) do
+    if Keyword.has_key?(selection, :month), do: :month, else: :year
+  end
+
+  defp byday_ordinal_scope(_, _), do: :year
 
   ## ------------------------------------------------------------
   ## Generic LIMIT helper
@@ -388,14 +430,6 @@ defmodule Tempo.RRule.Selection do
   ## BYDAY (weekday filter / expander)
   ## ------------------------------------------------------------
 
-  # Per RFC 5545 §3.3.10, BYDAY is a LIMIT for FREQ finer than a
-  # week and an EXPAND for FREQ=WEEKLY, MONTHLY, YEARLY. The
-  # period that the expansion walks is the enclosing week, month,
-  # or year respectively.
-  defp byday_role(:year), do: {:expand, :year}
-  defp byday_role(:month), do: {:expand, :month}
-  defp byday_role(:week), do: {:expand, :week}
-  defp byday_role(_), do: :limit
 
   defp weekday_of(%Interval{from: %Tempo{time: time, calendar: calendar}}) do
     with year when is_integer(year) <- Keyword.get(time, :year),
@@ -612,6 +646,154 @@ defmodule Tempo.RRule.Selection do
       Date.new(year, month, day, calendar)
     else
       _ -> :error
+    end
+  end
+
+  ## ------------------------------------------------------------
+  ## EXPAND helpers — broaden per-FREQ candidates via BY* rules
+  ## ------------------------------------------------------------
+
+  # BYMONTH with FREQ=YEARLY: for each candidate, produce one
+  # occurrence per listed month at the candidate's day-of-month.
+  # Invalid dates (e.g. Feb 30) are silently dropped per the
+  # RFC's "invalid dates are ignored" semantic.
+  defp expand_candidate_months(%Interval{from: %Tempo{calendar: calendar}} = candidate, months) do
+    months
+    |> Enum.map(fn month ->
+      year = candidate.from.time[:year]
+      day = candidate.from.time[:day]
+
+      if valid_date?(calendar, year, month, day) do
+        swap_date(candidate, year, month, day)
+      end
+    end)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  # BYMONTHDAY with FREQ=MONTHLY or YEARLY: for each candidate,
+  # produce one occurrence per listed day (signed: -1 = last day
+  # of enclosing month). Invalid combinations skip.
+  defp expand_candidate_days(%Interval{from: %Tempo{calendar: calendar}} = candidate, days) do
+    year = candidate.from.time[:year]
+    month = candidate.from.time[:month]
+    dim = calendar.days_in_month(year, month)
+
+    days
+    |> Enum.map(fn d ->
+      resolved = signed_index_to_value(d, dim)
+
+      if is_integer(resolved) and resolved >= 1 and resolved <= dim do
+        swap_date(candidate, year, month, resolved)
+      end
+    end)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  # BYYEARDAY with FREQ=YEARLY: one occurrence per listed
+  # day-of-year (signed). Convert ordinal → {month, day} via
+  # the calendar's day-of-year axis.
+  defp expand_candidate_year_days(%Interval{from: %Tempo{calendar: calendar}} = candidate, year_days) do
+    year = candidate.from.time[:year]
+    diy = calendar.days_in_year(year)
+
+    year_days
+    |> Enum.map(fn d ->
+      resolved = signed_index_to_value(d, diy)
+
+      if is_integer(resolved) and resolved >= 1 and resolved <= diy do
+        year_day_to_month_day(calendar, year, resolved)
+      end
+    end)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.map(fn {m, day} -> swap_date(candidate, year, m, day) end)
+  end
+
+  # BYWEEKNO with FREQ=YEARLY: one occurrence per listed ISO
+  # week number (signed). A single-week expansion yields 7
+  # occurrences (each day of the week). Days outside the year
+  # are dropped.
+  defp expand_candidate_week_numbers(%Interval{from: %Tempo{calendar: calendar}} = candidate, weeks) do
+    year = candidate.from.time[:year]
+    wiy = weeks_in_year(calendar, year)
+
+    Enum.flat_map(weeks, fn wk ->
+      resolved = signed_index_to_value(wk, wiy)
+
+      if is_integer(resolved) and resolved >= 1 and resolved <= wiy do
+        week_dates_in_year(calendar, year, resolved)
+        |> Enum.map(fn {m, day} -> swap_date(candidate, year, m, day) end)
+      else
+        []
+      end
+    end)
+  end
+
+  # Map a {month, day} pair back from a day-of-year ordinal by
+  # walking the calendar's month lengths. Returns `nil` if out
+  # of range.
+  defp year_day_to_month_day(calendar, year, doy) when is_integer(doy) and doy >= 1 do
+    months = 1..calendar.months_in_year(year)
+
+    Enum.reduce_while(months, doy, fn month, remaining ->
+      days_in_this_month = calendar.days_in_month(year, month)
+
+      if remaining <= days_in_this_month do
+        {:halt, {month, remaining}}
+      else
+        {:cont, remaining - days_in_this_month}
+      end
+    end)
+    |> case do
+      {m, d} when is_integer(m) and is_integer(d) -> {m, d}
+      _ -> nil
+    end
+  end
+
+  # Emit the (up to 7) {month, day} pairs that fall inside `year`
+  # for the given ISO week number. Monday-first by construction.
+  defp week_dates_in_year(calendar, year, week) do
+    # Find the Monday of the requested ISO week. Walk from Jan 4
+    # back to the Monday of its ISO week (week 1), then add
+    # (week - 1) * 7 days.
+    with {:ok, anchor} <- Date.new(year, 1, 4, calendar),
+         anchor_dow when is_integer(anchor_dow) <-
+           calendar.day_of_week(year, 1, 4, :monday) |> normalise_day_of_week() do
+      week_1_monday = Date.add(anchor, -(anchor_dow - 1))
+      week_start = Date.add(week_1_monday, (week - 1) * 7)
+
+      for i <- 0..6,
+          d = Date.add(week_start, i),
+          d.year == year do
+        {d.month, d.day}
+      end
+    else
+      _ -> []
+    end
+  end
+
+  defp weeks_in_year(calendar, year) do
+    case calendar.weeks_in_year(year) do
+      {weeks, _} when is_integer(weeks) -> weeks
+      weeks when is_integer(weeks) -> weeks
+      _ -> 52
+    end
+  end
+
+  # Utility — resolve a signed index against an upper bound.
+  # `3` in a range of 31 → 3. `-1` in 31 → 31. `-3` in 31 → 29.
+  defp signed_index_to_value(n, max) when is_integer(n) and is_integer(max) do
+    cond do
+      n > 0 and n <= max -> n
+      n < 0 and -n <= max -> max + n + 1
+      true -> nil
+    end
+  end
+
+  # Validate a {year, month, day} in the given calendar.
+  defp valid_date?(calendar, year, month, day) do
+    case Date.new(year, month, day, calendar) do
+      {:ok, _} -> true
+      _ -> false
     end
   end
 
