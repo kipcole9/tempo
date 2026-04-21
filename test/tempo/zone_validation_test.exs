@@ -58,14 +58,43 @@ defmodule Tempo.ZoneValidationTest do
     end
   end
 
-  describe "DST fall-back ambiguity is accepted" do
+  describe "DST fall-back ambiguity" do
     # Nov 3 2024 at 01:30 exists twice in America/New_York — once
     # at UTC-4 (EDT) before the fall-back, once at UTC-5 (EST)
-    # after. The caller can disambiguate via an explicit offset;
-    # by default we accept the value silently.
+    # after. Without an explicit disambiguator, Tempo picks the
+    # first period (EDT); an explicit offset via `±HH:MM[zone]`
+    # picks the matching period per RFC 9557 §4.5.
 
     test "2024-11-03 01:30 America/New_York parses" do
       assert {:ok, _} = Tempo.from_iso8601("2024-11-03T01:30:00[America/New_York]")
+    end
+
+    test "explicit -04:00 picks the EDT (pre-fall-back) period" do
+      pre_fb = Tempo.from_iso8601!("2024-11-03T01:30:00-04:00[America/New_York]")
+      plain = Tempo.from_iso8601!("2024-11-03T01:30:00[America/New_York]")
+
+      # Same UTC instant as the no-offset default (which also
+      # picks EDT as the first period).
+      assert Tempo.Compare.to_utc_seconds(pre_fb) == Tempo.Compare.to_utc_seconds(plain)
+    end
+
+    test "explicit -05:00 picks the EST (post-fall-back) period" do
+      post_fb = Tempo.from_iso8601!("2024-11-03T01:30:00-05:00[America/New_York]")
+      pre_fb = Tempo.from_iso8601!("2024-11-03T01:30:00-04:00[America/New_York]")
+
+      # One hour later in UTC — the repeated hour.
+      assert Tempo.Compare.to_utc_seconds(post_fb) -
+               Tempo.Compare.to_utc_seconds(pre_fb) == 3600
+    end
+
+    test "an offset that matches no period falls back to the first" do
+      # +00:00 is neither EDT (-04) nor EST (-05); Tempo falls
+      # back to the first period (EDT).
+      ambiguous = Tempo.from_iso8601!("2024-11-03T01:30:00+00:00[America/New_York]")
+      default = Tempo.from_iso8601!("2024-11-03T01:30:00[America/New_York]")
+
+      assert Tempo.Compare.to_utc_seconds(ambiguous) ==
+               Tempo.Compare.to_utc_seconds(default)
     end
   end
 

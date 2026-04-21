@@ -257,6 +257,40 @@ defmodule Tempo.Interval.PredicatesTest do
     end
   end
 
+  describe "empty?/1 and duration/1 — degenerate and inverted intervals" do
+    # Under the half-open `[from, to)` convention, an interval
+    # with `from == to` is degenerate (contains no instants) and
+    # an interval with `from > to` is inverted (also contains no
+    # instants). Both should be treated as empty — not as
+    # intervals with "negative" duration.
+
+    test "empty?/1 returns true for from == to" do
+      iv = %Interval{from: ~o"2024-06-15", to: ~o"2024-06-15"}
+      assert Interval.empty?(iv)
+    end
+
+    test "empty?/1 returns true for from > to (inverted)" do
+      iv = %Interval{from: ~o"2024-06-20", to: ~o"2024-06-15"}
+      assert Interval.empty?(iv)
+    end
+
+    test "duration/1 returns zero for degenerate intervals" do
+      iv = %Interval{from: ~o"2024-06-15", to: ~o"2024-06-15"}
+      assert Interval.duration(iv) == %Tempo.Duration{time: [second: 0]}
+    end
+
+    test "duration/1 returns zero for inverted intervals (no negative durations)" do
+      iv = %Interval{from: ~o"2024-06-20", to: ~o"2024-06-15"}
+      assert Interval.duration(iv) == %Tempo.Duration{time: [second: 0]}
+    end
+
+    test "non-empty intervals still compute their span correctly" do
+      iv = %Interval{from: ~o"2024-06-15", to: ~o"2024-06-20"}
+      refute Interval.empty?(iv)
+      assert Interval.duration(iv) == %Tempo.Duration{time: [second: 432_000]}
+    end
+  end
+
   describe "duration/1 — cross-calendar rejection" do
     # Tempo.Interval.duration/1 cannot compute a meaningful
     # duration when endpoints are in different calendars because

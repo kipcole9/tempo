@@ -490,15 +490,21 @@ defmodule Tempo.Interval do
   def bounded?(%__MODULE__{}), do: false
 
   @doc """
-  `true` when the interval has zero length (`from == to` under
-  `Tempo.Compare.compare_endpoints/2`).
+  `true` when the interval has zero or negative length —
+  `from == to` (degenerate instant) or `from > to` (inverted
+  span).
 
-  Empty intervals represent a degenerate instant. They pass
-  `bounded?/1` but have no span.
+  Under the half-open `[from, to)` convention, an interval with
+  `from >= to` contains no real instants. Empty intervals pass
+  `bounded?/1` but have no span; inverted intervals are treated
+  as empty rather than as a span with "negative" duration.
 
   ### Examples
 
       iex> Tempo.Interval.empty?(%Tempo.Interval{from: ~o"2026-06-15", to: ~o"2026-06-15"})
+      true
+
+      iex> Tempo.Interval.empty?(%Tempo.Interval{from: ~o"2026-06-20", to: ~o"2026-06-15"})
       true
 
       iex> Tempo.Interval.empty?(%Tempo.Interval{from: ~o"2026-06-01", to: ~o"2026-06-10"})
@@ -507,7 +513,7 @@ defmodule Tempo.Interval do
   """
   @spec empty?(t()) :: boolean()
   def empty?(%__MODULE__{from: %Tempo{} = from, to: %Tempo{} = to}) do
-    Compare.compare_endpoints(from, to) == :same
+    Compare.compare_endpoints(from, to) in [:same, :later]
   end
 
   def empty?(%__MODULE__{}), do: false
@@ -702,19 +708,27 @@ defmodule Tempo.Interval do
 
   def duration(%__MODULE__{from: %Tempo{} = from, to: %Tempo{} = to} = iv, opts) do
     :ok = require_same_calendar(from, to, "Tempo.Interval.duration/1")
-    base = Compare.to_utc_seconds(to) - Compare.to_utc_seconds(from)
 
-    seconds =
-      if Keyword.get(opts, :leap_seconds, false) do
-        # Positive insertions add a second; negative removals
-        # (reserved, none yet used) would subtract one.
-        base + length(leap_second_insertions_spanned(iv)) -
-          length(leap_second_removals_spanned(iv))
-      else
-        base
-      end
+    if empty?(iv) do
+      # Degenerate (from == to) and inverted (from > to) intervals
+      # contain no real instants under `[from, to)`. Duration is
+      # zero rather than a negative count of wall-clock seconds.
+      %Duration{time: [second: 0]}
+    else
+      base = Compare.to_utc_seconds(to) - Compare.to_utc_seconds(from)
 
-    %Duration{time: [second: seconds]}
+      seconds =
+        if Keyword.get(opts, :leap_seconds, false) do
+          # Positive insertions add a second; negative removals
+          # (reserved, none yet used) would subtract one.
+          base + length(leap_second_insertions_spanned(iv)) -
+            length(leap_second_removals_spanned(iv))
+        else
+          base
+        end
+
+      %Duration{time: [second: seconds]}
+    end
   end
 
   @doc """
@@ -797,7 +811,7 @@ defmodule Tempo.Interval do
     to_s = Compare.to_utc_seconds(to)
 
     for {y, m, d} <- Tempo.LeapSeconds.dates(),
-        leap_second_utc_seconds(y, m, d) in from_s..(to_s - 1),
+        leap_second_in_interval?(y, m, d, from_s, to_s),
         do: {y, m, d}
   end
 
@@ -807,17 +821,24 @@ defmodule Tempo.Interval do
     to_s = Compare.to_utc_seconds(to)
 
     for {y, m, d} <- Tempo.LeapSeconds.removals(),
-        leap_second_utc_seconds(y, m, d) in from_s..(to_s - 1),
+        leap_second_in_interval?(y, m, d, from_s, to_s),
         do: {y, m, d}
   end
 
-  # A leap second is inserted at 23:59:60 UTC. Its half-open
-  # containment test uses the wall-time boundary at 23:59:60,
-  # which in leap-second-naive gregorian seconds is the same
-  # instant as 00:00:00 of the following UTC day. We use that
-  # boundary to decide inclusion.
-  defp leap_second_utc_seconds(year, month, day) do
-    :calendar.datetime_to_gregorian_seconds({{year, month, day}, {23, 59, 59}}) + 1
+  # A leap second is inserted at 23:59:60 UTC on day (y,m,d) —
+  # conceptually *between* 23:59:59 and 00:00:00 of the following
+  # day. In leap-second-naive gregorian seconds those two endpoints
+  # collide at N+1 (where N = gregorian(y,m,d,23,59,59)).
+  #
+  # For a half-open interval `[from_s, to_s)`, the leap second is
+  # included iff `from_s ≤ N AND to_s > N`. That is: the interval
+  # starts at or before the final second of day (y,m,d) and extends
+  # past that final-second boundary. This places the leap second
+  # infinitesimally after N in naive time — any interval that
+  # contains N and extends beyond it contains the leap second.
+  defp leap_second_in_interval?(year, month, day, from_s, to_s) do
+    n = :calendar.datetime_to_gregorian_seconds({{year, month, day}, {23, 59, 59}})
+    from_s <= n and to_s > n
   end
 
   # Cross-calendar endpoints produce nonsense arithmetic — the

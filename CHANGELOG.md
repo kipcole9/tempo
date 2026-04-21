@@ -120,6 +120,12 @@
 
 ### Bug Fixes
 
+* `Tempo.Interval.spans_leap_second?/1` boundary bug fixed. An interval like `[23:59:59Z, next 00:00:00Z)` now correctly reports `true` — the leap second 23:59:60Z is within this span under the half-open `[from, to)` convention. Previously an off-by-one in the containment test missed the boundary case.
+
+* `Tempo.Interval.empty?/1` now returns `true` for inverted intervals (`from > to`), and `duration/1` returns `PT0S` for any empty interval. Inverted intervals used to silently produce a negative duration.
+
+* Explicit numeric offsets now disambiguate DST fall-back correctly. `01:30:00-04:00[America/New_York]` and `01:30:00-05:00[America/New_York]` now resolve to different UTC instants as RFC 9557 §4.5 describes; previously the zone_id won unconditionally and the explicit offset was silently ignored.
+
 * `Tempo.from_iso8601!/1` no longer silently overrides IXDTF `[u-ca=NAME]` with `Calendrical.Gregorian`. Previously the bang form always passed Gregorian explicitly, which (per the explicit-wins-over-IXDTF rule) nullified the calendar tag; now matches the behaviour of `Tempo.from_iso8601/1`.
 
 * `%Tempo.Interval{}` inspect now preserves each endpoint's IXDTF extended trailer (zone, calendar, tags). Previously the sigil output dropped `[zone]` and `[u-ca=cal]` from interval endpoints even though the data was stored on the underlying Tempo values.

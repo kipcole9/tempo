@@ -224,21 +224,37 @@ defmodule Tempo.Compare do
   # The offset to subtract from wall-clock to get UTC. Priority:
   #
   # 1. An IANA zone on `extended.zone_id` — look up via Tzdata at
-  #    the given wall instant (DST-era-correct).
+  #    the given wall instant (DST-era-correct). When Tzdata
+  #    returns multiple periods (DST fall-back ambiguity), an
+  #    explicit numeric offset from `extended.zone_offset` or
+  #    from the ISO 8601 `shift` disambiguates — we pick the
+  #    period whose total offset matches. This is the mechanism
+  #    RFC 9557 §4.5 describes for resolving fall-back ambiguity
+  #    in IXDTF strings like `01:30:00-04:00[America/New_York]`.
   # 2. A numeric offset on `extended.zone_offset` (minutes) — use
   #    directly.
   # 3. A `shift` keyword list (legacy-style) — convert to seconds.
   # 4. No info → 0 (treat as UTC).
-  defp resolve_offset_seconds(%{zone_id: zone_id}, _shift, wall_seconds)
+  defp resolve_offset_seconds(%{zone_id: zone_id} = extended, shift, wall_seconds)
        when is_binary(zone_id) and zone_id != "" do
     case Tzdata.periods_for_time(zone_id, wall_seconds, :wall) do
-      [period | _] ->
-        period.utc_off + period.std_off
+      [only] ->
+        only.utc_off + only.std_off
+
+      [_, _ | _] = periods ->
+        # Ambiguous wall time (DST fall-back). Prefer the period
+        # whose offset matches the explicit disambiguator, if any.
+        preferred = explicit_offset_seconds(extended, shift)
+
+        case Enum.find(periods, fn p -> p.utc_off + p.std_off == preferred end) do
+          nil -> hd(periods).utc_off + hd(periods).std_off
+          p -> p.utc_off + p.std_off
+        end
 
       [] ->
-        # Ambiguous gap (spring-forward) or missing period. Fall
-        # back to UTC; caller is responsible for resolving
-        # ambiguity at interval construction time.
+        # Gap (spring-forward) or missing period. Fall back to
+        # UTC; zone-existence validation at parse time rejects
+        # these, so this branch is unreachable in practice.
         0
     end
   end
@@ -249,10 +265,29 @@ defmodule Tempo.Compare do
   end
 
   defp resolve_offset_seconds(_extended, shift, _wall) when is_list(shift) do
-    hour = Keyword.get(shift, :hour, 0)
-    minute = Keyword.get(shift, :minute, 0)
-    hour * 3600 + minute * 60
+    shift_to_seconds(shift)
   end
 
   defp resolve_offset_seconds(_extended, _shift, _wall), do: 0
+
+  # Extract an explicit offset in seconds from either the extended
+  # `zone_offset` (minutes) or the ISO 8601 `shift` (keyword list).
+  # Returns `nil` when no explicit offset is supplied — the caller
+  # then falls back to Tzdata's first period.
+  defp explicit_offset_seconds(%{zone_offset: minutes}, _shift) when is_integer(minutes) do
+    minutes * 60
+  end
+
+  defp explicit_offset_seconds(_extended, shift) when is_list(shift) do
+    shift_to_seconds(shift)
+  end
+
+  defp explicit_offset_seconds(_extended, _shift), do: nil
+
+  defp shift_to_seconds(shift) do
+    hour = Keyword.get(shift, :hour, 0)
+    minute = Keyword.get(shift, :minute, 0)
+    second = Keyword.get(shift, :second, 0)
+    hour * 3600 + minute * 60 + second
+  end
 end

@@ -9,6 +9,42 @@ defmodule Tempo.Interval.LeapSecondTest do
   # level so scientific / financial workflows that need exact
   # elapsed time can still account for them.
 
+  describe "spans_leap_second?/1 — boundary cases" do
+    # The leap second 23:59:60Z is conceptually *between* 23:59:59
+    # of day X and 00:00:00 of day X+1. A half-open interval
+    # `[from, to)` contains the leap second iff `from` is at or
+    # before 23:59:59Z of day X AND `to` is strictly after that
+    # same 23:59:59Z position.
+
+    test "exactly [23:59:59Z, next 00:00:00Z) spans the leap second" do
+      iv = %Interval{
+        from: ~o"2016-12-31T23:59:59Z",
+        to: ~o"2017-01-01T00:00:00Z"
+      }
+
+      assert Interval.spans_leap_second?(iv),
+             "the canonical single-second interval bracketing a leap must span it"
+    end
+
+    test "[23:00:00Z, 23:59:59Z) — ending exactly at the leap boundary — does NOT span" do
+      iv = %Interval{
+        from: ~o"2016-12-31T23:00:00Z",
+        to: ~o"2016-12-31T23:59:59Z"
+      }
+
+      refute Interval.spans_leap_second?(iv)
+    end
+
+    test "[next 00:00:00Z, later) does NOT span (interval wholly after the leap)" do
+      iv = %Interval{
+        from: ~o"2017-01-01T00:00:00Z",
+        to: ~o"2017-01-01T00:01:00Z"
+      }
+
+      refute Interval.spans_leap_second?(iv)
+    end
+  end
+
   describe "spans_leap_second?/1" do
     test "interval containing 2016-12-31 23:59:60Z returns true" do
       iv = %Interval{
