@@ -361,7 +361,11 @@ if Code.ensure_loaded?(ICal) do
     # UTC seconds via `Tempo.Compare.to_utc_seconds/1`. That
     # gives us a calendar-neutral delta that `Tempo.Math.add/2`
     # can apply to the RDATE start.
-    defp rdate_tempo(%Tempo{} = from_tempo, %Interval{from: base_from, to: base_to, metadata: metadata}) do
+    defp rdate_tempo(%Tempo{} = from_tempo, %Interval{
+           from: base_from,
+           to: base_to,
+           metadata: metadata
+         }) do
       duration = event_duration(base_from, base_to)
       to_tempo = Tempo.Math.add(from_tempo, duration)
       %Interval{from: from_tempo, to: to_tempo, metadata: metadata}

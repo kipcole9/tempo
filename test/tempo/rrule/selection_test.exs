@@ -190,7 +190,13 @@ defmodule Tempo.RRule.SelectionTest do
   describe "BYDAY without ordinal" do
     test "DAILY: LIMIT — weekdays only" do
       # MO=1, TU=2, WE=3, TH=4, FR=5 drop SA/SU.
-      rule = %Rule{freq: :day, interval: 1, byday: [{nil, 1}, {nil, 2}, {nil, 3}, {nil, 4}, {nil, 5}], count: 5}
+      rule = %Rule{
+        freq: :day,
+        interval: 1,
+        byday: [{nil, 1}, {nil, 2}, {nil, 3}, {nil, 4}, {nil, 5}],
+        count: 5
+      }
+
       {:ok, occ} = Expander.expand(rule, ~o"2022-06-15")
 
       # 2022-06-15 = Wed. Expect Wed, Thu, Fri, skip Sat, Sun,

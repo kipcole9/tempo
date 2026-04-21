@@ -422,8 +422,17 @@ defmodule Tempo.RRule.Selection do
   # candidate's own calendar.
   defp expand_weekdays_in_month(%Interval{from: %Tempo{calendar: calendar}} = candidate, weekdays) do
     case enclosing_month(candidate) do
-      nil -> [candidate]
-      {year, month} -> emit_matching_days(candidate, year, month, 1..calendar.days_in_month(year, month), weekdays)
+      nil ->
+        [candidate]
+
+      {year, month} ->
+        emit_matching_days(
+          candidate,
+          year,
+          month,
+          1..calendar.days_in_month(year, month),
+          weekdays
+        )
     end
   end
 
@@ -435,7 +444,13 @@ defmodule Tempo.RRule.Selection do
       year ->
         1..calendar.months_in_year(year)
         |> Enum.flat_map(fn month ->
-          emit_matching_days(candidate, year, month, 1..calendar.days_in_month(year, month), weekdays)
+          emit_matching_days(
+            candidate,
+            year,
+            month,
+            1..calendar.days_in_month(year, month),
+            weekdays
+          )
         end)
     end
   end
@@ -470,7 +485,13 @@ defmodule Tempo.RRule.Selection do
     end
   end
 
-  defp emit_matching_days(%Interval{from: %Tempo{calendar: calendar}} = candidate, year, month, days, weekdays) do
+  defp emit_matching_days(
+         %Interval{from: %Tempo{calendar: calendar}} = candidate,
+         year,
+         month,
+         days,
+         weekdays
+       ) do
     days
     |> Enum.filter(fn day ->
       dow = calendar.day_of_week(year, month, day, :monday) |> normalise_day_of_week()
@@ -518,7 +539,12 @@ defmodule Tempo.RRule.Selection do
   # the time list and breaks `Tempo.IntervalSet`'s positional
   # sort. We use `replace_unit_values/2` to preserve the original
   # [year, month, day, hour, …] ordering.
-  defp swap_date(%Interval{from: %Tempo{time: time, calendar: calendar} = tempo, to: to} = candidate, year, month, day) do
+  defp swap_date(
+         %Interval{from: %Tempo{time: time, calendar: calendar} = tempo, to: to} = candidate,
+         year,
+         month,
+         day
+       ) do
     new_from_time = replace_unit_values(time, year: year, month: month, day: day)
     new_from = %{tempo | time: new_from_time}
     new_to = shift_to_endpoint(to, time, new_from_time, calendar)
@@ -772,7 +798,8 @@ defmodule Tempo.RRule.Selection do
   @unit_canonical_order [:year, :month, :week, :day, :hour, :minute, :second]
 
   defp insert_unit_in_order(time, unit, value) do
-    target_idx = Enum.find_index(@unit_canonical_order, &(&1 == unit)) || length(@unit_canonical_order)
+    target_idx =
+      Enum.find_index(@unit_canonical_order, &(&1 == unit)) || length(@unit_canonical_order)
 
     {before, rest} =
       Enum.split_while(time, fn {k, _} ->
