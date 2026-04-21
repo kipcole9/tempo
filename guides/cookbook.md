@@ -259,8 +259,8 @@ Cross-calendar comparisons convert operands to a shared reference (UTC days or `
 ```elixir
 iex> a = ~o"2026-06-01/2026-06-15"
 iex> b = ~o"2026-06-10/2026-06-20"
-iex> {:ok, set} = Tempo.union(a, b)
-iex> length(set.intervals)
+iex> {:ok, merged} = Tempo.union(a, b)
+iex> Tempo.IntervalSet.count(merged)
 1
 # The merged span is June 1 .. June 20.
 ```
@@ -268,11 +268,11 @@ iex> length(set.intervals)
 ### How do I find the overlap between two intervals?
 
 ```elixir
-iex> {:ok, set} = Tempo.intersection(a, b)
-iex> hd(set.intervals).from.time
-[year: 2026, month: 6, day: 10]
-iex> hd(set.intervals).to.time
-[year: 2026, month: 6, day: 15]
+iex> {:ok, overlap} = Tempo.intersection(a, b)
+iex> [span] = Tempo.IntervalSet.to_list(overlap)
+iex> {from, to} = Tempo.Interval.endpoints(span)
+iex> {Tempo.day(from), Tempo.day(to)}
+{10, 15}
 ```
 
 ### How do I subtract a busy period from a free window?
@@ -317,7 +317,7 @@ iex> {:ok, set} = Tempo.symmetric_difference(a, b)
 
 ```elixir
 iex> {:ok, workdays} = Tempo.select(~o"2026-06", :workdays)
-iex> workdays |> Tempo.IntervalSet.to_list() |> length()
+iex> Tempo.IntervalSet.count(workdays)
 22
 ```
 
@@ -326,8 +326,8 @@ iex> workdays |> Tempo.IntervalSet.to_list() |> length()
 ### How do I pick specific days inside a month?
 
 ```elixir
-iex> {:ok, set} = Tempo.select(~o"2026-06", [1, 15])
-iex> set |> Tempo.IntervalSet.to_list() |> Enum.map(& &1.from.time[:day])
+iex> {:ok, paydays} = Tempo.select(~o"2026-06", [1, 15])
+iex> Tempo.IntervalSet.map(paydays, &Tempo.day/1)
 [1, 15]
 ```
 
@@ -338,7 +338,7 @@ iex> set |> Tempo.IntervalSet.to_list() |> Enum.map(& &1.from.time[:day])
 ```elixir
 iex> {:ok, set} = Tempo.select(~o"2026", ~o"12-25")
 iex> [xmas] = Tempo.IntervalSet.to_list(set)
-iex> {xmas.from.time[:year], xmas.from.time[:month], xmas.from.time[:day]}
+iex> {Tempo.year(xmas), Tempo.month(xmas), Tempo.day(xmas)}
 {2026, 12, 25}
 ```
 
@@ -347,12 +347,20 @@ iex> {xmas.from.time[:year], xmas.from.time[:month], xmas.from.time[:day]}
 ### How do I override the territory for a locale-dependent selector?
 
 ```elixir
-iex> {:ok, sa_weekend} = Tempo.select(~o"2026-02", :weekend, region: :SA)
-iex> sa_weekend |> Tempo.IntervalSet.to_list() |> Enum.map(& &1.from.time[:day])
+iex> {:ok, sa_weekend} = Tempo.select(~o"2026-02", :weekend, territory: :SA)
+iex> Tempo.IntervalSet.map(sa_weekend, &Tempo.day/1)
 [6, 7, 13, 14, 20, 21, 27, 28]
 ```
 
-> Saudi Arabia's **weekend** is **Friday + Saturday**. The territory resolution chain is: explicit `region:` option → IXDTF `u-rg=XX` tag on the base → `Application.get_env(:ex_tempo, :default_region)` → `Localize.get_locale() |> Localize.Territory.territory_from_locale()`.
+> Saudi Arabia's **weekend** is **Friday + Saturday**. The territory resolution chain is: explicit `territory:` option → explicit `locale:` option (validated, then reduced to a territory) → IXDTF `u-rg=XX` tag on the base → `Application.get_env(:ex_tempo, :default_territory)` → `Localize.get_locale() |> Localize.Territory.territory_from_locale()`.
+
+Pass a full locale when you have one rather than the territory:
+
+```elixir
+iex> {:ok, sa_weekend} = Tempo.select(~o"2026-02", :weekend, locale: "ar-SA")
+iex> Tempo.IntervalSet.map(sa_weekend, &Tempo.day/1)
+[6, 7, 13, 14, 20, 21, 27, 28]
+```
 
 ### How do I compose select with the set operations?
 
@@ -393,7 +401,7 @@ iex> length(occurrences)
 ```elixir
 iex> {:ok, ast} = Tempo.RRule.parse("FREQ=WEEKLY;BYDAY=MO;COUNT=10", from: ~o"2026-06-01")
 iex> {:ok, set} = Tempo.to_interval(ast, coalesce: false)
-iex> length(set.intervals)
+iex> Tempo.IntervalSet.count(set)
 10
 ```
 
@@ -406,7 +414,7 @@ iex> rule = %Tempo.RRule.Rule{
 ...>   count: 5
 ...> }
 iex> {:ok, occurrences} = Tempo.RRule.Expander.expand(rule, ~o"2022-11-24")
-iex> Enum.map(occurrences, & &1.from.time[:day])
+iex> Enum.map(occurrences, &Tempo.day(Tempo.Interval.from(&1)))
 [24, 23, 28, 27, 26]
 ```
 
@@ -437,7 +445,10 @@ iex> rule = %Tempo.RRule.Rule{
 ...>   count: 3
 ...> }
 iex> {:ok, occurrences} = Tempo.RRule.Expander.expand(rule, ~o"1996-11-05")
-iex> Enum.map(occurrences, fn iv -> {iv.from.time[:year], iv.from.time[:day]} end)
+iex> Enum.map(occurrences, fn iv ->
+...>   start = Tempo.Interval.from(iv)
+...>   {Tempo.year(start), Tempo.day(start)}
+...> end)
 [{1996, 5}, {2000, 7}, {2004, 2}]
 ```
 
@@ -474,7 +485,7 @@ iex> length(occurrences)
 
 ```elixir
 iex> {:ok, calendar} = Tempo.ICal.from_ical_file("~/work.ics")
-iex> length(calendar.intervals)
+iex> Tempo.IntervalSet.count(calendar)
 # One interval per VEVENT (or per materialised recurrence occurrence).
 ```
 
@@ -685,7 +696,7 @@ iex> Tempo.at_resolution(~o"2026-06-15T10:37:42", :hour)
 
 ```elixir
 iex> {:ok, workdays} = Tempo.select(~o"2026-06", :workdays)
-iex> workdays |> Tempo.IntervalSet.to_list() |> length()
+iex> Tempo.IntervalSet.count(workdays)
 22
 ```
 

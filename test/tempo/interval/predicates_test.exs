@@ -238,4 +238,52 @@ defmodule Tempo.Interval.PredicatesTest do
       assert length(bookable_candidates) == 2
     end
   end
+
+  describe "endpoints/1" do
+    test "returns {from, to} as a named accessor" do
+      iv = %Interval{from: ~o"2026-06-15", to: ~o"2026-06-20"}
+
+      {from, to} = Tempo.Interval.endpoints(iv)
+      assert Tempo.day(from) == 15
+      assert Tempo.day(to) == 20
+    end
+
+    test "preserves :undefined endpoints" do
+      assert {:undefined, _} =
+               Tempo.Interval.endpoints(%Interval{from: :undefined, to: ~o"2026-06-20"})
+
+      assert {_, :undefined} =
+               Tempo.Interval.endpoints(%Interval{from: ~o"2026-06-15", to: :undefined})
+    end
+  end
+
+  describe "resolution/1" do
+    test "day-spanning interval has :day resolution" do
+      iv = %Interval{from: ~o"2026-06-15", to: ~o"2026-06-16"}
+      assert Tempo.Interval.resolution(iv) == :day
+    end
+
+    test "month-spanning interval has :month resolution" do
+      {:ok, iv} = Tempo.to_interval(~o"2026-06")
+      assert Tempo.Interval.resolution(iv) == :month
+    end
+
+    test "year-spanning interval has :year resolution" do
+      {:ok, iv} = Tempo.to_interval(~o"2026")
+      assert Tempo.Interval.resolution(iv) == :year
+    end
+
+    test "sub-day interval has :hour resolution" do
+      iv = %Interval{from: ~o"2026-06-15T10", to: ~o"2026-06-15T11"}
+      assert Tempo.Interval.resolution(iv) == :hour
+    end
+
+    test "unbounded interval returns :undefined" do
+      assert Tempo.Interval.resolution(%Interval{from: :undefined, to: ~o"2026-06-20"}) ==
+               :undefined
+
+      assert Tempo.Interval.resolution(%Interval{from: ~o"2026-06-15", to: :undefined}) ==
+               :undefined
+    end
+  end
 end

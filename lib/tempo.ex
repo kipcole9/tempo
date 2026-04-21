@@ -792,6 +792,95 @@ defmodule Tempo do
     end
   end
 
+  # Order of units from coarsest to finest. Used by the component
+  # accessors (`year/1`, `month/1`, `day/1`, `hour/1`, `minute/1`,
+  # `second/1`) to decide whether a unit is unambiguous for a given
+  # interval span — a unit U is unambiguous iff the interval's span
+  # resolution is equal to or finer than U.
+  @unit_order [:year, :month, :day, :hour, :minute, :second]
+
+  for {unit, _idx} <- Enum.with_index(@unit_order) do
+    @doc """
+    Return the `#{unit}` component of a Tempo value, or `nil` if
+    the value doesn't specify one.
+
+    The accessors (`year/1`, `month/1`, `day/1`, `hour/1`,
+    `minute/1`, `second/1`) are commodity component extractors so
+    callers never have to reach into struct fields in user-facing
+    code.
+
+    ### Arguments
+
+    * `value` is a `t:t/0` or `t:Tempo.Interval.t/0`.
+
+    ### Returns
+
+    * The component value as an integer when unambiguous.
+
+    * `nil` when the value doesn't specify that unit (e.g.
+      `Tempo.day(~o"2026")` returns `nil` — the year value has no
+      day).
+
+    * Raises `ArgumentError` when called on an interval whose span
+      covers multiple values of that unit (e.g. `Tempo.day/1` on a
+      month-spanning interval is ambiguous).
+
+    ### Examples
+
+        iex> Tempo.#{unit}(~o"2026-06-15T10:30:45")
+        #{case unit do
+      :year -> 2026
+      :month -> 6
+      :day -> 15
+      :hour -> 10
+      :minute -> 30
+      :second -> 45
+    end}
+
+        iex> Tempo.#{unit}(~o"2026")
+        #{if unit == :year, do: 2026, else: "nil"}
+
+    """
+    @spec unquote(unit)(t() | Tempo.Interval.t()) :: integer() | nil
+    def unquote(unit)(value), do: component(value, unquote(unit))
+  end
+
+  # Polymorphic component extraction. A Tempo value reads straight
+  # from its time keyword list — nil if absent. An Interval checks
+  # unambiguity via the span resolution and raises otherwise.
+  defp component(%__MODULE__{time: time}, unit) do
+    case Keyword.get(time, unit) do
+      value when is_integer(value) -> value
+      nil -> nil
+      _other -> nil
+    end
+  end
+
+  defp component(%Tempo.Interval{from: %__MODULE__{time: from_time}} = interval, unit) do
+    span_res = Tempo.Interval.resolution(interval)
+
+    cond do
+      span_res == :undefined ->
+        component(%__MODULE__{time: from_time, calendar: nil}, unit)
+
+      unit_finer_or_equal?(span_res, unit) ->
+        component(%__MODULE__{time: from_time, calendar: nil}, unit)
+
+      true ->
+        raise ArgumentError,
+              "Tempo.#{unit}/1 is ambiguous for an interval spanning at #{inspect(span_res)} resolution. " <>
+                "Use `Tempo.Interval.endpoints/1` and extract the component from each endpoint explicitly."
+    end
+  end
+
+  # `u_res` is finer-or-equal to `u_target` iff u_res's index in
+  # @unit_order is >= u_target's index. (:year is coarsest at 0;
+  # :second is finest at 5.)
+  defp unit_finer_or_equal?(u_res, u_target) do
+    Enum.find_index(@unit_order, &(&1 == u_res)) >=
+      Enum.find_index(@unit_order, &(&1 == u_target))
+  end
+
   @doc """
   Returns a boolean indicating if a `t:Tempo.t/0` struct
   is anchored to the timeline.

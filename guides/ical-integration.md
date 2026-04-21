@@ -94,7 +94,7 @@ event = %Tempo.Interval{
 
 # Clip to work hours
 {:ok, clipped} = Tempo.intersection(event, ~o"2026-04-21T09/2026-04-21T17")
-[iv] = clipped.intervals
+[iv] = Tempo.IntervalSet.to_list(clipped)
 
 iv.metadata.summary
 # "Design review"  — preserved through the intersection
@@ -108,7 +108,7 @@ Real calendars routinely have overlapping events — a travel event on top of a 
 
 ```elixir
 {:ok, set} = Tempo.ICal.from_ical(ics)
-# set.intervals may contain overlapping intervals — each one a
+# The set may contain overlapping intervals — each one a
 # distinct VEVENT with its own metadata.
 ```
 
@@ -119,7 +119,7 @@ When you want free/busy spans (coalesced time), compute them explicitly:
 {:ok, busy} = Tempo.union(set, %Tempo.IntervalSet{})
 
 # Or: pass through Tempo.IntervalSet.new/1 (which defaults to coalesce: true)
-{:ok, busy} = Tempo.IntervalSet.new(set.intervals)
+{:ok, busy} = Tempo.IntervalSet.new(Tempo.IntervalSet.to_list(set))
 ```
 
 ## 6. Free/busy patterns
@@ -139,8 +139,7 @@ work_hours = ~o"2026-04-21T09/2026-04-21T17"
 {:ok, free} = Tempo.difference(work_hours, all_busy)
 
 # 4. Enumerate free slots
-free.intervals
-|> Enum.map(fn iv -> {iv.from, iv.to} end)
+Tempo.IntervalSet.map(free, &Tempo.Interval.endpoints/1)
 ```
 
 ## 7. Recurrence expansion

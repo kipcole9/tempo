@@ -25,7 +25,7 @@ Now see its bounds:
 
 ```elixir
 {:ok, interval} = Tempo.to_interval(~o"2026-06-15")
-{interval.from.time, interval.to.time}
+Tempo.Interval.endpoints(interval)
 ```
 
 The span is `[2026-06-15 00:00, 2026-06-16 00:00)` — half-open, so adjacent days concatenate cleanly (`[a, b) ++ [b, c) == [a, c)`). No off-by-one. No ambiguity.
@@ -35,7 +35,8 @@ The same rule applies at every resolution:
 ```elixir
 for value <- [~o"2026", ~o"2026-06", ~o"2026-06-15", ~o"2026-06-15T10"] do
   {:ok, iv} = Tempo.to_interval(value)
-  %{input: inspect(value), from: inspect(iv.from.time), to: inspect(iv.to.time)}
+  {from, to} = Tempo.Interval.endpoints(iv)
+  %{input: inspect(value), from: inspect(from), to: inspect(to)}
 end
 |> Kino.DataTable.new()
 ```
@@ -149,7 +150,7 @@ Tempo.IntervalSet.to_list(workdays) |> length()
 
 ```elixir
 {:ok, paydays} = Tempo.select(~o"2026-06", [1, 15])
-paydays |> Tempo.IntervalSet.to_list() |> Enum.map(& &1.from.time[:day])
+Tempo.IntervalSet.map(paydays, &Tempo.day/1)
 ```
 
 > **Integer selectors** apply at the **next-finer unit** below the base's resolution — on a month base that's day.
@@ -158,7 +159,7 @@ paydays |> Tempo.IntervalSet.to_list() |> Enum.map(& &1.from.time[:day])
 
 ```elixir
 {:ok, holidays} = Tempo.select(~o"2026", [~o"07-04", ~o"12-25"])
-holidays |> Tempo.IntervalSet.to_list() |> Enum.map(&{&1.from.time[:month], &1.from.time[:day]})
+Tempo.IntervalSet.map(holidays, &{Tempo.month(&1), Tempo.day(&1)})
 ```
 
 > **Project** the constraint months/days `07-04` and `12-25` onto the base year — July 4 and Dec 25 of 2026.
@@ -167,15 +168,15 @@ holidays |> Tempo.IntervalSet.to_list() |> Enum.map(&{&1.from.time[:month], &1.f
 
 ```elixir
 {:ok, us}    = Tempo.select(~o"2026-02", :weekend)
-{:ok, saudi} = Tempo.select(~o"2026-02", :weekend, region: :SA)
+{:ok, saudi} = Tempo.select(~o"2026-02", :weekend, territory: :SA)
 
 {
-  us    |> Tempo.IntervalSet.to_list() |> Enum.map(& &1.from.time[:day]),
-  saudi |> Tempo.IntervalSet.to_list() |> Enum.map(& &1.from.time[:day])
+  Tempo.IntervalSet.map(us, &Tempo.day/1),
+  Tempo.IntervalSet.map(saudi, &Tempo.day/1)
 }
 ```
 
-> The US weekend is Sat+Sun, the Saudi weekend is Fri+Sat. The territory chain is: explicit `region:` → IXDTF `u-rg=XX` tag → `Application.get_env(:ex_tempo, :default_region)` → Localize locale default.
+> The US weekend is Sat+Sun, the Saudi weekend is Fri+Sat. The territory chain is: explicit `territory:` → explicit `locale:` → IXDTF `u-rg=XX` tag → `Application.get_env(:ex_tempo, :default_territory)` → Localize locale default. Passing `locale: "ar-SA"` instead of `territory: :SA` works the same way — the locale gets reduced to its territory.
 
 ### Compose with set operations
 
@@ -202,7 +203,10 @@ rule = %Rule{freq: :week, interval: 1, byday: [{nil, 1}], count: 10}
 {:ok, occurrences} = Expander.expand(rule, ~o"2026-06-01")
 
 occurrences
-|> Enum.map(fn iv -> {iv.from.time[:year], iv.from.time[:month], iv.from.time[:day]} end)
+|> Enum.map(fn iv ->
+  start = Tempo.Interval.from(iv)
+  {Tempo.year(start), Tempo.month(start), Tempo.day(start)}
+end)
 |> Kino.DataTable.new()
 ```
 
@@ -220,7 +224,10 @@ rule = %Rule{
 {:ok, thanksgivings} = Expander.expand(rule, ~o"2022-11-24")
 
 thanksgivings
-|> Enum.map(fn iv -> {iv.from.time[:year], iv.from.time[:month], iv.from.time[:day]} end)
+|> Enum.map(fn iv ->
+  start = Tempo.Interval.from(iv)
+  {Tempo.year(start), Tempo.month(start), Tempo.day(start)}
+end)
 ```
 
 ### US Presidential Election Day
@@ -240,7 +247,10 @@ rule = %Rule{
 {:ok, elections} = Expander.expand(rule, ~o"1996-11-05")
 
 elections
-|> Enum.map(fn iv -> {iv.from.time[:year], iv.from.time[:month], iv.from.time[:day]} end)
+|> Enum.map(fn iv ->
+  start = Tempo.Interval.from(iv)
+  {Tempo.year(start), Tempo.month(start), Tempo.day(start)}
+end)
 ```
 
 ### Every Friday the 13th
@@ -257,7 +267,10 @@ rule = %Rule{
 {:ok, f13s} = Expander.expand(rule, ~o"1998-02-13")
 
 f13s
-|> Enum.map(fn iv -> {iv.from.time[:year], iv.from.time[:month], iv.from.time[:day]} end)
+|> Enum.map(fn iv ->
+  start = Tempo.Interval.from(iv)
+  {Tempo.year(start), Tempo.month(start), Tempo.day(start)}
+end)
 ```
 
 ### Last weekday of every month
@@ -274,7 +287,10 @@ rule = %Rule{
 {:ok, last_weekdays} = Expander.expand(rule, ~o"2026-06-01")
 
 last_weekdays
-|> Enum.map(fn iv -> {iv.from.time[:year], iv.from.time[:month], iv.from.time[:day]} end)
+|> Enum.map(fn iv ->
+  start = Tempo.Interval.from(iv)
+  {Tempo.year(start), Tempo.month(start), Tempo.day(start)}
+end)
 ```
 
 BYSETPOS applies last, picking the Nth element of each month's candidate set.
@@ -315,10 +331,12 @@ Enum.take(~o"156X", 10)
 
 ```elixir
 value = ~o"2022~"
+{:ok, iv} = Tempo.to_interval(value)
+
 %{
   value: inspect(value),
   qualification: value.qualification,
-  span: Tempo.to_interval(value) |> elem(1) |> then(fn iv -> {iv.from.time, iv.to.time} end)
+  span: Tempo.Interval.endpoints(iv)
 }
 ```
 
@@ -339,10 +357,10 @@ The qualifier decorates the value but doesn't shift its bounds — this is still
 The 15th of every month in 1985:
 
 ```elixir
-{:ok, %Tempo.IntervalSet{intervals: days}} = Tempo.to_interval(~o"1985-XX-15")
+{:ok, set} = Tempo.to_interval(~o"1985-XX-15")
 
-days
-|> Enum.map(fn iv -> {iv.from.time, iv.to.time} end)
+set
+|> Tempo.IntervalSet.map(&Tempo.Interval.endpoints/1)
 |> Kino.DataTable.new()
 ```
 
@@ -414,13 +432,10 @@ work_hours = ~o"2026-06-15T09/2026-06-15T17"
 {:ok, bob_free}   = Tempo.difference(work_hours, bob)
 {:ok, mutual}     = Tempo.intersection(alice_free, bob_free)
 
-bookable =
-  mutual
-  |> Tempo.IntervalSet.to_list()
-  |> Enum.filter(&Tempo.at_least?(&1, ~o"PT1H"))
+bookable = Tempo.IntervalSet.filter(mutual, &Tempo.at_least?(&1, ~o"PT1H"))
 
 bookable
-|> Enum.map(fn iv -> {iv.from.time, iv.to.time} end)
+|> Tempo.IntervalSet.map(&Tempo.Interval.endpoints/1)
 |> Kino.DataTable.new()
 ```
 

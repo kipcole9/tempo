@@ -517,6 +517,149 @@ defmodule Tempo.Interval do
   ## ----------------------------------------------------------
 
   @doc """
+  Return the interval's `from` endpoint.
+
+  A named helper so callers never have to reach into the struct
+  fields in user-facing code. Compose with `Tempo.day/1`, `Tempo.year/1`,
+  etc. to extract components of the starting point.
+
+  ### Arguments
+
+  * `interval` is a `t:t/0`.
+
+  ### Returns
+
+  * The `from` endpoint as a `t:Tempo.t/0` or `:undefined` for
+    open-ended intervals.
+
+  ### Examples
+
+      iex> iv = %Tempo.Interval{from: ~o"2026-06-15", to: ~o"2026-06-20"}
+      iex> Tempo.Interval.from(iv) |> Tempo.day()
+      15
+
+  """
+  @spec from(t()) :: Tempo.t() | :undefined
+  def from(%__MODULE__{from: from}), do: from
+
+  @doc """
+  Return the interval's `to` endpoint.
+
+  Under half-open `[from, to)` semantics, this is the exclusive
+  upper bound — the first instant **outside** the span.
+
+  ### Arguments
+
+  * `interval` is a `t:t/0`.
+
+  ### Returns
+
+  * The `to` endpoint as a `t:Tempo.t/0` or `:undefined` for
+    open-ended intervals.
+
+  ### Examples
+
+      iex> iv = %Tempo.Interval{from: ~o"2026-06-15", to: ~o"2026-06-20"}
+      iex> Tempo.Interval.to(iv) |> Tempo.day()
+      20
+
+  """
+  @spec to(t()) :: Tempo.t() | :undefined
+  def to(%__MODULE__{to: to}), do: to
+
+  @doc """
+  Return the interval's endpoints as a `{from, to}` tuple.
+
+  A named helper so callers never have to reach into the struct
+  fields in user-facing code.
+
+  ### Arguments
+
+  * `interval` is a `t:t/0`.
+
+  ### Returns
+
+  * `{from, to}` where each endpoint is a `t:Tempo.t/0` or
+    `:undefined` for open-ended intervals.
+
+  ### Examples
+
+      iex> iv = %Tempo.Interval{from: ~o"2026-06-15", to: ~o"2026-06-20"}
+      iex> {from, to} = Tempo.Interval.endpoints(iv)
+      iex> {Tempo.day(from), Tempo.day(to)}
+      {15, 20}
+
+  """
+  @spec endpoints(t()) :: {Tempo.t() | :undefined, Tempo.t() | :undefined}
+  def endpoints(%__MODULE__{from: from, to: to}), do: {from, to}
+
+  @doc """
+  Return the interval's span resolution — the coarsest unit at
+  which `from` and `to` differ.
+
+  Under the half-open `[from, to)` convention, this is the unit
+  that "ticks forward" across the span. `[2026-06-15, 2026-06-16)`
+  ticks at the day; `[2026-06-01, 2026-07-01)` ticks at the month;
+  `[2026, 2027)` ticks at the year.
+
+  Unlike `Tempo.resolution/1` on a filled endpoint (which would
+  report the finest unit present on the time keyword list after
+  `Tempo.to_interval/1` has padded missing units with their
+  minimums), this function reports the **span's** resolution —
+  the authoritative scale of the interval itself.
+
+  ### Arguments
+
+  * `interval` is a `t:t/0`. Must be bounded (both endpoints
+    present) — `:undefined` endpoints return `:undefined`.
+
+  ### Returns
+
+  * A unit atom (`:year`, `:month`, `:day`, `:hour`, `:minute`,
+    `:second`, …), or `:undefined` for open-ended intervals.
+
+  ### Examples
+
+      iex> iv = %Tempo.Interval{from: ~o"2026-06-15", to: ~o"2026-06-16"}
+      iex> Tempo.Interval.resolution(iv)
+      :day
+
+      iex> iv = %Tempo.Interval{from: ~o"2026-06", to: ~o"2026-07"}
+      iex> Tempo.Interval.resolution(iv)
+      :month
+
+  """
+  @spec resolution(t()) :: Tempo.time_unit() | :undefined
+  def resolution(%__MODULE__{from: :undefined}), do: :undefined
+  def resolution(%__MODULE__{to: :undefined}), do: :undefined
+
+  def resolution(%__MODULE__{from: %Tempo{time: from_time}, to: %Tempo{time: to_time}}) do
+    span_resolution(from_time, to_time)
+  end
+
+  # The coarsest unit at which from and to differ is the span's
+  # declared resolution. Walk left-to-right through from.time — the
+  # first unit where from and to disagree is the answer. If they
+  # agree at every unit present on `from`, fall through to the
+  # finest present unit as the resolution.
+  defp span_resolution(from_time, to_time) do
+    Enum.reduce_while(from_time, finest_unit(from_time), fn {unit, fv}, acc ->
+      case Keyword.get(to_time, unit) do
+        nil -> {:halt, acc}
+        ^fv -> {:cont, acc}
+        _other -> {:halt, unit}
+      end
+    end)
+  end
+
+  defp finest_unit(time) do
+    case List.last(time) do
+      nil -> :day
+      {unit, _} -> unit
+    end
+  end
+
+  @doc """
   Return the interval's length as a `%Tempo.Duration{}` in
   seconds. Returns `:infinity` for unbounded intervals (one or
   both endpoints `:undefined`).

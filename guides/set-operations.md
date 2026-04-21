@@ -87,11 +87,11 @@ Every instant in either operand.
 
 ```elixir
 iex> {:ok, r} = Tempo.union(~o"2022Y", ~o"2023Y")
-iex> length(r.intervals)
+iex> Tempo.IntervalSet.count(r)
 1                                    # touching years coalesce
 
 iex> {:ok, r} = Tempo.union(~o"2020Y", ~o"2022Y")
-iex> length(r.intervals)
+iex> Tempo.IntervalSet.count(r)
 2                                    # non-touching stay separate
 ```
 
@@ -103,8 +103,8 @@ Every instant in both operands.
 
 ```elixir
 iex> {:ok, r} = Tempo.intersection(~o"2022Y", ~o"2022-06-15")
-iex> [span] = r.intervals
-iex> span.from.time[:day]
+iex> [span] = Tempo.IntervalSet.to_list(r)
+iex> Tempo.day(span)
 15                                   # the day is contained in the year
 ```
 
@@ -116,7 +116,7 @@ Every instant in the universe that is NOT in `set`. The `:bound` option is **req
 
 ```elixir
 iex> {:ok, r} = Tempo.complement(~o"2022-06", bound: ~o"2022Y")
-iex> length(r.intervals)
+iex> Tempo.IntervalSet.count(r)
 2                                    # January–May and July–December
 ```
 
@@ -128,7 +128,7 @@ An unbounded complement is infinite; Tempo refuses to pick a universe implicitly
 
 ```elixir
 iex> {:ok, r} = Tempo.difference(~o"2022Y", ~o"2022-06")
-iex> length(r.intervals)
+iex> Tempo.IntervalSet.count(r)
 2                                    # same as complement(2022-06, bound: 2022Y)
 ```
 
@@ -142,7 +142,7 @@ Identities: `A \ A = ∅`, `A \ ∅ = A`, `∅ \ A = ∅`.
 iex> a = ~o"2022-01/2022-07"
 iex> b = ~o"2022-04/2022-10"
 iex> {:ok, r} = Tempo.symmetric_difference(a, b)
-iex> length(r.intervals)
+iex> Tempo.IntervalSet.count(r)
 2                                    # Jan-Mar and Jul-Sep (non-overlap portions)
 ```
 

@@ -156,7 +156,7 @@ Mask rules:
 ```
 iex> {:ok, tempo} = Tempo.from_iso8601("2022Y{1..-1//3}M")
 iex> {:ok, set} = Tempo.to_interval(tempo)
-iex> length(set.intervals)
+iex> Tempo.IntervalSet.count(set)
 4
 ```
 

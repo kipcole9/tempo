@@ -132,6 +132,105 @@ defmodule Tempo.IntervalSet do
   def to_list(%__MODULE__{intervals: intervals}), do: intervals
 
   @doc """
+  Return the number of member intervals in the set.
+
+  A named helper so callers never have to write
+  `length(set.intervals)` or `length(to_list(set))` in
+  user-facing code.
+
+  ### Arguments
+
+  * `set` is a `t:t/0`.
+
+  ### Returns
+
+  * The count of member intervals as a non-negative integer.
+
+  ### Examples
+
+      iex> set = Tempo.IntervalSet.new!([
+      ...>   %Tempo.Interval{from: ~o"2026-06-01", to: ~o"2026-06-10"},
+      ...>   %Tempo.Interval{from: ~o"2026-07-01", to: ~o"2026-07-10"}
+      ...> ])
+      iex> Tempo.IntervalSet.count(set)
+      2
+
+  """
+  @spec count(t()) :: non_neg_integer()
+  def count(%__MODULE__{intervals: intervals}), do: length(intervals)
+
+  @doc """
+  Apply `fun` to each member interval and return the results as
+  a plain list.
+
+  Unlike the `Enumerable` protocol for `IntervalSet` — which
+  walks each sub-point inside every interval at the next-finer
+  resolution — `map/2` operates on the **member intervals
+  themselves**. It's the set-as-sequence-of-spans view.
+
+  The result is a plain list, not an IntervalSet, because the
+  mapper may return anything (integers, tuples, arbitrary values).
+
+  ### Arguments
+
+  * `set` is a `t:t/0`.
+
+  * `fun` is a 1-arity function applied to each member
+    `t:Tempo.Interval.t/0`.
+
+  ### Returns
+
+  * A list of whatever `fun` returns, in the set's sort order.
+
+  ### Examples
+
+      iex> set = Tempo.IntervalSet.new!([
+      ...>   %Tempo.Interval{from: ~o"2026-06-15", to: ~o"2026-06-16"},
+      ...>   %Tempo.Interval{from: ~o"2026-06-20", to: ~o"2026-06-21"}
+      ...> ])
+      iex> Tempo.IntervalSet.map(set, &Tempo.day/1)
+      [15, 20]
+
+  """
+  @spec map(t(), (Interval.t() -> any())) :: [any()]
+  def map(%__MODULE__{intervals: intervals}, fun) when is_function(fun, 1) do
+    Enum.map(intervals, fun)
+  end
+
+  @doc """
+  Keep only the member intervals for which `fun` returns `true`,
+  returning a new `t:t/0`.
+
+  ### Arguments
+
+  * `set` is a `t:t/0`.
+
+  * `fun` is a 1-arity predicate applied to each member
+    `t:Tempo.Interval.t/0`.
+
+  ### Returns
+
+  * A new `t:t/0` containing only the members where `fun`
+    returned a truthy value. The input's invariants (sorted,
+    coalesced) are preserved — filtering cannot create overlap.
+
+  ### Examples
+
+      iex> set = Tempo.IntervalSet.new!([
+      ...>   %Tempo.Interval{from: ~o"2026-06-15", to: ~o"2026-06-16"},
+      ...>   %Tempo.Interval{from: ~o"2026-06-20", to: ~o"2026-06-25"}
+      ...> ])
+      iex> long = Tempo.IntervalSet.filter(set, &Tempo.at_least?(&1, ~o"P2D"))
+      iex> Tempo.IntervalSet.count(long)
+      1
+
+  """
+  @spec filter(t(), (Interval.t() -> as_boolean(any()))) :: t()
+  def filter(%__MODULE__{intervals: intervals} = set, fun) when is_function(fun, 1) do
+    %__MODULE__{set | intervals: Enum.filter(intervals, fun)}
+  end
+
+  @doc """
   Build the Allen-relation matrix between every member of `a`
   and every member of `b`.
 

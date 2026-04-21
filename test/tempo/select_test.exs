@@ -8,7 +8,7 @@ defmodule Tempo.Select.Test do
   # IntervalSet), and every rung of the territory-resolution chain.
   #
   # This suite is `async: false` because a couple of tests mutate
-  # `Application.put_env(:ex_tempo, :default_region, _)` to exercise
+  # `Application.put_env(:ex_tempo, :default_territory, _)` to exercise
   # the app-config rung of the territory chain.
 
   describe "integer-list selector" do
@@ -114,17 +114,51 @@ defmodule Tempo.Select.Test do
     @sa_feb_weekend [6, 7, 13, 14, 20, 21, 27, 28]
     @us_feb_weekend [1, 7, 8, 14, 15, 21, 22, 28]
 
-    test "explicit region: option overrides the default locale" do
-      {:ok, set} = Tempo.select(~o"2026-02", :weekend, region: :SA)
+    test "explicit territory: option overrides the default locale" do
+      {:ok, set} = Tempo.select(~o"2026-02", :weekend, territory: :SA)
       days = set |> Tempo.IntervalSet.to_list() |> Enum.map(& &1.from.time[:day])
       assert days == @sa_feb_weekend
     end
 
-    test "region: accepts string, atom, and 'rg-zzzz' forms" do
-      for region <- [:SA, "SA", "sa", "sazzzz"] do
-        {:ok, set} = Tempo.select(~o"2026-02", :weekend, region: region)
+    test "explicit locale: option resolves via Localize.Territory" do
+      {:ok, set} = Tempo.select(~o"2026-02", :weekend, locale: "ar-SA")
+      days = set |> Tempo.IntervalSet.to_list() |> Enum.map(& &1.from.time[:day])
+      assert days == @sa_feb_weekend
+    end
+
+    test "locale: accepts string, atom, and LanguageTag forms" do
+      {:ok, tag} = Localize.validate_locale("ar-SA")
+
+      for locale <- ["ar-SA", :"ar-SA", tag] do
+        {:ok, set} = Tempo.select(~o"2026-02", :weekend, locale: locale)
         days = set |> Tempo.IntervalSet.to_list() |> Enum.map(& &1.from.time[:day])
-        assert days == @sa_feb_weekend, "region=#{inspect(region)} did not resolve to SA"
+        assert days == @sa_feb_weekend, "locale=#{inspect(locale)} did not resolve to SA"
+      end
+    end
+
+    test "explicit territory: takes precedence over locale:" do
+      {:ok, set} = Tempo.select(~o"2026-02", :weekend, territory: :US, locale: "ar-SA")
+      days = set |> Tempo.IntervalSet.to_list() |> Enum.map(& &1.from.time[:day])
+      assert days == @us_feb_weekend
+    end
+
+    test "locale: takes precedence over IXDTF u-rg tag" do
+      {:ok, tempo} = Tempo.from_iso8601("2026-02[u-rg=uszzzz]")
+      {:ok, set} = Tempo.select(tempo, :weekend, locale: "ar-SA")
+      days = set |> Tempo.IntervalSet.to_list() |> Enum.map(& &1.from.time[:day])
+      assert days == @sa_feb_weekend
+    end
+
+    test "invalid locale returns the Localize error" do
+      assert {:error, %Localize.InvalidLocaleError{}} =
+               Tempo.select(~o"2026-02", :weekend, locale: "not-a-real-locale-%%%")
+    end
+
+    test "territory: accepts string, atom, and 'rg-zzzz' forms" do
+      for territory <- [:SA, "SA", "sa", "sazzzz"] do
+        {:ok, set} = Tempo.select(~o"2026-02", :weekend, territory: territory)
+        days = set |> Tempo.IntervalSet.to_list() |> Enum.map(& &1.from.time[:day])
+        assert days == @sa_feb_weekend, "territory=#{inspect(territory)} did not resolve to SA"
       end
     end
 
@@ -135,28 +169,28 @@ defmodule Tempo.Select.Test do
       assert days == @sa_feb_weekend
     end
 
-    test "explicit region: takes precedence over an IXDTF tag" do
+    test "explicit territory: takes precedence over an IXDTF tag" do
       # IXDTF says SA, opt says US — opt wins.
       {:ok, tempo} = Tempo.from_iso8601("2026-02[u-rg=sazzzz]")
-      {:ok, set} = Tempo.select(tempo, :weekend, region: :US)
+      {:ok, set} = Tempo.select(tempo, :weekend, territory: :US)
       days = set |> Tempo.IntervalSet.to_list() |> Enum.map(& &1.from.time[:day])
       assert days == @us_feb_weekend
     end
 
     test "app config is used when neither opt nor IXDTF is present" do
-      Application.put_env(:ex_tempo, :default_region, :SA)
+      Application.put_env(:ex_tempo, :default_territory, :SA)
 
       try do
         {:ok, set} = Tempo.select(~o"2026-02", :weekend)
         days = set |> Tempo.IntervalSet.to_list() |> Enum.map(& &1.from.time[:day])
         assert days == @sa_feb_weekend
       after
-        Application.delete_env(:ex_tempo, :default_region)
+        Application.delete_env(:ex_tempo, :default_territory)
       end
     end
 
     test "IXDTF takes precedence over app config" do
-      Application.put_env(:ex_tempo, :default_region, :US)
+      Application.put_env(:ex_tempo, :default_territory, :US)
 
       try do
         {:ok, tempo} = Tempo.from_iso8601("2026-02[u-rg=sazzzz]")
@@ -164,7 +198,7 @@ defmodule Tempo.Select.Test do
         days = set |> Tempo.IntervalSet.to_list() |> Enum.map(& &1.from.time[:day])
         assert days == @sa_feb_weekend
       after
-        Application.delete_env(:ex_tempo, :default_region)
+        Application.delete_env(:ex_tempo, :default_territory)
       end
     end
 

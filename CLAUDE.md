@@ -122,6 +122,26 @@ When writing a new example and one of these patterns appears, stop and add the m
 
 These are about correctness and mechanics; they legitimately work at the plumbing level.
 
+## Naming conventions
+
+### Territory, not region
+
+**Tempo standardises on "territory" everywhere — never "region".** A territory is a CLDR/BCP 47 territory code (`:US`, `:AU`, `:SA`, `:GB`, …) — the two- or three-letter country/region code that locale data is keyed by. The word "region" means something different in everyday speech (a vague geographic area), and the Localize library already names its API `Localize.Territory.territory_from_locale/1`, so Tempo follows suit.
+
+This applies to every user-facing surface:
+
+* **Option keys**: `territory: :SA`, never `region: :SA`.
+
+* **Application config keys**: `:default_territory`, never `:default_region`.
+
+* **Type names and variable names**: `territory`, `normalize_territory`, `resolve_territory`, `ixdtf_territory`.
+
+* **Prose in docs, cookbook, livebook, changelog**: "territory resolution chain", "territory override", "the territory `:SA`".
+
+The single exception is when referring to an **external standard's own terminology**. BCP 47 calls its `u-rg-XX` subtag a "region override" — that's the standard's name, we quote it verbatim with the "region" word in scare quotes or parentheses. IXDTF inherits that name via the `u-rg` key. Those specific references are fine; everywhere else it is "territory".
+
+When reviewing new code or docs, grep for `region` / `:region` / `default_region` and rename them unless they're quoting BCP 47 directly.
+
 ## Reference documents
 
 The following documents are **critical** when working on this project. Consult them whenever behaviour, syntax, or semantics need to be verified — do not guess.

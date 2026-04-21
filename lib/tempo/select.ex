@@ -35,10 +35,13 @@ defmodule Tempo.Select do
   **Locale-dependent selectors (`:workdays`, `:weekend`) resolve at
   call time.** The territory chain is:
 
-  1. Explicit `region:` option.
-  2. IXDTF `u-rg-XX` tag on the base value.
-  3. `Application.get_env(:ex_tempo, :default_region)`.
-  4. `Localize.get_locale() |> Localize.Territory.territory_from_locale()`.
+  1. Explicit `territory:` option.
+  2. Explicit `locale:` option (validated via `Localize.validate_locale/1`,
+     then reduced to a territory via `Localize.Territory.territory_from_locale/1`).
+  3. IXDTF `u-rg-XX` tag on the base value (the `rg` in `u-rg` is the BCP 47
+     "region override" subtag — it names a territory).
+  4. `Application.get_env(:ex_tempo, :default_territory)`.
+  5. `Localize.get_locale() |> Localize.Territory.territory_from_locale()`.
 
   Because the chain reads the ambient locale, do **NOT** call
   `Tempo.select/3` with a locale-dependent atom at compile time
@@ -72,7 +75,10 @@ defmodule Tempo.Select do
 
   @type base :: Tempo.t() | Interval.t() | IntervalSet.t()
 
-  @type opts :: [region: String.t() | atom()]
+  @type opts :: [
+          territory: String.t() | atom(),
+          locale: String.t() | atom() | Localize.LanguageTag.t()
+        ]
 
   @doc """
   Narrow `base` by `selector`, returning the selected intervals
@@ -216,40 +222,57 @@ defmodule Tempo.Select do
   end
 
   # Resolve territory through the priority chain:
-  #   1. explicit `region:` option
-  #   2. IXDTF `u-rg-XX` tag on the base's from-endpoint
-  #   3. application config
-  #   4. Localize locale default
+  #   1. explicit `territory:` option
+  #   2. explicit `locale:` option (validated, then reduced to a territory)
+  #   3. IXDTF `u-rg-XX` tag on the base's from-endpoint
+  #      (the `rg` is BCP 47's "region override" — names a territory)
+  #   4. application config
+  #   5. Localize locale default
   defp resolve_territory(base, opts) do
     cond do
-      region = Keyword.get(opts, :region) ->
-        {:ok, normalize_territory(region)}
+      territory = Keyword.get(opts, :territory) ->
+        {:ok, normalize_territory(territory)}
 
-      region = ixdtf_region(base) ->
-        {:ok, normalize_territory(region)}
+      locale = Keyword.get(opts, :locale) ->
+        territory_from_locale(locale)
 
-      region = Application.get_env(:ex_tempo, :default_region) ->
-        {:ok, normalize_territory(region)}
+      territory = ixdtf_territory(base) ->
+        {:ok, normalize_territory(territory)}
+
+      territory = Application.get_env(:ex_tempo, :default_territory) ->
+        {:ok, normalize_territory(territory)}
 
       true ->
-        locale = Localize.get_locale()
-
-        case Localize.Territory.territory_from_locale(locale) do
-          {:ok, territory} -> {:ok, territory}
-          other -> other
-        end
+        territory_from_locale(Localize.get_locale())
     end
   end
 
-  defp ixdtf_region(%Interval{from: %Tempo{extended: %{tags: tags}}}) when is_map(tags) do
-    extract_region(Map.get(tags, "u-rg")) || extract_region(Map.get(tags, "u"))
+  # Validate the locale through `Localize.validate_locale/1` (which
+  # accepts strings, atoms, and `%Localize.LanguageTag{}` values) and
+  # reduce it to a territory via `Localize.Territory.territory_from_locale/1`.
+  defp territory_from_locale(%Localize.LanguageTag{} = tag) do
+    Localize.Territory.territory_from_locale(tag)
   end
 
-  defp ixdtf_region(_), do: nil
+  defp territory_from_locale(locale) do
+    with {:ok, tag} <- Localize.validate_locale(locale) do
+      Localize.Territory.territory_from_locale(tag)
+    end
+  end
 
-  defp extract_region([rg | _]) when is_binary(rg), do: String.trim_trailing(rg, "zzzz")
-  defp extract_region(rg) when is_binary(rg), do: String.trim_trailing(rg, "zzzz")
-  defp extract_region(_), do: nil
+  # The BCP 47 `u-rg-XX` subtag ("region override") names a territory.
+  # We keep BCP 47's own "rg" / "region" terminology only where the
+  # standard uses it; internally and at our API surface we say
+  # "territory" throughout.
+  defp ixdtf_territory(%Interval{from: %Tempo{extended: %{tags: tags}}}) when is_map(tags) do
+    extract_rg(Map.get(tags, "u-rg")) || extract_rg(Map.get(tags, "u"))
+  end
+
+  defp ixdtf_territory(_), do: nil
+
+  defp extract_rg([rg | _]) when is_binary(rg), do: String.trim_trailing(rg, "zzzz")
+  defp extract_rg(rg) when is_binary(rg), do: String.trim_trailing(rg, "zzzz")
+  defp extract_rg(_), do: nil
 
   # Accept any of "AU", "au", :AU, :au, "au-zzzz" and canonicalise
   # to the uppercase atom that `Localize.Calendar` expects.
@@ -352,7 +375,7 @@ defmodule Tempo.Select do
   ## derivation.
 
   defp select_indices(%Interval{from: %Tempo{} = from} = base, indices) do
-    base_unit = span_resolution(base)
+    base_unit = Interval.resolution(base)
     truncated_time = truncate_to_unit(from.time, base_unit)
     select_indices_at(from, truncated_time, base_unit, indices)
   end
@@ -388,19 +411,6 @@ defmodule Tempo.Select do
       {:ok, %IntervalSet{intervals: [iv | _]}} -> iv
       _ -> nil
     end
-  end
-
-  # The coarsest unit at which from and to differ is the span's
-  # declared resolution. Walk left-to-right through from.time — the
-  # first unit where from and to disagree is the answer.
-  defp span_resolution(%Interval{from: %Tempo{time: ft}, to: %Tempo{time: tt}}) do
-    Enum.reduce_while(ft, :day, fn {unit, fv}, acc ->
-      case Keyword.get(tt, unit) do
-        nil -> {:halt, acc}
-        ^fv -> {:cont, acc}
-        _other -> {:halt, unit}
-      end
-    end)
   end
 
   # Keep entries from head until (and including) `unit`. Anything

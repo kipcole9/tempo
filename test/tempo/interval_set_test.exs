@@ -161,6 +161,76 @@ defmodule Tempo.IntervalSet.Test do
     end
   end
 
+  describe "count/1" do
+    test "returns the number of member intervals" do
+      jan = interval(~o"2022Y1M")
+      mar = interval(~o"2022Y3M")
+      may = interval(~o"2022Y5M")
+      {:ok, set} = Tempo.IntervalSet.new([jan, mar, may])
+
+      assert Tempo.IntervalSet.count(set) == 3
+    end
+
+    test "returns 0 for an empty set" do
+      {:ok, set} = Tempo.IntervalSet.new([])
+      assert Tempo.IntervalSet.count(set) == 0
+    end
+  end
+
+  describe "map/2" do
+    test "applies the mapper to each member interval" do
+      jan = interval(~o"2022Y1M")
+      mar = interval(~o"2022Y3M")
+      {:ok, set} = Tempo.IntervalSet.new([jan, mar])
+
+      assert Tempo.IntervalSet.map(set, &Tempo.month/1) == [1, 3]
+    end
+
+    test "mappers can return arbitrary values (not just intervals)" do
+      jan = interval(~o"2022Y1M")
+      feb = interval(~o"2022Y4M")
+      {:ok, set} = Tempo.IntervalSet.new([jan, feb])
+
+      result = Tempo.IntervalSet.map(set, fn iv -> {Tempo.year(iv), Tempo.month(iv)} end)
+      assert result == [{2022, 1}, {2022, 4}]
+    end
+
+    test "empty set maps to empty list" do
+      {:ok, set} = Tempo.IntervalSet.new([])
+      assert Tempo.IntervalSet.map(set, & &1) == []
+    end
+  end
+
+  describe "filter/2" do
+    test "keeps only members where the predicate returns truthy" do
+      jan = interval(~o"2022Y1M")
+      mar = interval(~o"2022Y3M")
+      {:ok, set} = Tempo.IntervalSet.new([jan, mar])
+
+      only_january = Tempo.IntervalSet.filter(set, &(Tempo.month(&1) == 1))
+
+      assert Tempo.IntervalSet.count(only_january) == 1
+      [only] = Tempo.IntervalSet.to_list(only_january)
+      assert Tempo.month(only) == 1
+    end
+
+    test "returns an IntervalSet, not a plain list" do
+      jan = interval(~o"2022Y1M")
+      {:ok, set} = Tempo.IntervalSet.new([jan])
+
+      assert %Tempo.IntervalSet{} = Tempo.IntervalSet.filter(set, fn _ -> true end)
+    end
+
+    test "filtering to empty still returns an IntervalSet" do
+      jan = interval(~o"2022Y1M")
+      {:ok, set} = Tempo.IntervalSet.new([jan])
+
+      empty = Tempo.IntervalSet.filter(set, fn _ -> false end)
+      assert %Tempo.IntervalSet{} = empty
+      assert Tempo.IntervalSet.count(empty) == 0
+    end
+  end
+
   describe "to_interval/1 routing — multi-interval shapes" do
     test "range in a time slot → IntervalSet (coalesced if touching)" do
       {:ok, tempo} = Tempo.from_iso8601("2022Y{1..3}M")
