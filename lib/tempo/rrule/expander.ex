@@ -186,6 +186,8 @@ defmodule Tempo.RRule.Expander do
   # the same interpreter path handles both. Returns nil when no
   # BY-rules are present — the simple recurrence case needs no
   # repeat_rule at all.
+  #
+  # See `Tempo.RRule` for the token vocabulary.
   defp repeat_rule(%Rule{} = rule) do
     if Rule.has_by_rules?(rule) do
       by_rules =
@@ -197,7 +199,7 @@ defmodule Tempo.RRule.Expander do
         |> push_by(rule.byhour, :hour)
         |> push_by(rule.byminute, :minute)
         |> push_by(rule.bysecond, :second)
-        |> push_by(rule.bysetpos, :instance)
+        |> push_by(rule.bysetpos, :set_position)
         |> push_byday(rule.byday)
 
       %Tempo{
@@ -224,24 +226,15 @@ defmodule Tempo.RRule.Expander do
   defp push_byday(acc, []), do: acc
 
   defp push_byday(acc, entries) when is_list(entries) do
-    {ordinals, days} =
-      Enum.reduce(entries, {[], []}, fn {ord, day}, {os, ds} ->
-        {if(ord, do: [ord | os], else: os), [day | ds]}
-      end)
+    if Enum.all?(entries, fn {ord, _day} -> is_nil(ord) end) do
+      days = Enum.map(entries, fn {_nil, day} -> day end)
 
-    days = Enum.reverse(days)
-    ordinals = Enum.reverse(ordinals)
-
-    acc =
       case days do
         [single] -> [{:day_of_week, single} | acc]
         list -> [{:day_of_week, list} | acc]
       end
-
-    case ordinals do
-      [] -> acc
-      [single] -> [{:instance, single} | acc]
-      list -> [{:instance, list} | acc]
+    else
+      [{:byday, entries} | acc]
     end
   end
 

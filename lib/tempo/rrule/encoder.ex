@@ -177,33 +177,11 @@ defmodule Tempo.RRule.Encoder do
   defp by_parts(nil, _interval), do: {:ok, []}
 
   defp by_parts(%Tempo{time: [selection: selection]}, _interval) do
-    # `:day_of_week` and `:instance` are interdependent (BYDAY
-    # with optional ordinal, vs BYSETPOS) — handle as a pair.
-    {instance, selection} = Keyword.pop(selection, :instance)
-    {day_of_week, selection} = Keyword.pop(selection, :day_of_week)
-
-    other = Enum.flat_map(selection, &encode_simple_by/1)
-
-    pair_parts =
-      case {day_of_week, instance} do
-        {nil, nil} ->
-          []
-
-        {days, nil} ->
-          ["BYDAY=#{byday_csv(days, nil)}"]
-
-        {nil, pos} ->
-          ["BYSETPOS=#{list_csv(pos)}"]
-
-        {days, pos} ->
-          if compatible_pair?(days, pos) do
-            ["BYDAY=#{byday_csv(days, pos)}"]
-          else
-            ["BYDAY=#{byday_csv(days, nil)}", "BYSETPOS=#{list_csv(pos)}"]
-          end
-      end
-
-    {:ok, other ++ pair_parts}
+    # The new tagged AST (Phase C) makes encoding a simple 1-to-1
+    # map: each selection token corresponds to exactly one RRULE
+    # BY-part. No more disambiguation between BYSETPOS and
+    # BYDAY-ordinal — they're distinct tokens in the AST.
+    {:ok, Enum.flat_map(selection, &encode_by_entry/1)}
   end
 
   defp by_parts(%Tempo{} = rule, interval) do
@@ -228,45 +206,32 @@ defmodule Tempo.RRule.Encoder do
      )}
   end
 
-  defp encode_simple_by({:month, v}), do: ["BYMONTH=#{list_csv(v)}"]
-  defp encode_simple_by({:day, v}), do: ["BYMONTHDAY=#{list_csv(v)}"]
-  defp encode_simple_by({:day_of_year, v}), do: ["BYYEARDAY=#{list_csv(v)}"]
-  defp encode_simple_by({:week, v}), do: ["BYWEEKNO=#{list_csv(v)}"]
-  defp encode_simple_by({:hour, v}), do: ["BYHOUR=#{list_csv(v)}"]
-  defp encode_simple_by({:minute, v}), do: ["BYMINUTE=#{list_csv(v)}"]
-  defp encode_simple_by({:second, v}), do: ["BYSECOND=#{list_csv(v)}"]
-  defp encode_simple_by(_unsupported), do: []
+  defp encode_by_entry({:month, v}), do: ["BYMONTH=#{list_csv(v)}"]
+  defp encode_by_entry({:day, v}), do: ["BYMONTHDAY=#{list_csv(v)}"]
+  defp encode_by_entry({:day_of_year, v}), do: ["BYYEARDAY=#{list_csv(v)}"]
+  defp encode_by_entry({:week, v}), do: ["BYWEEKNO=#{list_csv(v)}"]
+  defp encode_by_entry({:hour, v}), do: ["BYHOUR=#{list_csv(v)}"]
+  defp encode_by_entry({:minute, v}), do: ["BYMINUTE=#{list_csv(v)}"]
+  defp encode_by_entry({:second, v}), do: ["BYSECOND=#{list_csv(v)}"]
+  defp encode_by_entry({:set_position, v}), do: ["BYSETPOS=#{list_csv(v)}"]
+  defp encode_by_entry({:day_of_week, v}), do: ["BYDAY=#{byday_csv(v)}"]
+  defp encode_by_entry({:byday, pairs}) when is_list(pairs), do: ["BYDAY=#{byday_pairs_csv(pairs)}"]
+  defp encode_by_entry(_unsupported), do: []
 
   ## BYDAY helpers
 
-  # Pair is "compatible" (encode as BYDAY ordinal-prefixed) when
-  # either both are integers, or both are same-length lists. Any
-  # other combination (one list, one scalar; different lengths)
-  # must be split into BYDAY + BYSETPOS.
-  defp compatible_pair?(day, pos) when is_integer(day) and is_integer(pos), do: true
+  defp byday_csv(day) when is_integer(day), do: Map.fetch!(@weekday_code, day)
 
-  defp compatible_pair?(day, pos)
-       when is_list(day) and is_list(pos) and length(day) == length(pos),
-       do: true
-
-  defp compatible_pair?(_, _), do: false
-
-  defp byday_csv(day, nil) when is_integer(day) do
-    Map.fetch!(@weekday_code, day)
-  end
-
-  defp byday_csv(days, nil) when is_list(days) do
+  defp byday_csv(days) when is_list(days) do
     days |> Enum.map(&Map.fetch!(@weekday_code, &1)) |> Enum.join(",")
   end
 
-  defp byday_csv(day, pos) when is_integer(day) and is_integer(pos) do
-    "#{pos}#{Map.fetch!(@weekday_code, day)}"
-  end
-
-  defp byday_csv(days, positions) when is_list(days) and is_list(positions) do
-    days
-    |> Enum.zip(positions)
-    |> Enum.map(fn {d, p} -> "#{p}#{Map.fetch!(@weekday_code, d)}" end)
+  defp byday_pairs_csv(pairs) do
+    pairs
+    |> Enum.map(fn
+      {nil, day} -> Map.fetch!(@weekday_code, day)
+      {ord, day} when is_integer(ord) -> "#{ord}#{Map.fetch!(@weekday_code, day)}"
+    end)
     |> Enum.join(",")
   end
 

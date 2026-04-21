@@ -19,27 +19,24 @@ defmodule Tempo.RRule.Selection do
   | `BYMONTHDAY` | LIMIT — any FREQ except WEEKLY (forbidden).       |
   | `BYYEARDAY`  | LIMIT — any FREQ coarser than DAILY.              |
   | `BYWEEKNO`   | LIMIT — `YEARLY` only.                            |
-  | `BYDAY`      | LIMIT for DAILY/HOURLY/MINUTELY/SECONDLY; EXPAND  |
-  |              | within the enclosing week/month/year for WEEKLY,  |
-  |              | MONTHLY, YEARLY.                                  |
+  | `BYDAY` (no ordinal) | LIMIT for DAILY/HOURLY/MINUTELY/SECONDLY; |
+  |              | EXPAND within the enclosing week/month/year for   |
+  |              | WEEKLY, MONTHLY, YEARLY.                          |
+  | `BYDAY` (with ordinal) | EXPAND — pairs `(ordinal, weekday)` like  |
+  |              | `1MO` and `-1FR` pick the Nth / Nth-from-last     |
+  |              | matching weekday within the enclosing period      |
+  |              | (month for MONTHLY, year for YEARLY). Backed by   |
+  |              | `Calendrical.Kday.nth_kday/3`.                    |
   | `BYHOUR`     | EXPAND when FREQ is coarser than hour; LIMIT      |
   |              | when FREQ is hour-or-finer.                       |
   | `BYMINUTE`   | Same pattern at the minute unit.                  |
   | `BYSECOND`   | Same pattern at the second unit.                  |
+  | `BYSETPOS`   | LIMIT — applied last, across the post-filter      |
+  |              | per-period candidate set. Negative values count   |
+  |              | from the end (`-1` = last).                       |
 
-  ## Deferred
-
-  `BYSETPOS` is applied **after** all other BY-rules (RFC 5545
-  §3.3.10), so it belongs to its own pass. It still land in
-  Phase C. Ordinal-bearing `BYDAY` (e.g. `1MO`, `-1FR`) when
-  FREQ is WEEKLY/MONTHLY/YEARLY is also currently deferred — the
-  ordinal (carried in the AST as an `:instance` token alongside
-  `:day_of_week`) is a BYSETPOS-shaped filter that operates on
-  the per-period candidate set. See `plans/rrule-full-expansion.md`.
-
-  Tokens this module doesn't yet interpret pass through unchanged
-  so partial support is correct for the partial inputs and the
-  caller's fallback policy (see `Tempo.ICal`) decides the rest.
+  Tokens this module doesn't interpret pass through unchanged
+  so partial support is correct for the partial inputs.
 
   """
 
@@ -99,21 +96,65 @@ defmodule Tempo.RRule.Selection do
   ## Selection dispatch
   ## ------------------------------------------------------------
 
-  # Walk the selection keyword list and thread `candidates`
-  # through each sub-rule's filter or expander. The RFC 5545
-  # application order is fixed: BYMONTH → BYWEEKNO → BYYEARDAY →
-  # BYMONTHDAY → BYDAY → BYHOUR → BYMINUTE → BYSECOND (→ BYSETPOS
-  # last). Our AST has the selection list ordered in this layout
-  # already (from the parser/adapter), so a simple reduce is
-  # sufficient.
+  # RFC 5545 §3.3.10 prescribes a strict application order for
+  # BY-rules: BYMONTH → BYWEEKNO → BYYEARDAY → BYMONTHDAY →
+  # BYDAY → BYHOUR → BYMINUTE → BYSECOND → BYSETPOS. BYSETPOS
+  # is *always* last, regardless of where it sits in the input
+  # AST. We sort the selection at apply time so the resolver is
+  # robust to whatever order the parser/adapter emitted.
+  #
+  # `byday_scope` is pre-computed once because BYDAY's scope
+  # depends on FREQ and the presence of BYMONTH elsewhere in the
+  # selection. RFC 5545 §3.3.10: "if a BYDAY rule with an
+  # ordinal is used in a YEARLY recurrence that includes a
+  # BYMONTH rule part, then BYDAY is treated as a monthly-scoped
+  # filter within each month specified by BYMONTH."
   defp apply_selection(candidate, selection, freq) do
-    Enum.reduce(selection, [candidate], fn entry, candidates ->
-      apply_entry(entry, candidates, freq)
+    scope = byday_scope(freq, selection)
+
+    selection
+    |> Enum.sort_by(&application_order_key/1)
+    |> Enum.reduce([candidate], fn entry, candidates ->
+      apply_entry(entry, candidates, freq, scope)
     end)
   end
 
+  @application_order [
+    :month,
+    :week,
+    :day_of_year,
+    :day,
+    :day_of_week,
+    :byday,
+    :hour,
+    :minute,
+    :second,
+    :set_position
+  ]
+
+  defp application_order_key({token, _value}) do
+    Enum.find_index(@application_order, &(&1 == token)) || length(@application_order)
+  end
+
+  # BYDAY-with-ordinal's period scope:
+  #
+  # * FREQ=MONTHLY → `:month`.
+  # * FREQ=YEARLY with BYMONTH present → `:month` (per RFC).
+  # * FREQ=YEARLY without BYMONTH → `:year`.
+  # * Otherwise BYDAY ordinals are not meaningful per RFC, so we
+  #   default to the widest (`:year`) — the `:byday` handler
+  #   tolerates this since nth_kday simply operates relative to
+  #   the period's endpoint.
+  defp byday_scope(:month, _selection), do: :month
+
+  defp byday_scope(:year, selection) do
+    if Keyword.has_key?(selection, :month), do: :month, else: :year
+  end
+
+  defp byday_scope(_, _), do: :year
+
   # BYMONTH — always LIMIT.
-  defp apply_entry({:month, months}, candidates, _freq) do
+  defp apply_entry({:month, months}, candidates, _freq, _scope) do
     limit(candidates, months, &month_of/1)
   end
 
@@ -121,7 +162,7 @@ defmodule Tempo.RRule.Selection do
   # reject such rules here (malformed rules are a parser concern),
   # we just filter by matching day-of-month using positive and/or
   # negative values. `-1` is the last day of the enclosing month.
-  defp apply_entry({:day, days}, candidates, _freq) do
+  defp apply_entry({:day, days}, candidates, _freq, _scope) do
     Enum.filter(candidates, fn candidate ->
       in_month_day_list?(candidate, List.wrap(days))
     end)
@@ -130,7 +171,7 @@ defmodule Tempo.RRule.Selection do
   # BYYEARDAY — LIMIT. Day-of-year, 1..366, supports negatives
   # (`-1` = last day of year). Forbidden by RFC with FREQ=DAILY,
   # WEEKLY, or MONTHLY; we don't reject, we just filter.
-  defp apply_entry({:day_of_year, days}, candidates, _freq) do
+  defp apply_entry({:day_of_year, days}, candidates, _freq, _scope) do
     Enum.filter(candidates, fn candidate ->
       in_year_day_list?(candidate, List.wrap(days))
     end)
@@ -139,17 +180,17 @@ defmodule Tempo.RRule.Selection do
   # BYWEEKNO — LIMIT. Only valid with FREQ=YEARLY per RFC; we
   # apply the filter regardless of FREQ on the assumption that a
   # parser or caller would reject malformed rules earlier.
-  defp apply_entry({:week, weeks}, candidates, _freq) do
+  defp apply_entry({:week, weeks}, candidates, _freq, _scope) do
     Enum.filter(candidates, fn candidate ->
       in_week_no_list?(candidate, List.wrap(weeks))
     end)
   end
 
-  # BYDAY without ordinal — pure day-of-week filter or expander
-  # depending on FREQ. With an ordinal (an accompanying
-  # `:instance` token), the expansion within the period picks
-  # only the Nth match; that's Phase C work (BYSETPOS-shaped).
-  defp apply_entry({:day_of_week, days}, candidates, freq) do
+  # BYDAY without ordinal — pure day-of-week filter/expander
+  # driven by FREQ. LIMIT for DAILY/finer, EXPAND for
+  # WEEKLY/MONTHLY/YEARLY into all matching weekdays in the
+  # period.
+  defp apply_entry({:day_of_week, days}, candidates, freq, _scope) do
     case byday_role(freq) do
       :limit ->
         Enum.filter(candidates, fn candidate ->
@@ -167,23 +208,47 @@ defmodule Tempo.RRule.Selection do
     end
   end
 
+  # BYDAY with ordinals — EXPAND. Each `{ordinal, weekday}` pair
+  # picks one (or more) specific date within the enclosing
+  # period (month or year, as determined by `scope`). Backed by
+  # `Calendrical.Kday.nth_kday/3` which handles both positive
+  # and negative ordinals.
+  #
+  # Entries with `nil` ordinal behave like a no-ordinal BYDAY
+  # entry at the same scope (all matching weekdays in the
+  # period).
+  defp apply_entry({:byday, pairs}, candidates, _freq, scope) do
+    Enum.flat_map(candidates, fn candidate ->
+      expand_byday_pairs(candidate, pairs, scope)
+    end)
+  end
+
   # BYHOUR / BYMINUTE / BYSECOND — EXPAND when FREQ is coarser
   # than the unit, LIMIT when FREQ is the same unit or finer.
-  defp apply_entry({:hour, values}, candidates, freq) do
+  defp apply_entry({:hour, values}, candidates, freq, _scope) do
     expand_or_limit_time(candidates, :hour, List.wrap(values), freq)
   end
 
-  defp apply_entry({:minute, values}, candidates, freq) do
+  defp apply_entry({:minute, values}, candidates, freq, _scope) do
     expand_or_limit_time(candidates, :minute, List.wrap(values), freq)
   end
 
-  defp apply_entry({:second, values}, candidates, freq) do
+  defp apply_entry({:second, values}, candidates, freq, _scope) do
     expand_or_limit_time(candidates, :second, List.wrap(values), freq)
   end
 
-  # Unknown tokens pass through — includes `:instance`
-  # (BYSETPOS / BYDAY ordinal) which Phase C will pick up.
-  defp apply_entry(_entry, candidates, _freq), do: candidates
+  # BYSETPOS — applied LAST (per RFC 5545). Treats the
+  # accumulated `candidates` list as the per-period set and
+  # picks the Nth element. Positive ordinals count from the
+  # start (1-based), negative from the end (`-1` = last).
+  # Out-of-range ordinals are silently dropped, matching the
+  # RFC's "no occurrence" semantic.
+  defp apply_entry({:set_position, positions}, candidates, _freq, _scope) do
+    pick_set_positions(candidates, List.wrap(positions))
+  end
+
+  # Unknown tokens pass through unchanged.
+  defp apply_entry(_entry, candidates, _freq, _scope), do: candidates
 
   ## ------------------------------------------------------------
   ## Generic LIMIT helper
@@ -494,6 +559,119 @@ defmodule Tempo.RRule.Selection do
     else
       _ -> :error
     end
+  end
+
+  ## ------------------------------------------------------------
+  ## BYDAY with ordinals — "nth Kday" of the enclosing period
+  ## ------------------------------------------------------------
+
+  # For each `{ordinal, weekday}` pair, emit the matching date(s)
+  # within the candidate's enclosing period. `scope` determines
+  # whether "the period" is the candidate's month or year.
+  defp expand_byday_pairs(%Interval{} = candidate, pairs, scope) do
+    case period_bounds(candidate, scope) do
+      nil ->
+        # No clear period — pass through so the pipeline keeps
+        # flowing. This shouldn't happen in well-formed rules.
+        [candidate]
+
+      {start_date, end_date} ->
+        pairs
+        |> Enum.flat_map(fn pair -> resolve_byday_pair(candidate, pair, start_date, end_date, scope) end)
+        |> Enum.reject(&is_nil/1)
+    end
+  end
+
+  # Compute the enclosing period's start and end `Date` values in
+  # the candidate's own calendar. Month scope: 1st..last of the
+  # candidate's month. Year scope: Jan 1..(Dec or last month) of
+  # the candidate's year.
+  defp period_bounds(%Interval{from: %Tempo{time: time, calendar: calendar}}, :month) do
+    with year when is_integer(year) <- Keyword.get(time, :year),
+         month when is_integer(month) <- Keyword.get(time, :month),
+         last_day when is_integer(last_day) <- calendar.days_in_month(year, month),
+         {:ok, start_date} <- Date.new(year, month, 1, calendar),
+         {:ok, end_date} <- Date.new(year, month, last_day, calendar) do
+      {start_date, end_date}
+    else
+      _ -> nil
+    end
+  end
+
+  defp period_bounds(%Interval{from: %Tempo{time: time, calendar: calendar}}, :year) do
+    with year when is_integer(year) <- Keyword.get(time, :year),
+         last_month when is_integer(last_month) <- calendar.months_in_year(year),
+         last_day when is_integer(last_day) <- calendar.days_in_month(year, last_month),
+         {:ok, start_date} <- Date.new(year, 1, 1, calendar),
+         {:ok, end_date} <- Date.new(year, last_month, last_day, calendar) do
+      {start_date, end_date}
+    else
+      _ -> nil
+    end
+  end
+
+  # A single pair: with an ordinal, call `nth_kday` relative to
+  # period start (positive) or end (negative). Without an
+  # ordinal, expand to every matching weekday in the period (same
+  # semantic as no-ordinal BYDAY at this scope) — matches the
+  # RFC behaviour for mixed `BYDAY=MO,2TU` where `MO` is "every
+  # Monday" and `2TU` is "2nd Tuesday".
+  defp resolve_byday_pair(%Interval{} = candidate, {nil, weekday}, _start, _end, scope) do
+    case scope do
+      :month -> expand_weekdays_in_month(candidate, [weekday])
+      :year -> expand_weekdays_in_year(candidate, [weekday])
+      :week -> expand_weekdays_in_week(candidate, [weekday])
+    end
+  end
+
+  defp resolve_byday_pair(%Interval{} = candidate, {ordinal, weekday}, start_date, end_date, _scope)
+       when is_integer(ordinal) do
+    anchor = if ordinal >= 0, do: start_date, else: end_date
+
+    case Calendrical.Kday.nth_kday(anchor, ordinal, weekday) do
+      %Date{year: y, month: m, day: d} = d_struct ->
+        if date_in_period?(d_struct, start_date, end_date),
+          do: [swap_date(candidate, y, m, d)],
+          else: []
+
+      _ ->
+        []
+    end
+  end
+
+  # `nth_kday` may return a date outside the intended period
+  # when the ordinal exceeds the number of matching weekdays
+  # (e.g. `5MO` in a month with only 4 Mondays). Clamp by
+  # checking the period boundaries.
+  defp date_in_period?(%Date{} = date, %Date{} = start_date, %Date{} = end_date) do
+    Date.compare(date, start_date) != :lt and Date.compare(date, end_date) != :gt
+  end
+
+  ## ------------------------------------------------------------
+  ## BYSETPOS — applied last, per-period
+  ## ------------------------------------------------------------
+
+  # Candidates arrive here in chronological order (the earlier
+  # BY-rule expanders walk periods in order). Positive positions
+  # are 1-based from the start; negative from the end. We
+  # preserve the caller's ordering of the positions list but
+  # drop out-of-range picks.
+  defp pick_set_positions([], _positions), do: []
+
+  defp pick_set_positions(candidates, positions) do
+    total = length(candidates)
+    indexed = Enum.with_index(candidates, 1)
+
+    positions
+    |> Enum.map(fn pos ->
+      target = if pos > 0, do: pos, else: total + pos + 1
+
+      case Enum.find(indexed, fn {_c, i} -> i == target end) do
+        {candidate, _i} -> candidate
+        nil -> nil
+      end
+    end)
+    |> Enum.reject(&is_nil/1)
   end
 
   ## ------------------------------------------------------------

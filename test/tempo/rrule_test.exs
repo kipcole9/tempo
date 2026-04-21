@@ -83,12 +83,15 @@ defmodule Tempo.RRuleTest do
       assert i.repeat_rule.time == [selection: [day_of_week: [1, 3, 5]]]
     end
 
-    test "BYDAY with positive ordinal adds an instance selector" do
+    test "BYDAY with positive ordinal becomes a :byday pair token" do
       # 4th Thursday of November — US Thanksgiving.
       {:ok, i} = RRule.parse("FREQ=YEARLY;BYMONTH=11;BYDAY=4TH")
 
+      # BYDAY-with-ordinal uses the `:byday` token which keeps
+      # the (ordinal, weekday) pair intact. `:day_of_week` is
+      # reserved for the no-ordinal form.
       assert i.repeat_rule.time ==
-               [selection: [month: 11, day_of_week: 4, instance: 4]]
+               [selection: [month: 11, byday: [{4, 4}]]]
     end
 
     test "BYDAY with negative ordinal" do
@@ -96,7 +99,7 @@ defmodule Tempo.RRuleTest do
       {:ok, i} = RRule.parse("FREQ=MONTHLY;BYDAY=-1FR")
 
       assert i.repeat_rule.time ==
-               [selection: [day_of_week: 5, instance: -1]]
+               [selection: [byday: [{-1, 5}]]]
     end
 
     test "BYHOUR, BYMINUTE, BYSECOND for time-of-day filters" do
@@ -106,11 +109,15 @@ defmodule Tempo.RRuleTest do
                [selection: [hour: 9, minute: [0, 30]]]
     end
 
-    test "BYSETPOS maps to the instance selector" do
+    test "BYSETPOS maps to a dedicated :set_position token" do
       {:ok, i} = RRule.parse("FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1")
 
+      # `:set_position` is distinct from the `:instance` token
+      # used by Tempo's native ISO 8601-2 selection grammar. The
+      # semantics differ: BYSETPOS operates on the per-period
+      # candidate set AFTER all other BY-rules.
       assert i.repeat_rule.time ==
-               [selection: [instance: -1, day_of_week: [1, 2, 3, 4, 5]]]
+               [selection: [set_position: -1, day_of_week: [1, 2, 3, 4, 5]]]
     end
   end
 
@@ -158,11 +165,10 @@ defmodule Tempo.RRuleTest do
     # expression that mean the same thing should land on the same
     # AST.
 
-    test "MONTHLY;BYDAY=-1FR equivalent to L5KI-1N selection shape" do
+    test "MONTHLY;BYDAY=-1FR lands on the :byday pair token" do
       {:ok, rrule_ast} = RRule.parse("FREQ=MONTHLY;BYDAY=-1FR")
 
-      assert rrule_ast.repeat_rule.time ==
-               [selection: [day_of_week: 5, instance: -1]]
+      assert rrule_ast.repeat_rule.time == [selection: [byday: [{-1, 5}]]]
     end
 
     test "YEARLY;BYMONTH=6 carries a month-only selection" do

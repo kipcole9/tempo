@@ -335,11 +335,7 @@ defmodule Tempo.RRule.SelectionTest do
              end)
     end
 
-    test "FREQ=YEARLY;BYMONTH=11;BYDAY=4TH (Thanksgiving) still falls back — BYDAY with ordinal is Phase C" do
-      # BYDAY with an ordinal is deferred to Phase C — it depends
-      # on BYSETPOS-shaped resolution inside each period. Until
-      # that lands, iCal routes such events to the
-      # first-occurrence-only fallback.
+    test "FREQ=YEARLY;BYMONTH=11;BYDAY=4TH (Thanksgiving) materialises — Phase C support" do
       ics = """
       BEGIN:VCALENDAR
       VERSION:2.0
@@ -350,16 +346,198 @@ defmodule Tempo.RRule.SelectionTest do
       DTSTART:20221124T000000Z
       DTEND:20221125T000000Z
       SUMMARY:Thanksgiving
-      RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=4TH
+      RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=4TH;COUNT=3
       END:VEVENT
       END:VCALENDAR
       """
 
       {:ok, set} = Tempo.ICal.from_ical(ics)
-      assert length(set.intervals) == 1
-      [iv] = set.intervals
-      assert iv.metadata[:recurrence_note] == :first_occurrence_only
-      assert iv.metadata[:recurrence_reason] == :by_rules_not_supported
+      assert length(set.intervals) == 3
+
+      assert Enum.all?(set.intervals, fn iv ->
+               iv.metadata[:recurrence_note] == nil
+             end)
+
+      pairs =
+        Enum.map(set.intervals, fn iv ->
+          {iv.from.time[:year], iv.from.time[:month], iv.from.time[:day]}
+        end)
+
+      # 4th Thursday of November: 2022-11-24, 2023-11-23, 2024-11-28.
+      assert pairs == [{2022, 11, 24}, {2023, 11, 23}, {2024, 11, 28}]
+    end
+  end
+
+  describe "BYDAY with ordinal — nth_kday within period" do
+    test "FREQ=MONTHLY;BYDAY=1MO picks the first Monday of each month" do
+      rule = %Rule{freq: :month, interval: 1, byday: [{1, 1}], count: 3}
+      {:ok, occ} = Expander.expand(rule, ~o"2022-06-01")
+
+      pairs =
+        Enum.map(occ, fn iv ->
+          {iv.from.time[:year], iv.from.time[:month], iv.from.time[:day]}
+        end)
+
+      # 1st Mondays: 2022-06-06, 2022-07-04, 2022-08-01.
+      assert pairs == [{2022, 6, 6}, {2022, 7, 4}, {2022, 8, 1}]
+    end
+
+    test "FREQ=MONTHLY;BYDAY=-1FR picks the last Friday of each month" do
+      rule = %Rule{freq: :month, interval: 1, byday: [{-1, 5}], count: 3}
+      {:ok, occ} = Expander.expand(rule, ~o"2022-06-01")
+
+      pairs =
+        Enum.map(occ, fn iv ->
+          {iv.from.time[:year], iv.from.time[:month], iv.from.time[:day]}
+        end)
+
+      # Last Fridays of June/July/August 2022: 24, 29, 26.
+      assert pairs == [{2022, 6, 24}, {2022, 7, 29}, {2022, 8, 26}]
+    end
+
+    test "FREQ=YEARLY;BYMONTH=11;BYDAY=4TH (Thanksgiving) — 4th Thursday of November" do
+      rule = %Rule{freq: :year, interval: 1, bymonth: [11], byday: [{4, 4}], count: 3}
+      {:ok, occ} = Expander.expand(rule, ~o"2022-11-24")
+
+      pairs =
+        Enum.map(occ, fn iv ->
+          {iv.from.time[:year], iv.from.time[:month], iv.from.time[:day]}
+        end)
+
+      assert pairs == [{2022, 11, 24}, {2023, 11, 23}, {2024, 11, 28}]
+    end
+
+    test "mixed ordinals — FREQ=MONTHLY;BYDAY=1MO,-1FR produces 2 per month" do
+      rule = %Rule{freq: :month, interval: 1, byday: [{1, 1}, {-1, 5}], count: 4}
+      {:ok, occ} = Expander.expand(rule, ~o"2022-06-01")
+
+      pairs =
+        Enum.map(occ, fn iv ->
+          {iv.from.time[:month], iv.from.time[:day]}
+        end)
+
+      # June: 1st Mon = 6, last Fri = 24. July: 1st Mon = 4, last Fri = 29.
+      assert Enum.sort(pairs) == Enum.sort([{6, 6}, {6, 24}, {7, 4}, {7, 29}])
+    end
+
+    test "mixed BYDAY entries — `BYDAY=MO,2TU` combines expand + nth_kday" do
+      # MO without ordinal: every Monday of the month.
+      # 2TU: 2nd Tuesday of the month.
+      rule = %Rule{freq: :month, interval: 1, byday: [{nil, 1}, {2, 2}]}
+
+      # `~o"2022-06"` has upper endpoint = July 1 (exclusive),
+      # so the iterator terminates before the July anchor.
+      {:ok, occ} = Expander.expand(rule, ~o"2022-06-01", bound: ~o"2022-06")
+
+      pairs = Enum.map(occ, fn iv -> {iv.from.time[:month], iv.from.time[:day]} end)
+
+      # June 2022: Mondays = 6, 13, 20, 27; 2nd Tuesday = 14.
+      assert Enum.sort(pairs) == Enum.sort([{6, 6}, {6, 13}, {6, 20}, {6, 27}, {6, 14}])
+    end
+
+    test "out-of-range ordinal drops silently — `BYDAY=5MO` in a 4-Monday month" do
+      # June 2022 has 4 Mondays (6, 13, 20, 27) — no 5th Monday.
+      rule = %Rule{freq: :month, interval: 1, byday: [{5, 1}]}
+      {:ok, occ} = Expander.expand(rule, ~o"2022-06-01", bound: ~o"2022-06-30")
+
+      assert occ == []
+    end
+  end
+
+  describe "BYSETPOS — picks Nth from per-period set" do
+    test "FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1 = last weekday of each month" do
+      rule = %Rule{
+        freq: :month,
+        interval: 1,
+        byday: [{nil, 1}, {nil, 2}, {nil, 3}, {nil, 4}, {nil, 5}],
+        bysetpos: [-1],
+        count: 3
+      }
+
+      {:ok, occ} = Expander.expand(rule, ~o"2022-06-01")
+
+      pairs =
+        Enum.map(occ, fn iv ->
+          {iv.from.time[:year], iv.from.time[:month], iv.from.time[:day]}
+        end)
+
+      # Last weekday of June 2022 = 30 (Thu). July = 29 (Fri). Aug = 31 (Wed).
+      assert pairs == [{2022, 6, 30}, {2022, 7, 29}, {2022, 8, 31}]
+    end
+
+    test "BYSETPOS=3 picks the 3rd occurrence in the per-period set" do
+      # "The third instance into the month of one of Tuesday,
+      # Wednesday, or Thursday, for the next 3 months" — RFC
+      # example.
+      rule = %Rule{
+        freq: :month,
+        interval: 1,
+        byday: [{nil, 2}, {nil, 3}, {nil, 4}],
+        bysetpos: [3],
+        count: 3
+      }
+
+      {:ok, occ} = Expander.expand(rule, ~o"1997-09-02")
+
+      pairs =
+        Enum.map(occ, fn iv ->
+          {iv.from.time[:year], iv.from.time[:month], iv.from.time[:day]}
+        end)
+
+      # Sep 1997 Tue/Wed/Thu in order: 2, 3, 4, 9, 10, 11, 16, ...
+      # The 3rd is Sep 4 (Thu). Oct 3rd: TU=7, WE=1, TH=2 → 1st Oct is Wed;
+      # list = [Oct 1 (Wed), Oct 2 (Thu), Oct 7 (Tue)] → 3rd = Oct 7.
+      # Actually: Oct 1997 Tue/Wed/Thu = [1, 2, 7, 8, 9, ...], 3rd = Oct 7.
+      # Nov 1997 Tue/Wed/Thu = [4, 5, 6, 11, ...], 3rd = Nov 6.
+      assert pairs == [{1997, 9, 4}, {1997, 10, 7}, {1997, 11, 6}]
+    end
+
+    test "BYSETPOS with out-of-range positions silently drops" do
+      # 3 weekdays per week; asking for 99th is nonsense — drop.
+      # Bound-terminated (not COUNT) so the iterator stops at
+      # end-of-June instead of walking to the safety cap.
+      rule = %Rule{
+        freq: :week,
+        interval: 1,
+        byday: [{nil, 1}, {nil, 3}, {nil, 5}],
+        bysetpos: [99]
+      }
+
+      {:ok, occ} = Expander.expand(rule, ~o"2022-06-06", bound: ~o"2022-06")
+      assert occ == []
+    end
+  end
+
+  describe "end-to-end — BYSETPOS through Tempo.ICal.from_ical/2" do
+    test "last-weekday-of-month event materialises fully" do
+      ics = """
+      BEGIN:VCALENDAR
+      VERSION:2.0
+      PRODID:-//Test//EN
+      BEGIN:VEVENT
+      UID:last-weekday
+      DTSTAMP:20220101T000000Z
+      DTSTART:20220630T170000Z
+      DTEND:20220630T180000Z
+      SUMMARY:Month-end review
+      RRULE:FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1;COUNT=3
+      END:VEVENT
+      END:VCALENDAR
+      """
+
+      {:ok, set} = Tempo.ICal.from_ical(ics)
+      assert length(set.intervals) == 3
+
+      assert Enum.all?(set.intervals, fn iv ->
+               iv.metadata[:recurrence_note] == nil
+             end)
+
+      pairs =
+        Enum.map(set.intervals, fn iv ->
+          {iv.from.time[:year], iv.from.time[:month], iv.from.time[:day]}
+        end)
+
+      assert pairs == [{2022, 6, 30}, {2022, 7, 29}, {2022, 8, 31}]
     end
   end
 end

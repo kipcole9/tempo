@@ -228,11 +228,16 @@ if Code.ensure_loaded?(ICal) do
     ## fallback goes away and this function becomes unconditional
     ## delegation.
 
+    # With Phases A–C landed, every RFC 5545 BY-rule flows
+    # through the supported path
+    # (`Tempo.RRule.Expander.expand/3` → `Tempo.to_interval/2` →
+    # `Tempo.RRule.Selection`). No `unsupported_by_rules?` gate
+    # and no `first_occurrence_only` fallback fire at runtime
+    # today. Phases B + C cover: BYMONTH, BYMONTHDAY, BYYEARDAY,
+    # BYWEEKNO, BYDAY (with and without ordinals), BYHOUR,
+    # BYMINUTE, BYSECOND, BYSETPOS.
     defp expand_recurrence(event, %ICal.Recurrence{} = rule, opts) do
       cond do
-        unsupported_by_rules?(rule) ->
-          first_occurrence_only(event, :by_rules_not_supported)
-
         rule.count == nil and rule.until == nil and not Keyword.has_key?(opts, :bound) ->
           {:error,
            "Event #{inspect(event.uid)} has an unbounded recurrence rule " <>
@@ -258,58 +263,12 @@ if Code.ensure_loaded?(ICal) do
     defp maybe_put(keyword, _key, nil), do: keyword
     defp maybe_put(keyword, key, value), do: Keyword.put(keyword, key, value)
 
-    # BY-rules NOT yet implemented by the interpreter
-    # (`Tempo.RRule.Selection`). Rules on this list short-circuit
-    # an event to its first-occurrence-only fallback so the event
-    # is still visible in the IntervalSet, just not fully
-    # materialised.
-    #
-    # Phase B (landed):  BYMONTH, BYMONTHDAY, BYYEARDAY, BYWEEKNO,
-    #                    BYDAY (with ordinal ignored), BYHOUR,
-    #                    BYMINUTE, BYSECOND.
-    # Phase C (deferred): BYSETPOS, BYDAY with ordinals.
-    #
-    # An ordinal-bearing BYDAY entry (`1MO`, `-1FR`) falls back
-    # because the ordinal applies BYSETPOS-shaped semantics the
-    # current interpreter doesn't resolve. BYDAY entries without
-    # an ordinal flow through the supported path.
-    @unsupported_ical_by_rules [:by_set_position]
-
-    defp unsupported_by_rules?(%ICal.Recurrence{} = rule) do
-      unsupported_list_present?(rule) or by_day_has_ordinal?(rule.by_day)
-    end
-
-    defp unsupported_list_present?(%ICal.Recurrence{} = rule) do
-      Enum.any?(@unsupported_ical_by_rules, fn field ->
-        value = Map.get(rule, field)
-        value != nil and value != []
-      end)
-    end
-
-    defp by_day_has_ordinal?(nil), do: false
-    defp by_day_has_ordinal?([]), do: false
-
-    defp by_day_has_ordinal?(entries) when is_list(entries) do
-      Enum.any?(entries, fn
-        {ordinal, _day} when is_integer(ordinal) -> true
-        _ -> false
-      end)
-    end
-
-    defp first_occurrence_only(event, reason) do
-      case single_event_to_interval(event) do
-        {:ok, iv} ->
-          note = %{
-            recurrence_note: :first_occurrence_only,
-            recurrence_reason: reason
-          }
-
-          {:ok, [%{iv | metadata: Map.merge(iv.metadata, note)}]}
-
-        {:error, _} = err ->
-          err
-      end
-    end
+    # NOTE: `first_occurrence_only/2` was retired when Phase C
+    # landed. Every RFC 5545 BY-rule now materialises through the
+    # supported path, so no event emits only its first occurrence
+    # with `metadata.recurrence_reason == :by_rules_not_supported`.
+    # Restore it (git log) if a future RFC addition needs a
+    # "visible but not fully materialised" fallback.
 
     defp single_event_to_interval(%ICal.Event{} = event) do
       with {:ok, from} <- dtstart_to_tempo(event.dtstart),

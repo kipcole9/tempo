@@ -287,9 +287,13 @@ defmodule Tempo.ICal.Test do
       assert length(set.intervals) == 7
     end
 
-    test "RRULE with BY* rules falls back to first occurrence with a note" do
-      # BYDAY and friends require a full RRULE expander — v1 emits
-      # only the first occurrence and tags the metadata.
+    test "BYDAY=1MO now materialises via Phase C (no fallback)" do
+      # Pre-Phase-C, any BY-rule in an RRULE triggered a
+      # first-occurrence-only fallback. Phase C lifted every
+      # RFC 5545 BY-rule into the interpreter, so events like
+      # "1st Monday of every month" expand fully. Unbounded
+      # rules still need a `:bound` option — nothing special
+      # about BY-rules in that respect.
       ics = """
       BEGIN:VCALENDAR
       VERSION:2.0
@@ -297,19 +301,28 @@ defmodule Tempo.ICal.Test do
       BEGIN:VEVENT
       UID:byday-1
       DTSTAMP:20220101T000000Z
-      DTSTART:20220601T090000Z
-      DTEND:20220601T100000Z
-      RRULE:FREQ=MONTHLY;BYDAY=1MO
+      DTSTART:20220606T090000Z
+      DTEND:20220606T100000Z
+      RRULE:FREQ=MONTHLY;BYDAY=1MO;COUNT=3
       END:VEVENT
       END:VCALENDAR
       """
 
       {:ok, set} = Tempo.ICal.from_ical(ics)
-      assert length(set.intervals) == 1
+      assert length(set.intervals) == 3
 
-      [iv] = set.intervals
-      assert iv.metadata[:recurrence_note] == :first_occurrence_only
-      assert iv.metadata[:recurrence_reason] == :by_rules_not_supported
+      # No fallback metadata — all fully materialised.
+      assert Enum.all?(set.intervals, fn iv ->
+               iv.metadata[:recurrence_note] == nil
+             end)
+
+      pairs =
+        Enum.map(set.intervals, fn iv ->
+          {iv.from.time[:year], iv.from.time[:month], iv.from.time[:day]}
+        end)
+
+      # 1st Mondays of Jun/Jul/Aug 2022: 6, 4, 1.
+      assert pairs == [{2022, 6, 6}, {2022, 7, 4}, {2022, 8, 1}]
     end
   end
 

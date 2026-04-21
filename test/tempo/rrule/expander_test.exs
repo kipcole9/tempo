@@ -54,8 +54,11 @@ defmodule Tempo.RRule.ExpanderTest do
 
       {:ok, ast} = Expander.to_ast(rule, ~o"2022-11-24")
 
+      # Phase C introduces tagged AST: BYDAY with an ordinal
+      # lives in a dedicated `:byday` token carrying the pair
+      # rather than the old split `:day_of_week` + `:instance`.
       assert ast.repeat_rule.time ==
-               [selection: [month: 11, day_of_week: 4, instance: 4]]
+               [selection: [month: 11, byday: [{4, 4}]]]
     end
 
     test ":duration option is attached via metadata.occurrence_duration" do

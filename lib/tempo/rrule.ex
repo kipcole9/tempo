@@ -287,11 +287,32 @@ defmodule Tempo.RRule do
     }
   end
 
-  # A `repeat_rule` is a `%Tempo{}` whose `:time` keyword list holds
-  # the selection tokens — matching the AST produced by the
+  # A `repeat_rule` is a `%Tempo{}` whose `:time` keyword list
+  # holds the selection tokens — matching the AST produced by the
   # ISO 8601-2 `L…N` selection grammar.
   #
-  # When no BY* rules are present the repeat_rule is nil.
+  # Token vocabulary:
+  #
+  # * `{:month, int | [int]}` — BYMONTH.
+  # * `{:day, int | [int]}` — BYMONTHDAY (signed).
+  # * `{:day_of_year, int | [int]}` — BYYEARDAY (signed).
+  # * `{:week, int | [int]}` — BYWEEKNO (signed).
+  # * `{:hour, int | [int]}` — BYHOUR.
+  # * `{:minute, int | [int]}` — BYMINUTE.
+  # * `{:second, int | [int]}` — BYSECOND.
+  # * `{:day_of_week, int | [int]}` — BYDAY when NO entry carries
+  #   an ordinal prefix (pure day-of-week filter/expander).
+  # * `{:byday, [{ordinal_or_nil, weekday}, …]}` — BYDAY when ANY
+  #   entry carries an ordinal. Pairs are preserved so the
+  #   selection resolver can apply `nth_kday`-style semantics per
+  #   period.
+  # * `{:set_position, int | [int]}` — BYSETPOS. Distinct from
+  #   the `:instance` token Tempo's native ISO 8601-2 selection
+  #   grammar uses, since BYSETPOS has different semantics
+  #   (applied after all other BY-rules, across the per-period
+  #   candidate set).
+  #
+  # When no BY-rules are present, the repeat_rule is nil.
   defp build_repeat_rule(parts) do
     by_rules =
       []
@@ -302,7 +323,7 @@ defmodule Tempo.RRule do
       |> push_by(parts, :byhour, :hour)
       |> push_by(parts, :byminute, :minute)
       |> push_by(parts, :bysecond, :second)
-      |> push_by(parts, :bysetpos, :instance)
+      |> push_by(parts, :bysetpos, :set_position)
       |> push_byday(parts)
 
     case by_rules do
@@ -325,36 +346,36 @@ defmodule Tempo.RRule do
     end
   end
 
-  # BYDAY = list of {ordinal_or_nil, day_of_week_1_to_7}.
-  # When every entry has a nil ordinal, it's just a day-of-week
-  # filter. When any entry has an ordinal, we emit a paired
-  # `day_of_week` + `instance` selector (Tempo's existing
-  # selection-instance form).
+  # BYDAY emits one of two tokens:
+  #
+  # * `{:day_of_week, int | [int]}` — every entry has `nil`
+  #   ordinal. The resolver filters/expands by weekday only.
+  #
+  # * `{:byday, [{ordinal_or_nil, weekday}, …]}` — at least one
+  #   entry has an ordinal. Pairs stay linked so the resolver
+  #   can pick "the 4th Thursday of November" (a paired
+  #   `nth_kday` operation), not "all Thursdays AND the 4th
+  #   instance" (two unrelated filters).
   defp push_byday(acc, parts) do
     case Keyword.get(parts, :byday) do
       nil ->
         acc
 
       entries ->
-        {ordinals, days} =
-          Enum.reduce(entries, {[], []}, fn {ord, day}, {os, ds} ->
-            {if(ord, do: [ord | os], else: os), [day | ds]}
-          end)
-
-        days = Enum.reverse(days)
-        ordinals = Enum.reverse(ordinals)
-
-        acc =
-          case days do
-            [single] -> [{:day_of_week, single} | acc]
-            list -> [{:day_of_week, list} | acc]
-          end
-
-        case ordinals do
-          [] -> acc
-          [single] -> [{:instance, single} | acc]
-          list -> [{:instance, list} | acc]
+        if Enum.all?(entries, fn {ord, _day} -> is_nil(ord) end) do
+          push_simple_byday(acc, entries)
+        else
+          [{:byday, entries} | acc]
         end
+    end
+  end
+
+  defp push_simple_byday(acc, entries) do
+    days = Enum.map(entries, fn {_nil, day} -> day end)
+
+    case days do
+      [single] -> [{:day_of_week, single} | acc]
+      list -> [{:day_of_week, list} | acc]
     end
   end
 end
