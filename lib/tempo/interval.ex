@@ -170,8 +170,8 @@ defmodule Tempo.Interval do
   month: 1]` on a month-based calendar). The upper bound is the
   lower bound incremented by one unit at the input's own resolution,
   carrying via the calendar module. Masked values widen to the
-  coarsest un-masked prefix and use `Tempo.Mask.mask_bounds/1` to
-  determine the enclosing span.
+  coarsest un-masked prefix and use the internal mask-bounds
+  helper to determine the enclosing span.
 
   """
   def next_unit_boundary(%Tempo{time: time, calendar: calendar} = tempo) do

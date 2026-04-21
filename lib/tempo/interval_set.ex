@@ -103,10 +103,11 @@ defmodule Tempo.IntervalSet do
   @doc """
   Return the member intervals as a plain list.
 
-  `Enumerable.Tempo.IntervalSet` walks every sub-point inside
-  each interval (consistent with `Enumerable.Tempo` and
-  `Enumerable.Tempo.Interval` — every Tempo value is a span,
-  iteration walks its sub-points at the next-finer resolution).
+  The `Enumerable` protocol implementation for an IntervalSet
+  walks every sub-point inside each interval (consistent with
+  the Tempo and Tempo.Interval `Enumerable` implementations —
+  every Tempo value is a span, iteration walks its sub-points at
+  the next-finer resolution).
 
   When you want to operate on the **member intervals** instead
   — filter them, count them, map them — `to_list/1` gives you

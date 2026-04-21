@@ -677,17 +677,31 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
     |> label("date, time, interval, duration or range")
   end
 
+  # Ranges here split into two semantics:
+  #
+  # * **Iterable ranges** (integer set `{5..1}M`, date range
+  #   `2024Y..2022Y`): when `last < first`, the user intends a
+  #   **descending** sequence — use step `-1`. When `last >= first`,
+  #   use step `1`.
+  #
+  # * **Sentinel ranges** (`first..-last`, e.g. `{1..-5}` meaning
+  #   "first to the 5th-from-end"): `.last` carries a negative
+  #   sentinel, not an iteration target. Use step `1` so the pair
+  #   is preserved verbatim.
+  #
+  # The explicit step also silences Elixir 1.20's warning about
+  # ranges defaulting to step `-1` when `last < first`.
   def range(date: [{element, first}], date: [{element, last}])
       when is_integer(first) and is_integer(last) do
-    {element, first..last}
+    {element, iterable_range(first, last)}
   end
 
   def range([[first, "..", last]]) when is_integer(first) and is_integer(last) do
-    first..last
+    iterable_range(first, last)
   end
 
   def range([[first, "..", ?-, last]]) when is_integer(first) and is_integer(last) do
-    first..-last
+    first..-last//1
   end
 
   def range([[first, "..", last], step])
@@ -711,6 +725,13 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
   def range([left, right]) do
     {:range, [left, right]}
   end
+
+  # Used by the `range/1` clauses above for forms where the user
+  # supplies no step: descending first..last iterates `-1`, ascending
+  # iterates `1`. Explicit so Elixir 1.20's `..` default doesn't emit
+  # a warning and the step is the one the user would intuitively want.
+  defp iterable_range(first, last) when last >= first, do: first..last//1
+  defp iterable_range(first, last), do: first..last//-1
 
   def list_of_integer_or_range(combinator \\ empty()) do
     combinator

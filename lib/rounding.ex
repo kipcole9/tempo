@@ -188,24 +188,14 @@ defmodule Tempo.Rounding do
     time_of_day
   end
 
-  # Desired resolution is in :year, :month, :day and tempo resolution is :hour, :minute, :second
-
-  defp round(time, calendar, time_resolution, rounding)
-       when time_resolution in [:hour, :minute, :second] and
-              rounding in [:year, :month, :week, :day] do
-    {date, time} = Tempo.Split.split(time)
-
-    case round(time, calendar, time_resolution, :hour) do
-      [day: _day, hour: 0] = shift ->
-        time
-        |> Tempo.Shift.shift(shift)
-        |> round(calendar, time_resolution, rounding)
-
-      _other ->
-        {resolution, _} = Tempo.resolution(%Tempo{time: date, calendar: calendar})
-        round(date, calendar, resolution, rounding)
-    end
-  end
+  # Rounding from a time-of-day resolution (hour/minute/second)
+  # *up* to a calendar-unit resolution (year/month/week/day) would
+  # require crossing the day boundary via Tempo–Duration addition
+  # (e.g. 23:30 rounded to day is "midnight of the next day"). That
+  # crossing pathway isn't implemented yet — the fallthrough clause
+  # below returns a clear `Tempo.RoundingError`. When the pathway
+  # lands, re-introduce a branch here that uses `Tempo.Math.add/2`
+  # to carry the rollover rather than a separate shift module.
 
   # All others are error
 

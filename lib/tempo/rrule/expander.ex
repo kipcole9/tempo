@@ -28,8 +28,8 @@ defmodule Tempo.RRule.Expander do
      AST into the occurrence set.
 
   Extending RRULE support (BY* rules, BYSETPOS, RDATE, EXDATE)
-  happens by extending the interpreter — `Tempo.Enumeration`
-  selection resolution and `Tempo.to_interval/2` — never by
+  happens by extending the interpreter — selection-resolution
+  in the enumeration module and `Tempo.to_interval/2` — never by
   adding expansion logic here.
 
   See `plans/rrule-full-expansion.md` for the roadmap.

@@ -1,6 +1,5 @@
 defmodule Tempo.RRule.RdateExdateTest do
   use ExUnit.Case, async: true
-  import Tempo.Sigil
 
   # Phase D — RDATE and EXDATE semantics.
   #

@@ -9,9 +9,10 @@ defmodule Tempo.LeapSeconds do
   IERS Bulletin C insertion dates; there have been 27 positive
   leap seconds to date and no negative ones.
 
-  This module drives `Tempo.Validation`'s acceptance of `:second
-  60` values — ISO 8601 permits `23:59:60` syntactically, but a
-  real instant at `23:59:60` only exists on the days listed here.
+  This module is the reference used by
+  `Tempo.Interval.spans_leap_second?/1` and
+  `Tempo.Interval.leap_seconds_spanned/1` to detect whether a
+  half-open interval contains a real IERS insertion.
 
   The data is static; IERS publishes new bulletins twice a year,
   and when a new leap second is announced (or negative ones

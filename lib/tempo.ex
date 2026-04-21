@@ -416,7 +416,7 @@ defmodule Tempo do
 
   * `string` is any ISO8601 formatted string
 
-  * `calendar` is any `t:Calendar.t/0`. The default is
+  * `calendar` is any `t:Calendar.calendar/0`. The default is
     `Calendrical.Gregorian`.
 
   ### Returns

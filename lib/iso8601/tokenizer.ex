@@ -1,8 +1,8 @@
 defmodule Tempo.Iso8601.Tokenizer do
   @moduledoc """
   Tokenizes an ISO 8601 (parts 1 and 2) or IXDTF string into a
-  list of tagged tokens that the `Tempo.Iso8601.Parser` then
-  converts into a `t:Tempo.t/0` struct.
+  list of tagged tokens that the internal parser then converts
+  into a `t:Tempo.t/0` struct.
 
   `tokenize/1` returns a 2-tuple `{tokens, extended_info}` where
   `extended_info` is either `nil` or a map of parsed

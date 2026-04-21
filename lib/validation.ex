@@ -87,9 +87,9 @@ defmodule Tempo.Validation do
       ) do
     first = range1.first + range2.first - 1
 
-    if first in 1..range1.last do
+    if first in 1..range1.last//1 do
       last = min(range1.last, first + range2.last - range2.first)
-      resolve([{unit, [first..last]} | rest], calendar)
+      resolve([{unit, [first..last//1]} | rest], calendar)
     else
       {:error,
        "#{inspect(first)} is outside the #{unit} range #{inspect(range1)} " <>

@@ -83,7 +83,7 @@ defmodule Tempo.MixProject do
     [
       Core: ~r/^Tempo(?:\.(Interval|IntervalSet|Duration|Range|Set))?$/,
       "Set algebra and comparison":
-        ~r/^Tempo\.(Operations|Compare|Comparison|Math|Shift|Rounding|Split|Select|Mask)$/,
+        ~r/^Tempo\.(Operations|Compare|Math|Rounding|Split|Select|Mask)$/,
       "Recurrence (RRULE)": ~r/^Tempo\.RRule(\.|$)/,
       "iCalendar integration": ~r/^Tempo\.ICal(\.|$)/,
       "ISO 8601 and IXDTF": ~r/^Tempo\.Iso8601(\.|$)/,
