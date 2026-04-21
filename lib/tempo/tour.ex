@@ -8,12 +8,14 @@ defmodule Tempo.Tour do
   sequence that proves the thesis ("time is intervals, not
   instants") through eight small, running examples.
 
-  Invoke from iex:
+  Call `Tempo.tour()` at an iex prompt. The tour evaluates each
+  example against the current build and prints the real result —
+  nothing is mocked.
 
-      iex> Tempo.tour()
-
-  The tour evaluates each example against the current build and
-  prints the real result — nothing is mocked.
+  No doctest is included because the tour's raison d'être is the
+  printed output, which would otherwise flood every test-suite
+  run. See `test/tempo/tour_test.exs` for `ExUnit.CaptureIO`-
+  wrapped tests of the behaviour.
 
   """
 

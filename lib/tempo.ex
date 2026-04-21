@@ -2390,13 +2390,14 @@ defmodule Tempo do
   contact with the library, a conference demo, or a sanity check
   after a version bump.
 
-  Returns `:ok` so the iex prompt shows cleanly after the output.
+  Call `Tempo.tour()` at an iex prompt to see the tour's eight
+  steps printed to stdout. Returns `:ok` so the prompt shows
+  cleanly after the output.
 
-  ### Examples
-
-      iex> Tempo.tour()
-      # ... tour output ...
-      :ok
+  The tour is tested via `ExUnit.CaptureIO` in
+  `test/tempo/tour_test.exs`; no doctest is included here because
+  the tour's raison d'être is the printed output, which would
+  otherwise flood every test-suite run.
 
   """
   @spec tour() :: :ok
