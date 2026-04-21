@@ -215,8 +215,9 @@ defmodule Tempo.RRule.Expander do
   defp non_default_wkst?(%Rule{wkst: wkst}) when is_integer(wkst) and wkst != 1, do: true
   defp non_default_wkst?(_), do: false
 
-  defp push_wkst(acc, nil), do: acc
-  defp push_wkst(acc, 1), do: acc
+  # Only emit a `:wkst` token when it's non-default. `Rule.wkst`
+  # defaults to `1` (Monday / ISO) and the struct's type narrows
+  # the field to `1..7`, so the catch-all covers nil and 1.
   defp push_wkst(acc, wkst) when is_integer(wkst) and wkst in 2..7, do: [{:wkst, wkst} | acc]
   defp push_wkst(acc, _), do: acc
 

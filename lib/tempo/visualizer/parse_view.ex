@@ -171,18 +171,18 @@ defmodule Tempo.Visualizer.ParseView do
   end
 
   defp segments_for(%Tempo.Set{set: set, type: type}) do
+    # `Tempo.Set.type` is `:all | :one` per its struct spec —
+    # no catch-all fallback needed.
     {open, close} =
       case type do
         :all -> {"{", "}"}
         :one -> {"[", "]"}
-        _ -> {"{", "}"}
       end
 
     set_type_detail =
       case type do
         :all -> "All of"
         :one -> "One of"
-        _ -> "Set"
       end
 
     opener = %{glyph: open, label: "Set", detail: set_type_detail, kind: "extended"}
@@ -259,9 +259,9 @@ defmodule Tempo.Visualizer.ParseView do
   defp endpoint_segments(%Tempo{} = t), do: tempo_segments(t, true)
   defp endpoint_segments(%Tempo.Duration{} = d), do: segments_for(d)
 
-  defp endpoint_segments(other),
-    do: [%{glyph: inspect(other), label: "", detail: "", kind: "separator"}]
-
+  # `recurrence` on `%Tempo.Interval{}` is constrained by the
+  # struct's type to `pos_integer() | :infinity` — the four
+  # clauses above cover every reachable value; no fallback.
   defp recurrence_segment(1), do: nil
 
   defp recurrence_segment(:infinity) do
@@ -271,8 +271,6 @@ defmodule Tempo.Visualizer.ParseView do
   defp recurrence_segment(n) when is_integer(n) do
     %{glyph: "R#{n}/", label: "Recurrence", detail: "#{n} repeats", kind: "extended"}
   end
-
-  defp recurrence_segment(_), do: nil
 
   ## Time-unit segments
 

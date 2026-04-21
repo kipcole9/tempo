@@ -145,31 +145,93 @@ free.intervals
 
 ## 7. Recurrence expansion
 
-Events with an `RRULE` expand via `Tempo.Math.add/2`, stepping forward from `DTSTART` by the rule's cadence. Each occurrence is a distinct `%Tempo.Interval{}` with the event's metadata attached. Three termination paths, any of which works:
+Events with an `RRULE` materialise through a single pipeline:
 
-- **`COUNT=N`** — stop after N occurrences.
+```
+%ICal.Recurrence{}  ─┐
+                     ├──► Tempo.RRule.Expander.to_ast/3 ──► %Tempo.Interval{}
+RRULE string ────────┘                                         │
+                                                               ▼
+                                                     Tempo.to_interval/2
+                                                               │
+                                                               ▼
+                                                    Tempo.RRule.Selection
+                                                               │
+                                                               ▼
+                                                     [%Tempo.Interval{}]
+```
+
+Every RFC 5545 BY-rule flows through one interpreter — there is no "simple core" and no "full expander" split. Each occurrence is a distinct `%Tempo.Interval{}` with the event's metadata attached.
+
+### Supported rule parts
+
+| Part         | Support                                                     |
+| ------------ | ----------------------------------------------------------- |
+| `FREQ`       | `SECONDLY`, `MINUTELY`, `HOURLY`, `DAILY`, `WEEKLY`, `MONTHLY`, `YEARLY` |
+| `INTERVAL`   | Positive integer; applied as `DTSTART + i × INTERVAL`       |
+| `COUNT`      | Terminates after N materialised occurrences (post-filter)   |
+| `UNTIL`      | Date or UTC datetime; inclusive                             |
+| `BYMONTH`    | LIMIT generally; EXPAND for `FREQ=YEARLY`                   |
+| `BYMONTHDAY` | LIMIT generally; EXPAND for `FREQ=MONTHLY` / `YEARLY`. Signed indexing (`-1` = last day of the month) |
+| `BYYEARDAY`  | LIMIT generally; EXPAND for `FREQ=YEARLY`. Signed           |
+| `BYWEEKNO`   | EXPAND for `FREQ=YEARLY` (ISO week, Monday-first). Signed   |
+| `BYDAY`      | LIMIT for `DAILY` and finer. EXPAND within the enclosing week / month / year for `WEEKLY` / `MONTHLY` / `YEARLY`. Ordinal prefixes (`1MO`, `-1FR`, `4TH`) select the Nth weekday of the enclosing period via `Calendrical.Kday.nth_kday/3`. RFC Notes 1/2 downgrade to LIMIT when BYMONTHDAY / BYYEARDAY is co-present |
+| `BYHOUR`     | EXPAND when `FREQ` is coarser than hour; LIMIT otherwise    |
+| `BYMINUTE`   | Same pattern at the minute unit                             |
+| `BYSECOND`   | Same pattern at the second unit                             |
+| `BYSETPOS`   | Applied last, across the per-period candidate set. Signed   |
+| `WKST`       | Week-start day (default Monday). Affects `FREQ=WEEKLY + BYDAY` week boundaries |
+| `RDATE`      | Extra occurrences; carry the event's span                   |
+| `EXDATE`     | Subtracted from the combined set by start-moment match      |
+
+### Termination paths
+
+- **`COUNT=N`** — stop after N materialised occurrences (after BY-rule filtering / expansion).
 - **`UNTIL=<date-or-datetime>`** — stop when the next occurrence would start past `UNTIL`.
 - **No `COUNT` or `UNTIL`** — a `:bound` option is required at the call site. The rule expands within the bound.
 
+### Worked examples
+
 ```elixir
-# COUNT — 3 weekly standups
-ics = "...RRULE:FREQ=WEEKLY;COUNT=3..."
+# "Every Friday the 13th, 5 occurrences"
+ics = "...RRULE:FREQ=MONTHLY;BYDAY=FR;BYMONTHDAY=13;COUNT=5..."
 {:ok, set} = Tempo.ICal.from_ical(ics)
-length(set.intervals)  # => 3
+# => 1998-02-13, 1998-03-13, 1998-11-13, 1999-08-13, 2000-10-13
 
-# UNTIL — every Monday in June 2026
-ics = "...RRULE:FREQ=WEEKLY;UNTIL=20260701T000000Z..."
+# "The 4th Thursday of November" (US Thanksgiving)
+ics = "...RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=4TH;COUNT=3..."
+{:ok, set} = Tempo.ICal.from_ical(ics)
+# => 2022-11-24, 2023-11-23, 2024-11-28
+
+# "Last weekday of every month"
+ics = "...RRULE:FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1;COUNT=3..."
 {:ok, set} = Tempo.ICal.from_ical(ics)
 
-# Bounded — every day in a chosen window
-{:ok, set} = Tempo.ICal.from_ical(ics, bound: ~o"2026-04-01/2026-05-01")
+# With RDATE + EXDATE
+ics = """
+...
+RRULE:FREQ=WEEKLY;COUNT=3
+RDATE:20220618T140000Z
+EXDATE:20220608T090000Z
+...
+"""
+{:ok, set} = Tempo.ICal.from_ical(ics)
+# Weekly series has Jun 8 removed and Jun 18 14:00 added
 ```
 
-The supported RRULE properties for full expansion are `FREQ`, `INTERVAL`, `COUNT`, and `UNTIL`.
+### DTSTART is always the first occurrence
+
+Per RFC 5545, `DTSTART` is the first instance in the recurrence. When `BY*` rules EXPAND, they can legitimately produce candidates earlier than `DTSTART` in the same period — the resolver drops these automatically so the emitted list starts at (or after) `DTSTART`.
+
+### Calendar-aware throughout
+
+Every arithmetic operation goes through the candidate's own calendar (`calendar.day_of_week/4`, `calendar.days_in_month/2`, `calendar.iso_week_of_year/3`, `Date.add/2` with the calendar arg, `Calendrical.Kday.nth_kday/3`). A Hebrew-calendar VEVENT with `FREQ=YEARLY;BYMONTHDAY=-1` expands correctly against Hebrew month lengths.
 
 ## 8. What's not in v1
 
-- **RRULE `BY*` rules** (`BYDAY`, `BYMONTH`, `BYSETPOS`, …) and `RDATE`/`EXDATE`. When any `BY*` rule is present, `Tempo.ICal` returns the first occurrence tagged `metadata.recurrence_note == :first_occurrence_only` and `metadata.recurrence_reason == :by_rules_not_supported`. Full expansion of these is a separate project — the `ical` library already parses them, but computing the correct occurrence set requires logic the iCalendar spec describes over pages.
+- **`EXRULE`** — RFC-deprecated (RFC 2445 → 5545) and not surfaced by the underlying `ical` library. If you need subtractive rules, use `EXDATE` for specific dates.
+
+- **Multiple `RRULE` per `VEVENT`** — RFC 5545 says SHOULD NOT. Some exports do it anyway; the `ical` library exposes only the first `RRULE` on `event.rrule`, so we materialise that one and silently ignore the rest.
 
 - **Duration-only events.** `VEVENT`s with `DURATION` but no `DTEND` — the `ical` library exposes the duration in its own record shape that doesn't line up with Tempo's `%Tempo.Duration{}`. Bridging the two is a small follow-up.
 

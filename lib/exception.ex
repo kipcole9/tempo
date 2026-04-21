@@ -29,6 +29,12 @@ defmodule Tempo.ConversionError do
     `:iso8601`).
 
   """
+  @type t :: %__MODULE__{
+          message: String.t() | nil,
+          value: term() | nil,
+          target: atom() | nil
+        }
+
   defexception message: nil, value: nil, target: nil
 
   def exception(opts) when is_list(opts) do

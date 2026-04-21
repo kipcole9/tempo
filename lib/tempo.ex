@@ -126,7 +126,7 @@ defmodule Tempo do
           | {:second, token}
         ]
 
-  @type time_shift :: number() | nil
+  @type time_shift :: [{:hour, integer()} | {:minute, integer()}] | nil
 
   @typedoc """
   Extended information parsed from an IXDTF suffix.
@@ -302,7 +302,13 @@ defmodule Tempo do
 
   """
   @spec from_iso8601(string :: String.t(), calendar :: Calendar.calendar()) ::
-          {:ok, t} | {:error, error_reason()}
+          {:ok,
+           t()
+           | Tempo.Interval.t()
+           | Tempo.Duration.t()
+           | Tempo.Set.t()
+           | Tempo.Range.t()}
+          | {:error, error_reason()}
   def from_iso8601(string, calendar \\ Calendrical.Gregorian) do
     with {:ok, {tokens, extended}} <- Tokenizer.tokenize(string),
          {:ok, parsed} <- Parser.parse(tokens, calendar),
@@ -653,7 +659,7 @@ defmodule Tempo do
       "Etc/UTC"
 
   """
-  @spec from_date_time(date_time :: DateTime.t()) :: t()
+  @spec from_date_time(DateTime.t()) :: t()
   def from_date_time(%DateTime{
         year: year,
         month: month,
@@ -1741,11 +1747,8 @@ defmodule Tempo do
   #
   # 3. The AST's `duration` — when no override is supplied, each
   #    occurrence spans one cadence.
-  #
-  # 4. The natural unit span of the anchor — a pragmatic fallback
-  #    that keeps simple ISO `R5/2022/P1D` inputs working.
   defp occurrence_end_fn(
-         %Tempo{} = from,
+         %Tempo{} = _from,
          %Tempo.Duration{} = cadence,
          %Tempo.Interval{metadata: metadata, duration: duration}
        ) do
@@ -1758,20 +1761,9 @@ defmodule Tempo do
         span = metadata.occurrence_duration
         fn start, _i -> Tempo.Math.add(start, span) end
 
-      match?(%Tempo.Duration{}, duration) ->
-        fn start, _i -> Tempo.Math.add(start, duration) end
-
       true ->
-        span = natural_span_duration(from)
-        fn start, _i -> Tempo.Math.add(start, span) end
+        fn start, _i -> Tempo.Math.add(start, duration) end
     end
-  end
-
-  # Fallback: derive an occurrence duration from the anchor's
-  # natural resolution when nothing else is specified.
-  defp natural_span_duration(%Tempo{} = tempo) do
-    {unit, _span} = resolution(tempo)
-    %Tempo.Duration{time: [{unit, 1}]}
   end
 
   # Termination predicates for the recurrence loop.

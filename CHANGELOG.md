@@ -10,7 +10,15 @@
 
 * iCalendar import. `Tempo.ICal.from_ical/2` and `from_ical_file/2` parse RFC 5545 `.ics` data (via the optional `ical` dependency) into `%Tempo.IntervalSet{}` with per-event metadata on each interval. Overlapping events are preserved.
 
-* `RRULE` recurrence expansion in iCal import. `FREQ`, `INTERVAL`, `COUNT`, and `UNTIL` fully materialise each occurrence as its own interval with the event's metadata. `BY*` rules fall back to first-occurrence + note; unbounded rules require `:bound`.
+* Full RFC 5545 `RRULE` expansion. Every `BY*` rule (`BYMONTH`, `BYMONTHDAY`, `BYYEARDAY`, `BYWEEKNO`, `BYDAY` with and without ordinals, `BYHOUR`, `BYMINUTE`, `BYSECOND`), `BYSETPOS`, `WKST`, and the `RDATE`/`EXDATE` extras flow through one tagged AST into `Tempo.to_interval/2` and `Tempo.RRule.Selection`. All 30 RFC 5545 §3.8.5.3 worked examples pass — Thanksgiving, Election Day, Friday-the-13th, first-Saturday-after-first-Sunday, last-weekday-of-month, and the rest. Calendar-aware throughout. Unbounded rules still require `:bound`.
+
+* `Tempo.RRule.parse/2` + `Tempo.to_rrule/1`. Parse an RFC 5545 RRULE string to the shared AST; round-trip through the encoder preserves every supported field (including `WKST` and BYDAY-with-ordinal as pairs).
+
+* `Tempo.RRule.Expander.expand/3`. Thin adapter from `%Tempo.RRule.Rule{}` or `%ICal.Recurrence{}` to `%Tempo.Interval{}` AST, delegating materialisation to `Tempo.to_interval/2`. One interpreter path for every recurrence source.
+
+* `Tempo.to_interval/2`. Accepts `:bound` (for unbounded recurrences) and `:coalesce` options. New stream pipeline `iterate_recurrence/7` is the single expansion loop — bounded `n`, unbounded `UNTIL`, and `:bound`-capped all share it.
+
+* `RDATE` additive and `EXDATE` subtractive in `Tempo.ICal.from_ical/2`. `final = (expand(rrule) ∪ rdates) − exdates`. RDATEs carry the event's span (`DTEND − DTSTART`); EXDATEs match on the occurrence's start moment via `Tempo.Compare.compare_endpoints/2`.
 
 * Metadata on `%Tempo.Interval{}` and `%Tempo.IntervalSet{}`. Free-form `:metadata` maps travel through set operations — intersection and difference tag result fragments with the A-operand's metadata; set-level metadata follows the first operand.
 
@@ -80,9 +88,15 @@
 
 ### Bug Fixes
 
-* Fix compiler warnings around `%NaiveDateTime{}` struct updates and unreachable clauses in the set enumerable protocol.
+* Recurrence cadence applies as `DTSTART + i × INTERVAL` (scalar multiplication) rather than `i` successive `+ INTERVAL` steps. The old iterative approach clamped Feb 29 → Feb 28 at step 1 and never recovered; `YEARLY` rules anchored on Feb 29 now correctly produce Feb 29 on every leap year.
 
-* Fix a range of Dialyzer warnings.
+* BY-rule EXPAND semantics per RFC 5545 §3.3.10 table. `BYMONTH`/`BYMONTHDAY`/`BYYEARDAY`/`BYWEEKNO` expand when `FREQ` is coarser than the rule's unit (previously they only filtered). Notes 1 and 2 are honoured — `BYDAY` downgrades from EXPAND to LIMIT when `BYMONTHDAY`/`BYYEARDAY` is co-present.
+
+* DTSTART is always the first materialised occurrence. BY-rule EXPAND can legitimately produce candidates earlier than DTSTART (e.g. `BYMONTHDAY=1` with `DTSTART=Sep 30` also yields Sep 1); those are now dropped by the `iterate_recurrence` loop to match the RFC.
+
+* `matches_mask?/2` checks digit equality position-by-position. The previous implementation always returned `true` for concrete digit positions, which silently let non-contiguous year masks like `1_6_` accept any 4-digit candidate. The dialyzer silencer attached to this function has been removed.
+
+* Fix compiler warnings around `%NaiveDateTime{}` struct updates and unreachable clauses in the set enumerable protocol.
 
 * Fix `Enum.take/2` and related Enumerable operations on values with unspecified-digit year masks.
 

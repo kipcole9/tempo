@@ -861,11 +861,14 @@ defmodule Tempo.RRule.Selection do
   # semantic as no-ordinal BYDAY at this scope) — matches the
   # RFC behaviour for mixed `BYDAY=MO,2TU` where `MO` is "every
   # Monday" and `2TU` is "2nd Tuesday".
-  defp resolve_byday_pair(%Interval{} = candidate, {nil, weekday}, _start, _end, scope, wkst) do
+  # `byday_ordinal_scope/2` only returns `:month` or `:year`
+  # (BYDAY ordinals aren't meaningful under WEEKLY per RFC).
+  # The nil-ordinal pair delegates to the matching period's
+  # no-ordinal expander.
+  defp resolve_byday_pair(%Interval{} = candidate, {nil, weekday}, _start, _end, scope, _wkst) do
     case scope do
       :month -> expand_weekdays_in_month(candidate, [weekday])
       :year -> expand_weekdays_in_year(candidate, [weekday])
-      :week -> expand_weekdays_in_week(candidate, [weekday], wkst)
     end
   end
 
