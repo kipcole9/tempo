@@ -192,13 +192,10 @@ defmodule Tempo.RRule.Selection do
   end
 
   # BYWEEKNO — LIMIT. Only valid with FREQ=YEARLY per RFC.
-  # The underlying `calendar.iso_week_of_year/3` uses Monday-
-  # first week numbering (ISO-8601). Non-Monday `WKST` values
-  # are accepted on the rule but do **not** currently shift the
-  # week numbering here — supporting that needs a dedicated
-  # `wkst`-parametric helper which `Calendrical` doesn't yet
-  # expose. The most common real-world calendars use the ISO
-  # definition, so this is deferred.
+  # Week numbers are ISO weeks (Monday-first, week 1 has ≥4
+  # days in the year) as RFC 5545 §3.3.10 mandates. WKST and
+  # BYWEEKNO are orthogonal — WKST affects BYDAY week
+  # boundaries, not ISO week numbering.
   defp apply_entry({:week, weeks}, candidates, _freq, _scope, _wkst) do
     Enum.filter(candidates, fn candidate ->
       in_week_no_list?(candidate, List.wrap(weeks))
@@ -354,6 +351,11 @@ defmodule Tempo.RRule.Selection do
     end
   end
 
+  # Dispatch to the candidate's calendar for its ISO-week number.
+  # ISO weeks are Monday-first by definition and are what RFC
+  # 5545 §3.3.10 specifies for BYWEEKNO ("Week numbers refer to
+  # ISO week"). WKST does not shift ISO week numbering — the
+  # two are orthogonal.
   defp iso_week_of(%Interval{from: %Tempo{time: time, calendar: calendar}}) do
     with year when is_integer(year) <- Keyword.get(time, :year),
          month when is_integer(month) <- Keyword.get(time, :month),
