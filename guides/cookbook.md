@@ -821,6 +821,7 @@ iex> Tempo.compare(~o"2022-06", ~o"2023-06")
 
 ## Related reading
 
+* [Scheduling](./scheduling.md) — bounded enumeration, wall-clock-vs-UTC authority, floating vs zoned events, and how future dates survive Tzdata rule changes.
 * [ISO 8601 conformance](./iso8601-conformance.md) — what's supported from the standard.
 * [Enumeration semantics](./enumeration-semantics.md) — how iteration works across Tempo values.
 * [Set operations](./set-operations.md) — union, intersection, complement, difference.
