@@ -98,33 +98,96 @@ b = ~o"2026-06-10/2026-06-20"
 
 Once every value is a bounded interval, the set-theoretic operations follow naturally.
 
-### Union
+### Union — merge two overlapping windows into one
 
 ```elixir
-{:ok, union} = Tempo.union(a, b)
-union.intervals |> Enum.map(& &1 |> then(fn iv -> {iv.from.time, iv.to.time} end))
+{:ok, merged} = Tempo.union(a, b)
+Tempo.IntervalSet.to_list(merged)
 ```
 
-### Intersection
+> The **union** of `a` and `b` is one continuous window — June 1 through June 20.
+
+### Intersection — the overlap between two windows
 
 ```elixir
-{:ok, intersection} = Tempo.intersection(a, b)
-intersection.intervals |> Enum.map(& &1 |> then(fn iv -> {iv.from.time, iv.to.time} end))
+{:ok, overlap} = Tempo.intersection(a, b)
+Tempo.IntervalSet.to_list(overlap)
 ```
 
-### Difference — free time between a meeting and a lunch
+> The **intersection** of `a` and `b` is just the shared stretch — June 10 through June 15.
+
+### Difference — free time around a lunch break
 
 ```elixir
 work_day = ~o"2026-06-15T09/2026-06-15T17"
-lunch = ~o"2026-06-15T12/2026-06-15T13"
+lunch    = ~o"2026-06-15T12/2026-06-15T13"
 
 {:ok, free} = Tempo.difference(work_day, lunch)
-
-free.intervals
-|> Enum.map(fn iv -> {iv.from.time, iv.to.time} end)
+Tempo.IntervalSet.to_list(free)
 ```
 
+> The **workday minus lunch** is my **free** time — two intervals, 09:00-12:00 and 13:00-17:00.
+
 Two free intervals: 09:00-12:00 and 13:00-17:00.
+
+## Selecting sub-spans — `Tempo.select/3`
+
+`Tempo.select/3` is a composition primitive: it narrows a base span by a **selector** and returns the matched sub-spans as an `IntervalSet`. The selector vocabulary covers locale-dependent queries (`:workdays`, `:weekend`), integer indices applied at the next-finer unit, projection of a Tempo or Interval onto a larger base, and arbitrary functions.
+
+> **Runtime resolution warning.** Locale-dependent selectors (`:workdays`, `:weekend`) read the ambient locale at call time. Never capture such calls in a module attribute — the compile machine's locale would get baked in. Always invoke them from a function body at runtime.
+
+### Workdays of a month
+
+```elixir
+{:ok, workdays} = Tempo.select(~o"2026-06", :workdays)
+Tempo.IntervalSet.to_list(workdays) |> length()
+```
+
+> **Workdays** of **June 2026** are Monday through Friday — 22 day-resolution intervals, locale-resolved via `Localize.Calendar`.
+
+### Pick specific days inside a month
+
+```elixir
+{:ok, paydays} = Tempo.select(~o"2026-06", [1, 15])
+paydays |> Tempo.IntervalSet.to_list() |> Enum.map(& &1.from.time[:day])
+```
+
+> **Integer selectors** apply at the **next-finer unit** below the base's resolution — on a month base that's day.
+
+### Project a date pattern onto a larger base
+
+```elixir
+{:ok, holidays} = Tempo.select(~o"2026", [~o"07-04", ~o"12-25"])
+holidays |> Tempo.IntervalSet.to_list() |> Enum.map(&{&1.from.time[:month], &1.from.time[:day]})
+```
+
+> **Project** the constraint months/days `07-04` and `12-25` onto the base year — July 4 and Dec 25 of 2026.
+
+### Territory override for locale-dependent selectors
+
+```elixir
+{:ok, us}    = Tempo.select(~o"2026-02", :weekend)
+{:ok, saudi} = Tempo.select(~o"2026-02", :weekend, region: :SA)
+
+{
+  us    |> Tempo.IntervalSet.to_list() |> Enum.map(& &1.from.time[:day]),
+  saudi |> Tempo.IntervalSet.to_list() |> Enum.map(& &1.from.time[:day])
+}
+```
+
+> The US weekend is Sat+Sun, the Saudi weekend is Fri+Sat. The territory chain is: explicit `region:` → IXDTF `u-rg=XX` tag → `Application.get_env(:ex_tempo, :default_region)` → Localize locale default.
+
+### Compose with set operations
+
+```elixir
+{:ok, june_workdays} = Tempo.select(~o"2026-06", :workdays)
+{:ok, vacation}      = Tempo.to_interval_set(~o"2026-06-15/2026-06-20")
+{:ok, available}     = Tempo.difference(june_workdays, vacation)
+
+Tempo.IntervalSet.to_list(available)
+```
+
+> **Workdays** of June **minus** my **vacation** yields the days I'm **available**. Because `select/3` returns an IntervalSet, it drops straight into `union/2`, `intersection/2`, `difference/2`, and `symmetric_difference/2`.
 
 ## Recurring events
 
@@ -361,6 +424,8 @@ bookable
 |> Kino.DataTable.new()
 ```
 
+> Alice's free time is the **workday minus** her **busy** periods. Bob's is the same. **Mutual** free time is the **intersection** of theirs. **Bookable** windows are the mutual ones **at least an hour** long.
+
 Three windows pass: 09:00-10:00, 12:00-14:00, and 16:00-17:00. The 15:00-15:30 gap (Alice free but Bob booked at 15:30) is correctly dropped.
 
 ### Alternative — "does this exact candidate fit somewhere?"
@@ -375,12 +440,14 @@ candidates = [
 ]
 
 bookable =
-  Enum.filter(candidates, fn c ->
-    Enum.any?(Tempo.IntervalSet.to_list(mutual), &Tempo.within?(c, &1))
+  Enum.filter(candidates, fn candidate ->
+    Enum.any?(Tempo.IntervalSet.to_list(mutual), &Tempo.within?(candidate, &1))
   end)
 
 bookable |> Enum.map(&inspect/1)
 ```
+
+> A **candidate** is **bookable** if **any** mutual-free window **contains** it.
 
 Two of the three candidates fit inside a mutual-free window. The 11:00-12:00 one is rejected because Bob is busy then.
 

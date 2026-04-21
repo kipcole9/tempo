@@ -58,6 +58,70 @@ Any new span, interval, comparison, or set-operation code **must honour this con
 
 A near-term todo is to materialise an implicit span into its explicit form — i.e., convert `2026-01` into `2026-01-01..2026-02-01`. This normalisation is the bridge that will let set operations (union/intersection, coalescing) work uniformly whether the caller supplied implicit or explicit spans.
 
+## Documentation and example style
+
+**Every example in Tempo docs, guides, cookbook recipes, livebooks, and module docs should read aloud as English prose a product manager would say.** This is the test of whether the abstractions are doing their job — if a snippet can't be translated to a sentence a non-programmer would understand, there's a missing predicate or operation, and it should be added before the example is written.
+
+### The pipeline-prose shape
+
+Examples follow a consistent three-part structure:
+
+1. **Setup in a few named bindings** (the nouns):
+
+   ```elixir
+   work        = ~o"2026-06-15T09/2026-06-15T17"
+   alice_busy  = ...
+   bob_busy    = ...
+   ```
+
+2. **Pipeline in set-algebra + predicate verbs** (the sentence):
+
+   ```elixir
+   {:ok, alice_free} = Tempo.difference(work, alice_busy)
+   {:ok, bob_free}   = Tempo.difference(work, bob_busy)
+   {:ok, mutual}     = Tempo.intersection(alice_free, bob_free)
+
+   slots =
+     mutual
+     |> Tempo.IntervalSet.to_list()
+     |> Enum.filter(&Tempo.at_least?(&1, ~o"PT1H"))
+   ```
+
+3. **Prose translation in a callout** (the human reading):
+
+   > *"Alice's free time is the workday **minus** her busy periods. Bob's is the same. **Mutual** free time is the **intersection** of theirs. **Bookable slots** are the mutual windows **at least an hour** long."*
+
+The three parts reinforce each other — nouns, verbs, prose.
+
+### What this excludes from examples
+
+If any of these appear in user-facing examples, it's a signal that an abstraction is missing:
+
+* **`to_utc_seconds/1`** or other raw second counting — add a duration predicate instead (`at_least?`, `exactly?`, `shorter_than?`, …).
+* **Struct field accessors** like `set.intervals`, `iv.from.time[:hour]` — add a named helper (`IntervalSet.to_list/1`, a predicate, or a query function).
+* **Magic numbers** for durations (`3600`, `86_400`) — use an ISO 8601 duration literal (`~o"PT1H"`, `~o"P1D"`).
+* **Hand-rolled geometric checks** like `compare_endpoints(a + d, b) in [:earlier, :same]` — add a predicate that names the concept.
+* **Pattern-matching on Allen relation lists inline** like `Tempo.compare(a, b) in [:equals, :starts, :during, :finishes]` — name that set (`Tempo.within?/2` does exactly this).
+
+When writing a new example and one of these patterns appears, stop and add the missing abstraction first. The codebase already models this — `within?/2`, `at_least?/2`, `adjacent?/2` all exist because geometric checks and inline-relation-lists were recurring in examples.
+
+### Applies to
+
+* Module docs and `@doc` examples.
+* Guides in `guides/`.
+* The cookbook.
+* Livebooks.
+* README code blocks.
+* Release notes and CHANGELOG entries (where examples appear).
+
+### Does NOT apply to
+
+* Internal implementation code and helpers.
+* Tests asserting specific AST shapes or low-level behaviour.
+* Error messages (which need to reference specific field names and types).
+
+These are about correctness and mechanics; they legitimately work at the plumbing level.
+
 ## Reference documents
 
 The following documents are **critical** when working on this project. Consult them whenever behaviour, syntax, or semantics need to be verified — do not guess.

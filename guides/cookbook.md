@@ -17,11 +17,12 @@ import Tempo.Sigil
 3. [Iteration](#3-iteration)
 4. [Comparison and predicates](#4-comparison-and-predicates)
 5. [Set operations](#5-set-operations)
-6. [Recurring events (RRULE)](#6-recurring-events-rrule)
-7. [iCalendar import](#7-icalendar-import)
-8. [Cross-calendar and cross-timezone](#8-cross-calendar-and-cross-timezone)
-9. [Archaeological / approximate dates](#9-archaeological--approximate-dates)
-10. [Real-world scenarios](#10-real-world-scenarios)
+6. [Selecting sub-spans with `Tempo.select/3`](#6-selecting-sub-spans-with-temposelect3)
+7. [Recurring events (RRULE)](#7-recurring-events-rrule)
+8. [iCalendar import](#8-icalendar-import)
+9. [Cross-calendar and cross-timezone](#9-cross-calendar-and-cross-timezone)
+10. [Archaeological / approximate dates](#10-archaeological--approximate-dates)
+11. [Real-world scenarios](#11-real-world-scenarios)
 
 ---
 
@@ -277,18 +278,24 @@ iex> hd(set.intervals).to.time
 ### How do I subtract a busy period from a free window?
 
 ```elixir
-iex> work_day = ~o"2026-06-15T09/2026-06-15T17"
-iex> lunch = ~o"2026-06-15T12/2026-06-15T13"
-iex> {:ok, free} = Tempo.difference(work_day, lunch)
-# `free` has two intervals: 09:00-12:00 and 13:00-17:00.
+work_day = ~o"2026-06-15T09/2026-06-15T17"
+lunch    = ~o"2026-06-15T12/2026-06-15T13"
+
+{:ok, free} = Tempo.difference(work_day, lunch)
 ```
+
+> The **workday minus lunch** is my **free** time — two intervals, 09:00-12:00 and 13:00-17:00.
 
 ### How do I compose free/busy across a real calendar?
 
 ```elixir
-iex> {:ok, calendar} = Tempo.ICal.from_ical_file("~/work.ics")
-iex> {:ok, free} = Tempo.difference(~o"2026-06-15T09/2026-06-15T17", calendar)
+{:ok, calendar} = Tempo.ICal.from_ical_file("~/work.ics")
+
+work = ~o"2026-06-15T09/2026-06-15T17"
+{:ok, free} = Tempo.difference(work, calendar)
 ```
+
+> **Work** minus **my calendar** gives me **free** time that day.
 
 Result intervals carry the event metadata from the subtracted calendar where relevant, so you can trace each "busy" segment back to the meeting that caused it.
 
@@ -300,7 +307,77 @@ iex> {:ok, set} = Tempo.symmetric_difference(a, b)
 
 ---
 
-## 6. Recurring events (RRULE)
+## 6. Selecting sub-spans with `Tempo.select/3`
+
+`Tempo.select/3` narrows a base span (a Tempo, an Interval, or an IntervalSet) by a **selector** and returns the matched spans as a `{:ok, %Tempo.IntervalSet{}}` tuple. The same vocabulary covers locale-dependent queries (workdays, weekends), integer indices at the next-finer unit, and projection of a Tempo or Interval onto a larger base.
+
+> **Locale-dependent selectors (`:workdays`, `:weekend`) resolve at call time.** Do not capture such calls in module attributes or at compile time — the result would bake in whichever locale the build machine happened to have. Always call them from a function body at runtime. Explicit selectors (integer lists, Tempo projections, functions) are safe to capture.
+
+### How do I select the workdays of a month?
+
+```elixir
+iex> {:ok, workdays} = Tempo.select(~o"2026-06", :workdays)
+iex> workdays |> Tempo.IntervalSet.to_list() |> length()
+22
+```
+
+> **Workdays** of **June 2026** in the default locale (US) are Monday through Friday — 22 day-resolution intervals.
+
+### How do I pick specific days inside a month?
+
+```elixir
+iex> {:ok, set} = Tempo.select(~o"2026-06", [1, 15])
+iex> set |> Tempo.IntervalSet.to_list() |> Enum.map(& &1.from.time[:day])
+[1, 15]
+```
+
+> **Integer selectors** apply at the **next-finer unit** below the base's resolution — on a month base that's day, on a year base it's month. A `Range` works too: `Tempo.select(~o"2026-06", 10..15)`.
+
+### How do I project a date pattern onto a larger base?
+
+```elixir
+iex> {:ok, set} = Tempo.select(~o"2026", ~o"12-25")
+iex> [xmas] = Tempo.IntervalSet.to_list(set)
+iex> {xmas.from.time[:year], xmas.from.time[:month], xmas.from.time[:day]}
+{2026, 12, 25}
+```
+
+> **Project** the constraint `12-25` onto the base year — Dec 25 of 2026. A list of constraints works the same: `Tempo.select(~o"2026", [~o"07-04", ~o"12-25"])` yields both US holidays.
+
+### How do I override the territory for a locale-dependent selector?
+
+```elixir
+iex> {:ok, sa_weekend} = Tempo.select(~o"2026-02", :weekend, region: :SA)
+iex> sa_weekend |> Tempo.IntervalSet.to_list() |> Enum.map(& &1.from.time[:day])
+[6, 7, 13, 14, 20, 21, 27, 28]
+```
+
+> Saudi Arabia's **weekend** is **Friday + Saturday**. The territory resolution chain is: explicit `region:` option → IXDTF `u-rg=XX` tag on the base → `Application.get_env(:ex_tempo, :default_region)` → `Localize.get_locale() |> Localize.Territory.territory_from_locale()`.
+
+### How do I compose select with the set operations?
+
+```elixir
+{:ok, june_workdays} = Tempo.select(~o"2026-06", :workdays)
+{:ok, vacation} = Tempo.to_interval_set(~o"2026-06-15/2026-06-20")
+{:ok, available} = Tempo.difference(june_workdays, vacation)
+```
+
+> **Workdays** of June **minus** my **vacation** yields the workdays I'm **available**. Because `select/3` returns an IntervalSet, it drops straight into `union/2`, `intersection/2`, `difference/2`, and `symmetric_difference/2`.
+
+### How do I use a function as a selector?
+
+```elixir
+holidays = fn _base -> [~o"01-01", ~o"07-04", ~o"12-25"] end
+{:ok, set} = Tempo.select(~o"2026", holidays)
+```
+
+> **Function selectors** receive the base and return any selector shape (list of Tempos here). This is the extension point for user-defined holiday calendars, business rules, or anything else you want to compute from the base.
+
+See `Tempo.Select` for the full selector vocabulary.
+
+---
+
+## 7. Recurring events (RRULE)
 
 ### How do I express "every Monday for 10 weeks"?
 
@@ -391,7 +468,7 @@ iex> length(occurrences)
 
 ---
 
-## 7. iCalendar import
+## 8. iCalendar import
 
 ### How do I import an `.ics` file?
 
@@ -416,36 +493,47 @@ Every RRULE part (including BY-rules, BYSETPOS, WKST, RDATE, EXDATE) materialise
 ### How do I find when a specific attendee is in a meeting?
 
 ```elixir
-iex> {:ok, calendar} = Tempo.ICal.from_ical(ics)
-iex> ada_meetings = Enum.filter(calendar.intervals, fn iv ->
-...>   "ada@example.com" in (iv.metadata[:attendees] || [])
-...> end)
+{:ok, calendar} = Tempo.ICal.from_ical(ics)
+
+ada_meetings =
+  calendar
+  |> Tempo.IntervalSet.to_list()
+  |> Enum.filter(fn meeting ->
+    "ada@example.com" in (meeting.metadata[:attendees] || [])
+  end)
 ```
+
+> **Ada's meetings** are every event in the **calendar** whose **attendees** include her.
 
 Metadata rides through any downstream set operation — after `intersection/difference/union`, you can still trace each result fragment to its originating event.
 
 ---
 
-## 8. Cross-calendar and cross-timezone
+## 9. Cross-calendar and cross-timezone
 
 ### How do I compare a Hebrew date to a Gregorian one?
 
 ```elixir
-iex> hebrew = %Tempo{time: [year: 5786, month: 10, day: 30], calendar: Calendrical.Hebrew}
-iex> Tempo.overlaps?(hebrew, ~o"2026-06-15")
-true
-# Hebrew 5786-10-30 is Gregorian 2026-06-15.
+hebrew    = %Tempo{time: [year: 5786, month: 10, day: 30], calendar: Calendrical.Hebrew}
+gregorian = ~o"2026-06-15"
+
+Tempo.overlaps?(hebrew, gregorian)
+#=> true
 ```
+
+> The **Hebrew date** 5786-10-30 **overlaps** the **Gregorian date** 2026-06-15 — they're the same day.
 
 ### How do I compare across timezones?
 
 ```elixir
-iex> paris = Tempo.from_elixir(DateTime.new!(~D[2026-06-15], ~T[10:00:00], "Europe/Paris"))
-iex> utc_window = ~o"2026-06-15T07/2026-06-15T09"
-iex> Tempo.overlaps?(paris, utc_window)
-true
-# Paris 10:00 CEST == UTC 08:00 — inside the window.
+paris      = Tempo.from_elixir(DateTime.new!(~D[2026-06-15], ~T[10:00:00], "Europe/Paris"))
+utc_window = ~o"2026-06-15T07/2026-06-15T09"
+
+Tempo.overlaps?(paris, utc_window)
+#=> true
 ```
+
+> **Paris 10:00 CEST** **overlaps** the **UTC 07:00-09:00 window** — it projects to UTC 08:00, which is inside.
 
 Tempo projects to UTC via `Tzdata` for cross-zone comparisons. The wall-clock representation on the struct is preserved; the projection happens per-call.
 
@@ -458,7 +546,7 @@ iex> Tempo.to_calendar(~o"2026-06-15", Calendrical.Hebrew)
 
 ---
 
-## 9. Archaeological / approximate dates
+## 10. Archaeological / approximate dates
 
 ### How do I say "sometime in the 1560s"?
 
@@ -501,75 +589,88 @@ Each endpoint carries its own `:qualification` in addition to any expression-lev
 
 ---
 
-## 10. Real-world scenarios
+## 11. Real-world scenarios
 
 ### Find every Friday the 13th this century
 
 ```elixir
-iex> rule = %Tempo.RRule.Rule{
-...>   freq: :month, interval: 1,
-...>   byday: [{nil, 5}], bymonthday: [13]
-...> }
-iex> {:ok, occurrences} = Tempo.RRule.Expander.expand(
-...>   rule,
-...>   ~o"2000-01-01",
-...>   bound: ~o"2100-01-01"
-...> )
-iex> length(occurrences)
-# Total Friday-the-13ths in the 21st century.
+friday_the_13th = %Tempo.RRule.Rule{
+  freq: :month,
+  interval: 1,
+  byday: [{nil, 5}],
+  bymonthday: [13]
+}
+
+century = ~o"2000-01-01/2100-01-01"
+
+{:ok, occurrences} =
+  Tempo.RRule.Expander.expand(friday_the_13th, ~o"2000-01-01", bound: century)
 ```
+
+> **Friday the 13th** is a monthly rule — Fridays whose day-of-month is 13. **Expanding** the rule across the **century** gives every occurrence.
 
 ### Find when two people are both free for at least 1 hour
 
 ```elixir
-iex> {:ok, ada} = Tempo.ICal.from_ical_file("~/ada.ics")
-iex> {:ok, grace} = Tempo.ICal.from_ical_file("~/grace.ics")
-iex> work_hours = ~o"2026-06-15T09/2026-06-15T17"
-iex> {:ok, ada_free} = Tempo.difference(work_hours, ada)
-iex> {:ok, grace_free} = Tempo.difference(work_hours, grace)
-iex> {:ok, mutual} = Tempo.intersection(ada_free, grace_free)
-iex> slots =
-...>   mutual
-...>   |> Tempo.IntervalSet.to_list()
-...>   |> Enum.filter(&Tempo.at_least?(&1, ~o"PT1H"))
-# Each slot is a window where neither is busy, long enough to schedule.
+{:ok, ada}   = Tempo.ICal.from_ical_file("~/ada.ics")
+{:ok, grace} = Tempo.ICal.from_ical_file("~/grace.ics")
+
+work = ~o"2026-06-15T09/2026-06-15T17"
+
+{:ok, ada_free}   = Tempo.difference(work, ada)
+{:ok, grace_free} = Tempo.difference(work, grace)
+{:ok, mutual}     = Tempo.intersection(ada_free, grace_free)
+
+slots =
+  mutual
+  |> Tempo.IntervalSet.to_list()
+  |> Enum.filter(&Tempo.at_least?(&1, ~o"PT1H"))
 ```
+
+> Ada's free time is the workday **minus** her busy periods. Grace's is the same. **Mutual** free time is the **intersection** of theirs. **Slots** are the mutual windows **at least an hour** long.
 
 ### Which of these candidate meeting times can I book?
 
 ```elixir
-iex> candidates = [
-...>   ~o"2026-06-15T09/2026-06-15T10",
-...>   ~o"2026-06-15T11/2026-06-15T12",
-...>   ~o"2026-06-15T16/2026-06-15T17"
-...> ]
-iex> bookable = Enum.filter(candidates, fn c ->
-...>   Enum.any?(Tempo.IntervalSet.to_list(mutual), &Tempo.within?(c, &1))
-...> end)
+candidates = [
+  ~o"2026-06-15T09/2026-06-15T10",
+  ~o"2026-06-15T11/2026-06-15T12",
+  ~o"2026-06-15T16/2026-06-15T17"
+]
+
+bookable =
+  Enum.filter(candidates, fn candidate ->
+    Enum.any?(Tempo.IntervalSet.to_list(mutual), &Tempo.within?(candidate, &1))
+  end)
 ```
 
-`Tempo.within?(candidate, window)` reads as the question: does the candidate fit inside the window?
+> A **candidate** is **bookable** if **any** mutual free window **contains** it.
 
 ### How do I check if a dig layer overlaps a historical period?
 
 ```elixir
-iex> dig_layer = ~o"1520/1590"
-iex> ming_period = ~o"1368/1644"
-iex> Tempo.overlaps?(dig_layer, ming_period)
-true
+dig_layer    = ~o"1520/1590"
+ming_period  = ~o"1368/1644"
+
+Tempo.overlaps?(dig_layer, ming_period)
+#=> true
 ```
+
+> The **dig layer overlaps** the **Ming period** — the site was in use during the dynasty.
 
 ### How do I find free time across multiple calendars and timezones?
 
 ```elixir
-iex> work = ~o"2026-06-15T09/2026-06-15T17"
-iex> {:ok, cal_ny} = Tempo.ICal.from_ical_file("~/cal_ny.ics")
-iex> {:ok, cal_london} = Tempo.ICal.from_ical_file("~/cal_london.ics")
-iex> {:ok, step1} = Tempo.difference(work, cal_ny)
-iex> {:ok, free} = Tempo.difference(step1, cal_london)
+{:ok, ny}     = Tempo.ICal.from_ical_file("~/cal_ny.ics")
+{:ok, london} = Tempo.ICal.from_ical_file("~/cal_london.ics")
+
+work = ~o"2026-06-15T09/2026-06-15T17"
+
+{:ok, ny_free}   = Tempo.difference(work, ny)
+{:ok, free}      = Tempo.difference(ny_free, london)
 ```
 
-Set operations convert to UTC per-call so wall-clock mismatches across zones resolve correctly.
+> **Work** minus **New York's busy times** gives one person's free window; that **minus London's busy times** gives the cross-timezone **free** slots. Each `difference/2` call projects to UTC internally, so wall-clock mismatches across zones resolve correctly.
 
 ### How do I round a datetime to the nearest hour?
 
@@ -583,25 +684,35 @@ iex> Tempo.at_resolution(~o"2026-06-15T10:37:42", :hour)
 ### How do I generate a list of business days in a month?
 
 ```elixir
-iex> rule = %Tempo.RRule.Rule{
-...>   freq: :day, interval: 1,
-...>   byday: [{nil, 1}, {nil, 2}, {nil, 3}, {nil, 4}, {nil, 5}]
-...> }
-iex> {:ok, days} = Tempo.RRule.Expander.expand(rule, ~o"2026-06-01", bound: ~o"2026-06")
-iex> length(days)
+iex> {:ok, workdays} = Tempo.select(~o"2026-06", :workdays)
+iex> workdays |> Tempo.IntervalSet.to_list() |> length()
 22
 ```
 
-Tip: `bound: ~o"2026-06"` has an upper endpoint of July 1 (exclusive) — it confines the expansion to June. Using `~o"2026-07-01"` would include July 1 too, since day-resolution values span their whole day under the implicit-span rule.
+> **Workdays** of **June 2026** are Monday through Friday — 22 day-resolution intervals, locale-aware via `Localize.Calendar`. See [§6](#6-selecting-sub-spans-with-temposelect3) for the full selector vocabulary and territory-resolution chain.
 
-### How do I represent a free/busy period set from iCal and do set algebra on it?
+An RRULE equivalent is available when you need the full rule machinery (byday counts, bymonth filters, intervals greater than 1):
 
 ```elixir
-iex> {:ok, calendar} = Tempo.ICal.from_ical(ics, bound: ~o"2026-06")
-iex> month = ~o"2026-06"
-iex> {:ok, free} = Tempo.difference(month, calendar)
-iex> # `free` is every free minute of June 2026.
+weekdays = %Tempo.RRule.Rule{
+  freq: :day,
+  interval: 1,
+  byday: [{nil, 1}, {nil, 2}, {nil, 3}, {nil, 4}, {nil, 5}]
+}
+
+{:ok, days} = Tempo.RRule.Expander.expand(weekdays, ~o"2026-06-01", bound: ~o"2026-06")
 ```
+
+### Every free minute in a month
+
+```elixir
+{:ok, calendar} = Tempo.ICal.from_ical(ics, bound: ~o"2026-06")
+
+month = ~o"2026-06"
+{:ok, free} = Tempo.difference(month, calendar)
+```
+
+> The **month** of June **minus** my **calendar** is my **free** time that month.
 
 ---
 

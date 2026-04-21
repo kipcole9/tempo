@@ -2178,6 +2178,29 @@ defmodule Tempo do
   defdelegate within?(a, b), to: Tempo.Interval
 
   @doc """
+  Narrow a Tempo span by a selector — the composition primitive
+  for "workdays of June", "the 15th of every month", and similar
+  queries. See `Tempo.Select` for the full vocabulary.
+
+  **Locale-dependent selectors (`:workdays`, `:weekend`) resolve at
+  call time.** Do not capture such calls in module attributes or
+  at compile time — see `Tempo.Select` for the rationale.
+
+  ### Examples
+
+      iex> {:ok, set} = Tempo.select(~o"2026-02", [1, 15])
+      iex> set |> Tempo.IntervalSet.to_list() |> Enum.map(& &1.from.time[:day])
+      [1, 15]
+
+      iex> {:ok, set} = Tempo.select(~o"2026", ~o"12-25")
+      iex> [xmas] = Tempo.IntervalSet.to_list(set)
+      iex> {xmas.from.time[:year], xmas.from.time[:month], xmas.from.time[:day]}
+      {2026, 12, 25}
+
+  """
+  defdelegate select(base, selector, opts \\ []), to: Tempo.Select
+
+  @doc """
   Return a multi-line prose explanation of any Tempo value —
   what it is, what it spans, and how to work with it.
 
