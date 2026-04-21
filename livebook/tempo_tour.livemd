@@ -1,0 +1,394 @@
+# A tour of Tempo
+
+```elixir
+Mix.install([
+  {:ex_tempo, github: "kipcole9/tempo"},
+  {:kino, "~> 0.14"}
+])
+
+import Tempo.Sigil
+```
+
+## The thesis — time is an interval, not an instant
+
+Most languages split time into three scalar types — `Date`, `Time`, `DateTime` — and leave you to figure out which interval a scalar "really means." Is `~D[2026-06-15]` the instant of midnight, or the whole day? Your codebase probably has helpers like `end_of_day/1` because the type can't say.
+
+Tempo takes the opposite stance. Every Tempo value *is* a bounded span on the time line. One type. Every operation — iteration, comparison, set algebra — is defined uniformly across every resolution and every calendar.
+
+Start with the simplest example. A plain day:
+
+```elixir
+~o"2026-06-15"
+```
+
+Now see its bounds:
+
+```elixir
+{:ok, interval} = Tempo.to_interval(~o"2026-06-15")
+{interval.from.time, interval.to.time}
+```
+
+The span is `[2026-06-15 00:00, 2026-06-16 00:00)` — half-open, so adjacent days concatenate cleanly (`[a, b) ++ [b, c) == [a, c)`). No off-by-one. No ambiguity.
+
+The same rule applies at every resolution:
+
+```elixir
+for value <- [~o"2026", ~o"2026-06", ~o"2026-06-15", ~o"2026-06-15T10"] do
+  {:ok, iv} = Tempo.to_interval(value)
+  %{input: inspect(value), from: inspect(iv.from.time), to: inspect(iv.to.time)}
+end
+|> Kino.DataTable.new()
+```
+
+A year implicitly spans one year. A month spans one month. An hour spans one hour. The next-finer unit sets the span — there's no guessing.
+
+## Explaining a value
+
+If you hand a Tempo value to a colleague who's never seen it, what does it *mean*? Tempo has a built-in explainer:
+
+```elixir
+Tempo.explain(~o"156X")
+```
+
+```elixir
+Tempo.explain(~o"1984?/2004~")
+```
+
+For richer UI surfaces (HTML, coloured terminals) use `Tempo.Explain.explain/1` — it returns a `%Tempo.Explanation{}` with tagged parts that `to_string/1`, `to_ansi/1`, or `to_iodata/1` render differently:
+
+```elixir
+explanation = Tempo.Explain.explain(~o"156X")
+explanation.parts
+```
+
+## Iteration
+
+Every Tempo value is enumerable. The iteration unit is "the next-higher-resolution below what's stated" — a year yields months, a month yields days, etc.
+
+```elixir
+Enum.take(~o"2026Y", 12)
+```
+
+```elixir
+Enum.take(~o"2026-06", 5)
+```
+
+Masks iterate over the values they represent. The 1560s:
+
+```elixir
+Enum.take(~o"156X", 10)
+```
+
+## Comparison and predicates
+
+Tempo implements Allen's interval algebra — `overlaps?`, `contains?`, `precedes?`, `meets?`, `starts?`, `finishes?`, `equal?`, and the inverse relations.
+
+```elixir
+a = ~o"2026-06-01/2026-06-15"
+b = ~o"2026-06-10/2026-06-20"
+
+%{
+  "a contains 2026-06-10": Tempo.contains?(a, ~o"2026-06-10"),
+  "a overlaps b": Tempo.overlaps?(a, b),
+  "a precedes 2026-07": Tempo.precedes?(a, ~o"2026-07")
+}
+```
+
+## Set operations
+
+Once every value is a bounded interval, the set-theoretic operations follow naturally.
+
+### Union
+
+```elixir
+{:ok, union} = Tempo.union(a, b)
+union.intervals |> Enum.map(& &1 |> then(fn iv -> {iv.from.time, iv.to.time} end))
+```
+
+### Intersection
+
+```elixir
+{:ok, intersection} = Tempo.intersection(a, b)
+intersection.intervals |> Enum.map(& &1 |> then(fn iv -> {iv.from.time, iv.to.time} end))
+```
+
+### Difference — free time between a meeting and a lunch
+
+```elixir
+work_day = ~o"2026-06-15T09/2026-06-15T17"
+lunch = ~o"2026-06-15T12/2026-06-15T13"
+
+{:ok, free} = Tempo.difference(work_day, lunch)
+
+free.intervals
+|> Enum.map(fn iv -> {iv.from.time, iv.to.time} end)
+```
+
+Two free intervals: 09:00-12:00 and 13:00-17:00.
+
+## Recurring events
+
+Tempo implements the full RFC 5545 RRULE vocabulary. Everything from `FREQ=DAILY;COUNT=10` to `"4th Thursday of November, every year"` goes through the same interpreter.
+
+### Every Monday for 10 weeks
+
+```elixir
+alias Tempo.RRule.{Rule, Expander}
+
+rule = %Rule{freq: :week, interval: 1, byday: [{nil, 1}], count: 10}
+{:ok, occurrences} = Expander.expand(rule, ~o"2026-06-01")
+
+occurrences
+|> Enum.map(fn iv -> {iv.from.time[:year], iv.from.time[:month], iv.from.time[:day]} end)
+|> Kino.DataTable.new()
+```
+
+### Thanksgiving (4th Thursday of November)
+
+```elixir
+rule = %Rule{
+  freq: :year,
+  interval: 1,
+  bymonth: [11],
+  byday: [{4, 4}],
+  count: 5
+}
+
+{:ok, thanksgivings} = Expander.expand(rule, ~o"2022-11-24")
+
+thanksgivings
+|> Enum.map(fn iv -> {iv.from.time[:year], iv.from.time[:month], iv.from.time[:day]} end)
+```
+
+### US Presidential Election Day
+
+"Every four years, the first Tuesday after a Monday in November":
+
+```elixir
+rule = %Rule{
+  freq: :year,
+  interval: 4,
+  bymonth: [11],
+  byday: [{nil, 2}],
+  bymonthday: [2, 3, 4, 5, 6, 7, 8],
+  count: 5
+}
+
+{:ok, elections} = Expander.expand(rule, ~o"1996-11-05")
+
+elections
+|> Enum.map(fn iv -> {iv.from.time[:year], iv.from.time[:month], iv.from.time[:day]} end)
+```
+
+### Every Friday the 13th
+
+```elixir
+rule = %Rule{
+  freq: :month,
+  interval: 1,
+  byday: [{nil, 5}],
+  bymonthday: [13],
+  count: 10
+}
+
+{:ok, f13s} = Expander.expand(rule, ~o"1998-02-13")
+
+f13s
+|> Enum.map(fn iv -> {iv.from.time[:year], iv.from.time[:month], iv.from.time[:day]} end)
+```
+
+### Last weekday of every month
+
+```elixir
+rule = %Rule{
+  freq: :month,
+  interval: 1,
+  byday: [{nil, 1}, {nil, 2}, {nil, 3}, {nil, 4}, {nil, 5}],
+  bysetpos: [-1],
+  count: 6
+}
+
+{:ok, last_weekdays} = Expander.expand(rule, ~o"2026-06-01")
+
+last_weekdays
+|> Enum.map(fn iv -> {iv.from.time[:year], iv.from.time[:month], iv.from.time[:day]} end)
+```
+
+BYSETPOS applies last, picking the Nth element of each month's candidate set.
+
+## Cross-calendar comparison
+
+Tempo values are calendar-aware. A Hebrew date and a Gregorian date can be compared directly:
+
+```elixir
+hebrew = %Tempo{time: [year: 5786, month: 10, day: 30], calendar: Calendrical.Hebrew}
+Tempo.overlaps?(hebrew, ~o"2026-06-15")
+```
+
+Tempo converts via `Date.convert!/2` internally, so the operation is calendar-neutral.
+
+## Cross-timezone comparison
+
+```elixir
+paris = Tempo.from_elixir(DateTime.new!(~D[2026-06-15], ~T[10:00:00], "Europe/Paris"))
+utc_window = ~o"2026-06-15T07/2026-06-15T09"
+
+Tempo.overlaps?(paris, utc_window)
+```
+
+Paris 10:00 CEST is UTC 08:00 — inside the UTC 07:00-09:00 window. Tempo projects to UTC via `Tzdata` per-call; the wall-clock representation is preserved on the struct.
+
+## Archaeological and approximate dates
+
+EDTF (ISO 8601-2) gives us qualifiers for vague historical references.
+
+### "Sometime in the 1560s"
+
+```elixir
+Enum.take(~o"156X", 10)
+```
+
+### "Approximately 2022"
+
+```elixir
+value = ~o"2022~"
+%{
+  value: inspect(value),
+  qualification: value.qualification,
+  span: Tempo.to_interval(value) |> elem(1) |> then(fn iv -> {iv.from.time, iv.to.time} end)
+}
+```
+
+The qualifier decorates the value but doesn't shift its bounds — this is still the year 2022, just with a note that the author wasn't certain.
+
+### Open-ended intervals
+
+```elixir
+[~o"1985/..", ~o"../2024", ~o"../.."]
+|> Enum.map(fn iv -> %{input: inspect(iv), from: inspect(iv.from), to: inspect(iv.to)} end)
+|> Kino.DataTable.new()
+```
+
+`:undefined` is the parsed shape for an open endpoint. Ranges and intervals with one open side are legal; both open (`../..`) is the "entire time line" identity.
+
+## Non-contiguous mask expansion
+
+The 15th of every month in 1985:
+
+```elixir
+{:ok, %Tempo.IntervalSet{intervals: days}} = Tempo.to_interval(~o"1985-XX-15")
+
+days
+|> Enum.map(fn iv -> {iv.from.time, iv.to.time} end)
+|> Kino.DataTable.new()
+```
+
+Twelve distinct day-intervals. The masked `XX` month expands to each valid value (1..12); the concrete day-15 pins each resulting interval.
+
+## Interval relations — Allen's algebra
+
+`Tempo.compare/2` returns one of 13 relations between two intervals:
+
+```elixir
+a = %Tempo.Interval{from: ~o"2026-06-01", to: ~o"2026-06-10"}
+b = %Tempo.Interval{from: ~o"2026-06-05", to: ~o"2026-06-15"}
+
+%{
+  "a overlaps b":      Tempo.compare(a, b),
+  "a meets next day":  Tempo.compare(~o"2026-06-15", ~o"2026-06-16"),
+  "year contains day": Tempo.compare(~o"2026Y", ~o"2026-06-15")
+}
+```
+
+Named predicates wrap the common checks — `within?`, `adjacent?`, `before?`, `after?`, `meets?`, `during?`:
+
+```elixir
+window = %Tempo.Interval{from: ~o"2026-06-15T09", to: ~o"2026-06-15T17"}
+candidate = %Tempo.Interval{from: ~o"2026-06-15T10", to: ~o"2026-06-15T11"}
+
+Tempo.within?(candidate, window)
+```
+
+## Duration predicates
+
+Five predicates cover the interval-length comparison lattice:
+
+```elixir
+iv = %Tempo.Interval{from: ~o"2026-06-15T09", to: ~o"2026-06-15T10"}
+
+%{
+  "duration":     Tempo.duration(iv),
+  "≥ 1h":         Tempo.at_least?(iv, ~o"PT1H"),
+  "≤ 1h":         Tempo.at_most?(iv, ~o"PT1H"),
+  "exactly 1h":   Tempo.exactly?(iv, ~o"PT1H"),
+  "> 30m":        Tempo.longer_than?(iv, ~o"PT30M"),
+  "< 2h":         Tempo.shorter_than?(iv, ~o"PT2H")
+}
+```
+
+## Putting it together — find mutual free time ≥ 1 hour
+
+A scenario that used to be awkward: two colleagues' calendars plus my working hours. Which windows can host a 1-hour meeting?
+
+```elixir
+alice = %Tempo.IntervalSet{
+  intervals: [
+    %Tempo.Interval{from: ~o"2026-06-15T10", to: ~o"2026-06-15T11", metadata: %{who: "Alice"}},
+    %Tempo.Interval{from: ~o"2026-06-15T14", to: ~o"2026-06-15T15", metadata: %{who: "Alice"}}
+  ]
+}
+
+bob = %Tempo.IntervalSet{
+  intervals: [
+    %Tempo.Interval{from: ~o"2026-06-15T11", to: ~o"2026-06-15T12", metadata: %{who: "Bob"}},
+    %Tempo.Interval{from: ~o"2026-06-15T15:30", to: ~o"2026-06-15T16", metadata: %{who: "Bob"}}
+  ]
+}
+
+work_hours = ~o"2026-06-15T09/2026-06-15T17"
+
+{:ok, alice_free} = Tempo.difference(work_hours, alice)
+{:ok, bob_free}   = Tempo.difference(work_hours, bob)
+{:ok, mutual}     = Tempo.intersection(alice_free, bob_free)
+
+bookable =
+  mutual
+  |> Tempo.IntervalSet.to_list()
+  |> Enum.filter(&Tempo.at_least?(&1, ~o"PT1H"))
+
+bookable
+|> Enum.map(fn iv -> {iv.from.time, iv.to.time} end)
+|> Kino.DataTable.new()
+```
+
+Three windows pass: 09:00-10:00, 12:00-14:00, and 16:00-17:00. The 15:00-15:30 gap (Alice free but Bob booked at 15:30) is correctly dropped.
+
+### Alternative — "does this exact candidate fit somewhere?"
+
+When you have preferred times in mind rather than discovering free windows, `Tempo.within?/2` reads the question naturally:
+
+```elixir
+candidates = [
+  ~o"2026-06-15T09/2026-06-15T10",
+  ~o"2026-06-15T11/2026-06-15T12",
+  ~o"2026-06-15T16/2026-06-15T17"
+]
+
+bookable =
+  Enum.filter(candidates, fn c ->
+    Enum.any?(Tempo.IntervalSet.to_list(mutual), &Tempo.within?(c, &1))
+  end)
+
+bookable |> Enum.map(&inspect/1)
+```
+
+Two of the three candidates fit inside a mutual-free window. The 11:00-12:00 one is rejected because Bob is busy then.
+
+## What to read next
+
+* [Tempo cookbook](https://hexdocs.pm/ex_tempo/cookbook.html) — 65+ task-oriented recipes
+* [Set operations guide](https://hexdocs.pm/ex_tempo/set-operations.html)
+* [iCalendar integration](https://hexdocs.pm/ex_tempo/ical-integration.html) — import `.ics` with full RRULE/RDATE/EXDATE
+* [ISO 8601 conformance](https://hexdocs.pm/ex_tempo/iso8601-conformance.html) — what parts of the standard are covered
+
+Happy iterating.

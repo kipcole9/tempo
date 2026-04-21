@@ -82,7 +82,13 @@ defmodule Tempo.IntervalSet.Test do
     end
   end
 
-  describe "Enumerable protocol" do
+  describe "Enumerable protocol — walks sub-points" do
+    # An IntervalSet's Enumerable is consistent with Tempo and
+    # Tempo.Interval: iterating walks the sub-points at the
+    # next-finer resolution, not the member intervals
+    # themselves. For member-interval iteration use
+    # `Tempo.IntervalSet.to_list/1`.
+
     test "iterates each interval's values in time order" do
       jan = interval(~o"2022Y1M")
       mar = interval(~o"2022Y3M")
@@ -121,6 +127,37 @@ defmodule Tempo.IntervalSet.Test do
       assert Enumerable.count(set) == {:error, Enumerable.Tempo.IntervalSet}
       assert Enumerable.member?(set, :anything) == {:error, Enumerable.Tempo.IntervalSet}
       assert Enumerable.slice(set) == {:error, Enumerable.Tempo.IntervalSet}
+    end
+  end
+
+  describe "to_list/1 — member intervals as a plain list" do
+    test "returns the constituent %Tempo.Interval{} values" do
+      jan = interval(~o"2022Y1M")
+      mar = interval(~o"2022Y3M")
+      {:ok, set} = Tempo.IntervalSet.new([jan, mar])
+
+      assert [a, b] = Tempo.IntervalSet.to_list(set)
+      assert %Tempo.Interval{} = a
+      assert a.from.time == [year: 2022, month: 1, day: 1]
+      assert b.from.time == [year: 2022, month: 3, day: 1]
+    end
+
+    test "pipes into Enum for member-level filtering" do
+      jan = interval(~o"2022Y1M")
+      mar = interval(~o"2022Y3M")
+      {:ok, set} = Tempo.IntervalSet.new([jan, mar])
+
+      long_enough =
+        set
+        |> Tempo.IntervalSet.to_list()
+        |> Enum.filter(&Tempo.at_least?(&1, ~o"P28D"))
+
+      assert length(long_enough) == 2
+    end
+
+    test "empty set → empty list" do
+      {:ok, set} = Tempo.IntervalSet.new([])
+      assert Tempo.IntervalSet.to_list(set) == []
     end
   end
 

@@ -100,6 +100,91 @@ defmodule Tempo.IntervalSet do
     end
   end
 
+  @doc """
+  Return the member intervals as a plain list.
+
+  `Enumerable.Tempo.IntervalSet` walks every sub-point inside
+  each interval (consistent with `Enumerable.Tempo` and
+  `Enumerable.Tempo.Interval` — every Tempo value is a span,
+  iteration walks its sub-points at the next-finer resolution).
+
+  When you want to operate on the **member intervals** instead
+  — filter them, count them, map them — `to_list/1` gives you
+  a plain list you can pipe into `Enum`.
+
+  ### Examples
+
+      iex> {:ok, set} = Tempo.IntervalSet.new([
+      ...>   %Tempo.Interval{from: ~o"2026-06-01", to: ~o"2026-06-10"},
+      ...>   %Tempo.Interval{from: ~o"2026-07-01", to: ~o"2026-07-10"}
+      ...> ])
+      iex> set |> Tempo.IntervalSet.to_list() |> length()
+      2
+
+  Pair with the interval predicates for expressive scheduling:
+
+      set
+      |> Tempo.IntervalSet.to_list()
+      |> Enum.filter(&Tempo.at_least?(&1, ~o"PT1H"))
+
+  """
+  @spec to_list(t()) :: [Interval.t()]
+  def to_list(%__MODULE__{intervals: intervals}), do: intervals
+
+  @doc """
+  Build the Allen-relation matrix between every member of `a`
+  and every member of `b`.
+
+  Allen's algebra is defined on pairs of intervals, not sets —
+  two multi-member sets can relate several different ways
+  simultaneously. `relation_matrix/2` returns the complete
+  per-pair classification so you can reason about mixed
+  conflicts, merge logic, or scheduling visualisations.
+
+  ### Arguments
+
+  * `a` and `b` are `t:t/0` (single intervals and Tempo points
+    are coerced to single-member sets for convenience).
+
+  ### Returns
+
+  * `[{a_index, b_index, relation}]` — one tuple per pair.
+    Indexes are 0-based into each set's `.intervals` list. The
+    relation is one of `t:Tempo.Interval.relation/0`.
+
+  * `{:error, reason}` when either input can't be reduced to an
+    IntervalSet of bounded intervals.
+
+  ### Examples
+
+      iex> a = Tempo.IntervalSet.new!([
+      ...>   %Tempo.Interval{from: ~o"2026-06-01", to: ~o"2026-06-03"},
+      ...>   %Tempo.Interval{from: ~o"2026-06-05", to: ~o"2026-06-07"}
+      ...> ], coalesce: false)
+      iex> b = Tempo.IntervalSet.new!([
+      ...>   %Tempo.Interval{from: ~o"2026-06-04", to: ~o"2026-06-06"}
+      ...> ], coalesce: false)
+      iex> Tempo.IntervalSet.relation_matrix(a, b)
+      [{0, 0, :precedes}, {1, 0, :overlapped_by}]
+
+  """
+  @spec relation_matrix(t() | Interval.t() | Tempo.t(), t() | Interval.t() | Tempo.t()) ::
+          [{non_neg_integer(), non_neg_integer(), Interval.relation()}] | {:error, term()}
+  def relation_matrix(a, b) do
+    with {:ok, %__MODULE__{intervals: a_ivs}} <- coerce(a),
+         {:ok, %__MODULE__{intervals: b_ivs}} <- coerce(b) do
+      for {iv_a, ai} <- Enum.with_index(a_ivs),
+          {iv_b, bi} <- Enum.with_index(b_ivs) do
+        {ai, bi, Interval.compare(iv_a, iv_b)}
+      end
+    end
+  end
+
+  defp coerce(%__MODULE__{} = set), do: {:ok, set}
+  defp coerce(%Interval{} = iv), do: new([iv], coalesce: false)
+  defp coerce(%Tempo{} = point), do: Tempo.to_interval_set(point)
+  defp coerce(other), do: {:error, "cannot convert to IntervalSet: #{inspect(other)}"}
+
   ## Validation
 
   defp validate_all_bounded(intervals) do

@@ -1,7 +1,29 @@
 defmodule Tempo.Interval do
-  @moduledoc false
+  @moduledoc """
+  An explicit bounded span on the time line.
 
+  Every Tempo value *is* an interval at some resolution; a bare
+  `%Tempo{}` materialises to an `%Tempo.Interval{}` via
+  `Tempo.to_interval/1`. `%Tempo.Interval{}` carries explicit
+  `from` and `to` endpoints plus optional recurrence metadata
+  (`recurrence`, `duration`, `repeat_rule`) for RRULE-style
+  values.
+
+  Tempo uses the half-open `[from, to)` convention: `from` is
+  inclusive, `to` is exclusive. Adjacent intervals concatenate
+  cleanly — `[a, b) ++ [b, c) == [a, c)`.
+
+  ## Comparing intervals
+
+  `compare/2` classifies two intervals by Allen's interval
+  algebra, returning one of 13 mutually-exclusive relations.
+  See the function docs for the full table.
+
+  """
+
+  alias Tempo.Compare
   alias Tempo.Duration
+  alias Tempo.IntervalSet
   alias Tempo.Math
   alias Tempo.Iso8601.Unit
 
@@ -14,6 +36,30 @@ defmodule Tempo.Interval do
           repeat_rule: Tempo.t() | nil,
           metadata: map()
         }
+
+  @typedoc """
+  One of Allen's 13 interval relations — jointly exhaustive and
+  pairwise disjoint under the half-open `[from, to)` convention.
+  """
+  @type relation ::
+          :precedes
+          | :meets
+          | :overlaps
+          | :finished_by
+          | :contains
+          | :starts
+          | :equals
+          | :started_by
+          | :during
+          | :finishes
+          | :overlapped_by
+          | :met_by
+          | :preceded_by
+
+  @typedoc """
+  Anything `compare/2` can reduce to a single bounded interval.
+  """
+  @type interval_like :: Tempo.t() | t() | IntervalSet.t()
 
   defstruct recurrence: 1,
             direction: 1,
@@ -259,5 +305,445 @@ defmodule Tempo.Interval do
     lower = %{source | time: lower_time}
     upper = %{source | time: upper_time}
     {lower, upper}
+  end
+
+  ## ----------------------------------------------------------
+  ## Allen's interval algebra
+  ## ----------------------------------------------------------
+
+  @doc """
+  Classify the Allen relation between two interval-like values.
+
+  For intervals `X = [x₁, x₂)` and `Y = [y₁, y₂)` under Tempo's
+  half-open convention:
+
+  | Relation          | Shape (X relative to Y)          | Condition                      |
+  | ----------------- | -------------------------------- | ------------------------------ |
+  | `:precedes`       | X ends strictly before Y starts  | `x₂ < y₁`                      |
+  | `:meets`          | X ends exactly at Y's start      | `x₂ = y₁`                      |
+  | `:overlaps`       | X starts before Y, ends inside   | `x₁ < y₁ < x₂ < y₂`            |
+  | `:finished_by`    | X contains Y, shared end         | `x₁ < y₁ ∧ x₂ = y₂`            |
+  | `:contains`       | X strictly contains Y            | `x₁ < y₁ ∧ x₂ > y₂`            |
+  | `:starts`         | Shared start, X ends earlier     | `x₁ = y₁ ∧ x₂ < y₂`            |
+  | `:equals`         | Identical endpoints              | `x₁ = y₁ ∧ x₂ = y₂`            |
+  | `:started_by`     | Shared start, X ends later       | `x₁ = y₁ ∧ x₂ > y₂`            |
+  | `:during`         | X strictly inside Y              | `x₁ > y₁ ∧ x₂ < y₂`            |
+  | `:finishes`       | X starts after Y, shared end     | `x₁ > y₁ ∧ x₂ = y₂`            |
+  | `:overlapped_by`  | Y starts before X, ends inside X | `y₁ < x₁ < y₂ < x₂`            |
+  | `:met_by`         | X starts exactly at Y's end      | `x₁ = y₂`                      |
+  | `:preceded_by`    | X starts strictly after Y's end  | `x₁ > y₂`                      |
+
+  Every pair of non-empty bounded intervals stands in exactly
+  one of these relations.
+
+  ### Arguments
+
+  * `a` and `b` are each one of:
+
+    * a `t:Tempo.t/0` point (materialised via its implicit span).
+
+    * a `t:Tempo.Interval.t/0`.
+
+    * a `t:Tempo.IntervalSet.t/0` with exactly one member.
+
+  ### Returns
+
+  * One of the 13 relation atoms.
+
+  * `{:error, reason}` when either operand is a multi-member
+    IntervalSet, an open-ended interval, or otherwise can't be
+    reduced to a single bounded interval. For multi-member
+    sets use `Tempo.IntervalSet.relation_matrix/2`.
+
+  ### Examples
+
+      iex> a = %Tempo.Interval{from: ~o"2026-06-01", to: ~o"2026-06-10"}
+      iex> b = %Tempo.Interval{from: ~o"2026-06-05", to: ~o"2026-06-15"}
+      iex> Tempo.Interval.compare(a, b)
+      :overlaps
+
+      iex> Tempo.Interval.compare(~o"2026Y", ~o"2026-06-15")
+      :contains
+
+  """
+  @spec compare(interval_like(), interval_like()) :: relation() | {:error, term()}
+  def compare(a, b) do
+    with {:ok, iv_a} <- to_single_interval(a, :a),
+         {:ok, iv_b} <- to_single_interval(b, :b) do
+      classify(iv_a, iv_b)
+    end
+  end
+
+  @doc """
+  The inverse Allen relation.
+
+  If `compare(a, b)` returns `r`, then `compare(b, a)` returns
+  `inverse_relation(r)`.
+
+  ### Examples
+
+      iex> Tempo.Interval.inverse_relation(:contains)
+      :during
+
+      iex> Tempo.Interval.inverse_relation(:precedes)
+      :preceded_by
+
+      iex> Tempo.Interval.inverse_relation(:equals)
+      :equals
+
+  """
+  @spec inverse_relation(relation()) :: relation()
+  def inverse_relation(:precedes), do: :preceded_by
+  def inverse_relation(:preceded_by), do: :precedes
+  def inverse_relation(:meets), do: :met_by
+  def inverse_relation(:met_by), do: :meets
+  def inverse_relation(:overlaps), do: :overlapped_by
+  def inverse_relation(:overlapped_by), do: :overlaps
+  def inverse_relation(:starts), do: :started_by
+  def inverse_relation(:started_by), do: :starts
+  def inverse_relation(:finishes), do: :finished_by
+  def inverse_relation(:finished_by), do: :finishes
+  def inverse_relation(:during), do: :contains
+  def inverse_relation(:contains), do: :during
+  def inverse_relation(:equals), do: :equals
+
+  # Three endpoint comparisons drive the 13-way branch:
+  # `a.from vs b.from`, `a.to vs b.to`, and the "seam" checks
+  # `a.to vs b.from` / `a.from vs b.to` which disambiguate
+  # disjoint (meets/precedes and their inverses) from
+  # overlapping cases.
+  defp classify(%__MODULE__{from: a_from, to: a_to}, %__MODULE__{from: b_from, to: b_to}) do
+    s = Compare.compare_endpoints(a_from, b_from)
+    e = Compare.compare_endpoints(a_to, b_to)
+    e_vs_bs = Compare.compare_endpoints(a_to, b_from)
+    s_vs_be = Compare.compare_endpoints(a_from, b_to)
+
+    cond do
+      e_vs_bs == :earlier -> :precedes
+      e_vs_bs == :same -> :meets
+      s_vs_be == :later -> :preceded_by
+      s_vs_be == :same -> :met_by
+      s == :earlier and e == :earlier -> :overlaps
+      s == :earlier and e == :same -> :finished_by
+      s == :earlier and e == :later -> :contains
+      s == :same and e == :earlier -> :starts
+      s == :same and e == :same -> :equals
+      s == :same and e == :later -> :started_by
+      s == :later and e == :earlier -> :during
+      s == :later and e == :same -> :finishes
+      s == :later and e == :later -> :overlapped_by
+    end
+  end
+
+  defp to_single_interval(%__MODULE__{from: %Tempo{}, to: %Tempo{}} = iv, _label), do: {:ok, iv}
+
+  defp to_single_interval(%IntervalSet{intervals: [iv]}, _label), do: {:ok, iv}
+
+  defp to_single_interval(%IntervalSet{intervals: ivs}, label) do
+    {:error,
+     "Tempo.Interval.compare/2 requires a single bounded interval on each side. " <>
+       "Operand #{inspect(label)} is an IntervalSet with #{length(ivs)} members. " <>
+       "For set-level questions use `Tempo.overlaps?/2`, `Tempo.disjoint?/2`, " <>
+       "`Tempo.intersection/2`, or `Tempo.IntervalSet.relation_matrix/2`."}
+  end
+
+  defp to_single_interval(%Tempo{} = point, label) do
+    case Tempo.to_interval(point) do
+      {:ok, %__MODULE__{} = iv} -> to_single_interval(iv, label)
+      {:ok, %IntervalSet{} = set} -> to_single_interval(set, label)
+      {:error, _} = err -> err
+    end
+  end
+
+  defp to_single_interval(%__MODULE__{}, label) do
+    {:error,
+     "Tempo.Interval.compare/2 needs bounded intervals on both sides. " <>
+       "Operand #{inspect(label)} has an open-ended endpoint (`:undefined`)."}
+  end
+
+  defp to_single_interval(other, label) do
+    {:error,
+     "Tempo.Interval.compare/2 cannot classify operand #{inspect(label)}: " <>
+       "#{inspect(other)}"}
+  end
+
+  ## ----------------------------------------------------------
+  ## Shape predicates
+  ## ----------------------------------------------------------
+
+  @doc """
+  `true` when both endpoints are concrete `%Tempo{}` values —
+  neither `:undefined` nor `nil`. Useful as a guard before set
+  operations or duration checks.
+
+  ### Examples
+
+      iex> Tempo.Interval.bounded?(%Tempo.Interval{from: ~o"2026-06-01", to: ~o"2026-06-10"})
+      true
+
+      iex> Tempo.Interval.bounded?(%Tempo.Interval{from: ~o"2026-06-01", to: :undefined})
+      false
+
+  """
+  @spec bounded?(t()) :: boolean()
+  def bounded?(%__MODULE__{from: %Tempo{}, to: %Tempo{}}), do: true
+  def bounded?(%__MODULE__{}), do: false
+
+  @doc """
+  `true` when the interval has zero length (`from == to` under
+  `Tempo.Compare.compare_endpoints/2`).
+
+  Empty intervals represent a degenerate instant. They pass
+  `bounded?/1` but have no span.
+
+  ### Examples
+
+      iex> Tempo.Interval.empty?(%Tempo.Interval{from: ~o"2026-06-15", to: ~o"2026-06-15"})
+      true
+
+      iex> Tempo.Interval.empty?(%Tempo.Interval{from: ~o"2026-06-01", to: ~o"2026-06-10"})
+      false
+
+  """
+  @spec empty?(t()) :: boolean()
+  def empty?(%__MODULE__{from: %Tempo{} = from, to: %Tempo{} = to}) do
+    Compare.compare_endpoints(from, to) == :same
+  end
+
+  def empty?(%__MODULE__{}), do: false
+
+  ## ----------------------------------------------------------
+  ## Duration query + duration predicates
+  ## ----------------------------------------------------------
+
+  @doc """
+  Return the interval's length as a `%Tempo.Duration{}` in
+  seconds. Returns `:infinity` for unbounded intervals (one or
+  both endpoints `:undefined`).
+
+  The result is calendar- and zone-aware — it goes through
+  `Tempo.Compare.to_utc_seconds/1` so cross-zone intervals
+  compute a correct wall-clock delta.
+
+  ### Examples
+
+      iex> Tempo.Interval.duration(%Tempo.Interval{from: ~o"2026-06-15T09", to: ~o"2026-06-15T10"})
+      ~o"PT3600S"
+
+      iex> Tempo.Interval.duration(%Tempo.Interval{from: ~o"2026-06-15", to: :undefined})
+      :infinity
+
+  """
+  @spec duration(t()) :: Duration.t() | :infinity
+  def duration(%__MODULE__{from: :undefined}), do: :infinity
+  def duration(%__MODULE__{to: :undefined}), do: :infinity
+  def duration(%__MODULE__{from: nil}), do: :infinity
+  def duration(%__MODULE__{to: nil}), do: :infinity
+
+  def duration(%__MODULE__{from: %Tempo{} = from, to: %Tempo{} = to}) do
+    seconds = Compare.to_utc_seconds(to) - Compare.to_utc_seconds(from)
+    %Duration{time: [second: seconds]}
+  end
+
+  @doc """
+  `true` when the interval is at least as long as the given
+  duration.
+
+  Unbounded intervals (`:undefined` endpoint) satisfy any finite
+  minimum — an infinite span is trivially "at least" any
+  duration.
+
+  ### Examples
+
+      iex> iv = %Tempo.Interval{from: ~o"2026-06-15T09", to: ~o"2026-06-15T11"}
+      iex> Tempo.Interval.at_least?(iv, ~o"PT1H")
+      true
+
+      iex> Tempo.Interval.at_least?(iv, ~o"PT3H")
+      false
+
+  """
+  @spec at_least?(t(), Duration.t()) :: boolean()
+  def at_least?(%__MODULE__{from: :undefined}, _), do: true
+  def at_least?(%__MODULE__{to: :undefined}, _), do: true
+
+  def at_least?(%__MODULE__{from: %Tempo{} = from, to: %Tempo{} = to}, %Duration{} = d) do
+    Compare.compare_endpoints(Math.add(from, d), to) in [:earlier, :same]
+  end
+
+  @doc """
+  `true` when the interval is at most as long as the given
+  duration.
+
+  Unbounded intervals return `false` — an infinite span exceeds
+  any finite maximum.
+
+  ### Examples
+
+      iex> iv = %Tempo.Interval{from: ~o"2026-06-15T09", to: ~o"2026-06-15T10"}
+      iex> Tempo.Interval.at_most?(iv, ~o"PT1H")
+      true
+
+      iex> Tempo.Interval.at_most?(iv, ~o"PT30M")
+      false
+
+  """
+  @spec at_most?(t(), Duration.t()) :: boolean()
+  def at_most?(%__MODULE__{from: :undefined}, _), do: false
+  def at_most?(%__MODULE__{to: :undefined}, _), do: false
+
+  def at_most?(%__MODULE__{from: %Tempo{} = from, to: %Tempo{} = to}, %Duration{} = d) do
+    Compare.compare_endpoints(Math.add(from, d), to) in [:later, :same]
+  end
+
+  @doc """
+  `true` when the interval's length equals the given duration
+  exactly.
+
+  Unbounded intervals always return `false`.
+
+  ### Examples
+
+      iex> iv = %Tempo.Interval{from: ~o"2026-06-15T09", to: ~o"2026-06-15T10"}
+      iex> Tempo.Interval.exactly?(iv, ~o"PT1H")
+      true
+
+      iex> Tempo.Interval.exactly?(iv, ~o"PT2H")
+      false
+
+  """
+  @spec exactly?(t(), Duration.t()) :: boolean()
+  def exactly?(%__MODULE__{from: :undefined}, _), do: false
+  def exactly?(%__MODULE__{to: :undefined}, _), do: false
+
+  def exactly?(%__MODULE__{from: %Tempo{} = from, to: %Tempo{} = to}, %Duration{} = d) do
+    Compare.compare_endpoints(Math.add(from, d), to) == :same
+  end
+
+  @doc """
+  `true` when the interval's length is strictly greater than
+  the given duration.
+
+  ### Examples
+
+      iex> iv = %Tempo.Interval{from: ~o"2026-06-15T09", to: ~o"2026-06-15T11"}
+      iex> Tempo.Interval.longer_than?(iv, ~o"PT1H")
+      true
+
+      iex> Tempo.Interval.longer_than?(iv, ~o"PT2H")
+      false
+
+  """
+  @spec longer_than?(t(), Duration.t()) :: boolean()
+  def longer_than?(%__MODULE__{from: :undefined}, _), do: true
+  def longer_than?(%__MODULE__{to: :undefined}, _), do: true
+
+  def longer_than?(%__MODULE__{from: %Tempo{} = from, to: %Tempo{} = to}, %Duration{} = d) do
+    Compare.compare_endpoints(Math.add(from, d), to) == :earlier
+  end
+
+  @doc """
+  `true` when the interval's length is strictly less than the
+  given duration.
+
+  ### Examples
+
+      iex> iv = %Tempo.Interval{from: ~o"2026-06-15T09", to: ~o"2026-06-15T10"}
+      iex> Tempo.Interval.shorter_than?(iv, ~o"PT2H")
+      true
+
+      iex> Tempo.Interval.shorter_than?(iv, ~o"PT1H")
+      false
+
+  """
+  @spec shorter_than?(t(), Duration.t()) :: boolean()
+  def shorter_than?(%__MODULE__{from: :undefined}, _), do: false
+  def shorter_than?(%__MODULE__{to: :undefined}, _), do: false
+
+  def shorter_than?(%__MODULE__{from: %Tempo{} = from, to: %Tempo{} = to}, %Duration{} = d) do
+    Compare.compare_endpoints(Math.add(from, d), to) == :later
+  end
+
+  ## ----------------------------------------------------------
+  ## Relation predicates — thin shortcuts over compare/2
+  ## ----------------------------------------------------------
+
+  @doc """
+  `true` when `a` ends strictly before `b` starts, with a gap
+  (Allen's `:precedes`). Use `adjacent?/2` to include the
+  no-gap case.
+
+  Returns `false` on any error or non-matching relation.
+  """
+  @spec before?(interval_like(), interval_like()) :: boolean()
+  def before?(a, b), do: match_relation(a, b, [:precedes])
+
+  @doc """
+  `true` when `a` starts strictly after `b` ends, with a gap
+  (Allen's `:preceded_by`).
+  """
+  @spec after?(interval_like(), interval_like()) :: boolean()
+  def after?(a, b), do: match_relation(a, b, [:preceded_by])
+
+  @doc """
+  `true` when `a`'s end coincides exactly with `b`'s start
+  (Allen's `:meets`). Under the half-open convention this means
+  the intervals share no point but have no gap.
+  """
+  @spec meets?(interval_like(), interval_like()) :: boolean()
+  def meets?(a, b), do: match_relation(a, b, [:meets])
+
+  @doc """
+  `true` when the two intervals touch at a single boundary —
+  either `a` meets `b` or `b` meets `a` (Allen's
+  `:meets | :met_by`).
+
+  ### Examples
+
+      iex> Tempo.Interval.adjacent?(~o"2026-06-15", ~o"2026-06-16")
+      true
+
+      iex> Tempo.Interval.adjacent?(~o"2026-06-15", ~o"2026-06-17")
+      false
+
+  """
+  @spec adjacent?(interval_like(), interval_like()) :: boolean()
+  def adjacent?(a, b), do: match_relation(a, b, [:meets, :met_by])
+
+  @doc """
+  `true` when `a` is strictly inside `b` — both endpoints of
+  `a` lie strictly within `b` (Allen's `:during`). Shared-
+  endpoint cases (`:starts`, `:finishes`) return `false`; use
+  `within?/2` for the inclusive version.
+  """
+  @spec during?(interval_like(), interval_like()) :: boolean()
+  def during?(a, b), do: match_relation(a, b, [:during])
+
+  @doc """
+  `true` when `a` lies inside `b` inclusive of shared
+  endpoints (Allen's `:equals | :starts | :during | :finishes`).
+  The canonical "does this fit inside that window?" predicate.
+
+  ### Examples
+
+      iex> a = %Tempo.Interval{from: ~o"2026-06-15T10", to: ~o"2026-06-15T11"}
+      iex> window = %Tempo.Interval{from: ~o"2026-06-15T09", to: ~o"2026-06-15T17"}
+      iex> Tempo.Interval.within?(a, window)
+      true
+
+      iex> # Candidate shares the window's start — still inside
+      iex> a2 = %Tempo.Interval{from: ~o"2026-06-15T09", to: ~o"2026-06-15T10"}
+      iex> Tempo.Interval.within?(a2, window)
+      true
+
+  """
+  @spec within?(interval_like(), interval_like()) :: boolean()
+  def within?(a, b), do: match_relation(a, b, [:equals, :starts, :during, :finishes])
+
+  defp match_relation(a, b, allowed_relations) do
+    case compare(a, b) do
+      r when is_atom(r) -> r in allowed_relations
+      _ -> false
+    end
   end
 end

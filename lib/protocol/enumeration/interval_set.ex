@@ -7,11 +7,14 @@ defimpl Enumerable, for: Tempo.IntervalSet do
   # The result is a flat sequence of `%Tempo{}` values in time
   # order — the natural input for free/busy scans and calendar
   # renderings.
+  #
+  # To iterate the member intervals directly (instead of every
+  # sub-point inside them) call `Tempo.IntervalSet.to_list/1` and
+  # pipe the list into `Enum`. See the TODO on resolving this
+  # semantic tension cleanly.
 
   @impl Enumerable
   def count(_set) do
-    # v1: consistent with Enumerable.Tempo.Interval — precise
-    # counts are deferred to the set-operations milestone.
     {:error, __MODULE__}
   end
 

@@ -181,7 +181,63 @@ true
 
 ### What's the full set of relationships between two intervals?
 
-Tempo implements Allen's interval algebra. Along with `overlaps?/2` and `contains?/2` you get `precedes?`, `meets?`, `starts?`, `finishes?`, `equal?`, and their inverses.
+Tempo implements Allen's interval algebra — every pair of bounded intervals stands in exactly one of 13 relations. `Tempo.compare/2` returns the atom:
+
+```elixir
+iex> a = %Tempo.Interval{from: ~o"2026-06-01", to: ~o"2026-06-10"}
+iex> b = %Tempo.Interval{from: ~o"2026-06-05", to: ~o"2026-06-15"}
+iex> Tempo.compare(a, b)
+:overlaps
+
+iex> Tempo.compare(~o"2026-06-15", ~o"2026-06-16")
+:meets
+```
+
+Named predicates cover the common one-shot checks:
+
+| Predicate | Maps to |
+|---|---|
+| `Tempo.before?(a, b)` | `:precedes` — ends with a gap before b |
+| `Tempo.after?(a, b)` | `:preceded_by` |
+| `Tempo.meets?(a, b)` | `:meets` — ends exactly at b's start |
+| `Tempo.adjacent?(a, b)` | `:meets \| :met_by` — touches, no gap |
+| `Tempo.during?(a, b)` | `:during` — strictly inside |
+| `Tempo.within?(a, b)` | `:equals \| :starts \| :during \| :finishes` — fits inside, inclusive |
+
+`Tempo.within?/2` is the canonical "does this fit inside that window?" predicate:
+
+```elixir
+iex> candidate = %Tempo.Interval{from: ~o"2026-06-15T10", to: ~o"2026-06-15T11"}
+iex> window = %Tempo.Interval{from: ~o"2026-06-15T09", to: ~o"2026-06-15T17"}
+iex> Tempo.within?(candidate, window)
+true
+```
+
+For set-level questions across two multi-member `IntervalSet`s, use `Tempo.IntervalSet.relation_matrix/2` which returns every pairwise relation.
+
+### How long is an interval?
+
+```elixir
+iex> iv = %Tempo.Interval{from: ~o"2026-06-15T09", to: ~o"2026-06-15T11"}
+iex> Tempo.duration(iv)
+~o"PT7200S"
+```
+
+Returns `:infinity` when one or both endpoints are `:undefined`.
+
+### How do I check an interval's length against a duration?
+
+Five predicates cover the comparison lattice:
+
+```elixir
+iv = %Tempo.Interval{from: ~o"2026-06-15T09", to: ~o"2026-06-15T10"}
+
+Tempo.at_least?(iv, ~o"PT1H")      # true — length ≥ 1h
+Tempo.exactly?(iv, ~o"PT1H")       # true — length == 1h
+Tempo.at_most?(iv, ~o"PT1H")       # true — length ≤ 1h
+Tempo.longer_than?(iv, ~o"PT30M")  # true — strict >
+Tempo.shorter_than?(iv, ~o"PT2H")  # true — strict <
+```
 
 ### How do I compare two values across different calendars?
 
@@ -463,16 +519,36 @@ iex> length(occurrences)
 # Total Friday-the-13ths in the 21st century.
 ```
 
-### Find when two people are both available
+### Find when two people are both free for at least 1 hour
 
 ```elixir
 iex> {:ok, ada} = Tempo.ICal.from_ical_file("~/ada.ics")
 iex> {:ok, grace} = Tempo.ICal.from_ical_file("~/grace.ics")
 iex> work_hours = ~o"2026-06-15T09/2026-06-15T17"
 iex> {:ok, ada_free} = Tempo.difference(work_hours, ada)
-iex> {:ok, both_free} = Tempo.difference(ada_free, grace)
-# `both_free` intervals are the slots where neither is busy.
+iex> {:ok, grace_free} = Tempo.difference(work_hours, grace)
+iex> {:ok, mutual} = Tempo.intersection(ada_free, grace_free)
+iex> slots =
+...>   mutual
+...>   |> Tempo.IntervalSet.to_list()
+...>   |> Enum.filter(&Tempo.at_least?(&1, ~o"PT1H"))
+# Each slot is a window where neither is busy, long enough to schedule.
 ```
+
+### Which of these candidate meeting times can I book?
+
+```elixir
+iex> candidates = [
+...>   ~o"2026-06-15T09/2026-06-15T10",
+...>   ~o"2026-06-15T11/2026-06-15T12",
+...>   ~o"2026-06-15T16/2026-06-15T17"
+...> ]
+iex> bookable = Enum.filter(candidates, fn c ->
+...>   Enum.any?(Tempo.IntervalSet.to_list(mutual), &Tempo.within?(c, &1))
+...> end)
+```
+
+`Tempo.within?(candidate, window)` reads as the question: does the candidate fit inside the window?
 
 ### How do I check if a dig layer overlaps a historical period?
 

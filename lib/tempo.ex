@@ -2070,6 +2070,114 @@ defmodule Tempo do
   defdelegate equal?(a, b, opts \\ []), to: Tempo.Operations
 
   @doc """
+  Classify the Allen interval-algebra relation between two
+  interval-like values.
+
+  Thin delegate to `Tempo.Interval.compare/2` — see that
+  function's docs for the full table of 13 relations.
+
+  Use `Tempo.IntervalSet.relation_matrix/2` when both operands
+  are multi-member sets and you want the per-pair breakdown.
+
+  ### Examples
+
+      iex> Tempo.compare(~o"2026-06-15", ~o"2026-06-16")
+      :meets
+
+      iex> a = %Tempo.Interval{from: ~o"2026-06-01", to: ~o"2026-06-10"}
+      iex> b = %Tempo.Interval{from: ~o"2026-06-05", to: ~o"2026-06-15"}
+      iex> Tempo.compare(a, b)
+      :overlaps
+
+  """
+  defdelegate compare(a, b), to: Tempo.Interval
+
+  @doc """
+  Return the interval's length as a `%Tempo.Duration{}`, or
+  `:infinity` for unbounded intervals. See `Tempo.Interval.duration/1`.
+  """
+  defdelegate duration(interval), to: Tempo.Interval
+
+  @doc """
+  `true` when the interval is at least as long as the given
+  duration. See `Tempo.Interval.at_least?/2`.
+  """
+  defdelegate at_least?(interval, duration), to: Tempo.Interval
+
+  @doc """
+  `true` when the interval is at most as long as the given
+  duration. See `Tempo.Interval.at_most?/2`.
+  """
+  defdelegate at_most?(interval, duration), to: Tempo.Interval
+
+  @doc """
+  `true` when the interval's length equals the given duration.
+  See `Tempo.Interval.exactly?/2`.
+  """
+  defdelegate exactly?(interval, duration), to: Tempo.Interval
+
+  @doc """
+  `true` when the interval is strictly longer than the given
+  duration. See `Tempo.Interval.longer_than?/2`.
+  """
+  defdelegate longer_than?(interval, duration), to: Tempo.Interval
+
+  @doc """
+  `true` when the interval is strictly shorter than the given
+  duration. See `Tempo.Interval.shorter_than?/2`.
+  """
+  defdelegate shorter_than?(interval, duration), to: Tempo.Interval
+
+  @doc """
+  `true` when both endpoints of the interval are concrete
+  (neither `:undefined` nor `nil`). See `Tempo.Interval.bounded?/1`.
+  """
+  defdelegate bounded?(interval), to: Tempo.Interval
+
+  @doc """
+  `true` when the interval has zero length. See
+  `Tempo.Interval.empty?/1`.
+  """
+  defdelegate empty?(interval), to: Tempo.Interval
+
+  @doc """
+  `true` when `a` ends strictly before `b` starts (Allen's
+  `:precedes`). See `Tempo.Interval.before?/2`.
+  """
+  defdelegate before?(a, b), to: Tempo.Interval
+
+  @doc """
+  `true` when `a` starts strictly after `b` ends (Allen's
+  `:preceded_by`). See `Tempo.Interval.after?/2`.
+  """
+  defdelegate after?(a, b), to: Tempo.Interval
+
+  @doc """
+  `true` when `a`'s end coincides exactly with `b`'s start
+  (Allen's `:meets`). See `Tempo.Interval.meets?/2`.
+  """
+  defdelegate meets?(a, b), to: Tempo.Interval
+
+  @doc """
+  `true` when the two intervals touch at a single boundary
+  (Allen's `:meets | :met_by`). See `Tempo.Interval.adjacent?/2`.
+  """
+  defdelegate adjacent?(a, b), to: Tempo.Interval
+
+  @doc """
+  `true` when `a` is strictly inside `b` (Allen's `:during`).
+  See `Tempo.Interval.during?/2`.
+  """
+  defdelegate during?(a, b), to: Tempo.Interval
+
+  @doc """
+  `true` when `a` fits inside `b` inclusive of shared
+  endpoints. The canonical "does this fit inside that window?"
+  predicate. See `Tempo.Interval.within?/2`.
+  """
+  defdelegate within?(a, b), to: Tempo.Interval
+
+  @doc """
   Return a multi-line prose explanation of any Tempo value —
   what it is, what it spans, and how to work with it.
 
