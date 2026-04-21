@@ -430,7 +430,6 @@ defmodule Tempo.RRule.Selection do
   ## BYDAY (weekday filter / expander)
   ## ------------------------------------------------------------
 
-
   defp weekday_of(%Interval{from: %Tempo{time: time, calendar: calendar}}) do
     with year when is_integer(year) <- Keyword.get(time, :year),
          month when is_integer(month) <- Keyword.get(time, :month),
@@ -692,7 +691,10 @@ defmodule Tempo.RRule.Selection do
   # BYYEARDAY with FREQ=YEARLY: one occurrence per listed
   # day-of-year (signed). Convert ordinal → {month, day} via
   # the calendar's day-of-year axis.
-  defp expand_candidate_year_days(%Interval{from: %Tempo{calendar: calendar}} = candidate, year_days) do
+  defp expand_candidate_year_days(
+         %Interval{from: %Tempo{calendar: calendar}} = candidate,
+         year_days
+       ) do
     year = candidate.from.time[:year]
     diy = calendar.days_in_year(year)
 
@@ -712,7 +714,10 @@ defmodule Tempo.RRule.Selection do
   # week number (signed). A single-week expansion yields 7
   # occurrences (each day of the week). Days outside the year
   # are dropped.
-  defp expand_candidate_week_numbers(%Interval{from: %Tempo{calendar: calendar}} = candidate, weeks) do
+  defp expand_candidate_week_numbers(
+         %Interval{from: %Tempo{calendar: calendar}} = candidate,
+         weeks
+       ) do
     year = candidate.from.time[:year]
     wiy = weeks_in_year(calendar, year)
 

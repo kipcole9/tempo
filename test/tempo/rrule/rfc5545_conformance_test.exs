@@ -50,7 +50,19 @@ defmodule Tempo.RRule.Rfc5545ConformanceTest do
       # ==> (1997 9:00 AM EDT) September 2-11
       rule = %Rule{freq: :day, interval: 1, count: 10}
       {:ok, occ} = Expander.expand(rule, ~o"1997-09-02")
-      assert md(occ) == [{9, 2}, {9, 3}, {9, 4}, {9, 5}, {9, 6}, {9, 7}, {9, 8}, {9, 9}, {9, 10}, {9, 11}]
+
+      assert md(occ) == [
+               {9, 2},
+               {9, 3},
+               {9, 4},
+               {9, 5},
+               {9, 6},
+               {9, 7},
+               {9, 8},
+               {9, 9},
+               {9, 10},
+               {9, 11}
+             ]
     end
 
     test "Daily until December 24, 1997" do
@@ -94,7 +106,19 @@ defmodule Tempo.RRule.Rfc5545ConformanceTest do
       # RRULE:FREQ=WEEKLY;COUNT=10
       rule = %Rule{freq: :week, interval: 1, count: 10}
       {:ok, occ} = Expander.expand(rule, ~o"1997-09-02")
-      assert md(occ) == [{9, 2}, {9, 9}, {9, 16}, {9, 23}, {9, 30}, {10, 7}, {10, 14}, {10, 21}, {10, 28}, {11, 4}]
+
+      assert md(occ) == [
+               {9, 2},
+               {9, 9},
+               {9, 16},
+               {9, 23},
+               {9, 30},
+               {10, 7},
+               {10, 14},
+               {10, 21},
+               {10, 28},
+               {11, 4}
+             ]
     end
 
     test "Weekly until December 24, 1997" do
@@ -124,7 +148,19 @@ defmodule Tempo.RRule.Rfc5545ConformanceTest do
       }
 
       {:ok, occ} = Expander.expand(rule, ~o"1997-09-02")
-      assert md(occ) == [{9, 2}, {9, 4}, {9, 9}, {9, 11}, {9, 16}, {9, 18}, {9, 23}, {9, 25}, {9, 30}, {10, 2}]
+
+      assert md(occ) == [
+               {9, 2},
+               {9, 4},
+               {9, 9},
+               {9, 11},
+               {9, 16},
+               {9, 18},
+               {9, 23},
+               {9, 25},
+               {9, 30},
+               {10, 2}
+             ]
     end
 
     test "Every other week, MO, WE, FR, 6 occurrences" do
@@ -572,6 +608,7 @@ defmodule Tempo.RRule.Rfc5545ConformanceTest do
       {:ok, occ} = Expander.expand(rule, ~o"1997-08-05")
 
       assert length(occ) == 4
+
       # First occurrence is Aug 5 (the anchor), next is the Sun of its week (Aug 10 with SU-start).
       # Actually — the WKST=SU week of Aug 5 is Sun Aug 3..Sat Aug 9. Sunday in that week is Aug 3.
       # That precedes DTSTART, so it's dropped — leaving just Aug 5.
