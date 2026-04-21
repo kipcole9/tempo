@@ -9,30 +9,37 @@ defmodule Tempo.RRule.Selection do
   decide whether the candidate is kept, dropped, or expanded into
   multiple occurrences.
 
-  ## Phase B — scope
+  ## Implemented rules
 
-  The full RFC 5545 §3.3.10 `BY*` table pairs each rule with its
-  `FREQ` to decide whether it acts as a **LIMIT** (filter) or an
-  **EXPAND** (grow the candidate set). This module lands the table
-  one sub-rule at a time:
+  Per RFC 5545 §3.3.10's EXPAND/LIMIT table:
 
-  * `BYMONTH` — always a LIMIT (implemented).
+  | Part         | Role and when                                     |
+  | ------------ | ------------------------------------------------- |
+  | `BYMONTH`    | LIMIT — always.                                   |
+  | `BYMONTHDAY` | LIMIT — any FREQ except WEEKLY (forbidden).       |
+  | `BYYEARDAY`  | LIMIT — any FREQ coarser than DAILY.              |
+  | `BYWEEKNO`   | LIMIT — `YEARLY` only.                            |
+  | `BYDAY`      | LIMIT for DAILY/HOURLY/MINUTELY/SECONDLY; EXPAND  |
+  |              | within the enclosing week/month/year for WEEKLY,  |
+  |              | MONTHLY, YEARLY.                                  |
+  | `BYHOUR`     | EXPAND when FREQ is coarser than hour; LIMIT      |
+  |              | when FREQ is hour-or-finer.                       |
+  | `BYMINUTE`   | Same pattern at the minute unit.                  |
+  | `BYSECOND`   | Same pattern at the second unit.                  |
 
-  * `BYMONTHDAY`, `BYYEARDAY`, `BYWEEKNO` — LIMIT (not yet).
+  ## Deferred
 
-  * `BYDAY` — LIMIT when `FREQ` is day-or-finer; EXPAND when
-    `FREQ` is `:month` or `:year` (not yet).
+  `BYSETPOS` is applied **after** all other BY-rules (RFC 5545
+  §3.3.10), so it belongs to its own pass. It still land in
+  Phase C. Ordinal-bearing `BYDAY` (e.g. `1MO`, `-1FR`) when
+  FREQ is WEEKLY/MONTHLY/YEARLY is also currently deferred — the
+  ordinal (carried in the AST as an `:instance` token alongside
+  `:day_of_week`) is a BYSETPOS-shaped filter that operates on
+  the per-period candidate set. See `plans/rrule-full-expansion.md`.
 
-  * `BYHOUR` / `BYMINUTE` / `BYSECOND` — EXPAND when `FREQ` is
-    coarser than the unit; LIMIT otherwise (not yet).
-
-  * `BYSETPOS` — applied **after** all other `BY*` rules, so it
-    lives in its own pass (not yet).
-
-  Each unimplemented sub-rule currently passes through unchanged
-  — the candidate is emitted as-is. That keeps Phase A's simple
-  `FREQ/INTERVAL/COUNT/UNTIL` pipeline intact while we add
-  sub-rules incrementally.
+  Tokens this module doesn't yet interpret pass through unchanged
+  so partial support is correct for the partial inputs and the
+  caller's fallback policy (see `Tempo.ICal`) decides the rest.
 
   """
 
@@ -40,8 +47,7 @@ defmodule Tempo.RRule.Selection do
 
   @doc """
   Apply a `repeat_rule` to one candidate occurrence and return the
-  resulting list of occurrences (zero for a LIMIT rejection, one
-  for passthrough, more once EXPAND rules land).
+  resulting list of occurrences.
 
   ### Arguments
 
@@ -53,13 +59,14 @@ defmodule Tempo.RRule.Selection do
 
   * `freq` is the enclosing `FREQ` atom (`:second`, `:minute`,
     `:hour`, `:day`, `:week`, `:month`, `:year`). Drives the
-    EXPAND-vs-LIMIT dispatch for sub-rules that care.
+    EXPAND-vs-LIMIT dispatch for rules whose role depends on
+    the enclosing frequency.
 
   ### Returns
 
-  * A list of `t:Tempo.Interval.t/0` occurrences — `[]` (LIMIT
-    rejected), `[candidate]` (passthrough or LIMIT accepted),
-    or `[c1, c2, …]` (EXPAND, future phases).
+  * A list of `t:Tempo.Interval.t/0` occurrences — `[]` on LIMIT
+    rejection, `[candidate]` on passthrough or LIMIT accept,
+    `[c1, c2, …]` on EXPAND.
 
   ### Examples
 
@@ -89,44 +96,494 @@ defmodule Tempo.RRule.Selection do
   def apply(%Interval{} = candidate, _, _freq), do: [candidate]
 
   ## ------------------------------------------------------------
-  ## Selection dispatch — one sub-rule at a time
+  ## Selection dispatch
   ## ------------------------------------------------------------
 
-  # Walk the selection keyword list, applying each sub-rule in
-  # RFC 5545 order: BYMONTH → BYWEEKNO → BYYEARDAY → BYMONTHDAY →
-  # BYDAY → BYHOUR → BYMINUTE → BYSECOND, then BYSETPOS. Each
-  # sub-rule reduces or grows the working set of candidates.
-  # `freq` is reserved for the dispatch logic landing in later
-  # B-phases (BYDAY's EXPAND/LIMIT switch, BYHOUR/MINUTE/SECOND).
-  defp apply_selection(candidate, selection, _freq) do
-    Enum.reduce(selection, [candidate], fn
-      {:month, months}, candidates ->
-        limit_by_month(candidates, months)
-
-      # Every other selection token is currently a passthrough.
-      # Phase B.3+ replace each clause with a real filter/expand.
-      _entry, candidates ->
-        candidates
+  # Walk the selection keyword list and thread `candidates`
+  # through each sub-rule's filter or expander. The RFC 5545
+  # application order is fixed: BYMONTH → BYWEEKNO → BYYEARDAY →
+  # BYMONTHDAY → BYDAY → BYHOUR → BYMINUTE → BYSECOND (→ BYSETPOS
+  # last). Our AST has the selection list ordered in this layout
+  # already (from the parser/adapter), so a simple reduce is
+  # sufficient.
+  defp apply_selection(candidate, selection, freq) do
+    Enum.reduce(selection, [candidate], fn entry, candidates ->
+      apply_entry(entry, candidates, freq)
     end)
   end
 
-  ## ------------------------------------------------------------
-  ## BYMONTH — always a LIMIT, regardless of FREQ
-  ## ------------------------------------------------------------
-
-  # Keep every candidate whose `from`'s month is in the requested
-  # list. Per RFC 5545, the single-integer form (`BYMONTH=6`) is a
-  # degenerate list of length 1.
-  defp limit_by_month(candidates, month) when is_integer(month) do
-    limit_by_month(candidates, [month])
+  # BYMONTH — always LIMIT.
+  defp apply_entry({:month, months}, candidates, _freq) do
+    limit(candidates, months, &month_of/1)
   end
 
-  defp limit_by_month(candidates, months) when is_list(months) do
-    Enum.filter(candidates, fn %Interval{from: %Tempo{time: time}} ->
-      case Keyword.get(time, :month) do
+  # BYMONTHDAY — LIMIT. RFC forbids it with FREQ=WEEKLY; we don't
+  # reject such rules here (malformed rules are a parser concern),
+  # we just filter by matching day-of-month using positive and/or
+  # negative values. `-1` is the last day of the enclosing month.
+  defp apply_entry({:day, days}, candidates, _freq) do
+    Enum.filter(candidates, fn candidate ->
+      in_month_day_list?(candidate, List.wrap(days))
+    end)
+  end
+
+  # BYYEARDAY — LIMIT. Day-of-year, 1..366, supports negatives
+  # (`-1` = last day of year). Forbidden by RFC with FREQ=DAILY,
+  # WEEKLY, or MONTHLY; we don't reject, we just filter.
+  defp apply_entry({:day_of_year, days}, candidates, _freq) do
+    Enum.filter(candidates, fn candidate ->
+      in_year_day_list?(candidate, List.wrap(days))
+    end)
+  end
+
+  # BYWEEKNO — LIMIT. Only valid with FREQ=YEARLY per RFC; we
+  # apply the filter regardless of FREQ on the assumption that a
+  # parser or caller would reject malformed rules earlier.
+  defp apply_entry({:week, weeks}, candidates, _freq) do
+    Enum.filter(candidates, fn candidate ->
+      in_week_no_list?(candidate, List.wrap(weeks))
+    end)
+  end
+
+  # BYDAY without ordinal — pure day-of-week filter or expander
+  # depending on FREQ. With an ordinal (an accompanying
+  # `:instance` token), the expansion within the period picks
+  # only the Nth match; that's Phase C work (BYSETPOS-shaped).
+  defp apply_entry({:day_of_week, days}, candidates, freq) do
+    case byday_role(freq) do
+      :limit ->
+        Enum.filter(candidates, fn candidate ->
+          weekday_of(candidate) in List.wrap(days)
+        end)
+
+      {:expand, :week} ->
+        Enum.flat_map(candidates, &expand_weekdays_in_week(&1, List.wrap(days)))
+
+      {:expand, :month} ->
+        Enum.flat_map(candidates, &expand_weekdays_in_month(&1, List.wrap(days)))
+
+      {:expand, :year} ->
+        Enum.flat_map(candidates, &expand_weekdays_in_year(&1, List.wrap(days)))
+    end
+  end
+
+  # BYHOUR / BYMINUTE / BYSECOND — EXPAND when FREQ is coarser
+  # than the unit, LIMIT when FREQ is the same unit or finer.
+  defp apply_entry({:hour, values}, candidates, freq) do
+    expand_or_limit_time(candidates, :hour, List.wrap(values), freq)
+  end
+
+  defp apply_entry({:minute, values}, candidates, freq) do
+    expand_or_limit_time(candidates, :minute, List.wrap(values), freq)
+  end
+
+  defp apply_entry({:second, values}, candidates, freq) do
+    expand_or_limit_time(candidates, :second, List.wrap(values), freq)
+  end
+
+  # Unknown tokens pass through — includes `:instance`
+  # (BYSETPOS / BYDAY ordinal) which Phase C will pick up.
+  defp apply_entry(_entry, candidates, _freq), do: candidates
+
+  ## ------------------------------------------------------------
+  ## Generic LIMIT helper
+  ## ------------------------------------------------------------
+
+  # `extractor` pulls an integer (or nil) from a candidate. Keeps
+  # candidates whose extracted value is in `targets` (a single
+  # integer or a list). `nil` extractions drop the candidate.
+  defp limit(candidates, targets, extractor) do
+    values = List.wrap(targets)
+
+    Enum.filter(candidates, fn candidate ->
+      case extractor.(candidate) do
         nil -> false
-        m when is_integer(m) -> m in months
+        value when is_integer(value) -> value in values
       end
     end)
   end
+
+  defp month_of(%Interval{from: %Tempo{time: time}}), do: Keyword.get(time, :month)
+
+  ## ------------------------------------------------------------
+  ## BYMONTHDAY
+  ## ------------------------------------------------------------
+
+  defp in_month_day_list?(%Interval{} = candidate, days) do
+    case {day_of(candidate), days_in_enclosing_month(candidate)} do
+      {nil, _} -> false
+      {_, nil} -> false
+      {day, dim} -> Enum.any?(days, &matches_signed_index?(&1, day, dim))
+    end
+  end
+
+  defp day_of(%Interval{from: %Tempo{time: time}}), do: Keyword.get(time, :day)
+
+  defp days_in_enclosing_month(%Interval{from: %Tempo{time: time, calendar: calendar}}) do
+    year = Keyword.get(time, :year)
+    month = Keyword.get(time, :month)
+
+    if is_integer(year) and is_integer(month) do
+      calendar.days_in_month(year, month)
+    end
+  end
+
+  ## ------------------------------------------------------------
+  ## BYYEARDAY
+  ## ------------------------------------------------------------
+
+  defp in_year_day_list?(%Interval{} = candidate, target_days) do
+    case {day_of_year_of(candidate), days_in_enclosing_year(candidate)} do
+      {nil, _} -> false
+      {_, nil} -> false
+      {doy, diy} -> Enum.any?(target_days, &matches_signed_index?(&1, doy, diy))
+    end
+  end
+
+  defp day_of_year_of(%Interval{from: %Tempo{time: time, calendar: calendar}}) do
+    with year when is_integer(year) <- Keyword.get(time, :year),
+         month when is_integer(month) <- Keyword.get(time, :month),
+         day when is_integer(day) <- Keyword.get(time, :day) do
+      calendar.day_of_year(year, month, day)
+    else
+      _ -> nil
+    end
+  end
+
+  defp days_in_enclosing_year(%Interval{from: %Tempo{time: time, calendar: calendar}}) do
+    case Keyword.get(time, :year) do
+      year when is_integer(year) -> calendar.days_in_year(year)
+      _ -> nil
+    end
+  end
+
+  ## ------------------------------------------------------------
+  ## BYWEEKNO
+  ## ------------------------------------------------------------
+
+  defp in_week_no_list?(%Interval{} = candidate, weeks) do
+    case {iso_week_of(candidate), weeks_in_enclosing_year(candidate)} do
+      {nil, _} -> false
+      {_, nil} -> false
+      {wk, wiy} -> Enum.any?(weeks, &matches_signed_index?(&1, wk, wiy))
+    end
+  end
+
+  defp iso_week_of(%Interval{from: %Tempo{time: time, calendar: calendar}}) do
+    with year when is_integer(year) <- Keyword.get(time, :year),
+         month when is_integer(month) <- Keyword.get(time, :month),
+         day when is_integer(day) <- Keyword.get(time, :day) do
+      {_year, week} = calendar.iso_week_of_year(year, month, day)
+      week
+    else
+      _ -> nil
+    end
+  end
+
+  defp weeks_in_enclosing_year(%Interval{from: %Tempo{time: time, calendar: calendar}}) do
+    case Keyword.get(time, :year) do
+      year when is_integer(year) ->
+        # Some Calendar implementations (e.g. `Calendrical.Gregorian`)
+        # return `{weeks, days_in_last_week}` from `weeks_in_year/1`;
+        # others return just the integer. Accept either.
+        case calendar.weeks_in_year(year) do
+          {weeks, _days_in_last_week} when is_integer(weeks) -> weeks
+          weeks when is_integer(weeks) -> weeks
+          _ -> nil
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  ## ------------------------------------------------------------
+  ## BYDAY (weekday filter / expander)
+  ## ------------------------------------------------------------
+
+  # Per RFC 5545 §3.3.10, BYDAY is a LIMIT for FREQ finer than a
+  # week and an EXPAND for FREQ=WEEKLY, MONTHLY, YEARLY. The
+  # period that the expansion walks is the enclosing week, month,
+  # or year respectively.
+  defp byday_role(:year), do: {:expand, :year}
+  defp byday_role(:month), do: {:expand, :month}
+  defp byday_role(:week), do: {:expand, :week}
+  defp byday_role(_), do: :limit
+
+  defp weekday_of(%Interval{from: %Tempo{time: time, calendar: calendar}}) do
+    with year when is_integer(year) <- Keyword.get(time, :year),
+         month when is_integer(month) <- Keyword.get(time, :month),
+         day when is_integer(day) <- Keyword.get(time, :day) do
+      calendar.day_of_week(year, month, day, :monday)
+      |> normalise_day_of_week()
+    else
+      _ -> nil
+    end
+  end
+
+  # `Calendar.day_of_week/4` can return `:undefined` or a tuple
+  # depending on the calendar implementation; coerce to a 1..7
+  # integer (ISO, Monday=1) or `nil` when the calendar refuses.
+  defp normalise_day_of_week(dow) when is_integer(dow) and dow in 1..7, do: dow
+  defp normalise_day_of_week({dow, _first, _last}) when is_integer(dow), do: dow
+  defp normalise_day_of_week(_), do: nil
+
+  # Walk every date in the candidate's enclosing week/month/year
+  # and emit one new candidate per matching weekday. We preserve
+  # the candidate's time-of-day and metadata; only the date
+  # component changes. Every calendar op goes through the
+  # candidate's own calendar.
+  defp expand_weekdays_in_month(%Interval{from: %Tempo{calendar: calendar}} = candidate, weekdays) do
+    case enclosing_month(candidate) do
+      nil -> [candidate]
+      {year, month} -> emit_matching_days(candidate, year, month, 1..calendar.days_in_month(year, month), weekdays)
+    end
+  end
+
+  defp expand_weekdays_in_year(%Interval{from: %Tempo{calendar: calendar}} = candidate, weekdays) do
+    case enclosing_year(candidate) do
+      nil ->
+        [candidate]
+
+      year ->
+        1..calendar.months_in_year(year)
+        |> Enum.flat_map(fn month ->
+          emit_matching_days(candidate, year, month, 1..calendar.days_in_month(year, month), weekdays)
+        end)
+    end
+  end
+
+  defp expand_weekdays_in_week(%Interval{} = candidate, weekdays) do
+    case week_date_range(candidate) do
+      nil ->
+        [candidate]
+
+      dates ->
+        dates
+        |> Enum.filter(fn {_year, _month, _day, dow} -> dow in weekdays end)
+        |> Enum.map(fn {year, month, day, _dow} ->
+          swap_date(candidate, year, month, day)
+        end)
+    end
+  end
+
+  defp enclosing_month(%Interval{from: %Tempo{time: time}}) do
+    with year when is_integer(year) <- Keyword.get(time, :year),
+         month when is_integer(month) <- Keyword.get(time, :month) do
+      {year, month}
+    else
+      _ -> nil
+    end
+  end
+
+  defp enclosing_year(%Interval{from: %Tempo{time: time}}) do
+    case Keyword.get(time, :year) do
+      year when is_integer(year) -> year
+      _ -> nil
+    end
+  end
+
+  defp emit_matching_days(%Interval{from: %Tempo{calendar: calendar}} = candidate, year, month, days, weekdays) do
+    days
+    |> Enum.filter(fn day ->
+      dow = calendar.day_of_week(year, month, day, :monday) |> normalise_day_of_week()
+      dow in weekdays
+    end)
+    |> Enum.map(fn day -> swap_date(candidate, year, month, day) end)
+  end
+
+  # Build the week around the candidate's date (Monday..Sunday by
+  # ISO default) as `{year, month, day, weekday}` tuples. Uses
+  # the candidate's calendar throughout — `Date.add/2` is
+  # calendar-aware, so week boundaries in non-Gregorian calendars
+  # fall on the right days.
+  defp week_date_range(%Interval{from: %Tempo{time: time, calendar: calendar}}) do
+    with year when is_integer(year) <- Keyword.get(time, :year),
+         month when is_integer(month) <- Keyword.get(time, :month),
+         day when is_integer(day) <- Keyword.get(time, :day),
+         dow when is_integer(dow) <-
+           calendar.day_of_week(year, month, day, :monday) |> normalise_day_of_week(),
+         {:ok, date} <- Date.new(year, month, day, calendar) do
+      monday = Date.add(date, -(dow - 1))
+
+      for i <- 0..6 do
+        d = Date.add(monday, i)
+        {d.year, d.month, d.day, i + 1}
+      end
+    else
+      _ -> nil
+    end
+  end
+
+  # Rebuild a candidate with a new date, preserving the existing
+  # time-of-day fields (hour/minute/second) and all other AST.
+  # Calendar-aware — every `Date` operation is threaded through
+  # the candidate's own calendar, so non-Gregorian recurrences
+  # (Hebrew, Islamic, Coptic, …) expand correctly.
+  #
+  # NOTE: `Keyword.put/3` deletes-then-prepends, which reorders
+  # the time list and breaks `Tempo.IntervalSet`'s positional
+  # sort. We use `replace_unit_values/2` to preserve the original
+  # [year, month, day, hour, …] ordering.
+  defp swap_date(%Interval{from: %Tempo{time: time, calendar: calendar} = tempo, to: to} = candidate, year, month, day) do
+    new_from_time = replace_unit_values(time, year: year, month: month, day: day)
+    new_from = %{tempo | time: new_from_time}
+    new_to = shift_to_endpoint(to, time, new_from_time, calendar)
+    %{candidate | from: new_from, to: new_to}
+  end
+
+  # Order-preserving replacement for keyword-list `time` values.
+  # For each `{unit, value}` in `replacements`, if `unit` is
+  # present in `time`, swap its value in place; otherwise leave
+  # `time` alone (callers that need to ADD a unit use
+  # `upsert_unit/3`).
+  defp replace_unit_values(time, replacements) do
+    Enum.map(time, fn {key, value} ->
+      case Keyword.fetch(replacements, key) do
+        {:ok, new_value} -> {key, new_value}
+        :error -> {key, value}
+      end
+    end)
+  end
+
+  defp shift_to_endpoint(nil, _old, _new, _calendar), do: nil
+  defp shift_to_endpoint(:undefined, _old, _new, _calendar), do: :undefined
+
+  defp shift_to_endpoint(%Tempo{time: to_time} = to_tempo, old_from_time, new_from_time, calendar) do
+    # Shift `to`'s date component by the same calendar-aware
+    # day-delta that took `from` to its new position. Preserves
+    # hour/minute/second on `to` so a 10:00–11:00 event stays
+    # 10:00–11:00 on its new date.
+    case delta_days(old_from_time, new_from_time, calendar) do
+      nil ->
+        to_tempo
+
+      delta ->
+        case shift_date_fields(to_time, delta, calendar) do
+          nil -> to_tempo
+          shifted_time -> %{to_tempo | time: shifted_time}
+        end
+    end
+  end
+
+  defp delta_days(from_time, to_time, calendar) do
+    with {:ok, a} <- date_of(from_time, calendar),
+         {:ok, b} <- date_of(to_time, calendar) do
+      Date.diff(b, a)
+    else
+      _ -> nil
+    end
+  end
+
+  defp shift_date_fields(time, delta, calendar) do
+    case date_of(time, calendar) do
+      {:ok, date} ->
+        new_date = Date.add(date, delta)
+        replace_unit_values(time, year: new_date.year, month: new_date.month, day: new_date.day)
+
+      _ ->
+        nil
+    end
+  end
+
+  defp date_of(time, calendar) do
+    with year when is_integer(year) <- Keyword.get(time, :year),
+         month when is_integer(month) <- Keyword.get(time, :month),
+         day when is_integer(day) <- Keyword.get(time, :day) do
+      Date.new(year, month, day, calendar)
+    else
+      _ -> :error
+    end
+  end
+
+  ## ------------------------------------------------------------
+  ## BYHOUR / BYMINUTE / BYSECOND
+  ## ------------------------------------------------------------
+
+  # Unit weight for the EXPAND-vs-LIMIT decision: rules whose
+  # unit is FINER than FREQ (bigger weight) act as EXPAND; rules
+  # whose unit is EQUAL or COARSER act as LIMIT. The weights only
+  # need an ordering, not specific values.
+  @unit_weight %{
+    year: 1,
+    month: 2,
+    week: 3,
+    day: 4,
+    hour: 5,
+    minute: 6,
+    second: 7
+  }
+
+  defp expand_or_limit_time(candidates, unit, values, freq) do
+    cond do
+      Map.get(@unit_weight, freq, 0) < Map.get(@unit_weight, unit, 0) ->
+        Enum.flat_map(candidates, fn candidate ->
+          Enum.map(values, fn value -> set_time_unit(candidate, unit, value) end)
+        end)
+
+      true ->
+        Enum.filter(candidates, fn candidate ->
+          current = get_time_unit(candidate, unit)
+          is_integer(current) and current in values
+        end)
+    end
+  end
+
+  defp get_time_unit(%Interval{from: %Tempo{time: time}}, unit), do: Keyword.get(time, unit)
+
+  defp set_time_unit(%Interval{from: %Tempo{time: time} = tempo} = candidate, unit, value) do
+    new_time = upsert_unit(time, unit, value)
+    %{candidate | from: %{tempo | time: new_time}}
+  end
+
+  # Update a unit in an ordered `time` list. If the unit is
+  # already present, replace its value in place. Otherwise
+  # insert it in canonical position (year → month → week → day
+  # → hour → minute → second) so `Tempo.IntervalSet`'s
+  # position-dependent sort stays correct.
+  defp upsert_unit(time, unit, value) do
+    if Keyword.has_key?(time, unit) do
+      Enum.map(time, fn
+        {^unit, _} -> {unit, value}
+        pair -> pair
+      end)
+    else
+      insert_unit_in_order(time, unit, value)
+    end
+  end
+
+  @unit_canonical_order [:year, :month, :week, :day, :hour, :minute, :second]
+
+  defp insert_unit_in_order(time, unit, value) do
+    target_idx = Enum.find_index(@unit_canonical_order, &(&1 == unit)) || length(@unit_canonical_order)
+
+    {before, rest} =
+      Enum.split_while(time, fn {k, _} ->
+        idx = Enum.find_index(@unit_canonical_order, &(&1 == k))
+        idx != nil and idx < target_idx
+      end)
+
+    before ++ [{unit, value}] ++ rest
+  end
+
+  ## ------------------------------------------------------------
+  ## Signed-index match helper
+  ##
+  ## RFC 5545 expresses "last day of month", "second to last week
+  ## of year", etc. as negative integers. `matches_signed_index?`
+  ## accepts both positive and negative targets against a value
+  ## whose maximum-in-period is `max` (e.g. 31 for Jan, 366 for a
+  ## leap year, 53 for ISO weeks).
+  ## ------------------------------------------------------------
+
+  defp matches_signed_index?(target, value, max)
+       when is_integer(target) and is_integer(value) and is_integer(max) do
+    cond do
+      target > 0 -> target == value
+      target < 0 -> max + target + 1 == value
+      true -> false
+    end
+  end
+
+  defp matches_signed_index?(_target, _value, _max), do: false
 end

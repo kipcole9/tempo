@@ -230,7 +230,7 @@ if Code.ensure_loaded?(ICal) do
 
     defp expand_recurrence(event, %ICal.Recurrence{} = rule, opts) do
       cond do
-        has_by_rules?(rule) ->
+        unsupported_by_rules?(rule) ->
           first_occurrence_only(event, :by_rules_not_supported)
 
         rule.count == nil and rule.until == nil and not Keyword.has_key?(opts, :bound) ->
@@ -258,21 +258,42 @@ if Code.ensure_loaded?(ICal) do
     defp maybe_put(keyword, _key, nil), do: keyword
     defp maybe_put(keyword, key, value), do: Keyword.put(keyword, key, value)
 
-    defp has_by_rules?(%ICal.Recurrence{} = rule) do
-      Enum.any?(
-        [
-          rule.by_second,
-          rule.by_minute,
-          rule.by_hour,
-          rule.by_day,
-          rule.by_month_day,
-          rule.by_year_day,
-          rule.by_month,
-          rule.by_set_position,
-          rule.by_week_number
-        ],
-        &(&1 != nil and &1 != [])
-      )
+    # BY-rules NOT yet implemented by the interpreter
+    # (`Tempo.RRule.Selection`). Rules on this list short-circuit
+    # an event to its first-occurrence-only fallback so the event
+    # is still visible in the IntervalSet, just not fully
+    # materialised.
+    #
+    # Phase B (landed):  BYMONTH, BYMONTHDAY, BYYEARDAY, BYWEEKNO,
+    #                    BYDAY (with ordinal ignored), BYHOUR,
+    #                    BYMINUTE, BYSECOND.
+    # Phase C (deferred): BYSETPOS, BYDAY with ordinals.
+    #
+    # An ordinal-bearing BYDAY entry (`1MO`, `-1FR`) falls back
+    # because the ordinal applies BYSETPOS-shaped semantics the
+    # current interpreter doesn't resolve. BYDAY entries without
+    # an ordinal flow through the supported path.
+    @unsupported_ical_by_rules [:by_set_position]
+
+    defp unsupported_by_rules?(%ICal.Recurrence{} = rule) do
+      unsupported_list_present?(rule) or by_day_has_ordinal?(rule.by_day)
+    end
+
+    defp unsupported_list_present?(%ICal.Recurrence{} = rule) do
+      Enum.any?(@unsupported_ical_by_rules, fn field ->
+        value = Map.get(rule, field)
+        value != nil and value != []
+      end)
+    end
+
+    defp by_day_has_ordinal?(nil), do: false
+    defp by_day_has_ordinal?([]), do: false
+
+    defp by_day_has_ordinal?(entries) when is_list(entries) do
+      Enum.any?(entries, fn
+        {ordinal, _day} when is_integer(ordinal) -> true
+        _ -> false
+      end)
     end
 
     defp first_occurrence_only(event, reason) do
