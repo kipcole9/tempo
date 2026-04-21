@@ -257,6 +257,42 @@ defmodule Tempo.Interval.PredicatesTest do
     end
   end
 
+  describe "duration/1 — cross-calendar rejection" do
+    # Tempo.Interval.duration/1 cannot compute a meaningful
+    # duration when endpoints are in different calendars because
+    # `to_utc_seconds/1` projects each via its own epoch. Refuse
+    # explicitly rather than silently compute garbage.
+
+    test "raises when from and to are in different calendars" do
+      {:ok, hebrew} = Tempo.from_iso8601("5786-10-30[u-ca=hebrew]")
+      gregorian = ~o"2026-06-15"
+      iv = %Interval{from: hebrew, to: gregorian}
+
+      assert_raise ArgumentError, ~r/same calendar/, fn ->
+        Tempo.Interval.duration(iv)
+      end
+    end
+
+    test "error message points at set operations as the cross-calendar path" do
+      {:ok, hebrew} = Tempo.from_iso8601("5786-10-30[u-ca=hebrew]")
+      iv = %Interval{from: hebrew, to: ~o"2026-06-15"}
+
+      try do
+        Tempo.Interval.duration(iv)
+        flunk("expected ArgumentError")
+      rescue
+        e in ArgumentError ->
+          assert Exception.message(e) =~ "Tempo.intersection/2"
+          assert Exception.message(e) =~ "Tempo.difference/2"
+      end
+    end
+
+    test "same-calendar intervals still compute duration normally" do
+      iv = %Interval{from: ~o"2026-06-15", to: ~o"2026-06-20"}
+      assert %Tempo.Duration{} = Tempo.Interval.duration(iv)
+    end
+  end
+
   describe "resolution/1" do
     test "day-spanning interval has :day resolution" do
       iv = %Interval{from: ~o"2026-06-15", to: ~o"2026-06-16"}

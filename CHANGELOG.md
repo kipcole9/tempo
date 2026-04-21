@@ -4,6 +4,26 @@
 
 ### Adds
 
+* `Tempo.Interval.spans_leap_second?/1`, `leap_seconds_spanned/1`, and `Tempo.Interval.duration(iv, leap_seconds: true)`. Interval-level leap-second detection and an opt-in duration that counts them. Lets scientific pipelines account for exact elapsed time without Tempo accepting `23:59:60` as a value.
+
+* `Tempo.LeapSeconds.removals/0`. Extension point for future negative leap seconds (CGPM agreed in 2022 that they may become necessary from ~2035). Empty today; interval-level helpers already treat insertions and removals uniformly.
+
+* `Tempo.tour/0`. Live-evaluated iex walkthrough of eight distinctive Tempo capabilities (intervals-not-instants, enumeration, archaeological masks, set ops, cross-calendar, locale-aware selectors, leap seconds, Allen's algebra). Conference-demo output.
+
+* `Tempo.LeapSeconds`. The 27 IERS-announced positive leap-second dates from 1972-06-30 through 2016-12-31, exposed as `dates/0`, `on_date?/3`, and `latest/0`. Drives historical validation of `:60` seconds.
+
+* Historical leap-second validation. `23:59:60` is now accepted only on the 27 IERS-announced dates. The previous structural check (hour/minute/month-day/offset) remains; a new check rejects `:60` on any other June 30 or December 31. Error messages point callers at `Tempo.LeapSeconds.dates/0`.
+
+* Zone-gap parse rejection. A zoned wall time that falls inside a daylight-saving or zone-transition gap (e.g. `2024-03-10T02:30:00[America/New_York]`) is now rejected at parse time via `Tzdata.periods_for_time/3`. DST fall-back ambiguity is accepted; coarser-than-minute values and unzoned values skip the check.
+
+* `Tempo.year/1`, `month/1`, `day/1`, `hour/1`, `minute/1`, `second/1`. Commodity component accessors for `%Tempo{}` and `%Tempo.Interval{}` values. Return `nil` when the component isn't specified; raise `ArgumentError` when called on an interval whose span covers multiple values of that unit.
+
+* `Tempo.Interval.from/1`, `to/1`, `endpoints/1`, `resolution/1`. Named endpoint and span-resolution accessors so user-facing code never has to reach into struct fields.
+
+* `Tempo.IntervalSet.count/1`, `map/2`, `filter/2`. Named helpers that treat the set as a sequence of member intervals — the complement to the `Enumerable` protocol, which walks sub-points.
+
+* `Tempo.select/3`. Polymorphic composition primitive: narrows a base span (`%Tempo{}`, `%Interval{}`, or `%IntervalSet{}`) by a selector (`:workdays` / `:weekend`, integer lists, ranges, `%Tempo{}` / `%Interval{}` projection, or a function). Always returns `{:ok, %IntervalSet{}}`, composing with the other set ops. Locale-dependent atoms resolve at call time via Localize.
+
 * `Tempo.explain/1`. Returns a structured, prose explanation of any Tempo value. `Tempo.Explain` provides `to_string/1`, `to_ansi/1`, and `to_iodata/1` formatters so renderers (the visualizer, terminals, HTML surfaces) can style each tagged part independently.
 
 * Inspect polish. Zoned Tempos round-trip via the sigil with the `[zone_id]` IXDTF trailer. `%Tempo.IntervalSet{}` inspects as `#Tempo.IntervalSet<…>` with a preview and metadata summary. `%Tempo.Interval{}` with non-empty `:metadata` shows the event summary inline.
@@ -82,11 +102,29 @@
 
 ### Changed
 
+* Leap-second handling is now ecosystem-aligned. `:second = 60` is **rejected at parse** regardless of date (matches `Calendar.ISO`, `Time`, and `DateTime` in Elixir/OTP). Leap-second information is preserved at the interval level via `spans_leap_second?/1`, `leap_seconds_spanned/1`, and `duration(iv, leap_seconds: true)`.
+
+* Cross-calendar `Tempo.Interval.duration/1` now raises `ArgumentError` when endpoints are in different calendars instead of silently computing a garbage value. Error message points at set operations (which handle cross-calendar inputs automatically).
+
+* Numeric zone offsets now bounded to ±24h. Nonsensical values like `+25:00` and `Z28H` are rejected at validation; the ISO 8601 grammar still accepts them but the semantic check refuses anything outside a plausible UTC offset.
+
+* IXDTF `[u-ca=NAME]` suffix now swaps the Tempo struct's calendar. Parse routes the atom (e.g. `:hebrew`, `:islamic-umalqura`, `:ethioaa`) through `Calendrical.calendar_from_cldr_calendar_type/1` to the corresponding `Calendrical.*` module. Explicit `calendar` argument to `Tempo.from_iso8601/2` still wins over IXDTF.
+
+* `mix.exs` docs structure follows the Localize layout — `name:`, `source_url:`, `package()`, `links()`, `groups_for_modules`, `groups_for_extras`, `source_ref`. Hex.pm landing page now anchors to the README rather than the `Tempo` module.
+
+* Dialyzer build now enforces `:underspecs`, `:extra_return`, and `:missing_return` on top of the existing `:error_handling` and `:unknown` flags. All spec mismatches in `lib/` have been resolved.
+
 * Removed all CLDR-family dependencies. `ex_cldr_calendars` has been replaced by [Calendrical](https://hex.pm/packages/calendrical) for calendar functionality and by `Localize.Utils.Math` / `Localize.Utils.Digits` for numeric helpers.
 
 * Reduce parser compile time by ~85% (from ~190s to ~28s) and generated BEAM size by ~61% by converting high-fanout NimbleParsec combinators to `defparsecp` function boundaries. No runtime performance regression.
 
 ### Bug Fixes
+
+* `Tempo.from_iso8601!/1` no longer silently overrides IXDTF `[u-ca=NAME]` with `Calendrical.Gregorian`. Previously the bang form always passed Gregorian explicitly, which (per the explicit-wins-over-IXDTF rule) nullified the calendar tag; now matches the behaviour of `Tempo.from_iso8601/1`.
+
+* `%Tempo.Interval{}` inspect now preserves each endpoint's IXDTF extended trailer (zone, calendar, tags). Previously the sigil output dropped `[zone]` and `[u-ca=cal]` from interval endpoints even though the data was stored on the underlying Tempo values.
+
+* Spec tightening across the public API to satisfy dialyzer's strict flags. Refined `@spec`s on `Tempo.Compare.to_utc_seconds/1`, `Operations` predicates (`disjoint?/overlaps?/subset?/contains?/equal?`), `RRule.Expander.to_ast/2`, and `Tempo.Interval.resolution/1`.
 
 * Recurrence cadence applies as `DTSTART + i × INTERVAL` (scalar multiplication) rather than `i` successive `+ INTERVAL` steps. The old iterative approach clamped Feb 29 → Feb 28 at step 1 and never recovered; `YEARLY` rules anchored on Feb 29 now correctly produce Feb 29 on every leap year.
 

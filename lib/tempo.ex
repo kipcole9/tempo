@@ -434,8 +434,18 @@ defmodule Tempo do
       ~o"2022Y"
 
   """
+  @spec from_iso8601!(string :: String.t()) :: t | no_return()
+  def from_iso8601!(string) when is_binary(string) do
+    # Mirror `from_iso8601/1` — no explicit calendar, so IXDTF
+    # `[u-ca=NAME]` wins when present.
+    case from_iso8601(string) do
+      {:ok, tempo} -> tempo
+      {:error, reason} -> raise Tempo.ParseError, reason
+    end
+  end
+
   @spec from_iso8601!(string :: String.t(), calendar :: Calendar.calendar()) :: t | no_return()
-  def from_iso8601!(string, calendar \\ Calendrical.Gregorian) do
+  def from_iso8601!(string, calendar) when is_binary(string) do
     case from_iso8601(string, calendar) do
       {:ok, tempo} -> tempo
       {:error, reason} -> raise Tempo.ParseError, reason

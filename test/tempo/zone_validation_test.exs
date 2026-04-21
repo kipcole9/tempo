@@ -93,6 +93,105 @@ defmodule Tempo.ZoneValidationTest do
     end
   end
 
+  describe "IANA backward-compat aliases" do
+    # Tzdata carries the `backward` alias file which maps
+    # retired/renamed zone names to their modern equivalents.
+    # Tempo accepts these transparently — the alias label is
+    # preserved on the struct; `to_utc_seconds/1` resolves via
+    # Tzdata using the alias's canonical zone.
+
+    test "US/Pacific parses and round-trips" do
+      assert {:ok, tempo} = Tempo.from_iso8601("2024-06-15T12:00:00[US/Pacific]")
+      assert tempo.extended.zone_id == "US/Pacific"
+      # Offset matches America/Los_Angeles (the canonical zone).
+      assert is_integer(Tempo.Compare.to_utc_seconds(tempo))
+    end
+
+    test "Asia/Calcutta (renamed to Asia/Kolkata) parses" do
+      assert {:ok, _} = Tempo.from_iso8601("2024-06-15T12:00:00[Asia/Calcutta]")
+    end
+
+    test "Pacific/Kanton (renamed from Pacific/Enderbury) parses" do
+      assert {:ok, _} = Tempo.from_iso8601("2024-06-15T12:00:00[Pacific/Kanton]")
+    end
+  end
+
+  describe "historical zone offsets" do
+    test "Europe/London during British Double Summer Time (1941) projects to UTC+2" do
+      # BDST applied 1941-05-04 to 1945-07-15 — clocks ran 2h
+      # ahead of UTC instead of the usual 1h summer offset. A
+      # correct implementation must consult Tzdata's historical
+      # period table rather than today's offset.
+      {:ok, london} = Tempo.from_iso8601("1941-06-15T12:00:00[Europe/London]")
+      {:ok, utc} = Tempo.from_iso8601("1941-06-15T12:00:00Z")
+
+      # London wall = UTC wall + 2h, so London's UTC projection
+      # is 2h earlier than the same wall-clock at UTC.
+      diff = Tempo.Compare.to_utc_seconds(utc) - Tempo.Compare.to_utc_seconds(london)
+      assert diff == 7200
+    end
+  end
+
+  describe "exact DST gap boundary seconds" do
+    test "02:00:00 (first instant of the gap) is rejected" do
+      assert {:error, _} = Tempo.from_iso8601("2024-03-10T02:00:00[America/New_York]")
+    end
+
+    test "02:59:59 (last instant of the gap) is rejected" do
+      assert {:error, _} = Tempo.from_iso8601("2024-03-10T02:59:59[America/New_York]")
+    end
+
+    test "01:59:59 (last valid instant before the gap) is accepted" do
+      assert {:ok, _} = Tempo.from_iso8601("2024-03-10T01:59:59[America/New_York]")
+    end
+
+    test "03:00:00 (first valid instant after the gap) is accepted" do
+      assert {:ok, _} = Tempo.from_iso8601("2024-03-10T03:00:00[America/New_York]")
+    end
+  end
+
+  describe "numeric offset bounds — reject nonsensical offsets" do
+    # Real UTC offsets are bounded. The widest modern zone is
+    # +14:00 (Pacific/Kiritimati) and the narrowest is −12:00
+    # (Pacific/Midway until 2011, and a few others).  ±24h is a
+    # permissive bound that rejects clear nonsense like +25:00.
+
+    test "+25:00 inline is rejected" do
+      assert {:error, message} = Tempo.from_iso8601("2024-03-10T12:00:00+25:00")
+      assert message =~ "out of range"
+    end
+
+    test "-25:00 inline is rejected" do
+      assert {:error, message} = Tempo.from_iso8601("2024-03-10T12:00:00-25:00")
+      assert message =~ "out of range"
+    end
+
+    test "+14:00 inline (Pacific/Kiritimati) is accepted" do
+      assert {:ok, _} = Tempo.from_iso8601("2024-03-10T12:00:00+14:00")
+    end
+
+    test "-12:00 inline is accepted" do
+      assert {:ok, _} = Tempo.from_iso8601("2024-03-10T12:00:00-12:00")
+    end
+
+    test "+24:00 (the boundary) is accepted" do
+      assert {:ok, _} = Tempo.from_iso8601("2024-03-10T12:00:00+24:00")
+    end
+
+    test "Z (UTC) is accepted" do
+      assert {:ok, _} = Tempo.from_iso8601("2024-03-10T12:00:00Z")
+    end
+
+    test "IXDTF [+25:00] is rejected" do
+      assert {:error, message} = Tempo.from_iso8601("2024-03-10T12:00:00[+25:00]")
+      assert message =~ "out of range"
+    end
+
+    test "IXDTF [+14:00] is accepted" do
+      assert {:ok, _} = Tempo.from_iso8601("2024-03-10T12:00:00[+14:00]")
+    end
+  end
+
   describe "zone-gap check applies recursively to intervals" do
     test "interval with gap endpoint is rejected" do
       assert {:error, _} =

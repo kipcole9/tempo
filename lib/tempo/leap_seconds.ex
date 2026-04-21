@@ -123,4 +123,36 @@ defmodule Tempo.LeapSeconds do
     @leap_second_dates
     |> Enum.max_by(fn {y, m, d} -> {y, m, d} end)
   end
+
+  @doc """
+  Return the list of `{year, month, day}` tuples on which a
+  **negative** leap second has been announced.
+
+  A negative leap second *removes* the final second of a UTC
+  day — the second numbered 58 is followed directly by 00 of
+  the next minute, with no 59. No negative leap second has ever
+  been used since UTC–TAI began in 1972, but the CGPM agreed
+  in 2022 that they may become necessary from roughly 2035
+  onwards (and that the leap-second mechanism will be replaced
+  entirely by around 2035–2040).
+
+  The list is empty today. When IERS announces one, it will be
+  added here, and interval-level detection via
+  `Tempo.Interval.spans_leap_second?/1` will cover both positive
+  and negative insertions. Negative leap seconds will contribute
+  a `-1` second to `Tempo.Interval.duration(iv, leap_seconds: true)`
+  rather than `+1`.
+
+  ### Examples
+
+      iex> Tempo.LeapSeconds.removals()
+      []
+
+  """
+  # Dialyzer narrows `removals/0` to the empty-list literal; the
+  # spec is the humanly-correct API type so callers can plan for
+  # a non-empty future without the nowarn suppression flipping.
+  @dialyzer {:nowarn_function, removals: 0}
+  @spec removals() :: [{integer(), 1..12, 1..31}]
+  def removals, do: []
 end

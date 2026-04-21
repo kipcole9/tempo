@@ -1,96 +1,76 @@
 defmodule Tempo.Iso8601.LeapSecond.Test do
   use ExUnit.Case, async: true
 
-  # ISO 8601 permits `second = 60` as a positive leap second. Validation
-  # constrains the leap second to 23:59 UTC at the end of 30 June or
-  # 31 December — AND to a specific historical date on which IERS
-  # actually announced a leap second insertion.
+  # Policy: ISO 8601 permits `:60` syntactically as a positive
+  # leap second. Tempo rejects it at parse regardless of date,
+  # matching Elixir/OTP stdlib (`Calendar.ISO.valid_time?/4`,
+  # `Time.new/4`, `DateTime.new/3`). Leap-second information
+  # remains available as interval-level metadata — see
+  # `Tempo.Interval.spans_leap_second?/1` and
+  # `Tempo.Interval.leap_seconds_spanned/1`.
 
-  describe "valid leap seconds" do
-    test "end of December UTC — 2016 (most recent)" do
-      assert {:ok, tempo} = Tempo.from_iso8601("2016-12-31T23:59:60Z")
-      assert Keyword.get(tempo.time, :second) == 60
+  describe ":second 60 is rejected at parse" do
+    test "historical IERS date (2016-12-31) is rejected" do
+      assert {:error, message} = Tempo.from_iso8601("2016-12-31T23:59:60Z")
+      assert message =~ "not accepted as a Tempo value"
+      assert message =~ "Tempo.LeapSeconds.dates/0"
+      assert message =~ "Tempo.Interval.spans_leap_second?/1"
     end
 
-    test "end of June UTC — 2015 (real insertion)" do
-      assert {:ok, _} = Tempo.from_iso8601("2015-06-30T23:59:60Z")
+    test "non-IERS date (2026-12-31) is rejected with the same message" do
+      assert {:error, message} = Tempo.from_iso8601("2026-12-31T23:59:60Z")
+      assert message =~ "not accepted"
     end
 
-    test "first-ever leap second — 1972-06-30" do
-      assert {:ok, _} = Tempo.from_iso8601("1972-06-30T23:59:60Z")
+    test "mid-day :60 is rejected (was rejected before too, uniform message now)" do
+      assert {:error, message} = Tempo.from_iso8601("2022-05-15T10:30:60")
+      assert message =~ "not accepted"
     end
 
-    test "end of day without offset (local time)" do
-      assert {:ok, _} = Tempo.from_iso8601("2016-12-31T23:59:60")
+    test "non-zero offset :60 is rejected" do
+      assert {:error, message} = Tempo.from_iso8601("2016-12-31T23:59:60+05:30")
+      assert message =~ "not accepted"
     end
 
-    test "time-only value (no calendar date) at 23:59" do
-      # No year/month/day means no historical check applies.
-      assert {:ok, _} = Tempo.from_iso8601("T23:59:60")
-    end
-  end
-
-  describe "invalid leap seconds — historical check" do
-    # Since IERS has only announced 27 leap seconds, ISO 8601 `:60`
-    # on any other June 30 or December 31 is semantically invalid.
-
-    test "rejected on a June 30 with no announced leap second" do
-      assert {:error, msg} = Tempo.from_iso8601("2017-06-30T23:59:60Z")
-      assert msg =~ "No leap second has been inserted on 2017-06-30"
-    end
-
-    test "rejected on a December 31 with no announced leap second" do
-      assert {:error, msg} = Tempo.from_iso8601("2026-12-31T23:59:60Z")
-      assert msg =~ "No leap second has been inserted on 2026-12-31"
-    end
-
-    test "rejected on 2016-06-30 — only 2016-12-31 had a leap second" do
-      assert {:error, msg} = Tempo.from_iso8601("2016-06-30T23:59:60Z")
-      assert msg =~ "No leap second has been inserted on 2016-06-30"
-    end
-
-    test "the error message points to Tempo.LeapSeconds.dates/0" do
-      {:error, msg} = Tempo.from_iso8601("2020-12-31T23:59:60Z")
-      assert msg =~ "Tempo.LeapSeconds.dates/0"
+    test "time-only :60 is rejected" do
+      assert {:error, _} = Tempo.from_iso8601("T23:59:60")
     end
   end
 
-  describe "invalid leap seconds — structural" do
-    test "rejected mid-day" do
-      assert {:error, msg} = Tempo.from_iso8601("2022-05-15T10:30:60")
-      assert msg =~ "leap second"
-    end
-
-    test "rejected when minute is not 59" do
-      assert {:error, msg} = Tempo.from_iso8601("2016-12-31T23:58:60Z")
-      assert msg =~ "leap second"
-    end
-
-    test "rejected on dates other than 30 June or 31 December" do
-      assert {:error, msg} = Tempo.from_iso8601("2016-05-31T23:59:60Z")
-      assert msg =~ "leap second"
-    end
-
-    test "rejected with a non-zero time-zone offset" do
-      assert {:error, msg} = Tempo.from_iso8601("2016-12-31T23:59:60+05:30")
-      assert msg =~ "leap second"
-    end
-  end
-
-  describe "non-leap-second seconds" do
+  describe "non-leap seconds" do
     test "0..59 all accepted" do
       for s <- [0, 1, 29, 30, 58, 59] do
         assert {:ok, _} = Tempo.from_iso8601("2022-05-15T10:30:#{pad(s)}")
       end
     end
 
-    test "61 rejected" do
+    test ":61 rejected" do
       assert {:error, _} = Tempo.from_iso8601("2016-12-31T23:59:61Z")
     end
 
     test "negative -1 wraps to 59 (not 60)" do
       assert {:ok, tempo} = Tempo.from_iso8601("T-1S")
       assert Keyword.get(tempo.time, :second) == 59
+    end
+  end
+
+  describe "Tempo.LeapSeconds — data remains available" do
+    test "dates/0 still lists the 27 IERS insertions" do
+      assert length(Tempo.LeapSeconds.dates()) == 27
+      assert {2016, 12, 31} in Tempo.LeapSeconds.dates()
+      assert {1972, 6, 30} in Tempo.LeapSeconds.dates()
+    end
+
+    test "on_date?/3 remains a pure historical predicate" do
+      assert Tempo.LeapSeconds.on_date?(2016, 12, 31)
+      refute Tempo.LeapSeconds.on_date?(2026, 12, 31)
+    end
+
+    test "removals/0 is empty today (reserved for future negative leap seconds)" do
+      # No negative leap second has ever been used. The CGPM 2022
+      # agreement opens the door from ~2035; the list is the
+      # extension point.
+      assert Tempo.LeapSeconds.removals() == []
     end
   end
 

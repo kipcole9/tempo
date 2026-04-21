@@ -99,4 +99,38 @@ defmodule Tempo.CalendarTest do
       assert is_boolean(Tempo.overlaps?(hebrew_date, gregorian_date))
     end
   end
+
+  describe "Hebrew calendar — Cheshvan 30 year-by-year" do
+    # Cheshvan (month 2) has 29 or 30 days depending on whether
+    # the Hebrew year is `chaserah` (defective, 29), `kesidrah`
+    # (regular, 29), or `shlemah` (complete, 30). Calendrical's
+    # `days_in_month/2` is the source of truth.
+
+    test "5784 — Cheshvan has 29 days (rejects day 30)" do
+      assert {:error, _} = Tempo.from_iso8601("5784-02-30[u-ca=hebrew]")
+    end
+
+    test "5785 — Cheshvan has 30 days (accepts day 30)" do
+      assert {:ok, _} = Tempo.from_iso8601("5785-02-30[u-ca=hebrew]")
+    end
+
+    test "5786 — Cheshvan has 29 days" do
+      assert {:error, _} = Tempo.from_iso8601("5786-02-30[u-ca=hebrew]")
+    end
+
+    test "5787 — Cheshvan has 30 days" do
+      assert {:ok, _} = Tempo.from_iso8601("5787-02-30[u-ca=hebrew]")
+    end
+
+    test "5788 — Cheshvan has 30 days" do
+      assert {:ok, _} = Tempo.from_iso8601("5788-02-30[u-ca=hebrew]")
+    end
+
+    test "Cheshvan 29 is always valid (minimum month length)" do
+      for year <- [5784, 5785, 5786, 5787, 5788] do
+        assert {:ok, _} = Tempo.from_iso8601("#{year}-02-29[u-ca=hebrew]"),
+               "Cheshvan 29 should be valid in year #{year}"
+      end
+    end
+  end
 end

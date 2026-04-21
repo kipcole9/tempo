@@ -88,10 +88,19 @@ defmodule Tempo.Tour do
     )
 
     step(
-      "Leap seconds round-trip",
-      "Tempo.from_iso8601(\"2016-12-31T23:59:60Z\")",
-      fn -> inspect(Tempo.from_iso8601("2016-12-31T23:59:60Z")) end,
-      "ISO 8601 permits `:60` in the seconds field. Tempo preserves it."
+      "Leap seconds as interval metadata",
+      "Tempo.Interval.spans_leap_second?(%Tempo.Interval{from: ~o\"2016-12-31T23:00:00Z\", to: ~o\"2017-01-01T01:00:00Z\"})",
+      fn ->
+        inspect(
+          Tempo.Interval.spans_leap_second?(%Tempo.Interval{
+            from: ~o"2016-12-31T23:00:00Z",
+            to: ~o"2017-01-01T01:00:00Z"
+          })
+        )
+      end,
+      "IERS has inserted 27 positive leap seconds since 1972. Tempo exposes " <>
+        "them as interval metadata via `spans_leap_second?/1`, `leap_seconds_spanned/1`, " <>
+        "and `duration(iv, leap_seconds: true)` — without breaking stdlib interop."
     )
 
     step(

@@ -242,9 +242,12 @@ defmodule Tempo.Iso8601.Parser.Test do
     assert Tempo.from_iso8601("Z8H") ==
              {:ok, %Tempo{calendar: Calendrical.Gregorian, time: [], shift: [hour: 8]}}
 
-    # Section 7.4 Example 3
-    assert Tempo.from_iso8601("Z28H") ==
-             {:ok, %Tempo{calendar: Calendrical.Gregorian, time: [], shift: [hour: 28]}}
+    # Section 7.4 Example 3 — ISO 8601 shows `Z28H` as a syntactic
+    # example, but a 28-hour UTC offset is not a real time zone.
+    # Tempo rejects offsets outside ±24h at validation; the
+    # tokenizer still accepts the grammar.
+    assert {:error, message} = Tempo.from_iso8601("Z28H")
+    assert message =~ "out of range"
 
     # Section 7.4 Example 4
     assert Tempo.from_iso8601("Z6H0M") ==

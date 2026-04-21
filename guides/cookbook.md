@@ -755,18 +755,21 @@ iex> Enum.to_list(decade) |> Enum.map(&Tempo.year/1)
 
 > `~o"156X"` is an **ISO 8601-2 masked year** — "some year in the 1560s." It's both a bounded span (the full decade) and an enumerable sequence of 10 year-values. Archaeological records and historical citations use this form routinely; Tempo gives it a first-class type.
 
-### A leap second — real and imagined
+### A leap second — detected, never represented as a value
 
 ```elixir
-iex> Tempo.from_iso8601("2016-12-31T23:59:60Z")
-{:ok, ~o"2016Y12M31DT23H59M60SZ"}
+iex> iv = %Tempo.Interval{from: ~o"2016-12-31T23:59:00Z", to: ~o"2017-01-01T00:01:00Z"}
+iex> Tempo.Interval.spans_leap_second?(iv)
+true
 
-iex> Tempo.from_iso8601("2026-12-31T23:59:60Z")
-{:error,
- "No leap second has been inserted on 2026-12-31. See `Tempo.LeapSeconds.dates/0` for the IERS-announced list."}
+iex> Tempo.Interval.duration(iv)
+~o"PT120S"
+
+iex> Tempo.Interval.duration(iv, leap_seconds: true)
+~o"PT121S"
 ```
 
-> At the end of 2016 UTC, a **leap second** was inserted — the minute 23:59 had **61 seconds**, numbered 00 through 60. ISO 8601 permits `:60` in the seconds field for this case. Tempo accepts it **only on the 27 dates IERS has actually announced** (see `Tempo.LeapSeconds.dates/0`). A `:60` on any other June 30 or December 31 is semantically invalid and rejected at parse time.
+> At the end of 2016 UTC, a **leap second** was inserted — the minute 23:59 had **61 seconds**, numbered 00 through 60. Tempo rejects `23:59:60` as a *value* (to stay compatible with `Time`, `DateTime`, and `Calendar.ISO` in Elixir/OTP — none of which represent leap seconds). Instead, Tempo exposes leap-second information as **interval metadata** via `Tempo.Interval.spans_leap_second?/1`, `leap_seconds_spanned/1`, and the `leap_seconds: true` option on `duration/2`. Scientific and financial pipelines that need exact elapsed time get a clean API; everyone else gets stdlib interop for free. See `Tempo.LeapSeconds.dates/0` for the 27 IERS-announced insertions.
 
 ### A daylight-saving gap — the hour that never was
 

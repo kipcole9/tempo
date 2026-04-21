@@ -42,8 +42,9 @@ defmodule Tempo.TourTest do
     # Step 6: June 2026 has 22 workdays in the default locale.
     assert output =~ "#=> 22"
 
-    # Step 7: the leap second round-trips.
-    assert output =~ "23H59M60S"
+    # Step 7: leap second detected as interval metadata.
+    assert output =~ "spans_leap_second?"
+    assert output =~ "true"
 
     # Step 8: Allen's algebra — June meets July.
     assert output =~ ":meets"

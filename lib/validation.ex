@@ -17,7 +17,8 @@ defmodule Tempo.Validation do
   def validate(tempo, calendar \\ Calendrical.Gregorian)
 
   def validate(%Tempo{time: units} = tempo, calendar) do
-    with :ok <- validate_leap_second(units, tempo) do
+    with :ok <- validate_leap_second(units, tempo),
+         :ok <- validate_time_shift(tempo.shift) do
       case resolve(units, calendar) do
         {:error, reason} -> {:error, reason}
         other -> {:ok, %{tempo | time: other}}
@@ -631,10 +632,39 @@ defmodule Tempo.Validation do
   #   to be zero when the date is specified; without a date we accept
   #   any offset because the caller is describing a repeating local
   #   time.
-  defp validate_leap_second(units, tempo) when is_list(units) do
+  # Leap seconds — policy decision.
+  #
+  # ISO 8601 permits `:second = 60` as a positive leap second.
+  # Tempo used to accept it on the 27 IERS-announced dates. That
+  # put Tempo out of step with the rest of the Elixir/OTP
+  # ecosystem — `Calendar.ISO.valid_time?/4`, `Time.new/4`,
+  # `DateTime.new/3`, and `:calendar.datetime_to_gregorian_seconds/1`
+  # all reject or silently collide on `:60`.
+  #
+  # Aligning with the ecosystem means rejecting `:60` at parse
+  # regardless of date. Leap-second information remains available
+  # as an **interval-level concern**:
+  #
+  # * `Tempo.LeapSeconds.dates/0` — the 27 historical insertions.
+  # * `Tempo.Interval.spans_leap_second?/1` — does `[from, to)`
+  #   contain an IERS leap-second boundary?
+  # * `Tempo.Interval.leap_seconds_spanned/1` — list of the dates.
+  # * `Tempo.Interval.duration(iv, leap_seconds: true)` — include
+  #   spanned leap seconds in the returned duration.
+  #
+  # Scientific callers who need exact elapsed time across leap
+  # seconds use those APIs; everyone else gets stdlib-compatible
+  # behaviour for free.
+
+  defp validate_leap_second(units, _tempo) when is_list(units) do
     case List.keyfind(units, :second, 0) do
       {:second, 60} ->
-        validate_leap_second_context(units, tempo)
+        {:error,
+         "A second value of 60 (leap second) is not accepted as a Tempo value. " <>
+           "Elixir's `Calendar.ISO` and `DateTime` reject it too. Use " <>
+           "`Tempo.LeapSeconds.dates/0` for the historical list, or " <>
+           "`Tempo.Interval.spans_leap_second?/1` to detect leap seconds in " <>
+           "an interval."}
 
       _ ->
         :ok
@@ -642,37 +672,6 @@ defmodule Tempo.Validation do
   end
 
   defp validate_leap_second(_units, _tempo), do: :ok
-
-  defp validate_leap_second_context(units, %{shift: shift}) do
-    year = fetch_unit(units, :year)
-    hour = fetch_unit(units, :hour)
-    minute = fetch_unit(units, :minute)
-    month = fetch_unit(units, :month)
-    day = fetch_unit(units, :day)
-
-    cond do
-      hour not in [nil, 23] ->
-        {:error, "A second value of 60 (leap second) is only valid at 23:59 UTC"}
-
-      minute not in [nil, 59] ->
-        {:error, "A second value of 60 (leap second) is only valid at 23:59 UTC"}
-
-      is_integer(month) and {month, day} not in [{6, 30}, {12, 31}, {6, nil}, {12, nil}] ->
-        {:error, "A second value of 60 (leap second) is only valid on 30 June or 31 December"}
-
-      is_list(shift) and leap_offset_nonzero?(shift) ->
-        {:error, "A second value of 60 (leap second) is only valid with a UTC time-zone offset"}
-
-      is_integer(year) and is_integer(month) and is_integer(day) and
-          not Tempo.LeapSeconds.on_date?(year, month, day) ->
-        {:error,
-         "No leap second has been inserted on #{year}-#{pad2(month)}-#{pad2(day)}. " <>
-           "See `Tempo.LeapSeconds.dates/0` for the IERS-announced list."}
-
-      true ->
-        :ok
-    end
-  end
 
   defp pad2(n) when n < 10, do: "0#{n}"
   defp pad2(n), do: Integer.to_string(n)
@@ -684,10 +683,52 @@ defmodule Tempo.Validation do
     end
   end
 
-  defp leap_offset_nonzero?(shift) when is_list(shift) do
+  # Bounds-check an ISO 8601 / RFC 3339 time-zone offset. The
+  # tokenizer accepts any signed 2-4 digit magnitude; real zones
+  # are bounded to ±24h wall-clock. Tzdata itself carries historical
+  # offsets that never exceed about +14 (Pacific/Kiritimati) or
+  # −12 (Pacific/Midway pre-2011), so ±24h is permissive.
+  @max_offset_minutes 24 * 60
+
+  defp validate_time_shift(nil), do: :ok
+
+  defp validate_time_shift(shift) when is_list(shift) do
     hour = fetch_unit(shift, :hour) || 0
     minute = fetch_unit(shift, :minute) || 0
-    hour != 0 or minute != 0
+    second = fetch_unit(shift, :second) || 0
+    magnitude = abs(hour) * 3600 + abs(minute) * 60 + abs(second)
+
+    if magnitude > @max_offset_minutes * 60 do
+      {:error,
+       "Time-zone offset out of range. Offsets must be within ±24h; " <>
+         "got #{inspect(shift)}."}
+    else
+      :ok
+    end
+  end
+
+  defp validate_time_shift(_), do: :ok
+
+  @doc """
+  Validate an IXDTF numeric offset (minutes) for the `[+HH:MM]`
+  form. Called from the tokenizer when the offset lands on
+  `extended.zone_offset`.
+  """
+  @spec validate_ixdtf_offset_minutes(integer()) :: :ok | {:error, String.t()}
+  def validate_ixdtf_offset_minutes(minutes) when is_integer(minutes) do
+    if abs(minutes) > @max_offset_minutes do
+      {:error,
+       "Numeric zone offset out of range. Offsets must be within ±24h; " <>
+         "got #{format_offset(minutes)}."}
+    else
+      :ok
+    end
+  end
+
+  defp format_offset(minutes) do
+    sign = if minutes < 0, do: "-", else: "+"
+    m = abs(minutes)
+    "#{sign}#{div(m, 60)}:#{pad2(rem(m, 60))}"
   end
 
   @doc """

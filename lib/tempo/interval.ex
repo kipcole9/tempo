@@ -668,6 +668,16 @@ defmodule Tempo.Interval do
   `Tempo.Compare.to_utc_seconds/1` so cross-zone intervals
   compute a correct wall-clock delta.
 
+  ### Options
+
+  * `:leap_seconds` — when `true`, adds one second to the
+    returned duration for each IERS leap-second insertion that
+    falls inside `[from, to)`. Defaults to `false` so behaviour
+    matches `DateTime`, `Time`, and `:calendar` from Elixir/OTP
+    (none of which count leap seconds). See
+    `Tempo.Interval.spans_leap_second?/1` and
+    `leap_seconds_spanned/1` for detection without arithmetic.
+
   ### Examples
 
       iex> Tempo.Interval.duration(%Tempo.Interval{from: ~o"2026-06-15T09", to: ~o"2026-06-15T10"})
@@ -676,16 +686,169 @@ defmodule Tempo.Interval do
       iex> Tempo.Interval.duration(%Tempo.Interval{from: ~o"2026-06-15", to: :undefined})
       :infinity
 
-  """
-  @spec duration(t()) :: Duration.t() | :infinity
-  def duration(%__MODULE__{from: :undefined}), do: :infinity
-  def duration(%__MODULE__{to: :undefined}), do: :infinity
-  def duration(%__MODULE__{from: nil}), do: :infinity
-  def duration(%__MODULE__{to: nil}), do: :infinity
+      iex> iv = %Tempo.Interval{from: ~o"2016-12-31T23:59:00Z", to: ~o"2017-01-01T00:01:00Z"}
+      iex> Tempo.Interval.duration(iv)
+      ~o"PT120S"
+      iex> Tempo.Interval.duration(iv, leap_seconds: true)
+      ~o"PT121S"
 
-  def duration(%__MODULE__{from: %Tempo{} = from, to: %Tempo{} = to}) do
-    seconds = Compare.to_utc_seconds(to) - Compare.to_utc_seconds(from)
+  """
+  @spec duration(t(), keyword()) :: Duration.t() | :infinity
+  def duration(interval, opts \\ [])
+  def duration(%__MODULE__{from: :undefined}, _opts), do: :infinity
+  def duration(%__MODULE__{to: :undefined}, _opts), do: :infinity
+  def duration(%__MODULE__{from: nil}, _opts), do: :infinity
+  def duration(%__MODULE__{to: nil}, _opts), do: :infinity
+
+  def duration(%__MODULE__{from: %Tempo{} = from, to: %Tempo{} = to} = iv, opts) do
+    :ok = require_same_calendar(from, to, "Tempo.Interval.duration/1")
+    base = Compare.to_utc_seconds(to) - Compare.to_utc_seconds(from)
+
+    seconds =
+      if Keyword.get(opts, :leap_seconds, false) do
+        # Positive insertions add a second; negative removals
+        # (reserved, none yet used) would subtract one.
+        base + length(leap_second_insertions_spanned(iv)) -
+          length(leap_second_removals_spanned(iv))
+      else
+        base
+      end
+
     %Duration{time: [second: seconds]}
+  end
+
+  @doc """
+  Return `true` when the interval `[from, to)` contains at least
+  one IERS-announced positive leap second.
+
+  A historical predicate: it doesn't affect any other Tempo
+  operation. Use it when you want to know if an elapsed-time
+  calculation needs leap-second correction, or to flag intervals
+  for a scientific/astronomy pipeline.
+
+  ### Arguments
+
+  * `interval` is a `t:t/0` with both endpoints present. Unbounded
+    intervals always return `false` (open-ended to `:undefined`)
+    and pre-Unix-era intervals pre-1972 return `false` (IERS leap
+    seconds started in 1972).
+
+  ### Returns
+
+  * `true` when at least one entry from `Tempo.LeapSeconds.dates/0`
+    falls inside `[from, to)`.
+
+  * `false` otherwise.
+
+  ### Examples
+
+      iex> iv = %Tempo.Interval{from: ~o"2016-12-31T23:00:00Z", to: ~o"2017-01-01T01:00:00Z"}
+      iex> Tempo.Interval.spans_leap_second?(iv)
+      true
+
+      iex> iv = %Tempo.Interval{from: ~o"2026-06-15", to: ~o"2026-06-16"}
+      iex> Tempo.Interval.spans_leap_second?(iv)
+      false
+
+  """
+  @spec spans_leap_second?(t()) :: boolean()
+  def spans_leap_second?(%__MODULE__{from: %Tempo{}, to: %Tempo{}} = iv) do
+    leap_second_insertions_spanned(iv) != [] or
+      leap_second_removals_spanned(iv) != []
+  end
+
+  def spans_leap_second?(%__MODULE__{}), do: false
+
+  @doc """
+  Return the list of IERS leap-second dates that fall inside
+  `[from, to)`.
+
+  ### Arguments
+
+  * `interval` is a `t:t/0` with both endpoints present.
+
+  ### Returns
+
+  * A list of `{year, month, day}` tuples, each entry drawn from
+    `Tempo.LeapSeconds.dates/0`. Empty list when no leap second
+    falls inside the span, or when either endpoint is
+    `:undefined`.
+
+  ### Examples
+
+      iex> iv = %Tempo.Interval{from: ~o"2015-01-01", to: ~o"2017-12-31"}
+      iex> Tempo.Interval.leap_seconds_spanned(iv)
+      [{2015, 6, 30}, {2016, 12, 31}]
+
+  """
+  @spec leap_seconds_spanned(t()) :: [{integer(), 1..12, 1..31}]
+  def leap_seconds_spanned(%__MODULE__{from: %Tempo{}, to: %Tempo{}} = iv) do
+    # Union of positive insertions and (reserved) negative
+    # removals, in chronological order.
+    (leap_second_insertions_spanned(iv) ++ leap_second_removals_spanned(iv))
+    |> Enum.sort()
+  end
+
+  def leap_seconds_spanned(%__MODULE__{}), do: []
+
+  defp leap_second_insertions_spanned(%__MODULE__{from: %Tempo{} = from, to: %Tempo{} = to}) do
+    :ok = require_same_calendar(from, to, "Tempo.Interval.leap_seconds_spanned/1")
+    from_s = Compare.to_utc_seconds(from)
+    to_s = Compare.to_utc_seconds(to)
+
+    for {y, m, d} <- Tempo.LeapSeconds.dates(),
+        leap_second_utc_seconds(y, m, d) in from_s..(to_s - 1),
+        do: {y, m, d}
+  end
+
+  defp leap_second_removals_spanned(%__MODULE__{from: %Tempo{} = from, to: %Tempo{} = to}) do
+    :ok = require_same_calendar(from, to, "Tempo.Interval.leap_seconds_spanned/1")
+    from_s = Compare.to_utc_seconds(from)
+    to_s = Compare.to_utc_seconds(to)
+
+    for {y, m, d} <- Tempo.LeapSeconds.removals(),
+        leap_second_utc_seconds(y, m, d) in from_s..(to_s - 1),
+        do: {y, m, d}
+  end
+
+  # A leap second is inserted at 23:59:60 UTC. Its half-open
+  # containment test uses the wall-time boundary at 23:59:60,
+  # which in leap-second-naive gregorian seconds is the same
+  # instant as 00:00:00 of the following UTC day. We use that
+  # boundary to decide inclusion.
+  defp leap_second_utc_seconds(year, month, day) do
+    :calendar.datetime_to_gregorian_seconds({{year, month, day}, {23, 59, 59}}) + 1
+  end
+
+  # Cross-calendar endpoints produce nonsense arithmetic — the
+  # Gregorian seconds of Hebrew 5786 and Gregorian 2026 measure
+  # from different epochs and subtracting them yields a garbage
+  # duration. Refuse explicitly and tell the caller how to fix it.
+  defp require_same_calendar(
+         %Tempo{calendar: cal, time: from_time},
+         %Tempo{calendar: cal, time: to_time},
+         _context
+       ) do
+    # Non-anchored endpoints (no year) share the time-of-day axis
+    # across any calendar — no conversion needed.
+    _ = from_time
+    _ = to_time
+    :ok
+  end
+
+  defp require_same_calendar(%Tempo{} = from, %Tempo{} = to, context) do
+    cond do
+      not Tempo.anchored?(from) or not Tempo.anchored?(to) ->
+        :ok
+
+      true ->
+        raise ArgumentError,
+              "#{context} requires both endpoints in the same calendar. " <>
+                "Got #{inspect(from.calendar)} and #{inspect(to.calendar)}. " <>
+                "Convert one endpoint first — set operations such as " <>
+                "`Tempo.intersection/2` and `Tempo.difference/2` handle " <>
+                "cross-calendar inputs automatically via `Date.convert!/2`."
+    end
   end
 
   @doc """

@@ -283,7 +283,10 @@ defmodule Tempo.Iso8601.Tokenizer.Extended do
 
   # First segment: numeric offset is the time zone.
   defp apply_payload({:offset, offset}, _critical, acc, 0) do
-    {:ok, %{acc | zone_offset: offset}}
+    case Tempo.Validation.validate_ixdtf_offset_minutes(offset) do
+      :ok -> {:ok, %{acc | zone_offset: offset}}
+      {:error, _} = err -> err
+    end
   end
 
   # Tagged suffix at any position.
