@@ -99,6 +99,7 @@ defmodule Tempo.MixProject do
       Guides: [
         "guides/cookbook.md",
         "guides/scheduling.md",
+        "guides/falsehoods.md",
         "guides/set-operations.md",
         "guides/enumeration-semantics.md",
         "guides/ical-integration.md"
