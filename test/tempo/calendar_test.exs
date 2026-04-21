@@ -1,76 +1,15 @@
 defmodule Tempo.CalendarTest do
   use ExUnit.Case, async: true
 
-  # `Tempo.Calendar` resolves BCP 47 / CLDR calendar identifier
-  # atoms (as produced by the IXDTF `[u-ca=NAME]` tokenizer path
-  # via `Localize.validate_calendar/1`) to `Calendrical.*` calendar
-  # modules. The mapping is built at compile time by asking each
-  # known calendar module for its `cldr_calendar_type/0`.
-
-  describe "module_from_name/1" do
-    test "resolves :gregorian to Calendrical.Gregorian" do
-      assert {:ok, Calendrical.Gregorian} = Tempo.Calendar.module_from_name(:gregorian)
-    end
-
-    test "resolves :hebrew to Calendrical.Hebrew" do
-      assert {:ok, Calendrical.Hebrew} = Tempo.Calendar.module_from_name(:hebrew)
-    end
-
-    test "resolves all Islamic variants to their nested modules" do
-      assert {:ok, Calendrical.Islamic.Observational} =
-               Tempo.Calendar.module_from_name(:islamic)
-
-      assert {:ok, Calendrical.Islamic.UmmAlQura} =
-               Tempo.Calendar.module_from_name(:islamic_umalqura)
-
-      assert {:ok, Calendrical.Islamic.Civil} =
-               Tempo.Calendar.module_from_name(:islamic_civil)
-
-      assert {:ok, Calendrical.Islamic.Rgsa} =
-               Tempo.Calendar.module_from_name(:islamic_rgsa)
-
-      assert {:ok, Calendrical.Islamic.Tbla} =
-               Tempo.Calendar.module_from_name(:islamic_tbla)
-    end
-
-    test "resolves :ethiopic_amete_alem to the nested module" do
-      assert {:ok, Calendrical.Ethiopic.AmeteAlem} =
-               Tempo.Calendar.module_from_name(:ethiopic_amete_alem)
-    end
-
-    test "resolves :persian, :buddhist, :chinese, :coptic, :indian, :japanese, :roc" do
-      assert {:ok, Calendrical.Persian} = Tempo.Calendar.module_from_name(:persian)
-      assert {:ok, Calendrical.Buddhist} = Tempo.Calendar.module_from_name(:buddhist)
-      assert {:ok, Calendrical.Chinese} = Tempo.Calendar.module_from_name(:chinese)
-      assert {:ok, Calendrical.Coptic} = Tempo.Calendar.module_from_name(:coptic)
-      assert {:ok, Calendrical.Indian} = Tempo.Calendar.module_from_name(:indian)
-      assert {:ok, Calendrical.Japanese} = Tempo.Calendar.module_from_name(:japanese)
-      assert {:ok, Calendrical.Roc} = Tempo.Calendar.module_from_name(:roc)
-    end
-
-    test "returns an error for unknown identifiers" do
-      assert {:error, message} = Tempo.Calendar.module_from_name(:not_a_calendar)
-      assert message =~ ":not_a_calendar"
-    end
-  end
-
-  describe "supported_names/0" do
-    test "includes the common calendars" do
-      names = Tempo.Calendar.supported_names()
-      assert :gregorian in names
-      assert :hebrew in names
-      assert :islamic_umalqura in names
-      assert :persian in names
-    end
-  end
+  # The IXDTF `[u-ca=NAME]` suffix, when no explicit calendar
+  # argument is given to `Tempo.from_iso8601/1`, resolves to a
+  # concrete `Calendrical.*` module via
+  # `Calendrical.calendar_from_cldr_calendar_type/1` and the
+  # resulting Tempo struct's `:calendar` field is swapped
+  # accordingly. Parsing and validation then use that calendar's
+  # domain rules.
 
   describe "Tempo.from_iso8601/1 with [u-ca=NAME] suffix" do
-    # The IXDTF suffix, when no explicit calendar argument is
-    # given, resolves to a concrete `Calendrical.*` module and
-    # the resulting Tempo struct's `:calendar` field is swapped
-    # accordingly. Parsing and validation then use that calendar's
-    # domain rules.
-
     test "[u-ca=hebrew] swaps the struct's calendar to Calendrical.Hebrew" do
       {:ok, tempo} = Tempo.from_iso8601("5786-10-30[u-ca=hebrew]")
       assert tempo.calendar == Calendrical.Hebrew
@@ -78,18 +17,39 @@ defmodule Tempo.CalendarTest do
       assert tempo.extended.calendar == :hebrew
     end
 
-    test "multi-segment identifiers (dash-separated) work" do
-      {:ok, tempo} = Tempo.from_iso8601("1447-01-15[u-ca=islamic-umalqura]")
-      assert tempo.calendar == Calendrical.Islamic.UmmAlQura
-      assert tempo.extended.calendar == :islamic_umalqura
+    test "Islamic variants resolve to their nested Calendrical modules" do
+      {:ok, observational} = Tempo.from_iso8601("1447-01-15[u-ca=islamic]")
+      assert observational.calendar == Calendrical.Islamic.Observational
+
+      {:ok, umalqura} = Tempo.from_iso8601("1447-01-15[u-ca=islamic-umalqura]")
+      assert umalqura.calendar == Calendrical.Islamic.UmmAlQura
+
+      {:ok, civil} = Tempo.from_iso8601("1447-01-15[u-ca=islamic-civil]")
+      assert civil.calendar == Calendrical.Islamic.Civil
+    end
+
+    test "ethiopic-amete-alem resolves to Calendrical.Ethiopic.AmeteAlem" do
+      {:ok, tempo} = Tempo.from_iso8601("2019-05-10[u-ca=ethiopic-amete-alem]")
+      assert tempo.calendar == Calendrical.Ethiopic.AmeteAlem
+    end
+
+    test "the ethioaa BCP 47 alias works" do
+      {:ok, tempo} = Tempo.from_iso8601("2019-05-10[u-ca=ethioaa]")
+      assert tempo.calendar == Calendrical.Ethiopic.AmeteAlem
     end
 
     test "[u-ca=gregory] is accepted as an alias for :gregorian" do
-      # BCP 47 uses `gregory` as the identifier; Localize normalises
-      # it to `:gregorian`.
       {:ok, tempo} = Tempo.from_iso8601("2026-06-15[u-ca=gregory]")
       assert tempo.calendar == Calendrical.Gregorian
       assert tempo.extended.calendar == :gregorian
+    end
+
+    test "Persian, Buddhist, and other simple calendars resolve directly" do
+      {:ok, persian} = Tempo.from_iso8601("1403-10-20[u-ca=persian]")
+      assert persian.calendar == Calendrical.Persian
+
+      {:ok, buddhist} = Tempo.from_iso8601("2569-06-15[u-ca=buddhist]")
+      assert buddhist.calendar == Calendrical.Buddhist
     end
 
     test "without a u-ca tag the default calendar is Gregorian" do

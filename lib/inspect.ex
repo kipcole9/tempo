@@ -30,17 +30,21 @@ defmodule Tempo.Inspect do
   # non-default calendars.
 
   def inspect(%Tempo{calendar: Calendrical.Gregorian} = tempo) do
-    @sigil_o <> Tempo.to_iso8601(tempo) <> extended_trailer(tempo) <> "\""
+    # `to_iso8601/1` (via `inspect_value/1`) already appends the
+    # IXDTF extended trailer; don't add it again here.
+    @sigil_o <> Tempo.to_iso8601(tempo) <> "\""
   end
 
   def inspect(%Tempo{calendar: Calendrical.ISOWeek} = tempo) do
-    @sigil_o <> Tempo.to_iso8601(tempo) <> extended_trailer(tempo) <> "\"W"
+    @sigil_o <> Tempo.to_iso8601(tempo) <> "\"W"
   end
 
   def inspect(%Tempo{calendar: calendar} = tempo) do
+    # `to_iso8601/1` (via `inspect_value/1`) already appends the
+    # IXDTF extended trailer for any zone / calendar / tags present
+    # on the Tempo, so we don't add it again here.
     @from_iso8601 <>
       Tempo.to_iso8601(tempo) <>
-      extended_trailer(tempo) <>
       "\", " <> Kernel.inspect(calendar) <> ")"
   end
 
@@ -306,8 +310,15 @@ defmodule Tempo.Inspect do
     [open(set_type), elements, close(set_type), ?G, inspect_value(value), unit_key, ?U]
   end
 
-  defp inspect_value(%Tempo{time: time, shift: shift, qualification: qualification}) do
-    [inspect_value(time), inspect_shift(shift), inspect_qualification(qualification)]
+  defp inspect_value(%Tempo{} = tempo) do
+    %Tempo{time: time, shift: shift, qualification: qualification} = tempo
+
+    [
+      inspect_value(time),
+      inspect_shift(shift),
+      inspect_qualification(qualification),
+      extended_trailer(tempo)
+    ]
   end
 
   defp inspect_value(%Tempo.Set{set: set, type: type}) do

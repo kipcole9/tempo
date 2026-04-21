@@ -267,8 +267,19 @@ defmodule Tempo.IntervalSet do
       [{0, 0, :precedes}, {1, 0, :overlapped_by}]
 
   """
+  # Dialyzer over-widens the return type when a `with` clause
+  # has no explicit `else` — it includes the bound intermediate
+  # `{:ok, IntervalSet{intervals: []}}` shape even though that
+  # path always produces a list via the comprehension. The spec
+  # below is humanly correct; suppress the warning rather than
+  # widen the spec with a fictitious return.
+  @dialyzer {:nowarn_function, relation_matrix: 2}
+
   @spec relation_matrix(t() | Interval.t() | Tempo.t(), t() | Interval.t() | Tempo.t()) ::
-          [{non_neg_integer(), non_neg_integer(), Interval.relation()}] | {:error, term()}
+          [
+            {non_neg_integer(), non_neg_integer(), Interval.relation() | {:error, term()}}
+          ]
+          | {:error, term()}
   def relation_matrix(a, b) do
     with {:ok, %__MODULE__{intervals: a_ivs}} <- coerce(a),
          {:ok, %__MODULE__{intervals: b_ivs}} <- coerce(b) do

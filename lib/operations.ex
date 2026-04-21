@@ -668,7 +668,8 @@ defmodule Tempo.Operations do
   @doc """
   `true` when `a` and `b` share no instants.
   """
-  @spec disjoint?(any(), any(), keyword()) :: boolean()
+  @spec disjoint?(operand, operand, keyword()) :: boolean()
+        when operand: Tempo.t() | Interval.t() | IntervalSet.t() | Tempo.Set.t()
   def disjoint?(a, b, opts \\ []) do
     case intersection(a, b, opts) do
       {:ok, %IntervalSet{intervals: []}} -> true
@@ -680,13 +681,15 @@ defmodule Tempo.Operations do
   @doc """
   `true` when `a` and `b` share at least one instant.
   """
-  @spec overlaps?(any(), any(), keyword()) :: boolean()
+  @spec overlaps?(operand, operand, keyword()) :: boolean()
+        when operand: Tempo.t() | Interval.t() | IntervalSet.t() | Tempo.Set.t()
   def overlaps?(a, b, opts \\ []), do: not disjoint?(a, b, opts)
 
   @doc """
   `true` when every instant of `a` is also in `b`.
   """
-  @spec subset?(any(), any(), keyword()) :: boolean()
+  @spec subset?(operand, operand, keyword()) :: boolean()
+        when operand: Tempo.t() | Interval.t() | IntervalSet.t() | Tempo.Set.t()
   def subset?(a, b, opts \\ []) do
     case difference(a, b, opts) do
       {:ok, %IntervalSet{intervals: []}} -> true
@@ -699,13 +702,15 @@ defmodule Tempo.Operations do
   `true` when every instant of `b` is also in `a`. Alias for
   `subset?(b, a, opts)`.
   """
-  @spec contains?(any(), any(), keyword()) :: boolean()
+  @spec contains?(operand, operand, keyword()) :: boolean()
+        when operand: Tempo.t() | Interval.t() | IntervalSet.t() | Tempo.Set.t()
   def contains?(a, b, opts \\ []), do: subset?(b, a, opts)
 
   @doc """
   `true` when `a` and `b` span the same instants.
   """
-  @spec equal?(any(), any(), keyword()) :: boolean()
+  @spec equal?(operand, operand, keyword()) :: boolean()
+        when operand: Tempo.t() | Interval.t() | IntervalSet.t() | Tempo.Set.t()
   def equal?(a, b, opts \\ []) do
     with {:ok, {a_set, b_set}} <- align(a, b, opts) do
       a_set.intervals == b_set.intervals

@@ -148,8 +148,7 @@ defmodule Tempo.RRule.Expander do
       {5, [week: 1]}
 
   """
-  @spec to_ast(Rule.t(), Tempo.t(), keyword()) ::
-          {:ok, Interval.t()} | {:error, term()}
+  @spec to_ast(Rule.t(), Tempo.t(), keyword()) :: {:ok, Interval.t()}
   def to_ast(%Rule{} = rule, %Tempo{} = dtstart, options \\ []) do
     cadence = %Tempo.Duration{time: [{rule.freq, rule.interval}]}
 

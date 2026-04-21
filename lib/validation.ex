@@ -644,6 +644,7 @@ defmodule Tempo.Validation do
   defp validate_leap_second(_units, _tempo), do: :ok
 
   defp validate_leap_second_context(units, %{shift: shift}) do
+    year = fetch_unit(units, :year)
     hour = fetch_unit(units, :hour)
     minute = fetch_unit(units, :minute)
     month = fetch_unit(units, :month)
@@ -662,10 +663,19 @@ defmodule Tempo.Validation do
       is_list(shift) and leap_offset_nonzero?(shift) ->
         {:error, "A second value of 60 (leap second) is only valid with a UTC time-zone offset"}
 
+      is_integer(year) and is_integer(month) and is_integer(day) and
+          not Tempo.LeapSeconds.on_date?(year, month, day) ->
+        {:error,
+         "No leap second has been inserted on #{year}-#{pad2(month)}-#{pad2(day)}. " <>
+           "See `Tempo.LeapSeconds.dates/0` for the IERS-announced list."}
+
       true ->
         :ok
     end
   end
+
+  defp pad2(n) when n < 10, do: "0#{n}"
+  defp pad2(n), do: Integer.to_string(n)
 
   defp fetch_unit(units, unit) do
     case List.keyfind(units, unit, 0) do
@@ -679,4 +689,111 @@ defmodule Tempo.Validation do
     minute = fetch_unit(shift, :minute) || 0
     hour != 0 or minute != 0
   end
+
+  @doc """
+  Check that an anchored, zoned Tempo value refers to a wall
+  time that actually exists in its IANA time zone.
+
+  During a DST spring-forward transition, an hour of local time
+  ceases to exist — `02:30 America/New_York` on 2024-03-10 does
+  not refer to any real UTC instant. ISO 8601 permits the
+  syntax; Tempo rejects the semantics at parse time so downstream
+  set operations, comparisons, and durations never encounter a
+  phantom value.
+
+  The check applies only when all of these hold:
+
+  * The value is a bare `%Tempo{}` (Interval/Set values are
+    composed of Tempos and checked via recursion).
+
+  * The value has year, month, day, hour, minute (fully anchored
+    at least to the minute — coarser values like "2024-03" can
+    never land in a gap because the gap is minute-scale).
+
+  * The value carries an IANA zone id on `extended.zone_id`.
+
+  Returns `:ok` when the wall time is valid, or `{:error, ...}`
+  when it falls in a DST (or other) gap.
+
+  Ambiguous wall times (e.g. the doubled hour during a DST
+  fall-back) are accepted — the caller can disambiguate via an
+  explicit zone offset in the IXDTF suffix.
+
+  """
+  @spec validate_zone_existence(Tempo.t() | Tempo.Interval.t() | Tempo.Set.t() | term()) ::
+          :ok | {:error, String.t()}
+  def validate_zone_existence(%Tempo.Interval{from: from, to: to}) do
+    with :ok <- validate_zone_existence(from) do
+      validate_zone_existence(to)
+    end
+  end
+
+  def validate_zone_existence(%Tempo.Set{set: values}) do
+    Enum.reduce_while(values, :ok, fn value, :ok ->
+      case validate_zone_existence(value) do
+        :ok -> {:cont, :ok}
+        {:error, _} = err -> {:halt, err}
+      end
+    end)
+  end
+
+  def validate_zone_existence(%Tempo{} = tempo) do
+    case zone_id(tempo) do
+      nil -> :ok
+      zone -> check_wall_time_in_zone(tempo, zone)
+    end
+  end
+
+  def validate_zone_existence(_other), do: :ok
+
+  defp zone_id(%Tempo{extended: %{zone_id: zone}}) when is_binary(zone) and zone != "",
+    do: zone
+
+  defp zone_id(_), do: nil
+
+  defp check_wall_time_in_zone(%Tempo{time: time}, zone) do
+    case fully_anchored_datetime(time) do
+      {:ok, {{year, month, day}, {hour, minute, second}} = datetime} ->
+        wall = :calendar.datetime_to_gregorian_seconds(datetime)
+
+        case Tzdata.periods_for_time(zone, wall, :wall) do
+          [] ->
+            {:error,
+             "Wall time #{year}-#{pad2(month)}-#{pad2(day)}T" <>
+               "#{pad2(hour)}:#{pad2(minute)}:#{pad2(second)} does not exist in " <>
+               "#{inspect(zone)} — it falls inside a daylight-saving or " <>
+               "zone-transition gap."}
+
+          _periods ->
+            # One period = unambiguous. Two = fall-back ambiguity,
+            # which we accept silently (the caller can disambiguate
+            # with an explicit offset).
+            :ok
+        end
+
+      :not_fully_anchored ->
+        :ok
+    end
+  end
+
+  # The zone-existence check only fires when the value is fully
+  # anchored down to the minute — coarser resolutions ("2024-03",
+  # "2024-03-10", "2024-03-10T02") can't land in a gap because the
+  # gap is smaller than the value's resolution.
+  defp fully_anchored_datetime(time) do
+    with year when is_integer(year) <- Keyword.get(time, :year),
+         month when is_integer(month) <- Keyword.get(time, :month),
+         day when is_integer(day) <- Keyword.get(time, :day),
+         hour when is_integer(hour) <- Keyword.get(time, :hour),
+         minute when is_integer(minute) <- Keyword.get(time, :minute) do
+      second = integer_second(Keyword.get(time, :second, 0))
+      {:ok, {{year, month, day}, {hour, minute, second}}}
+    else
+      _ -> :not_fully_anchored
+    end
+  end
+
+  defp integer_second(s) when is_integer(s), do: s
+  defp integer_second(s) when is_float(s), do: trunc(s)
+  defp integer_second(_), do: 0
 end

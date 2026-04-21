@@ -196,7 +196,7 @@ defmodule Tempo.Compare do
     instant).
 
   """
-  @spec to_utc_seconds(Tempo.t()) :: integer()
+  @spec to_utc_seconds(Tempo.t()) :: integer() | float()
   def to_utc_seconds(%Tempo{time: time, extended: extended, shift: shift}) do
     year = Keyword.get(time, :year)
 

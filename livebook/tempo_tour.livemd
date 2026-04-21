@@ -304,7 +304,7 @@ Tempo values are calendar-aware. The IXDTF `[u-ca=NAME]` suffix attaches a calen
 Tempo.overlaps?(hebrew, ~o"2026-06-15")
 ```
 
-Tempo converts via `Date.convert!/2` internally, so the operation is calendar-neutral. See `Tempo.Calendar.supported_names/0` for the full list of recognised CLDR calendar identifiers.
+Tempo converts via `Date.convert!/2` internally, so the operation is calendar-neutral. See `Calendrical.supported_cldr_calendar_types/0` for the full list of recognised CLDR calendar identifiers.
 
 ## Cross-timezone comparison
 

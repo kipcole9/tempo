@@ -101,4 +101,60 @@ defmodule Tempo.Iso8601.InspectTest do
     assert inspect(~o"X*Y12M28D") ==
              "~o\"X*Y12M28D\""
   end
+
+  describe "Inspect preserves IXDTF zones per endpoint" do
+    # The interval sigil must round-trip with zone info on each
+    # endpoint. Previously, `%Tempo.Interval{}` inspect stripped
+    # `[zone]` suffixes because `inspect_value/1` for `%Tempo{}`
+    # ignored `:extended`.
+
+    test "standalone Tempo with a zone preserves [zone]" do
+      {:ok, t} = Tempo.from_iso8601("2011-12-29T12:00:00[Pacific/Apia]")
+      assert inspect(t) == "~o\"2011Y12M29DT12H0M0S[Pacific/Apia]\""
+    end
+
+    test "Interval with zoned endpoints preserves [zone] on each" do
+      {:ok, from} = Tempo.from_iso8601("2011-12-29T12:00:00[Pacific/Apia]")
+      {:ok, to} = Tempo.from_iso8601("2011-12-31T12:00:00[Pacific/Apia]")
+      iv = %Tempo.Interval{from: from, to: to}
+
+      assert inspect(iv) ==
+               "~o\"2011Y12M29DT12H0M0S[Pacific/Apia]/2011Y12M31DT12H0M0S[Pacific/Apia]\""
+    end
+
+    test "Interval with mixed zones shows each endpoint's zone" do
+      {:ok, from} = Tempo.from_iso8601("2026-06-15T10:00:00[Europe/Paris]")
+      {:ok, to} = Tempo.from_iso8601("2026-06-15T17:00:00[America/New_York]")
+      iv = %Tempo.Interval{from: from, to: to}
+
+      assert inspect(iv) ==
+               "~o\"2026Y6M15DT10H0M0S[Europe/Paris]/2026Y6M15DT17H0M0S[America/New_York]\""
+    end
+
+    test "Interval with [u-ca=calendar] tag preserves it per endpoint" do
+      {:ok, from} = Tempo.from_iso8601("5786-10-30[u-ca=hebrew]")
+      {:ok, to} = Tempo.from_iso8601("5786-11-01[u-ca=hebrew]")
+      iv = %Tempo.Interval{from: from, to: to}
+
+      assert inspect(iv) ==
+               "~o\"5786Y10M30D[u-ca=hebrew]/5786Y11M1D[u-ca=hebrew]\""
+    end
+
+    test "Interval with no extended info renders cleanly (no empty brackets)" do
+      iv = %Tempo.Interval{from: ~o"2026-06-15", to: ~o"2026-06-20"}
+      assert inspect(iv) == "~o\"2026Y6M15D/2026Y6M20D\""
+    end
+
+    test "round-trip: inspect then parse restores the same zoned value" do
+      {:ok, original} = Tempo.from_iso8601("2011-12-29T12:00:00[Pacific/Apia]")
+
+      # Strip the sigil wrapper, reparse, and compare.
+      "~o\"" <> rest = inspect(original)
+      iso = String.trim_trailing(rest, "\"")
+      {:ok, reparsed} = Tempo.from_iso8601(iso)
+
+      assert reparsed.time == original.time
+      assert reparsed.extended.zone_id == original.extended.zone_id
+    end
+  end
 end

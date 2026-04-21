@@ -274,7 +274,7 @@ defmodule Tempo do
     passed, the explicit calendar always wins over any
     `[u-ca=NAME]` tag in the IXDTF suffix. When omitted, the
     `[u-ca=NAME]` tag is resolved to a `Calendrical.*` module via
-    `Tempo.Calendar.module_from_name/1`; if no tag is present,
+    `Calendrical.calendar_from_cldr_calendar_type/1`; if no tag is present,
     `Calendrical.Gregorian` is used.
 
   ### Returns
@@ -344,11 +344,11 @@ defmodule Tempo do
     with {:ok, {tokens, extended}} <- Tokenizer.tokenize(string),
          {:ok, effective_calendar} <- resolve_calendar(requested_calendar, extended),
          {:ok, parsed} <- Parser.parse(tokens, effective_calendar),
-         {:ok, expanded} <- Group.expand_groups(parsed) do
-      case Validation.validate(expanded, effective_calendar) do
-        {:ok, result} -> {:ok, attach_extended(result, extended)}
-        other -> other
-      end
+         {:ok, expanded} <- Group.expand_groups(parsed),
+         {:ok, validated} <- Validation.validate(expanded, effective_calendar),
+         attached = attach_extended(validated, extended),
+         :ok <- Validation.validate_zone_existence(attached) do
+      {:ok, attached}
     end
   end
 
@@ -357,7 +357,7 @@ defmodule Tempo do
   # * Explicit user calendar always wins.
   # * Otherwise, if the IXDTF `[u-ca=NAME]` suffix is present, its
   #   atom is resolved to a `Calendrical.*` module via
-  #   `Tempo.Calendar.module_from_name/1`.
+  #   `Calendrical.calendar_from_cldr_calendar_type/1`.
   # * Otherwise, fall back to `Calendrical.Gregorian`.
   defp resolve_calendar(:from_ixdtf_or_default, nil),
     do: {:ok, Calendrical.Gregorian}
@@ -366,7 +366,7 @@ defmodule Tempo do
     do: {:ok, Calendrical.Gregorian}
 
   defp resolve_calendar(:from_ixdtf_or_default, %{calendar: name}) when is_atom(name),
-    do: Tempo.Calendar.module_from_name(name)
+    do: Calendrical.calendar_from_cldr_calendar_type(name)
 
   defp resolve_calendar(:from_ixdtf_or_default, _extended),
     do: {:ok, Calendrical.Gregorian}
@@ -588,6 +588,12 @@ defmodule Tempo do
       ~o"2022Y11M20D"
 
   """
+  # `new/2` is multi-clause internally; dialyzer unions all return
+  # types across clauses even though `from_date/1` always hits the
+  # keyword-list clause. Suppress the resulting wide-return warning
+  # rather than widen the spec, which would mislead human readers.
+  @dialyzer {:nowarn_function, from_date: 1, from_time: 1, from_naive_date_time: 1}
+
   @spec from_date(date :: Date.t()) :: t()
   def from_date(%{year: year, month: month, day: day, calendar: Calendar.ISO}) do
     new(year: year, month: month, day: day)
@@ -1116,7 +1122,14 @@ defmodule Tempo do
       ~o"2026Y1M4DT10H30M"
 
   """
-  @spec anchor(t, t) :: t
+  # Same pattern as `from_date/1` — `merge/2` passes through any
+  # non-`{:ok, _}` return from `Validation.validate/2`, which
+  # dialyzer widens to include `nil | :undefined`. The spec
+  # reflects what the function is actually contracted to return;
+  # suppress the underspecs warning rather than widening.
+  @dialyzer {:nowarn_function, anchor: 2}
+
+  @spec anchor(t(), t()) :: t() | {:error, error_reason()}
   def anchor(%__MODULE__{} = anchored, %__MODULE__{} = non_anchored) do
     cond do
       not anchored?(anchored) ->
@@ -2355,6 +2368,29 @@ defmodule Tempo do
   def explain(value) do
     value |> Tempo.Explain.explain() |> Tempo.Explain.to_string()
   end
+
+  @doc """
+  Print a guided tour of Tempo's distinctive capabilities to the
+  iex console.
+
+  Eight short examples run live against the current build —
+  implicit spans, enumeration, archaeological dates, set
+  operations, cross-calendar comparison, locale-aware selectors,
+  leap seconds, and femtosecond precision. Useful as a first
+  contact with the library, a conference demo, or a sanity check
+  after a version bump.
+
+  Returns `:ok` so the iex prompt shows cleanly after the output.
+
+  ### Examples
+
+      iex> Tempo.tour()
+      # ... tour output ...
+      :ok
+
+  """
+  @spec tour() :: :ok
+  defdelegate tour(), to: Tempo.Tour, as: :run
 
   @valid_units Unit.units()
 

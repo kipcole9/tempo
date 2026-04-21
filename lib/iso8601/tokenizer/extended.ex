@@ -331,20 +331,19 @@ defmodule Tempo.Iso8601.Tokenizer.Extended do
   # BCP 47 / CLDR calendar identifiers may be multi-segment —
   # `islamic-umalqura`, `islamic-civil`, `ethiopic-amete-alem`.
   # The tokenizer splits on `-` so multi-segment identifiers
-  # arrive as a list of parts (`["islamic", "umalqura"]`). We
-  # rejoin with `_` to match the atom form
-  # `Localize.validate_calendar/1` recognises
-  # (`:islamic_umalqura`, `:ethiopic_amete_alem`).
+  # arrive as a list of parts (`["islamic", "umalqura"]`). Rejoin
+  # with `-` to reconstruct the BCP 47 form and let
+  # `Localize.validate_calendar/1` do the normalisation
+  # (dash↔underscore, aliases like `gregory`/`ethioaa`).
   defp apply_tag(@u_ca, values, critical, acc) when is_list(values) do
-    normalised = Enum.join(values, "_")
+    raw = Enum.join(values, "-")
 
-    case Localize.validate_calendar(normalised) do
+    case Localize.validate_calendar(raw) do
       {:ok, calendar} ->
         {:ok, %{acc | calendar: calendar}}
 
       {:error, _} when critical ->
-        {:error,
-         "Unknown calendar identifier #{inspect(Enum.join(values, "-"))} in extended suffix"}
+        {:error, "Unknown calendar identifier #{inspect(raw)} in extended suffix"}
 
       {:error, _} ->
         {:ok, acc}

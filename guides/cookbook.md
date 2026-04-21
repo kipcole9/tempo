@@ -23,6 +23,7 @@ import Tempo.Sigil
 9. [Cross-calendar and cross-timezone](#9-cross-calendar-and-cross-timezone)
 10. [Archaeological / approximate dates](#10-archaeological--approximate-dates)
 11. [Real-world scenarios](#11-real-world-scenarios)
+12. [Famous moments in time](#12-famous-moments-in-time)
 
 ---
 
@@ -251,7 +252,7 @@ iex> Tempo.overlaps?(hebrew, ~o"2026-06-15")
 true
 ```
 
-The IXDTF `[u-ca=NAME]` suffix swaps the value's calendar to the corresponding `Calendrical.*` module — `hebrew`, `islamic-umalqura`, `persian`, `buddhist`, and the rest. See `Tempo.Calendar.supported_names/0` for the full list. Cross-calendar comparisons then convert operands to a shared reference automatically.
+The IXDTF `[u-ca=NAME]` suffix swaps the value's calendar to the corresponding `Calendrical.*` module — `hebrew`, `islamic-umalqura`, `persian`, `buddhist`, and the rest. See `Calendrical.supported_cldr_calendar_types/0` for the full list. Cross-calendar comparisons then convert operands to a shared reference automatically.
 
 ---
 
@@ -727,6 +728,91 @@ month = ~o"2026-06"
 ```
 
 > The **month** of June **minus** my **calendar** is my **free** time that month.
+
+---
+
+## 12. Famous moments in time
+
+A small collection of historically awkward dates — the kind that break naive date libraries. Each recipe demonstrates a specific Tempo capability against a real artefact of history.
+
+### The Ides of March, 44 BCE
+
+```elixir
+iex> {:ok, ides} = Tempo.from_iso8601("-0043-03-15")
+iex> {Tempo.year(ides), Tempo.month(ides), Tempo.day(ides)}
+{-43, 3, 15}
+```
+
+> ISO 8601 uses **astronomical year numbering** — 1 BCE is year 0, 2 BCE is year -1, and so on. The Ides of March in **44 BCE** is therefore year **-43**. Tempo parses this without fuss; negative years are first-class.
+
+### The 1560s as an iterable decade
+
+```elixir
+iex> decade = ~o"156X"
+iex> Enum.to_list(decade) |> Enum.map(&Tempo.year/1)
+[1560, 1561, 1562, 1563, 1564, 1565, 1566, 1567, 1568, 1569]
+```
+
+> `~o"156X"` is an **ISO 8601-2 masked year** — "some year in the 1560s." It's both a bounded span (the full decade) and an enumerable sequence of 10 year-values. Archaeological records and historical citations use this form routinely; Tempo gives it a first-class type.
+
+### A leap second — real and imagined
+
+```elixir
+iex> Tempo.from_iso8601("2016-12-31T23:59:60Z")
+{:ok, ~o"2016Y12M31DT23H59M60SZ"}
+
+iex> Tempo.from_iso8601("2026-12-31T23:59:60Z")
+{:error,
+ "No leap second has been inserted on 2026-12-31. See `Tempo.LeapSeconds.dates/0` for the IERS-announced list."}
+```
+
+> At the end of 2016 UTC, a **leap second** was inserted — the minute 23:59 had **61 seconds**, numbered 00 through 60. ISO 8601 permits `:60` in the seconds field for this case. Tempo accepts it **only on the 27 dates IERS has actually announced** (see `Tempo.LeapSeconds.dates/0`). A `:60` on any other June 30 or December 31 is semantically invalid and rejected at parse time.
+
+### A daylight-saving gap — the hour that never was
+
+```elixir
+iex> Tempo.from_iso8601("2024-03-10T02:30:00[America/New_York]")
+{:error,
+ "Wall time 2024-03-10T02:30:00 does not exist in \"America/New_York\" — it falls inside a daylight-saving or zone-transition gap."}
+```
+
+> At 02:00 local time on the second Sunday of March, US clocks **jump to 03:00** — the hour 02:00–03:00 never exists. Tempo consults Tzdata at parse time and rejects wall times inside the gap, so downstream operations never encounter a phantom instant. Fall-back ambiguity (the repeated hour in November) is accepted by default — callers can disambiguate with an explicit offset.
+
+### Samoa skipping the international date line, 2011
+
+```elixir
+iex> Tempo.from_iso8601("2011-09-24T12:00:00[Pacific/Apia]")
+{:error,
+ "Wall time 2011-09-24T12:00:00 does not exist in \"Pacific/Apia\" — it falls inside a daylight-saving or zone-transition gap."}
+```
+
+> In 2011, Samoa shifted from east of the international date line to west of it — their timeline **skipped forward 25 hours**. Tempo consults Tzdata for the exact gap boundaries. (Current IANA data has the gap spanning Sep 24 03:00 → Sep 25 04:00 local, 25 hours; the news coverage at the time described the shift as end-of-December 2011. Wherever IANA places the transition, Tempo uses it as authoritative.)
+
+### Julian vs Gregorian — the same nominal date, different calendars
+
+```elixir
+iex> {:ok, julian}    = Tempo.from_iso8601("1582-01-01", Calendrical.Julian)
+iex> {:ok, gregorian} = Tempo.from_iso8601("1582-01-01[u-ca=gregory]")
+iex> Tempo.overlaps?(julian, gregorian)
+false
+```
+
+> 1 January 1582 under the **Julian calendar** and 1 January 1582 under the **Gregorian calendar** are not the same real day — they're **10 days apart** because of the Julian-to-Gregorian drift. Tempo comparisons are **calendar-aware**: same nominal components, different calendar, different underlying instant. The answer is `false`.
+
+### Allen's interval algebra
+
+```elixir
+iex> Tempo.compare(~o"2022-06", ~o"2022-07")
+:meets
+
+iex> Tempo.compare(~o"2022-06", ~o"2022-06-15")
+:contains
+
+iex> Tempo.compare(~o"2022-06", ~o"2023-06")
+:precedes
+```
+
+> Two intervals relate in one of **13 named ways** — [Allen's interval algebra](https://ics.uci.edu/~alspaugh/cls/shr/allen.html). June **meets** July (touches at the boundary with no gap or overlap). June 2022 **contains** June 15 2022. June 2022 **precedes** June 2023. The relation is always exact; no equality-tolerance bikeshedding.
 
 ---
 

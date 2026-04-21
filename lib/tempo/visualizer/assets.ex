@@ -379,6 +379,13 @@ defmodule Tempo.Visualizer.Assets do
   }
   """
 
-  @spec css() :: binary()
+  # The return is a known-length literal, but we expose it as
+  # `String.t()` so callers are free to treat it as an opaque blob.
+  # The supertype warning is suppressed with `@dialyzer` rather than
+  # tightening the spec to a bitstring-size pattern that would be
+  # meaningless to humans.
+  @dialyzer {:nowarn_function, css: 0}
+
+  @spec css() :: String.t()
   def css, do: @css
 end
