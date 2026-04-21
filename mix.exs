@@ -22,6 +22,7 @@ defmodule Tempo.MixProject do
       extras: [
         "README.md",
         "CHANGELOG.md",
+        "guides/cookbook.md",
         "guides/iso8601-conformance.md",
         "guides/shared-ast-iso8601-and-rrule.md",
         "guides/enumeration-semantics.md",
