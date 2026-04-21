@@ -216,6 +216,7 @@ defmodule Tempo.RRule.Encoder do
   defp encode_by_entry({:set_position, v}), do: ["BYSETPOS=#{list_csv(v)}"]
   defp encode_by_entry({:day_of_week, v}), do: ["BYDAY=#{byday_csv(v)}"]
   defp encode_by_entry({:byday, pairs}) when is_list(pairs), do: ["BYDAY=#{byday_pairs_csv(pairs)}"]
+  defp encode_by_entry({:wkst, w}) when is_integer(w), do: ["WKST=#{Map.fetch!(@weekday_code, w)}"]
   defp encode_by_entry(_unsupported), do: []
 
   ## BYDAY helpers

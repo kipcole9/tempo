@@ -26,6 +26,24 @@ if Code.ensure_loaded?(ICal) do
     * [RFC 5545](https://www.rfc-editor.org/rfc/rfc5545) — the iCalendar spec.
     * `guides/set-operations.md` for how the imported data is used downstream.
 
+    ## RFC 5545 coverage
+
+    | Property  | Status                                            |
+    | --------- | ------------------------------------------------- |
+    | `RRULE`   | Fully supported — every `BY*` part, `WKST`, and   |
+    |           | `BYSETPOS` flow through the interpreter.          |
+    | `RDATE`   | Supported — extra occurrences with the event's    |
+    |           | own span.                                         |
+    | `EXDATE`  | Supported — start-moment match removes the        |
+    |           | corresponding occurrence.                         |
+    | `EXRULE`  | Not surfaced by the underlying `ical` library, so |
+    |           | not implementable at this layer. EXRULE is also   |
+    |           | RFC-deprecated (RFC 2445 → 5545).                 |
+    | Multiple  | RFC 5545 says SHOULD NOT; some exports do it      |
+    | `RRULE`   | anyway. The `ical` library exposes only the       |
+    | per       | first `RRULE` on `event.rrule`, so we materialise |
+    | `VEVENT`  | that one and silently ignore the rest.            |
+
     """
 
     alias Tempo.{Interval, IntervalSet}
@@ -228,14 +246,25 @@ if Code.ensure_loaded?(ICal) do
     ## fallback goes away and this function becomes unconditional
     ## delegation.
 
-    # With Phases A–C landed, every RFC 5545 BY-rule flows
-    # through the supported path
-    # (`Tempo.RRule.Expander.expand/3` → `Tempo.to_interval/2` →
-    # `Tempo.RRule.Selection`). No `unsupported_by_rules?` gate
-    # and no `first_occurrence_only` fallback fire at runtime
-    # today. Phases B + C cover: BYMONTH, BYMONTHDAY, BYYEARDAY,
+    # With Phases A–D landed, every RFC 5545 recurrence primitive
+    # flows through the supported path:
+    #
+    #   RRULE → `Tempo.RRule.Expander.expand/3` →
+    #           `Tempo.to_interval/2` → `Tempo.RRule.Selection`
+    #
+    #   RDATE  — unioned into the RRULE occurrence set as extra
+    #            `%Tempo.Interval{}` values, each carrying the
+    #            event's span (`DTEND − DTSTART`) and metadata.
+    #
+    #   EXDATE — subtracted from the combined set by matching on
+    #            the occurrence's `from` start moment.
+    #
+    # Phases B + C cover: BYMONTH, BYMONTHDAY, BYYEARDAY,
     # BYWEEKNO, BYDAY (with and without ordinals), BYHOUR,
     # BYMINUTE, BYSECOND, BYSETPOS.
+    #
+    # EXRULE is RFC-deprecated and the `ical` library does not
+    # surface it, so we don't need to handle it.
     defp expand_recurrence(event, %ICal.Recurrence{} = rule, opts) do
       cond do
         rule.count == nil and rule.until == nil and not Keyword.has_key?(opts, :bound) ->
@@ -253,8 +282,19 @@ if Code.ensure_loaded?(ICal) do
               |> Keyword.put(:base_to, base.to)
 
             case Tempo.RRule.Expander.expand(rule, base.from, expander_opts) do
-              {:ok, occurrences} -> {:ok, Enum.take(occurrences, @safety_cap)}
-              {:error, _} = err -> err
+              {:ok, rrule_occurrences} ->
+                capped = Enum.take(rrule_occurrences, @safety_cap)
+
+                combined =
+                  capped
+                  |> apply_rdates(event, base)
+                  |> apply_exdates(event)
+                  |> sort_by_from()
+
+                {:ok, combined}
+
+              {:error, _} = err ->
+                err
             end
           end
       end
@@ -262,6 +302,119 @@ if Code.ensure_loaded?(ICal) do
 
     defp maybe_put(keyword, _key, nil), do: keyword
     defp maybe_put(keyword, key, value), do: Keyword.put(keyword, key, value)
+
+    ## ----------------------------------------------------------
+    ## RDATE / EXDATE
+    ##
+    ## `final = (RRULE_expansion ∪ RDATES) − EXDATES`
+    ##
+    ## The `ical` library delivers RDATE / EXDATE entries as
+    ## plain `Date`, `DateTime`, or `NaiveDateTime` values. We
+    ## normalise to `%Tempo{}` via `Tempo.from_elixir/1` so
+    ## matching and set-operations share one vocabulary.
+    ##
+    ## Union: each RDATE becomes an `%Tempo.Interval{}` with the
+    ## event's span (same `base_to - base_from` delta used by
+    ## RRULE occurrences). Event metadata rides along so
+    ## downstream operations keep the tie back to the source
+    ## event.
+    ##
+    ## Subtract: EXDATE matches an occurrence when the
+    ## occurrence's `from` moment equals the EXDATE. We compare
+    ## via `Tempo.Compare.compare_endpoints/2` so time-zone
+    ## equality and cross-resolution comparison fall out
+    ## naturally.
+    ## ----------------------------------------------------------
+
+    defp apply_rdates(occurrences, %ICal.Event{rdates: nil}, _base), do: occurrences
+    defp apply_rdates(occurrences, %ICal.Event{rdates: []}, _base), do: occurrences
+
+    defp apply_rdates(occurrences, %ICal.Event{rdates: rdates}, %Interval{} = base) do
+      extras =
+        rdates
+        |> Enum.map(&rdate_to_interval(&1, base))
+        |> Enum.reject(&is_nil/1)
+
+      occurrences ++ extras
+    end
+
+    # Turn one RDATE value into a full `%Tempo.Interval{}`. The
+    # event's span (`base.to - base.from`) is preserved — an
+    # RDATE adds a matching-duration occurrence at a new start.
+    defp rdate_to_interval(%DateTime{} = dt, %Interval{} = base) do
+      rdate_tempo(Tempo.from_elixir(dt), base)
+    end
+
+    defp rdate_to_interval(%NaiveDateTime{} = ndt, %Interval{} = base) do
+      rdate_tempo(Tempo.from_elixir(ndt), base)
+    end
+
+    defp rdate_to_interval(%Date{} = d, %Interval{} = base) do
+      rdate_tempo(Tempo.from_elixir(d, resolution: :day), base)
+    end
+
+    defp rdate_to_interval(_other, _base), do: nil
+
+    # The RDATE's start is its full timestamp (date + time-of-day
+    # if present). The end is `start + event_duration`, where the
+    # event's duration is derived from the base occurrence in
+    # UTC seconds via `Tempo.Compare.to_utc_seconds/1`. That
+    # gives us a calendar-neutral delta that `Tempo.Math.add/2`
+    # can apply to the RDATE start.
+    defp rdate_tempo(%Tempo{} = from_tempo, %Interval{from: base_from, to: base_to, metadata: metadata}) do
+      duration = event_duration(base_from, base_to)
+      to_tempo = Tempo.Math.add(from_tempo, duration)
+      %Interval{from: from_tempo, to: to_tempo, metadata: metadata}
+    end
+
+    defp event_duration(%Tempo{} = from, %Tempo{} = to) do
+      seconds = Tempo.Compare.to_utc_seconds(to) - Tempo.Compare.to_utc_seconds(from)
+      %Tempo.Duration{time: [second: seconds]}
+    end
+
+    defp apply_exdates(occurrences, %ICal.Event{exdates: nil}), do: occurrences
+    defp apply_exdates(occurrences, %ICal.Event{exdates: []}), do: occurrences
+
+    defp apply_exdates(occurrences, %ICal.Event{exdates: exdates}) do
+      excluded =
+        exdates
+        |> Enum.map(&exdate_to_tempo/1)
+        |> Enum.reject(&is_nil/1)
+
+      Enum.reject(occurrences, fn %Interval{from: from} ->
+        Enum.any?(excluded, fn ex -> same_moment?(from, ex) end)
+      end)
+    end
+
+    defp exdate_to_tempo(%DateTime{} = dt), do: Tempo.from_elixir(dt)
+    defp exdate_to_tempo(%NaiveDateTime{} = ndt), do: Tempo.from_elixir(ndt)
+    defp exdate_to_tempo(%Date{} = d), do: Tempo.from_elixir(d, resolution: :day)
+    defp exdate_to_tempo(_other), do: nil
+
+    defp same_moment?(%Tempo{} = a, %Tempo{} = b) do
+      Tempo.Compare.compare_endpoints(a, b) == :same
+    end
+
+    ## Sort the combined set so consumers see chronological order
+    ## regardless of whether an RDATE landed after the RRULE run.
+    defp sort_by_from(intervals) do
+      Enum.sort_by(intervals, fn %Interval{from: %Tempo{time: time}} -> time_sort_key(time) end)
+    end
+
+    # Stable key for chronological sort — year, month, day, hour,
+    # minute, second, with missing units defaulting to their unit
+    # minimum so partial-resolution values sort alongside fully
+    # specified ones.
+    defp time_sort_key(time) do
+      {
+        Keyword.get(time, :year, 0),
+        Keyword.get(time, :month, 1),
+        Keyword.get(time, :day, 1),
+        Keyword.get(time, :hour, 0),
+        Keyword.get(time, :minute, 0),
+        Keyword.get(time, :second, 0)
+      }
+    end
 
     # NOTE: `first_occurrence_only/2` was retired when Phase C
     # landed. Every RFC 5545 BY-rule now materialises through the

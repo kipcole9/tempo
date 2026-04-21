@@ -1509,19 +1509,23 @@ defmodule Tempo do
   end
 
   # A `from + duration` interval (`1985-01/P3M`). Materialise to
-  # a closed `[from, from + duration)` interval.
+  # a closed `[from, from + duration)` interval. Preserves the
+  # source interval's metadata — callers like `Tempo.ICal` need
+  # event-level metadata (summary, location, …) to ride along
+  # onto every materialised occurrence.
   def to_interval(
         %Tempo.Interval{
           from: %Tempo{} = from,
           duration: %Tempo.Duration{} = duration,
           to: to,
-          recurrence: 1
+          recurrence: 1,
+          metadata: metadata
         },
         _opts
       )
       when to in [nil, :undefined] do
     to_tempo = Tempo.Math.add(from, duration)
-    {:ok, %Tempo.Interval{from: from, to: to_tempo}}
+    {:ok, %Tempo.Interval{from: from, to: to_tempo, metadata: metadata}}
   end
 
   # A `duration + to` interval (`P1M/1985-06`). Materialise to a
@@ -1531,12 +1535,13 @@ defmodule Tempo do
           from: :undefined,
           duration: %Tempo.Duration{} = duration,
           to: %Tempo{} = to,
-          recurrence: 1
+          recurrence: 1,
+          metadata: metadata
         },
         _opts
       ) do
     from_tempo = Tempo.Math.subtract(to, duration)
-    {:ok, %Tempo.Interval{from: from_tempo, to: to}}
+    {:ok, %Tempo.Interval{from: from_tempo, to: to, metadata: metadata}}
   end
 
   def to_interval(%Tempo.Interval{} = interval, _opts) do
@@ -1595,15 +1600,28 @@ defmodule Tempo do
        "a duration has no anchor on the time line."}
   end
 
-  # Apply a duration N times (scalar multiplication by recursive
-  # add). Keeps the clamp semantic per-step, which matches the
-  # intuition that each occurrence is its own "+ duration" step.
+  # Apply a duration N times as a single scalar-multiplied step:
+  # `tempo + (n × duration)` in one call, not `n` successive
+  # `+ duration` calls.
+  #
+  # Scalar vs iterative matters when the anchor hits a
+  # calendar-clamped day. DTSTART = 2020-02-29 with cadence
+  # `year: 1`:
+  #
+  # * Iterative (+1y then +1y then +1y then +1y): the first step
+  #   clamps Feb 29 → Feb 28. Every subsequent step starts from
+  #   Feb 28, so day 29 is lost forever.
+  #
+  # * Scalar (+4y in one shot): 2020-02-29 → 2024-02-29 (a leap
+  #   year, valid).
+  #
+  # Matches the RFC intent: "DTSTART + i × INTERVAL" addresses a
+  # specific point relative to DTSTART, not a walk.
   defp add_n_durations(tempo, _duration, 0), do: tempo
 
-  defp add_n_durations(tempo, duration, n) when n > 0 do
-    tempo
-    |> Tempo.Math.add(duration)
-    |> add_n_durations(duration, n - 1)
+  defp add_n_durations(tempo, %Tempo.Duration{time: time}, n) when n > 0 do
+    scaled = Enum.map(time, fn {unit, amount} -> {unit, amount * n} end)
+    Tempo.Math.add(tempo, %Tempo.Duration{time: scaled})
   end
 
   defp negate_duration(%Tempo.Duration{time: time}) do

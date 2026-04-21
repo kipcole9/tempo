@@ -189,7 +189,7 @@ defmodule Tempo.RRule.Expander do
   #
   # See `Tempo.RRule` for the token vocabulary.
   defp repeat_rule(%Rule{} = rule) do
-    if Rule.has_by_rules?(rule) do
+    if Rule.has_by_rules?(rule) or non_default_wkst?(rule) do
       by_rules =
         []
         |> push_by(rule.bymonth, :month)
@@ -201,6 +201,7 @@ defmodule Tempo.RRule.Expander do
         |> push_by(rule.bysecond, :second)
         |> push_by(rule.bysetpos, :set_position)
         |> push_byday(rule.byday)
+        |> push_wkst(rule.wkst)
 
       %Tempo{
         time: [selection: Enum.reverse(by_rules)],
@@ -210,6 +211,14 @@ defmodule Tempo.RRule.Expander do
       nil
     end
   end
+
+  defp non_default_wkst?(%Rule{wkst: wkst}) when is_integer(wkst) and wkst != 1, do: true
+  defp non_default_wkst?(_), do: false
+
+  defp push_wkst(acc, nil), do: acc
+  defp push_wkst(acc, 1), do: acc
+  defp push_wkst(acc, wkst) when is_integer(wkst) and wkst in 2..7, do: [{:wkst, wkst} | acc]
+  defp push_wkst(acc, _), do: acc
 
   defp put_if_given(map, _key, nil, _pred), do: map
 

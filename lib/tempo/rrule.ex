@@ -312,8 +312,13 @@ defmodule Tempo.RRule do
   #   (applied after all other BY-rules, across the per-period
   #   candidate set).
   #
-  # When no BY-rules are present, the repeat_rule is nil.
+  # When no BY-rules are present AND WKST is the default, the
+  # repeat_rule is nil. A non-default `WKST` alone is enough to
+  # produce a repeat_rule since it changes BYDAY-WEEKLY week
+  # boundaries.
   defp build_repeat_rule(parts) do
+    wkst = Keyword.get(parts, :wkst)
+
     by_rules =
       []
       |> push_by(parts, :bymonth, :month)
@@ -325,6 +330,7 @@ defmodule Tempo.RRule do
       |> push_by(parts, :bysecond, :second)
       |> push_by(parts, :bysetpos, :set_position)
       |> push_byday(parts)
+      |> push_wkst(wkst)
 
     case by_rules do
       [] ->
@@ -337,6 +343,14 @@ defmodule Tempo.RRule do
         }
     end
   end
+
+  # Only emit `{:wkst, n}` when it's non-default (WKST=MO is 1).
+  # This keeps the common-case AST identical to pre-Phase-E rules
+  # and makes the token a signal of intent.
+  defp push_wkst(acc, nil), do: acc
+  defp push_wkst(acc, 1), do: acc
+  defp push_wkst(acc, wkst) when is_integer(wkst) and wkst in 2..7, do: [{:wkst, wkst} | acc]
+  defp push_wkst(acc, _), do: acc
 
   defp push_by(acc, parts, rrule_key, unit) do
     case Keyword.get(parts, rrule_key) do
