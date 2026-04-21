@@ -297,14 +297,14 @@ BYSETPOS applies last, picking the Nth element of each month's candidate set.
 
 ## Cross-calendar comparison
 
-Tempo values are calendar-aware. A Hebrew date and a Gregorian date can be compared directly:
+Tempo values are calendar-aware. The IXDTF `[u-ca=NAME]` suffix attaches a calendar to any value at parse time — Hebrew, Islamic, Persian, Buddhist, and the rest resolve to their `Calendrical.*` modules automatically:
 
 ```elixir
-hebrew = %Tempo{time: [year: 5786, month: 10, day: 30], calendar: Calendrical.Hebrew}
+{:ok, hebrew} = Tempo.from_iso8601("5786-10-30[u-ca=hebrew]")
 Tempo.overlaps?(hebrew, ~o"2026-06-15")
 ```
 
-Tempo converts via `Date.convert!/2` internally, so the operation is calendar-neutral.
+Tempo converts via `Date.convert!/2` internally, so the operation is calendar-neutral. See `Tempo.Calendar.supported_names/0` for the full list of recognised CLDR calendar identifiers.
 
 ## Cross-timezone comparison
 

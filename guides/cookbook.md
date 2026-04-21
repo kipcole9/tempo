@@ -243,12 +243,15 @@ Tempo.shorter_than?(iv, ~o"PT2H")  # true — strict <
 ### How do I compare two values across different calendars?
 
 ```elixir
-iex> hebrew = %Tempo{time: [year: 5786, month: 10, day: 30], calendar: Calendrical.Hebrew}
+iex> {:ok, hebrew} = Tempo.from_iso8601("5786-10-30[u-ca=hebrew]")
+iex> hebrew.calendar
+Calendrical.Hebrew
+
 iex> Tempo.overlaps?(hebrew, ~o"2026-06-15")
 true
 ```
 
-Cross-calendar comparisons convert operands to a shared reference (UTC days or `Calendrical.Date`) automatically.
+The IXDTF `[u-ca=NAME]` suffix swaps the value's calendar to the corresponding `Calendrical.*` module — `hebrew`, `islamic-umalqura`, `persian`, `buddhist`, and the rest. See `Tempo.Calendar.supported_names/0` for the full list. Cross-calendar comparisons then convert operands to a shared reference automatically.
 
 ---
 

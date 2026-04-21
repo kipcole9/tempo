@@ -326,27 +326,29 @@ defmodule Tempo.Iso8601.Tokenizer.Extended do
 
   @u_ca "u-ca"
 
-  # Calendar identifier: only single-value accepted.
-  defp apply_tag(@u_ca, [value], critical, acc) do
-    case Localize.validate_calendar(value) do
+  # Calendar identifier.
+  #
+  # BCP 47 / CLDR calendar identifiers may be multi-segment —
+  # `islamic-umalqura`, `islamic-civil`, `ethiopic-amete-alem`.
+  # The tokenizer splits on `-` so multi-segment identifiers
+  # arrive as a list of parts (`["islamic", "umalqura"]`). We
+  # rejoin with `_` to match the atom form
+  # `Localize.validate_calendar/1` recognises
+  # (`:islamic_umalqura`, `:ethiopic_amete_alem`).
+  defp apply_tag(@u_ca, values, critical, acc) when is_list(values) do
+    normalised = Enum.join(values, "_")
+
+    case Localize.validate_calendar(normalised) do
       {:ok, calendar} ->
         {:ok, %{acc | calendar: calendar}}
 
       {:error, _} when critical ->
-        {:error, "Unknown calendar identifier #{inspect(value)} in extended suffix"}
+        {:error,
+         "Unknown calendar identifier #{inspect(Enum.join(values, "-"))} in extended suffix"}
 
       {:error, _} ->
         {:ok, acc}
     end
-  end
-
-  defp apply_tag(@u_ca, values, true, _acc) do
-    {:error,
-     "Calendar identifier in extended suffix must be a single value, got: #{inspect(values)}"}
-  end
-
-  defp apply_tag(@u_ca, _values, false, acc) do
-    {:ok, acc}
   end
 
   defp apply_tag(_key, _values, true, _acc) do

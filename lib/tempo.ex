@@ -270,8 +270,12 @@ defmodule Tempo do
   * `string` is any ISO 8601 formatted string, optionally
     followed by an IXDTF suffix.
 
-  * `calendar` is any `t:Calendar.calendar/0`. The default is
-    `Calendrical.Gregorian`.
+  * `calendar` (optional) is any `t:Calendar.calendar/0`. When
+    passed, the explicit calendar always wins over any
+    `[u-ca=NAME]` tag in the IXDTF suffix. When omitted, the
+    `[u-ca=NAME]` tag is resolved to a `Calendrical.*` module via
+    `Tempo.Calendar.module_from_name/1`; if no tag is present,
+    `Calendrical.Gregorian` is used.
 
   ### Returns
 
@@ -293,14 +297,26 @@ defmodule Tempo do
       iex> Tempo.from_iso8601("invalid")
       {:error, "Expected time of day. Error detected at \\"invalid\\""}
 
+      iex> {:ok, tempo} = Tempo.from_iso8601("5786-10-30[u-ca=hebrew]")
+      iex> tempo.calendar
+      Calendrical.Hebrew
+
       iex> {:ok, tempo} = Tempo.from_iso8601("2022-11-20T10:30:00Z[Europe/Paris][u-ca=hebrew]")
-      iex> {tempo.extended.zone_id, tempo.extended.calendar}
-      {"Europe/Paris", :hebrew}
+      iex> {tempo.extended.zone_id, tempo.extended.calendar, tempo.calendar}
+      {"Europe/Paris", :hebrew, Calendrical.Hebrew}
 
       iex> Tempo.from_iso8601("2022-11-20T10:30:00Z[!Continent/Imaginary]")
       {:error, "Unknown IANA time zone: \\"Continent/Imaginary\\""}
 
   """
+  @spec from_iso8601(string :: String.t()) ::
+          {:ok,
+           t()
+           | Tempo.Interval.t()
+           | Tempo.Duration.t()
+           | Tempo.Set.t()
+           | Tempo.Range.t()}
+          | {:error, error_reason()}
   @spec from_iso8601(string :: String.t(), calendar :: Calendar.calendar()) ::
           {:ok,
            t()
@@ -309,16 +325,54 @@ defmodule Tempo do
            | Tempo.Set.t()
            | Tempo.Range.t()}
           | {:error, error_reason()}
-  def from_iso8601(string, calendar \\ Calendrical.Gregorian) do
+  def from_iso8601(string) when is_binary(string) do
+    # No explicit calendar — the IXDTF `[u-ca=NAME]` suffix wins
+    # when present, otherwise fall back to Gregorian.
+    do_from_iso8601(string, :from_ixdtf_or_default)
+  end
+
+  def from_iso8601(string, calendar) when is_binary(string) do
+    # Explicit user calendar always wins — IXDTF `[u-ca=NAME]` is
+    # recorded on `extended.calendar` for metadata but does not
+    # override the user's choice. This keeps the existing
+    # `Tempo.from_iso8601(string, Calendrical.Hebrew)` idiom
+    # working unchanged.
+    do_from_iso8601(string, calendar)
+  end
+
+  defp do_from_iso8601(string, requested_calendar) do
     with {:ok, {tokens, extended}} <- Tokenizer.tokenize(string),
-         {:ok, parsed} <- Parser.parse(tokens, calendar),
+         {:ok, effective_calendar} <- resolve_calendar(requested_calendar, extended),
+         {:ok, parsed} <- Parser.parse(tokens, effective_calendar),
          {:ok, expanded} <- Group.expand_groups(parsed) do
-      case Validation.validate(expanded, calendar) do
+      case Validation.validate(expanded, effective_calendar) do
         {:ok, result} -> {:ok, attach_extended(result, extended)}
         other -> other
       end
     end
   end
+
+  # Resolve the effective calendar for a parse.
+  #
+  # * Explicit user calendar always wins.
+  # * Otherwise, if the IXDTF `[u-ca=NAME]` suffix is present, its
+  #   atom is resolved to a `Calendrical.*` module via
+  #   `Tempo.Calendar.module_from_name/1`.
+  # * Otherwise, fall back to `Calendrical.Gregorian`.
+  defp resolve_calendar(:from_ixdtf_or_default, nil),
+    do: {:ok, Calendrical.Gregorian}
+
+  defp resolve_calendar(:from_ixdtf_or_default, %{calendar: nil}),
+    do: {:ok, Calendrical.Gregorian}
+
+  defp resolve_calendar(:from_ixdtf_or_default, %{calendar: name}) when is_atom(name),
+    do: Tempo.Calendar.module_from_name(name)
+
+  defp resolve_calendar(:from_ixdtf_or_default, _extended),
+    do: {:ok, Calendrical.Gregorian}
+
+  defp resolve_calendar(calendar, _extended),
+    do: {:ok, calendar}
 
   @doc false
   def attach_extended(result, nil), do: result
