@@ -148,7 +148,11 @@ defmodule Tempo.Interval.CompareTest do
     end
 
     test "single-member IntervalSet is accepted" do
-      a = Tempo.IntervalSet.new!([%Interval{from: ~o"2026-06-01", to: ~o"2026-06-10"}], coalesce: false)
+      a =
+        Tempo.IntervalSet.new!([%Interval{from: ~o"2026-06-01", to: ~o"2026-06-10"}],
+          coalesce: false
+        )
+
       b = %Interval{from: ~o"2026-06-05", to: ~o"2026-06-15"}
 
       assert Interval.compare(a, b) == :overlaps

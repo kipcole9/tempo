@@ -438,9 +438,7 @@ defmodule Tempo.Select do
     merged_time =
       base_time
       |> Enum.map(fn {unit, value} -> {unit, Keyword.get(c_time, unit, value)} end)
-      |> Kernel.++(
-        Enum.reject(c_time, fn {unit, _} -> Keyword.has_key?(base_time, unit) end)
-      )
+      |> Kernel.++(Enum.reject(c_time, fn {unit, _} -> Keyword.has_key?(base_time, unit) end))
 
     merged = %Tempo{base_from | time: merged_time}
 
@@ -457,7 +455,10 @@ defmodule Tempo.Select do
     project_onto_base(base, c_from)
   end
 
-  defp intersect_with_base(%Interval{from: %Tempo{} = from}, %Interval{from: %Tempo{} = bf, to: %Tempo{} = bt}) do
+  defp intersect_with_base(%Interval{from: %Tempo{} = from}, %Interval{
+         from: %Tempo{} = bf,
+         to: %Tempo{} = bt
+       }) do
     case Tempo.Compare.compare_endpoints(from, bf) do
       :earlier ->
         nil
