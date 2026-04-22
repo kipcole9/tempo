@@ -45,10 +45,30 @@ defmodule Tempo.Duration do
 
   ### Arguments
 
-  * `components` is a keyword list. Each key is one of `:year`,
-    `:month`, `:week`, `:day`, `:hour`, `:minute`, `:second`,
-    `:day_of_year`, `:day_of_week`. Values must be integers.
-    Negative values are permitted (reverse-direction duration).
+  * `components` is a keyword list of duration units.
+
+  ### Options
+
+  Every value must be an integer. Negative values are permitted
+  (reverse-direction duration).
+
+  * `:year` is the year count.
+
+  * `:month` is the month count.
+
+  * `:week` is the week count.
+
+  * `:day` is the day count.
+
+  * `:day_of_year` is a day-of-year offset (used by RRULE expansion).
+
+  * `:day_of_week` is a day-of-week offset (used by RRULE expansion).
+
+  * `:hour` is the hour count.
+
+  * `:minute` is the minute count.
+
+  * `:second` is the second count.
 
   ### Returns
 

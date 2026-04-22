@@ -4,6 +4,8 @@
 
 ### Adds
 
+* `Tempo.new/1`, `Tempo.new!/1`, `Tempo.Interval.new/1`, `Tempo.Interval.new!/1`, `Tempo.Duration.new/1`, `Tempo.Duration.new!/1`. 
+
 * `Tempo.Interval.spans_leap_second?/1`, `leap_seconds_spanned/1`, and `Tempo.Interval.duration(iv, leap_seconds: true)`. Interval-level leap-second detection and an opt-in duration that counts them. Lets scientific pipelines account for exact elapsed time without Tempo accepting `23:59:60` as a value.
 
 * `Tempo.LeapSeconds.removals/0`. Extension point for future negative leap seconds (CGPM agreed in 2022 that they may become necessary from ~2035). Empty today; interval-level helpers already treat insertions and removals uniformly.
@@ -106,6 +108,12 @@
 
 ### Changed
 
+* `tz` added as a `dev/test` dependency and installed as the default `Calendar.TimeZoneDatabase` in `config/dev.exs` and `config/test.exs`. Required for `ical` 2.0 to parse `DTSTART;TZID=…` properties — without a zone database installed, those events come through with `dtstart: nil` and are silently dropped. Runtime consumers configure their own database (see the README).
+
+* Internal builder `Tempo.Iso8601.AST` now owns the token-to-struct conversion path formerly done by a `@doc false` `Tempo.new/2`. The old internal `new/2` is removed. External callers should have been unaffected (the old function was never public); internal callers in the parser / range / set / interval paths have been rewired.
+
+* `Tempo.Clock.clock/0` checks `Process.get({Tempo.Clock, :clock})` before falling back to the application env. Lets the `NowTest` / `ToRelativeStringTest` suites install `Tempo.Clock.Test` process-locally so the swap doesn't leak into concurrent doctests. Fixes an intermittent CI failure in the `utc_now/0` / `now/1` / `utc_today/0` / `today/1` doctests when those suites ran interleaved.
+
 * Leap-second handling is now ecosystem-aligned. `:second = 60` is **rejected at parse** regardless of date (matches `Calendar.ISO`, `Time`, and `DateTime` in Elixir/OTP). Leap-second information is preserved at the interval level via `spans_leap_second?/1`, `leap_seconds_spanned/1`, and `duration(iv, leap_seconds: true)`.
 
 * Cross-calendar `Tempo.Interval.duration/1` now raises `ArgumentError` when endpoints are in different calendars instead of silently computing a garbage value. Error message points at set operations (which handle cross-calendar inputs automatically).
@@ -124,7 +132,11 @@
 
 ### Bug Fixes
 
-* Fix Tempo.select with negative components and week-of-month context.
+* Fix parser interpretation of bare `~o"-1M"`. The `M` designator was resolving to `:minute` inside a time-zone shift (`[minute: -1]`) instead of `:month` (`time: [month: -1]`). Tightened `explicit_time_shift` to require `Z` alone or `Z`-prefixed explicit components; the ambiguous sign-plus-single-unit form now parses as a signed calendar component per ISO 8601-2 §4.4.1.
+
+* Fix `Tempo.select` with negative components and week-of-month context. `~o"-1M"` on a year base now correctly resolves to December; `~o"-1D"` on a year base to Dec 31 (leap-aware); `~o"-1W"` on a year base to the last ISO week; `~o"1W"` on a month base to week-of-month. Week-of-year and week-of-month axes are now kept coherent through the `project_merge` pipeline.
+
+* Fix `Tempo.Inspect` for values with a `:day_of_year` component. `~o"166O"` (day-of-year 166) and its negative-count companion `~o"-1O"` now render through the ISO 8601-2 `O` designator instead of raising a FunctionClauseError inside inspect.
 
 * Removed `Tempo.Shift` (no-op stub that silently dropped shifts) and `Tempo.Comparison` (self-described as "badly wrong" template code with no callers). The one rounding branch that depended on `Tempo.Shift` — `round(time_of_day, :day)` — now returns a clear `Tempo.RoundingError` instead of crashing.
 

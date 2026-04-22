@@ -78,25 +78,30 @@ defmodule Tempo.Interval do
   Use this when you have the endpoints as runtime values (e.g. two
   `%Tempo{}` structs) rather than an ISO 8601 string.
 
+  At least one of `:from`, `:to`, or `:duration` must be supplied.
+
   ### Arguments
 
-  * `options` is a keyword list. Recognised keys:
+  * `options` is a keyword list of construction options
+    (see below).
 
-    * `:from` — a `t:Tempo.t/0` or the atom `:undefined` (open start).
+  ### Options
 
-    * `:to` — a `t:Tempo.t/0` or the atom `:undefined` (open end).
+  * `:from` is a `t:Tempo.t/0` or the atom `:undefined`
+    (open start).
 
-    * `:duration` — a `t:Tempo.Duration.t/0`. When combined with
-      `:from`, the `:to` endpoint is derived lazily by
-      `Tempo.to_interval/1`.
+  * `:to` is a `t:Tempo.t/0` or the atom `:undefined`
+    (open end).
 
-    * `:recurrence` — `pos_integer()` or `:infinity`.
+  * `:duration` is a `t:Tempo.Duration.t/0`. When combined with
+    `:from`, the `:to` endpoint is derived lazily by
+    `Tempo.to_interval/1`.
 
-    * `:repeat_rule` — a `t:Tempo.RRule.Rule.t/0` or `t:Tempo.t/0`.
+  * `:recurrence` is a `pos_integer()` or `:infinity`.
 
-    * `:metadata` — free-form map carried through set operations.
+  * `:repeat_rule` is a `t:Tempo.RRule.Rule.t/0` or `t:Tempo.t/0`.
 
-  At least one of `:from`, `:to`, or `:duration` must be supplied.
+  * `:metadata` is a free-form map carried through set operations.
 
   ### Returns
 

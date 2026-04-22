@@ -234,33 +234,63 @@ defmodule Tempo do
   coarse-to-fine (year → month → day → hour → minute → second)
   before building the struct.
 
+  Axis coherence is enforced: the Gregorian axis (`:month`, `:day`),
+  the ISO-week axis (`:week`, `:day_of_week`), and the ordinal axis
+  (`:day_of_year`) are mutually exclusive.
+
   ### Arguments
 
-  * `components` is a keyword list. Recognised keys:
+  * `components` is a keyword list mixing time-scale components
+    and options. At least one time-scale component must be present.
 
-    * **Time-scale components** — `:year`, `:month`, `:week`, `:day`,
-      `:day_of_year`, `:day_of_week`, `:hour`, `:minute`, `:second`.
-      Each value must be an integer.
+  ### Time-scale components
 
-    * **Options** — `:calendar` (defaults to `Calendrical.Gregorian`),
-      `:zone` (IANA time-zone name as a binary — sets
-      `extended.zone_id`), `:shift` (manual UTC offset as
-      `[hour: n]` or `[hour: n, minute: m]`),
-      `:qualification` (`:uncertain` / `:approximate` /
-      `:uncertain_and_approximate`), `:metadata` (free-form map
-      attached to `extended.tags`).
+  Every component value must be an integer.
 
-  At least one time-scale component must be supplied. Axis coherence
-  is enforced: the Gregorian axis (`:month`, `:day`), the ISO-week
-  axis (`:week`, `:day_of_week`), and the ordinal axis
-  (`:day_of_year`) are mutually exclusive.
+  * `:year` is the calendar year.
+
+  * `:month` is the calendar month (Gregorian axis).
+
+  * `:week` is the ISO week number (ISO-week axis).
+
+  * `:day` is the day of month (Gregorian axis).
+
+  * `:day_of_year` is the ordinal day within the year (ordinal axis).
+
+  * `:day_of_week` is the ISO day-of-week number (ISO-week axis).
+
+  * `:hour` is the clock hour `0..23`.
+
+  * `:minute` is the clock minute `0..59`.
+
+  * `:second` is the clock second `0..59` (or `60` on a leap-second date).
+
+  ### Options
+
+  * `:calendar` is the `Calendrical` calendar module used to
+    interpret and validate the components. Defaults to
+    `Calendrical.Gregorian`.
+
+  * `:zone` is an IANA time-zone name as a binary (e.g.
+    `"Australia/Sydney"`). Sets `extended.zone_id`. Requires at
+    least one of `:hour`, `:minute`, `:second` to be present —
+    a zoned value without a time of day has no UTC projection.
+
+  * `:shift` is a manual UTC offset expressed as `[hour: n]` or
+    `[hour: n, minute: m]`.
+
+  * `:qualification` marks the value's EDTF qualification.
+    One of `:uncertain`, `:approximate`, or
+    `:uncertain_and_approximate`.
+
+  * `:metadata` is a free-form map attached to `extended.tags`.
 
   ### Returns
 
   * `{:ok, t()}` on success.
 
-  * `{:error, reason}` when components are missing, have non-integer
-    values, mix axes, or name a non-existent zone.
+  * `{:error, reason}` when components are missing, have
+    non-integer values, mix axes, or name a non-existent zone.
 
   ### Examples
 
