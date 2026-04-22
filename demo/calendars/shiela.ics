@@ -1,0 +1,664 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Tempo Launch Demo//Shiela Reyes//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:Shiela Reyes — April 2026
+X-WR-CALDESC:Solicitor\, bushwalker\, potter in progress
+BEGIN:VTIMEZONE
+TZID:Australia/Sydney
+BEGIN:STANDARD
+DTSTART:19700405T030000
+RRULE:FREQ=YEARLY;BYMONTH=4;BYDAY=1SU
+TZOFFSETFROM:+1100
+TZOFFSETTO:+1000
+TZNAME:AEST
+END:STANDARD
+BEGIN:DAYLIGHT
+DTSTART:19701004T020000
+RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=1SU
+TZOFFSETFROM:+1000
+TZOFFSETTO:+1100
+TZNAME:AEDT
+END:DAYLIGHT
+END:VTIMEZONE
+
+BEGIN:VEVENT
+UID:shiela-partners-meeting-202604@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260406T090000
+DTEND:20260406T100000
+RRULE:FREQ=WEEKLY;BYDAY=MO;UNTIL=20260428T000000Z
+SUMMARY:Partners' meeting
+LOCATION:Firm boardroom\, Level 24\, Phillip St
+DESCRIPTION:Weekly partners' meeting. Matter updates\, new engagements\,
+  billable hours review.
+CATEGORIES:WORK,RECURRING
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-yoga-tue-202604@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260407T190000
+DTEND:20260407T200000
+RRULE:FREQ=WEEKLY;BYDAY=TU;UNTIL=20260429T000000Z
+SUMMARY:Hot yoga — Bikram 60
+LOCATION:Bikram Yoga Bondi
+DESCRIPTION:Tuesday night hot-yoga class. Bring water and a microfibre
+  towel.
+CATEGORIES:PERSONAL,RECURRING
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-yoga-thu-202604@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260402T190000
+DTEND:20260402T200000
+RRULE:FREQ=WEEKLY;BYDAY=TH;UNTIL=20260430T235959Z
+SUMMARY:Yin yoga
+LOCATION:Soul Yoga Paddington
+DESCRIPTION:Thursday slow-flow class with Hannah. No heat\, just bolsters.
+CATEGORIES:PERSONAL,RECURRING
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-pottery-202604@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260406T183000
+DTEND:20260406T203000
+RRULE:FREQ=WEEKLY;BYDAY=MO;COUNT=3
+SUMMARY:Pottery class — wheel throwing
+LOCATION:Claybox Studio\, Paddington
+DESCRIPTION:Intermediate wheel-throwing course\, weeks 1-3 of 4. Bring
+  apron and nails short.
+CATEGORIES:PERSONAL,CLASS,RECURRING
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-morrison-consult-20260401@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260401T103000
+DTEND:20260401T113000
+SUMMARY:Client consultation — Morrison family trust
+LOCATION:Firm — small meeting room 3
+DESCRIPTION:Initial consultation on trust restructure. Pull the 2024
+  settlement deed beforehand.
+CATEGORIES:WORK,CLIENT
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-file-review-20260401@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260401T140000
+DTEND:20260401T153000
+SUMMARY:File review — Quigley litigation
+LOCATION:Office
+DESCRIPTION:Work through the discovery bundle. Red-ink the inconsistencies.
+CATEGORIES:WORK
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-court-commercial-20260402@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260402T100000
+DTEND:20260402T120000
+SUMMARY:Court appearance — Commercial list
+LOCATION:Federal Court\, Queen's Square
+DESCRIPTION:Directions hearing before Justice Bradley. Gown and bands.
+CATEGORIES:WORK,COURT
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-fairweather-call-20260402@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260402T153000
+DTEND:20260402T160000
+SUMMARY:Client call — Fairweather matter
+LOCATION:Phone
+DESCRIPTION:Update call on the settlement offer. Get her authority before
+  the 5pm deadline.
+CATEGORIES:WORK,CLIENT
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-networking-lunch-20260403@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260403T120000
+DTEND:20260403T133000
+SUMMARY:Networking lunch — Women in Law
+LOCATION:Icebergs Dining Room\, Bondi
+DESCRIPTION:Quarterly WIL lunch. Sitting next to Meg — catch up on the
+  equity-partner conversations.
+CATEGORIES:WORK,NETWORKING
+END:VEVENT
+
+BEGIN:VEVENT
+UID:sams-35th-drinks-20260403@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260403T180000
+DTEND:20260403T210000
+SUMMARY:Sam's 35th — drinks at Opera Bar
+LOCATION:Opera Bar\, Circular Quay
+DESCRIPTION:Sam's birthday. Bruce going too. Gift already ordered —
+  pick it up from Dinosaur Designs on the way.
+CATEGORIES:SOCIAL,SHARED
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-bushwalk-manly-20260404@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260404T073000
+DTEND:20260404T110000
+SUMMARY:Bushwalk — Manly to Spit Bridge
+LOCATION:Manly Wharf → Spit Bridge
+DESCRIPTION:Coastal walk with Priti and Jenna. Ferry back from Spit is
+  cancelled — Uber. 10km\, pack water.
+CATEGORIES:OUTDOORS,SOCIAL
+END:VEVENT
+
+BEGIN:VEVENT
+UID:toms-bbq-20260404@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260404T130000
+DTEND:20260404T160000
+SUMMARY:BBQ at Tom & Claire's
+LOCATION:Tom & Claire's place\, Bronte
+DESCRIPTION:Pre-wedding BBQ. I'm bringing the peach-and-burrata salad.
+  Bruce will be there — we might carpool from the bushwalk.
+CATEGORIES:SOCIAL,SHARED
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-brunch-girls-20260405@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260405T100000
+DTEND:20260405T120000
+SUMMARY:Brunch with the girls
+LOCATION:Shuk\, North Bondi
+DESCRIPTION:Monthly brunch with Priti\, Jenna\, Meg and Sarah. Book under
+  Jenna's name.
+CATEGORIES:SOCIAL
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-mca-tracey-emin-20260405@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260405T140000
+DTEND:20260405T160000
+SUMMARY:Tracey Emin retrospective at MCA
+LOCATION:Museum of Contemporary Art\, Circular Quay
+DESCRIPTION:Member preview afternoon. Audio guide included with ticket.
+CATEGORIES:PERSONAL,ART
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-northwood-strategy-20260406@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260406T110000
+DTEND:20260406T123000
+SUMMARY:Case strategy — Northwood dispute
+LOCATION:Meeting room 8
+DESCRIPTION:Strategy session with counsel on the Northwood easement
+  matter. Brief already with Nicholas Grant SC.
+CATEGORIES:WORK
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-mediation-patterson-20260407@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260407T100000
+DTEND:20260407T130000
+SUMMARY:Mediation — Patterson v Quinn
+LOCATION:Resolve Dispute Centre\, Pitt St
+DESCRIPTION:Half-day mediation. Mediator: Jenny Baldwin. Client arriving
+  at 9:45.
+CATEGORIES:WORK,MEDIATION
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-yuen-consult-20260408@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260408T110000
+DTEND:20260408T120000
+SUMMARY:Client consultation — Yuen family
+LOCATION:Firm — meeting room 2
+DESCRIPTION:Estate administration sign-off. Bring the executor's authority
+  papers.
+CATEGORIES:WORK,CLIENT
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-doc-review-20260408@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260408T140000
+DTEND:20260408T160000
+SUMMARY:Document review — Henderson estate
+LOCATION:Office
+DESCRIPTION:Review the revised codicil drafts. Redline against the 2023
+  will.
+CATEGORIES:WORK
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-family-court-20260409@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260409T100000
+DTEND:20260409T113000
+SUMMARY:Family Court appearance — Lee matter
+LOCATION:Federal Circuit and Family Court\, Lionel Bowen Building
+DESCRIPTION:Interim parenting orders application. Meet client at 9:30 in
+  the foyer.
+CATEGORIES:WORK,COURT
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-case-conference-20260409@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260409T140000
+DTEND:20260409T153000
+SUMMARY:Case conference — Fairweather matter
+LOCATION:Zoom
+DESCRIPTION:Conference with counsel and client on the settlement offer.
+CATEGORIES:WORK
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-womens-book-club-20260409@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260409T190000
+DTEND:20260409T210000
+SUMMARY:Women's book club — "Boy Parts" (Eliza Clark)
+LOCATION:Jenna's place\, Paddington
+DESCRIPTION:Jenna hosting. I'm bringing a bottle of Pinot and the feta
+  dip.
+CATEGORIES:SOCIAL,BOOK CLUB
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-office-drinks-20260410@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260410T173000
+DTEND:20260410T190000
+SUMMARY:Firm anniversary drinks
+LOCATION:Firm reception area
+DESCRIPTION:Thirty-year anniversary of the firm. Senior partner speech
+  at 6.
+CATEGORIES:WORK,SOCIAL
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-rockpool-wine-20260410@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260410T190000
+DTEND:20260410T220000
+SUMMARY:Wine tasting — Grampians shiraz flight
+LOCATION:Rockpool Bar & Grill\, Hunter St
+DESCRIPTION:Priti booked this weeks ago. Five-course match\, pace yourself.
+CATEGORIES:SOCIAL
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-carriageworks-market-20260411@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260411T080000
+DTEND:20260411T100000
+SUMMARY:Carriageworks Farmers Market
+LOCATION:Carriageworks\, Eveleigh
+DESCRIPTION:Saturday market run. Pick up persimmons\, sourdough\, and
+  flowers for the dining table.
+CATEGORIES:PERSONAL,SOCIAL
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-pilates-20260411@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260411T110000
+DTEND:20260411T120000
+SUMMARY:Pilates — reformer class
+LOCATION:Flow Athletic\, Paddington
+DESCRIPTION:Saturday reformer. Book ahead — spots go fast.
+CATEGORIES:PERSONAL
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-yoga-retreat-20260412@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260412T090000
+DTEND:20260412T160000
+SUMMARY:Yoga day retreat — Palm Beach
+LOCATION:Palm Beach Yoga Shala
+DESCRIPTION:Full-day retreat — two classes\, journaling\, vegetarian
+  lunch. Catch the 7:30 L90 bus.
+CATEGORIES:PERSONAL,WELLNESS
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-cpd-contracts-20260413@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260413T130000
+DTEND:20260413T160000
+SUMMARY:CPD seminar — commercial contract law updates
+LOCATION:Law Society\, 170 Phillip St
+DESCRIPTION:3 CPD points. Recent High Court decisions on implied terms.
+CATEGORIES:WORK,CPD
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-client-meetings-20260414@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260414T100000
+DTEND:20260414T120000
+SUMMARY:Client meetings — back-to-back
+LOCATION:Firm — multiple rooms
+DESCRIPTION:Morrison 10:00\, Yuen 10:45\, Sakamoto 11:15. Blocked out as
+  one slot.
+CATEGORIES:WORK,CLIENT
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-henderson-mediation-20260414@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260414T140000
+DTEND:20260414T170000
+SUMMARY:Mediation — Henderson estate
+LOCATION:Resolve Dispute Centre\, Pitt St
+DESCRIPTION:Second half of the Henderson estate mediation. Two sisters\,
+  two executors\, one house.
+CATEGORIES:WORK,MEDIATION
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-court-directions-20260415@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260415T100000
+DTEND:20260415T120000
+SUMMARY:Court — directions hearing
+LOCATION:Supreme Court of NSW\, Queen's Square
+DESCRIPTION:Directions hearing on the Quigley matter. Move to set timetable.
+CATEGORIES:WORK,COURT
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-brief-prep-20260415@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260415T140000
+DTEND:20260415T170000
+SUMMARY:Brief preparation — Northwood
+LOCATION:Office
+DESCRIPTION:Finish the brief for counsel. Delivery by 5pm.
+CATEGORIES:WORK
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-partner-1on1-20260416@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260416T090000
+DTEND:20260416T093000
+SUMMARY:1:1 with Grace (senior partner)
+LOCATION:Grace's office
+DESCRIPTION:Monthly check-in. Talk through the equity-partner track
+  timeline.
+CATEGORIES:WORK
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-morrison-update-20260416@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260416T150000
+DTEND:20260416T160000
+SUMMARY:Client call — Morrison update
+LOCATION:Phone
+DESCRIPTION:Monthly status call with the Morrison family on the trust
+  restructure.
+CATEGORIES:WORK,CLIENT
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-establishment-networking-20260417@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260417T120000
+DTEND:20260417T140000
+SUMMARY:Networking event — Establishment
+LOCATION:Bar at the Establishment\, George St
+DESCRIPTION:In-house counsel lunch. Hosted by the firm's banking group.
+CATEGORIES:WORK,NETWORKING
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-gardening-20260418@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260418T090000
+DTEND:20260418T113000
+SUMMARY:Garden morning — autumn pruning
+LOCATION:Home
+DESCRIPTION:Prune the camellias\, mulch the herbs\, plant the garlic.
+  Spotify: Paul Simon.
+CATEGORIES:PERSONAL
+END:VEVENT
+
+BEGIN:VEVENT
+UID:tom-claire-wedding-20260418@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260418T140000
+DTEND:20260418T230000
+SUMMARY:Tom & Claire's wedding
+LOCATION:Gunners Barracks\, Mosman
+DESCRIPTION:Ceremony at 2pm on the lawn\, then cocktails on the terrace\,
+  dinner in the barracks hall. Black-tie. Sharing an Uber with Bruce.
+CATEGORIES:SOCIAL,SHARED
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-recovery-brunch-20260419@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260419T113000
+DTEND:20260419T133000
+SUMMARY:Recovery brunch with the girls
+LOCATION:Sonoma\, Double Bay
+DESCRIPTION:Post-wedding brunch. Order the eggs and stop at one mimosa.
+CATEGORIES:SOCIAL
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-quigley-strategy-20260420@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260420T103000
+DTEND:20260420T120000
+SUMMARY:Case strategy — Quigley litigation
+LOCATION:Meeting room 8
+DESCRIPTION:Strategy meeting with counsel ahead of the Supreme Court
+  appearance.
+CATEGORIES:WORK
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-sakamoto-consult-20260421@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260421T110000
+DTEND:20260421T123000
+SUMMARY:Client consultation — Sakamoto (new client)
+LOCATION:Firm — meeting room 1
+DESCRIPTION:First meeting. Commercial lease dispute. Draft retainer letter
+  already prepared.
+CATEGORIES:WORK,CLIENT
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-court-supreme-20260422@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260422T100000
+DTEND:20260422T123000
+SUMMARY:Supreme Court — Quigley v Quigley
+LOCATION:Supreme Court of NSW\, Queen's Square
+DESCRIPTION:Interlocutory application. Counsel will run it — I'm seated
+  behind.
+CATEGORIES:WORK,COURT
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-file-review-2-20260422@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260422T140000
+DTEND:20260422T160000
+SUMMARY:File review — Fairweather
+LOCATION:Office
+DESCRIPTION:Close out the Fairweather file. Final bill and archive.
+CATEGORIES:WORK
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-wine-class-20260422@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260422T183000
+DTEND:20260422T210000
+SUMMARY:Wine-tasting evening class — Italian whites
+LOCATION:The Wine Emporium\, Surry Hills
+DESCRIPTION:Week 3 of the 6-week certificate course. Bring the notebook.
+CATEGORIES:PERSONAL,CLASS
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-pro-bono-20260423@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260423T140000
+DTEND:20260423T170000
+SUMMARY:Pro bono legal clinic
+LOCATION:Kirribilli Neighbourhood Centre
+DESCRIPTION:Fortnightly pro bono clinic. Tenancy and family law mostly.
+CATEGORIES:WORK,PRO BONO
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-womens-book-club-2-20260423@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260423T190000
+DTEND:20260423T210000
+SUMMARY:Women's book club — "Trust" (Hernan Diaz)
+LOCATION:Meg's place\, Surry Hills
+DESCRIPTION:Meg hosting. My turn to bring dessert — flourless orange cake.
+CATEGORIES:SOCIAL,BOOK CLUB
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-partner-1on1-2-20260424@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260424T090000
+DTEND:20260424T093000
+SUMMARY:1:1 with Grace (senior partner)
+LOCATION:Grace's office
+DESCRIPTION:Follow-up on the equity-partner timeline and April billables.
+CATEGORIES:WORK
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-anzac-dawn-20260425@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260425T053000
+DTEND:20260425T063000
+SUMMARY:ANZAC Day dawn service
+LOCATION:Cenotaph\, Martin Place
+DESCRIPTION:Dawn service for Grandpa. Meet Mum and Andrew there at 5:15.
+CATEGORIES:PERSONAL,FAMILY
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-ferry-manly-20260426@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260426T100000
+DTEND:20260426T110000
+SUMMARY:Ferry to Manly
+LOCATION:Circular Quay Wharf 3
+DESCRIPTION:F1 Manly ferry. Walk up Shelly Head after lunch.
+CATEGORIES:PERSONAL,OUTDOORS
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-boathouse-lunch-20260426@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260426T123000
+DTEND:20260426T143000
+SUMMARY:Lunch at The Boathouse
+LOCATION:The Boathouse\, Shelly Beach
+DESCRIPTION:Lunch with Priti. Book the 12:30 — outdoor table if possible.
+CATEGORIES:SOCIAL
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-coastal-walk-20260426@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260426T150000
+DTEND:20260426T170000
+SUMMARY:Coastal walk — Shelly to North Head
+LOCATION:Shelly Beach → North Head
+DESCRIPTION:Afternoon walk to North Head and back. Sunset over the heads.
+CATEGORIES:OUTDOORS
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-cpd-ethics-20260427@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260427T140000
+DTEND:20260427T170000
+SUMMARY:CPD seminar — Ethics
+LOCATION:Law Society\, 170 Phillip St
+DESCRIPTION:Mandatory ethics CPD (3 points). End-of-year compliance sorted.
+CATEGORIES:WORK,CPD
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-pottery-final-20260427@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260427T180000
+DTEND:20260427T210000
+SUMMARY:Pottery — final class and student show
+LOCATION:Claybox Studio\, Paddington
+DESCRIPTION:Last session of the course — glazed pieces ready to take home.
+  Small show at 7:30 with wine.
+CATEGORIES:PERSONAL,CLASS
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-thompson-mediation-20260428@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260428T100000
+DTEND:20260428T130000
+SUMMARY:Mediation — Thompson matter
+LOCATION:Resolve Dispute Centre\, Pitt St
+DESCRIPTION:Half-day mediation. Take the authority letter signed.
+CATEGORIES:WORK,MEDIATION
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-judgment-20260429@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260429T100000
+DTEND:20260429T120000
+SUMMARY:Judgment — Northwood easement
+LOCATION:Supreme Court of NSW\, Queen's Square
+DESCRIPTION:Judgment handed down on the Northwood matter. Be there.
+CATEGORIES:WORK,COURT
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-case-review-20260430@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260430T140000
+DTEND:20260430T153000
+SUMMARY:Case review — Morrison trust
+LOCATION:Office
+DESCRIPTION:Monthly review of the Morrison trust restructure steps.
+CATEGORIES:WORK
+END:VEVENT
+
+BEGIN:VEVENT
+UID:shiela-eom-reporting-20260430@tempo.demo
+DTSTAMP:20260401T000000Z
+DTSTART:20260430T160000
+DTEND:20260430T170000
+SUMMARY:End-of-month time reporting
+LOCATION:Office
+DESCRIPTION:Sign off April timesheets and bill adjustments.
+CATEGORIES:WORK
+END:VEVENT
+
+END:VCALENDAR
