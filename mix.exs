@@ -63,13 +63,19 @@ defmodule Tempo.MixProject do
       source_ref: "v#{@version}",
       main: "readme",
       logo: "assets/logo.png",
+      # Copy the project's `assets/` directory into the generated
+      # docs' `assets/` subdirectory so images referenced from README
+      # (and guides) resolve. Without this, `![…](assets/foo.png)`
+      # renders as a broken image in local `mix docs` output and on
+      # hexdocs.pm.
+      assets: %{"assets" => "assets"},
       extras:
         [
           "README.md",
           "LICENSE.md",
           "CHANGELOG.md"
         ] ++ Path.wildcard("guides/*.md"),
-      formatters: ["html", "markdonw"],
+      formatters: ["html", "markdown"],
       groups_for_modules: groups_for_modules(),
       groups_for_extras: groups_for_extras(),
       skip_undefined_reference_warnings_on:
