@@ -1,6 +1,6 @@
 # Holidays — Planning with a Real Holiday Calendar
 
-The [workdays-and-weekends guide](./workdays-and-weekends.md) showed how `Tempo.select(interval, :workdays)` computes weekends. Holidays are the other half of "when is the office closed?" — they're territory-specific, year-specific, and maintained by people who care about them. Tempo doesn't ship holiday data; instead, it consumes standard iCalendar (`.ics`) feeds through `Tempo.ICal.from_ical/1` and lets set operations do the rest.
+The [workdays-and-weekends guide](./workdays-and-weekends.md) showed how `Tempo.select(interval, Tempo.workdays(:US))` filters out weekends. Holidays are the other half of "when is the office closed?" — they're territory-specific, year-specific, and maintained by people who care about them. Tempo doesn't ship holiday data; instead, it consumes standard iCalendar (`.ics`) feeds through `Tempo.ICal.from_ical/1` and lets set operations do the rest.
 
 This guide walks through fetching a real holiday calendar from [officeholidays.com](https://www.officeholidays.com/subscribe), parsing it into a `%Tempo.IntervalSet{}`, and using it to answer three scheduling questions: "how many working days are actually in Q3?", "which holidays will hit my project?", and "what's five business days from today if we skip holidays?".
 
@@ -57,7 +57,7 @@ Pure set algebra: workdays minus holidays.
 ```elixir
 q3 = %Tempo.Interval{from: ~o"2026-07-01", to: ~o"2026-10-01"}
 
-{:ok, workdays}     = Tempo.select(q3, :workdays)
+{:ok, workdays}     = Tempo.select(q3, Tempo.workdays(:US))
 {:ok, net_workdays} = Tempo.difference(workdays, holidays)
 
 Tempo.IntervalSet.count(net_workdays)
@@ -83,7 +83,7 @@ q3 = ~o"2026Y3Q"
 q3 = ~o"2026Y{7..9}M"
 ```
 
-All four produce the same 66-workday count when passed through `Tempo.select(q3, :workdays)`. Pick whichever reads most naturally for your domain. The quarter designator is the shortest and most direct for calendar-quarter queries; the range form `~o"2026-07/2026-10"` is the best fit when your window doesn't align to a standard quarter.
+All four produce the same 66-workday count when passed through `Tempo.select(q3, Tempo.workdays(:US))`. Pick whichever reads most naturally for your domain. The quarter designator is the shortest and most direct for calendar-quarter queries; the range form `~o"2026-07/2026-10"` is the best fit when your window doesn't align to a standard quarter.
 
 The same composition works for **seasons** (ISO 8601-2 codes 25–32, astronomical equinox/solstice bounded — e.g. `~o"2026Y26M"` for Northern summer), **month ranges** (`~o"2026Y{3..6}M"` for H1 minus Q1), and **archaeological masks** (`~o"156X"` for the 1560s). Each of these AST shapes materialises to concrete endpoints and flows cleanly through the workday selector and set operations.
 
@@ -117,7 +117,7 @@ Four composed set operations. The whole pipeline is set-algebra; no list-level f
 today  = ~o"2026-06-30"
 window = %Tempo.Interval{from: today, to: Tempo.shift(today, week: 3)}
 
-{:ok, workdays}  = Tempo.select(window, :workdays)
+{:ok, workdays}  = Tempo.select(window, Tempo.workdays(:US))
 {:ok, open_days} = Tempo.difference(workdays, holidays)
 
 target =
@@ -155,7 +155,7 @@ defmodule MyApp.HolidayCalendar do
 end
 ```
 
-Pair this with `Tempo.select(interval, :workdays, territory: :SA)` for a fully territory-consistent planning layer: Saudi weekends (Fri/Sat) are selected by the workday query; Saudi holidays come from the ICS feed; the set operations compose across both.
+Pair this with `Tempo.select(interval, Tempo.workdays(:SA))` for a fully territory-consistent planning layer: Saudi weekends (Fri/Sat) are excluded by the workday query; Saudi holidays come from the ICS feed; the set operations compose across both.
 
 For teams across multiple territories, **union the holiday sets before differencing** — "office closed" becomes "any member territory's holiday":
 
@@ -177,7 +177,7 @@ A concrete example that ties it together: pick the first five-day work week in Q
 ```elixir
 q3 = ~o"2026-07/2026-10"
 
-{:ok, workdays}  = Tempo.select(q3, :workdays)
+{:ok, workdays}  = Tempo.select(q3, Tempo.workdays(:US))
 {:ok, open_days} = Tempo.difference(workdays, holidays)
 
 candidate_weeks =
@@ -194,7 +194,7 @@ Read aloud: *"Take the open workdays of Q3, group them by week, keep only the we
 
 ## Related reading
 
-* [Working with workdays and weekends](./workdays-and-weekends.md) — the `:workdays` selector, territory-aware weekend conventions, and the primitive patterns this guide builds on.
+* [Working with workdays and weekends](./workdays-and-weekends.md) — `Tempo.workdays/1`, `Tempo.weekend/1`, territory-aware weekend conventions, and the primitive patterns this guide builds on.
 
 * [Set operations](./set-operations.md) — union, intersection, difference, the member-preserving semantics, and the instant-level `overlap_trim`/`split_difference` variants.
 

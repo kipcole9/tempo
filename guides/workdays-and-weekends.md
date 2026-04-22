@@ -10,7 +10,7 @@ All business-day queries in Tempo reduce to three capabilities the library alrea
 
 * **Build a window.** `Tempo.shift/2` (keyword-list duration arithmetic) and `%Tempo.Interval{from:, to:}` construct a bounded span to search over.
 
-* **Narrow to workdays.** `Tempo.select(interval, :workdays)` returns a `%Tempo.IntervalSet{}` containing only the workdays inside the window — respecting the territory's weekend convention (Mon-Fri in most places, Fri-Sat in Saudi Arabia, Thu-Fri in some others).
+* **Narrow to workdays.** `Tempo.workdays/1` returns a territory-aware day-of-week selector — `Tempo.workdays(:US)` is Mon-Fri, `Tempo.workdays(:SA)` is Sun-Thu. `Tempo.select(interval, Tempo.workdays(:US))` returns a `%Tempo.IntervalSet{}` of just the workdays inside the window. The companion `Tempo.weekend/1` is the complement — together they partition the seven days of the week.
 
 * **Pick an element.** `Tempo.IntervalSet.to_list/1` produces a plain list of `%Tempo.Interval{}` values that `Enum.at/2`, `Enum.count/1`, `List.last/1`, `hd/1`, and friends operate on directly.
 
@@ -26,7 +26,7 @@ today = ~o"2026-06-15"  # a Monday
 window_end = Tempo.shift(today, week: 6)                  # generous window
 window     = %Tempo.Interval{from: today, to: window_end}
 
-{:ok, workdays} = Tempo.select(window, :workdays)
+{:ok, workdays} = Tempo.select(window, Tempo.workdays(:US))
 
 target =
   workdays
@@ -35,7 +35,7 @@ target =
 #=> %Tempo.Interval{from: ~o"2026Y6M22D", ...}
 ```
 
-Read aloud: *"Build a window from today that's long enough to contain five workdays. Narrow it to just the workdays. Take the fifth one."* The convention here matches banking and SLA usage — today is day zero, so `Enum.at(5)` is "the fifth business day after today". If you want to count today as day one, use `Enum.at(n - 1)`.
+Read aloud: *"Build a window from today that's long enough to contain five workdays. Narrow it to just the US workdays. Take the fifth one."* The convention here matches banking and SLA usage — today is day zero, so `Enum.at(5)` is "the fifth business day after today". If you want to count today as day one, use `Enum.at(n - 1)`.
 
 The window needs to be generous enough to contain `n` workdays. Six weeks holds 30 workdays in any territory, and `Tempo.select/2` is fast enough that the oversize doesn't matter. The idiomatic way to size it is `Tempo.shift(today, week: n + 1)` — a week per five workdays plus one for good measure.
 
@@ -52,14 +52,14 @@ Every scheduling question you'd ask about business days is a small variation on 
 ```elixir
 tempo
 |> Tempo.day_of_week()
-|> Kernel.in(1..5)     # 1 = Mon, 7 = Sun; M-F for en-US
+|> Kernel.in(1..5)     # 1 = Mon, 7 = Sun; M-F for the US
 #=> true or false
 ```
 
 This is the fast path — no interval needed. For territory-aware weekend detection, use the selector:
 
 ```elixir
-{:ok, set} = Tempo.select(tempo, :workdays, territory: :SA)
+{:ok, set} = Tempo.select(tempo, Tempo.workdays(:SA))
 Tempo.IntervalSet.count(set) > 0
 #=> true if `tempo` is a workday under Saudi Arabia's Fri/Sat weekend
 ```
@@ -70,7 +70,7 @@ Tempo.IntervalSet.count(set) > 0
 tomorrow  = Tempo.shift(today, day: 1)
 window    = %Tempo.Interval{from: tomorrow, to: Tempo.shift(today, week: 2)}
 
-{:ok, workdays} = Tempo.select(window, :workdays)
+{:ok, workdays} = Tempo.select(window, Tempo.workdays(:US))
 
 next_wd =
   workdays
@@ -79,14 +79,14 @@ next_wd =
 #=> Friday's next_wd is the following Monday.
 ```
 
-Read aloud: *"Starting tomorrow, find the workdays in the next two weeks and take the first."* A two-week window is generous — the longest weekend in any territory is three days, so the first workday is always within a week.
+Read aloud: *"Starting tomorrow, find the US workdays in the next two weeks and take the first."* A two-week window is generous — the longest weekend in any territory is three days, so the first workday is always within a week.
 
 ### Business days between two dates
 
 ```elixir
 window = %Tempo.Interval{from: ~o"2026-06-15", to: ~o"2026-06-29"}
 
-{:ok, workdays} = Tempo.select(window, :workdays)
+{:ok, workdays} = Tempo.select(window, Tempo.workdays(:US))
 Tempo.IntervalSet.count(workdays)
 #=> 10   (two full work weeks)
 ```
@@ -96,7 +96,7 @@ This is a direct `Enum.count/1` on the members. For inclusive/exclusive day-coun
 ### Nth business day of month
 
 ```elixir
-{:ok, workdays} = Tempo.select(~o"2026-06", :workdays)
+{:ok, workdays} = Tempo.select(~o"2026-06", Tempo.workdays(:US))
 members         = Tempo.IntervalSet.to_list(workdays)
 
 first = hd(members).from                       #=> ~o"2026Y6M1D"
@@ -104,37 +104,45 @@ last  = List.last(members).from                #=> ~o"2026Y6M30D"
 third = Enum.at(members, 2).from               #=> ~o"2026Y6M3D"
 ```
 
-Passing a month-resolution Tempo value to `Tempo.select/2` is the cleanest form — the selector treats the implicit month-span as the search window. Read aloud: *"The workdays of June 2026 are these; take the first / last / third."*
+Passing a month-resolution Tempo value to `Tempo.select/2` is the cleanest form — the selector treats the implicit month-span as the search window. Read aloud: *"The US workdays of June 2026 are these; take the first / last / third."*
 
 ## Territory-aware weekends
 
-Weekend conventions vary by territory, and `:workdays` honours CLDR data:
+Weekend conventions vary by territory. `Tempo.workdays/1` and `Tempo.weekend/1` honour CLDR data:
 
 ```elixir
-# en-US default: Mon–Fri workdays, Sat–Sun weekend.
-Tempo.select(~o"2026-06", :workdays)
+# United States: Mon–Fri workdays, Sat–Sun weekend.
+Tempo.select(~o"2026-06", Tempo.workdays(:US))
 
 # Saudi Arabia: Sun–Thu workdays, Fri–Sat weekend.
-Tempo.select(~o"2026-06", :workdays, territory: :SA)
+Tempo.select(~o"2026-06", Tempo.workdays(:SA))
 
 # Iran: Sat–Wed workdays, Thu–Fri weekend.
-Tempo.select(~o"2026-06", :workdays, territory: :IR)
+Tempo.select(~o"2026-06", Tempo.workdays(:IR))
 ```
 
-The territory resolution chain (explicit option → IXDTF `[u-rg=XX]` suffix → locale's default) is identical to the one used elsewhere in Tempo — see the [set operations guide](./set-operations.md) for the full description.
+`Tempo.workdays/1` and `Tempo.weekend/1` accept a territory atom (`:US`), a territory string (`"US"`, `"sa"`, `"sazzzz"`), a locale string (`"en-GB"`, `"ar-SA"`), or a `%Localize.LanguageTag{}`. Passing `nil` (or calling with no arguments) walks the resolution chain: `Application.get_env(:ex_tempo, :default_territory)`, then the ambient `Localize.get_locale()`. See `Tempo.Territory.resolve/1` for the full normalisation rules.
 
-## The `:workdays` selector is set-algebraic
+## `Tempo.select/2` is pure
 
-`Tempo.select(window, :workdays)` is a specific case of a general pattern: narrow a span by predicate, get back a set you can operate on. Under the hood, `:workdays` is the complement of the `:weekend` selector within the window, and both are equivalent to explicit day-of-week filters:
+`Tempo.select/2` has no ambient reads. Every input that can affect the result is a value on the selector. `Tempo.workdays(:US)` is the value that carries the US workday definition — it's constructed once and composed in:
 
 ```elixir
-# These three produce the same IntervalSet for a given window:
-Tempo.select(window, :workdays)
-Tempo.select(window, [1, 2, 3, 4, 5], unit: :day_of_week)   # Mon..Fri by number
-Tempo.select(window, [:monday, :tuesday, :wednesday, :thursday, :friday])
+# These produce the same IntervalSet:
+Tempo.select(window, Tempo.workdays(:US))
+Tempo.select(window, Tempo.workdays("en-US"))
+
+# Hand-rolled day-of-week selector (works but bakes :US-specific knowledge):
+Tempo.select(window, %Tempo{time: [day_of_week: [1, 2, 3, 4, 5]]})
 ```
 
-The benefit of naming a selector `:workdays` is that **the territory indirection lives in the name**. A hardcoded `[1..5]` would be wrong in Saudi Arabia. Using `:workdays` with `territory:` delegates that decision to CLDR.
+The benefit of naming a selector `Tempo.workdays(:US)` is that **the territory indirection lives in the constructor**. A hardcoded `[1..5]` would be wrong in Saudi Arabia. `Tempo.workdays(territory)` delegates that decision to CLDR, and because the constructor returns a plain `%Tempo{}` value, it's safe to capture anywhere — including a module attribute, since the territory is explicit and the result isn't locale-sensitive at capture time:
+
+```elixir
+@us_workdays Tempo.workdays(:US)  # safe — :US is explicit
+
+def workdays_in(window), do: Tempo.select(window, @us_workdays)
+```
 
 Because the result is an `IntervalSet`, set operations compose naturally and preserve member identity. Three common patterns:
 
@@ -162,8 +170,8 @@ defmodule MyApp.BusinessDays do
   @moduledoc """
   Business-day arithmetic for MyApp's booking logic.
 
-  Territory defaults to the app's CLDR locale; callers can
-  override via the `territory:` option.
+  Territory defaults to :US; callers pass a different territory
+  for locale-specific behaviour.
   """
 
   @doc """
@@ -172,13 +180,13 @@ defmodule MyApp.BusinessDays do
   Today is day zero; `add(today, 1)` is tomorrow-if-workday else
   the next workday.
   """
-  @spec add(Tempo.t(), pos_integer(), keyword()) ::
+  @spec add(Tempo.t(), pos_integer(), Tempo.Territory.input()) ::
           {:ok, Tempo.t()} | {:error, term()}
-  def add(from, n, opts \\ []) when n > 0 do
+  def add(from, n, territory \\ :US) when n > 0 do
     window_end = Tempo.shift(from, week: n + 1)
     window = %Tempo.Interval{from: from, to: window_end}
 
-    with {:ok, workdays} <- Tempo.select(window, :workdays, opts) do
+    with {:ok, workdays} <- Tempo.select(window, Tempo.workdays(territory)) do
       case workdays |> Tempo.IntervalSet.to_list() |> Enum.at(n) do
         nil -> {:error, :not_enough_workdays_in_window}
         interval -> {:ok, interval.from}
@@ -187,19 +195,19 @@ defmodule MyApp.BusinessDays do
   end
 
   @doc "Is `tempo` a business day in the given territory?"
-  @spec business_day?(Tempo.t(), keyword()) :: boolean()
-  def business_day?(tempo, opts \\ []) do
-    case Tempo.select(tempo, :workdays, opts) do
+  @spec business_day?(Tempo.t(), Tempo.Territory.input()) :: boolean()
+  def business_day?(tempo, territory \\ :US) do
+    case Tempo.select(tempo, Tempo.workdays(territory)) do
       {:ok, set} -> Tempo.IntervalSet.count(set) > 0
       _ -> false
     end
   end
 
   @doc "Count business days in `[from, to)`."
-  @spec count_between(Tempo.t(), Tempo.t(), keyword()) :: non_neg_integer()
-  def count_between(from, to, opts \\ []) do
+  @spec count_between(Tempo.t(), Tempo.t(), Tempo.Territory.input()) :: non_neg_integer()
+  def count_between(from, to, territory \\ :US) do
     window = %Tempo.Interval{from: from, to: to}
-    {:ok, workdays} = Tempo.select(window, :workdays, opts)
+    {:ok, workdays} = Tempo.select(window, Tempo.workdays(territory))
     Tempo.IntervalSet.count(workdays)
   end
 end
@@ -209,8 +217,8 @@ A hundred lines of helpers for the three or four queries your app actually makes
 
 ## Related reading
 
-* [Holidays — planning with a real holiday calendar](./holidays.md) — fetch an ICS holiday feed, compose it with the `:workdays` selector for territory-aware scheduling.
+* [Holidays — planning with a real holiday calendar](./holidays.md) — fetch an ICS holiday feed, compose it with `Tempo.workdays/1` for territory-aware scheduling.
 * [Cookbook](./cookbook.md) — recipe-format examples for more scheduling patterns.
-* [Set operations](./set-operations.md) — union, intersection, difference, and the territory resolution chain.
+* [Set operations](./set-operations.md) — union, intersection, difference.
 * [Scheduling](./scheduling.md) — bounded enumeration, wall-clock-vs-UTC, floating vs zoned.
 * [Enumeration semantics](./enumeration-semantics.md) — how iteration works on Tempo values and IntervalSets.

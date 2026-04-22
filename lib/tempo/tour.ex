@@ -81,13 +81,13 @@ defmodule Tempo.Tour do
 
     step(
       "Locale-aware selectors — the workdays of June",
-      "{:ok, workdays} = Tempo.select(~o\"2026-06\", :workdays); Tempo.IntervalSet.count(workdays)",
+      "{:ok, workdays} = Tempo.select(~o\"2026-06\", Tempo.workdays(:US)); Tempo.IntervalSet.count(workdays)",
       fn ->
-        {:ok, workdays} = Tempo.select(~o"2026-06", :workdays)
+        {:ok, workdays} = Tempo.select(~o"2026-06", Tempo.workdays(:US))
         Tempo.IntervalSet.count(workdays)
       end,
-      "Monday-through-Friday in the default locale (US). Other territories " <>
-        "have different weekends — `territory: :SA` picks Friday and Saturday."
+      "Monday-through-Friday in the United States. Other territories have " <>
+        "different weekends — `Tempo.workdays(:SA)` is Sun-Thu (Saudi Arabia)."
     )
 
     step(

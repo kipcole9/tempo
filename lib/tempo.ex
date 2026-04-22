@@ -3154,11 +3154,14 @@ defmodule Tempo do
   @doc """
   Narrow a Tempo span by a selector — the composition primitive
   for "workdays of June", "the 15th of every month", and similar
-  queries. See `Tempo.Select` for the full vocabulary.
+  queries.
 
-  **Locale-dependent selectors (`:workdays`, `:weekend`) resolve at
-  call time.** Do not capture such calls in module attributes or
-  at compile time — see `Tempo.Select` for the rationale.
+  `Tempo.select/2` is a **pure function**: the selector is a value,
+  not an ambient configuration. Locale-dependent constraints are
+  constructed by `Tempo.workdays/1` and `Tempo.weekend/1` and
+  composed in at the call site.
+
+  See `Tempo.Select` for the full vocabulary.
 
   ### Examples
 
@@ -3172,7 +3175,83 @@ defmodule Tempo do
       {2026, 12, 25}
 
   """
-  defdelegate select(base, selector, opts \\ []), to: Tempo.Select
+  defdelegate select(base, selector), to: Tempo.Select
+
+  @doc """
+  Return a selector that matches the workdays of a territory —
+  the days of week that are *not* in that territory's weekend.
+
+  Together, `workdays/1` and `weekend/1` partition the seven days
+  of the week: `workdays(:US) ++ weekend(:US)` spans Monday..Sunday.
+
+  ### Arguments
+
+  * `territory` is an atom, string, locale, or `%Localize.LanguageTag{}`
+    resolved through `Tempo.Territory.resolve/1`. Defaults to `nil`,
+    which walks the territory-resolution chain (app config, then
+    ambient locale).
+
+  ### Returns
+
+  * A `t:Tempo.t/0` value carrying a `day_of_week` list. Composable
+    directly with `Tempo.select/2`.
+
+  ### Examples
+
+      iex> {:ok, set} = Tempo.select(~o"2026-02", Tempo.workdays(:US))
+      iex> Tempo.IntervalSet.count(set)
+      20
+
+      iex> Tempo.workdays(:US).time
+      [day_of_week: [1, 2, 3, 4, 5]]
+
+  """
+  @spec workdays(Tempo.Territory.input()) :: Tempo.t()
+  def workdays(territory \\ nil) do
+    {:ok, resolved} = Tempo.Territory.resolve(territory)
+    day_of_week_tempo(Localize.Calendar.weekdays(resolved))
+  end
+
+  @doc """
+  Return a selector that matches the weekend days of a territory.
+
+  Different territories weekend on different days: the United
+  States is `[Saturday, Sunday]`, Saudi Arabia is `[Friday,
+  Saturday]`, India is `[Sunday]`. `Tempo.weekend/1` reads that
+  definition from CLDR via Localize and returns it as a
+  composable selector.
+
+  ### Arguments
+
+  * `territory` is an atom, string, locale, or `%Localize.LanguageTag{}`
+    resolved through `Tempo.Territory.resolve/1`. Defaults to `nil`,
+    which walks the territory-resolution chain.
+
+  ### Returns
+
+  * A `t:Tempo.t/0` value carrying a `day_of_week` list. Composable
+    directly with `Tempo.select/2`.
+
+  ### Examples
+
+      iex> {:ok, us} = Tempo.select(~o"2026-02", Tempo.weekend(:US))
+      iex> us |> Tempo.IntervalSet.to_list() |> Enum.map(& &1.from.time[:day])
+      [1, 7, 8, 14, 15, 21, 22, 28]
+
+      iex> {:ok, sa} = Tempo.select(~o"2026-02", Tempo.weekend(:SA))
+      iex> sa |> Tempo.IntervalSet.to_list() |> Enum.map(& &1.from.time[:day])
+      [6, 7, 13, 14, 20, 21, 27, 28]
+
+  """
+  @spec weekend(Tempo.Territory.input()) :: Tempo.t()
+  def weekend(territory \\ nil) do
+    {:ok, resolved} = Tempo.Territory.resolve(territory)
+    day_of_week_tempo(Localize.Calendar.weekend(resolved))
+  end
+
+  defp day_of_week_tempo(days) when is_list(days) do
+    %Tempo{time: [day_of_week: days], calendar: Calendrical.Gregorian}
+  end
 
   @doc """
   Return a multi-line prose explanation of any Tempo value —

@@ -166,7 +166,7 @@ An unbounded complement is infinite; Tempo refuses to pick a universe implicitly
 Members of `a` that do NOT overlap any member of `b`, kept whole.
 
 ```elixir
-iex> workdays = Tempo.select!(window, :workdays)
+iex> workdays = Tempo.select!(window, Tempo.workdays(:US))
 iex> {:ok, net_workdays} = Tempo.difference(workdays, holidays)
 # each surviving workday is a distinct day-member, holidays removed
 ```

@@ -22,7 +22,11 @@
 
 * `Tempo.IntervalSet.count/1`, `map/2`, `filter/2`. Named helpers that treat the set as a sequence of member intervals — the complement to the `Enumerable` protocol, which walks sub-points.
 
-* `Tempo.select/3`. Polymorphic composition primitive: narrows a base span (`%Tempo{}`, `%Interval{}`, or `%IntervalSet{}`) by a selector (`:workdays` / `:weekend`, integer lists, ranges, `%Tempo{}` / `%Interval{}` projection, or a function). Always returns `{:ok, %IntervalSet{}}`, composing with the other set ops. Locale-dependent atoms resolve at call time via Localize.
+* `Tempo.select/2`. Polymorphic composition primitive: narrows a base span (`%Tempo{}`, `%Interval{}`, or `%IntervalSet{}`) by a selector (integer lists, ranges, `%Tempo{}` / `%Interval{}` projection, or a function). Pure function — no ambient reads. Always returns `{:ok, %IntervalSet{}}`, composing with the other set ops.
+
+* `Tempo.workdays/1` and `Tempo.weekend/1`. Territory-aware day-of-week constructors that return `%Tempo{}` selector values — composable with `Tempo.select/2`. Accept a territory atom (`:US`), territory string, locale string (`"ar-SA"`), or `%Localize.LanguageTag{}`; default chain is `Application.get_env(:ex_tempo, :default_territory)` then ambient locale. `workdays(t) ++ weekend(t)` partitions the seven days of the week.
+
+* `Tempo.Territory.resolve/1`. Normalises a territory, territory string, locale, or language-tag value to a canonical uppercase territory atom. The single resolution chain used by `Tempo.workdays/1` and `Tempo.weekend/1`.
 
 * `Tempo.explain/1`. Returns a structured, prose explanation of any Tempo value. `Tempo.Explain` provides `to_string/1`, `to_ansi/1`, and `to_iodata/1` formatters so renderers (the visualizer, terminals, HTML surfaces) can style each tagged part independently.
 

@@ -131,20 +131,20 @@ Tempo.IntervalSet.to_list(free)
 
 Two free intervals: 09:00-12:00 and 13:00-17:00.
 
-## Selecting sub-spans — `Tempo.select/3`
+## Selecting sub-spans — `Tempo.select/2`
 
-`Tempo.select/3` is a composition primitive: it narrows a base span by a **selector** and returns the matched sub-spans as an `IntervalSet`. The selector vocabulary covers locale-dependent queries (`:workdays`, `:weekend`), integer indices applied at the next-finer unit, projection of a Tempo or Interval onto a larger base, and arbitrary functions.
+`Tempo.select/2` is a composition primitive: it narrows a base span by a **selector** and returns the matched sub-spans as an `IntervalSet`. The selector vocabulary covers territory-aware queries (via `Tempo.workdays/1` and `Tempo.weekend/1`), integer indices applied at the next-finer unit, projection of a Tempo or Interval onto a larger base, and arbitrary functions.
 
-> **Runtime resolution warning.** Locale-dependent selectors (`:workdays`, `:weekend`) read the ambient locale at call time. Never capture such calls in a module attribute — the compile machine's locale would get baked in. Always invoke them from a function body at runtime.
+`Tempo.select/2` is a **pure function**. Locale-dependent constraints are constructed by `Tempo.workdays/1` and `Tempo.weekend/1` and composed in at the call site.
 
 ### Workdays of a month
 
 ```elixir
-{:ok, workdays} = Tempo.select(~o"2026-06", :workdays)
+{:ok, workdays} = Tempo.select(~o"2026-06", Tempo.workdays(:US))
 Tempo.IntervalSet.to_list(workdays) |> length()
 ```
 
-> **Workdays** of **June 2026** are Monday through Friday — 22 day-resolution intervals, locale-resolved via `Localize.Calendar`.
+> **Workdays** of **June 2026** in the **United States** are Monday through Friday — 22 day-resolution intervals.
 
 ### Pick specific days inside a month
 
@@ -164,11 +164,11 @@ Tempo.IntervalSet.map(holidays, &{Tempo.month(&1), Tempo.day(&1)})
 
 > **Project** the constraint months/days `07-04` and `12-25` onto the base year — July 4 and Dec 25 of 2026.
 
-### Territory override for locale-dependent selectors
+### Different territory, different weekend
 
 ```elixir
-{:ok, us}    = Tempo.select(~o"2026-02", :weekend)
-{:ok, saudi} = Tempo.select(~o"2026-02", :weekend, territory: :SA)
+{:ok, us}    = Tempo.select(~o"2026-02", Tempo.weekend(:US))
+{:ok, saudi} = Tempo.select(~o"2026-02", Tempo.weekend(:SA))
 
 {
   Tempo.IntervalSet.map(us, &Tempo.day/1),
@@ -176,12 +176,12 @@ Tempo.IntervalSet.map(holidays, &{Tempo.month(&1), Tempo.day(&1)})
 }
 ```
 
-> The US weekend is Sat+Sun, the Saudi weekend is Fri+Sat. The territory chain is: explicit `territory:` → explicit `locale:` → IXDTF `u-rg=XX` tag → `Application.get_env(:ex_tempo, :default_territory)` → Localize locale default. Passing `locale: "ar-SA"` instead of `territory: :SA` works the same way — the locale gets reduced to its territory.
+> The US weekend is Sat+Sun, the Saudi weekend is Fri+Sat. `Tempo.weekend/1` and `Tempo.workdays/1` accept a territory atom, a territory string, a locale string (`"ar-SA"`), or a `%Localize.LanguageTag{}`. With no argument they walk the ambient chain: `Application.get_env(:ex_tempo, :default_territory)` → `Localize.get_locale()`.
 
 ### Compose with set operations
 
 ```elixir
-{:ok, june_workdays} = Tempo.select(~o"2026-06", :workdays)
+{:ok, june_workdays} = Tempo.select(~o"2026-06", Tempo.workdays(:US))
 {:ok, vacation}      = Tempo.to_interval_set(~o"2026-06-15/2026-06-20")
 {:ok, available}     = Tempo.difference(june_workdays, vacation)
 

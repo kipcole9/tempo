@@ -5,7 +5,8 @@ defmodule Tempo.Select do
   Dec 25 in the next decade", and user-supplied holidays.
 
   ```elixir
-  Tempo.select(~o"2026-06", :workdays)
+  Tempo.select(~o"2026-06", Tempo.workdays(:US))  # workdays of June — locale-aware
+  Tempo.select(~o"2026-06", Tempo.weekend(:US))   # weekend days of June
   Tempo.select(~o"2026", [1, 15])
   Tempo.select(~o"2026", ~o"12-25")
   Tempo.select(~o"2026", ~o"10O")     # ISO 8601-2 ordinal day — the 10th day of 2026
@@ -18,14 +19,29 @@ defmodule Tempo.Select do
   operations — the result composes directly into
   `Tempo.union/2`, `Tempo.intersection/2`, `Tempo.difference/2`.
 
+  `Tempo.select/2` is a **pure function**. It has no `opts`, no
+  ambient locale read, no implicit territory resolution. Every
+  input that can affect the result is a value on the selector.
+  Locale-dependent constraints like "workdays" or "weekend" are
+  constructed by `Tempo.workdays/1` and `Tempo.weekend/1` (which
+  read the locale once at construction time) and composed in:
+
+      interval
+      |> Tempo.select(Tempo.workdays(:US))
+
+  That means the `workdays(:US)` call is where territory
+  resolution happens — **not** inside `select/2` — and the
+  resulting value is safe to capture anywhere, including
+  module attributes.
+
   ## Selector shapes
 
   | Shape | Example | Meaning |
   | ----- | ------- | ------- |
-  | `:workdays` / `:weekend` | `Tempo.select(m, :workdays)` | Locale-resolved weekday set |
   | `[integer]` / `Range` | `Tempo.select(m, [1, 15])` | Integer indices applied at base's next-finer unit |
   | `%Tempo{}` or list | `Tempo.select(y, ~o"12-25")` | Project the constraint's specified units onto the base |
   | `%Tempo{day_of_week: …}` | `Tempo.select(m, ~o"5K")` | Day-of-week pattern — every matching weekday in the base (ISO 8601-2 `K` suffix) |
+  | `%Tempo{day_of_week: [...]}` | `Tempo.select(m, Tempo.workdays(:US))` | Day-of-week list — every matching weekday in the base |
   | `%Tempo{day: N}` (ordinal) | `Tempo.select(y, ~o"10O")` | Ordinal day in the year — the Nth day (ISO 8601-2 `O` suffix) |
   | `%Tempo.Interval{}` or list | `Tempo.select(y, vacation)` | Same, for explicit intervals |
   | Function | `Tempo.select(y, &fn/1)` | The function returns any of the above; evaluated against the base |
@@ -34,43 +50,13 @@ defmodule Tempo.Select do
   `t:Tempo.IntervalSet.t/0`. IntervalSet bases flat-map the
   selector across each member and collect the results.
 
-  ## Runtime resolution and module-attribute warning
-
-  **Locale-dependent selectors (`:workdays`, `:weekend`) resolve at
-  call time.** The territory chain is:
-
-  1. Explicit `territory:` option.
-  2. Explicit `locale:` option (validated via `Localize.validate_locale/1`,
-     then reduced to a territory via `Localize.Territory.territory_from_locale/1`).
-  3. IXDTF `u-rg-XX` tag on the base value (the `rg` in `u-rg` is the BCP 47
-     "region override" subtag — it names a territory).
-  4. `Application.get_env(:ex_tempo, :default_territory)`.
-  5. `Localize.get_locale() |> Localize.Territory.territory_from_locale()`.
-
-  Because the chain reads the ambient locale, do **NOT** call
-  `Tempo.select/3` with a locale-dependent atom at compile time
-  or in module attributes — the result will bake in whichever
-  locale the build machine happened to have. Always call inside
-  a function body at runtime:
-
-      # WRONG — resolves at compile time
-      @workdays_of_june Tempo.select(~o"2026-06", :workdays)
-
-      # RIGHT — resolves at call time
-      def workdays_of_june, do: Tempo.select(~o"2026-06", :workdays)
-
-  Explicit selectors (integer lists, Tempo projections, functions)
-  are safe to capture at compile time.
-
   """
 
   alias Tempo.Interval
   alias Tempo.IntervalSet
 
   @type selector ::
-          :workdays
-          | :weekend
-          | [integer()]
+          [integer()]
           | Range.t()
           | Tempo.t()
           | Interval.t()
@@ -78,11 +64,6 @@ defmodule Tempo.Select do
           | (base() -> selector())
 
   @type base :: Tempo.t() | Interval.t() | IntervalSet.t()
-
-  @type opts :: [
-          territory: String.t() | atom(),
-          locale: String.t() | atom() | Localize.LanguageTag.t()
-        ]
 
   @doc """
   Narrow `base` by `selector`, returning the selected intervals
@@ -111,7 +92,7 @@ defmodule Tempo.Select do
 
   Example with a quarter base:
 
-      Tempo.select(~o"2026Y3Q", :workdays)
+      Tempo.select(~o"2026Y3Q", Tempo.workdays(:US))
       #=> {:ok, IntervalSet with 66 members — workdays of Q3 2026}
 
   ### Examples
@@ -134,18 +115,21 @@ defmodule Tempo.Select do
       iex> set |> Tempo.IntervalSet.to_list() |> Enum.map(& &1.from.time[:day])
       [5, 12, 19, 26]
 
+      iex> {:ok, set} = Tempo.Select.select(~o"2026-02", Tempo.workdays(:US))
+      iex> Tempo.IntervalSet.count(set)
+      20
+
   """
-  @spec select(base(), selector(), opts()) ::
+  @spec select(base(), selector()) ::
           {:ok, IntervalSet.t()} | {:error, term()}
-  def select(base, selector, opts \\ [])
 
   # ---- IntervalSet base: flat-map then reassemble ----
 
-  def select(%IntervalSet{} = set, selector, opts) do
+  def select(%IntervalSet{} = set, selector) do
     set
     |> IntervalSet.to_list()
     |> Enum.reduce_while({:ok, []}, fn member, {:ok, acc} ->
-      case select(member, selector, opts) do
+      case select(member, selector) do
         {:ok, %IntervalSet{intervals: ivs}} -> {:cont, {:ok, acc ++ ivs}}
         {:error, _} = err -> {:halt, err}
       end
@@ -162,168 +146,79 @@ defmodule Tempo.Select do
   # (before `to_interval` fills lower-bound units), so route
   # integer / range selectors through a dedicated path.
 
-  def select(%Tempo{} = tempo, %Range{} = range, opts) do
-    select(tempo, Enum.to_list(range), opts)
+  def select(%Tempo{} = tempo, %Range{} = range) do
+    select(tempo, Enum.to_list(range))
   end
 
-  def select(%Tempo{} = tempo, [head | _] = indices, _opts) when is_integer(head) do
+  def select(%Tempo{} = tempo, [head | _] = indices) when is_integer(head) do
     select_indices_on_tempo(tempo, indices)
   end
 
-  def select(%Tempo{} = tempo, selector, opts) do
+  def select(%Tempo{} = tempo, selector) do
     case Tempo.to_interval(tempo) do
-      {:ok, %Interval{} = iv} -> select(resolve_grouped_endpoints(iv), selector, opts)
-      {:ok, %IntervalSet{} = set} -> select(set, selector, opts)
+      {:ok, %Interval{} = iv} -> select(resolve_grouped_endpoints(iv), selector)
+      {:ok, %IntervalSet{} = set} -> select(set, selector)
       {:error, _} = err -> err
     end
   end
 
   # ---- Empty selector list — explicit short-circuit ----
 
-  def select(%Interval{} = _base, [], _opts) do
+  def select(%Interval{} = _base, []) do
     IntervalSet.new([], coalesce: false)
-  end
-
-  # ---- Atom selectors: locale-resolved weekday filter ----
-
-  def select(%Interval{} = base, :workdays, opts) do
-    with {:ok, days} <- locale_weekdays(base, :weekdays, opts) do
-      filter_by_weekdays(base, days)
-    end
-  end
-
-  def select(%Interval{} = base, :weekend, opts) do
-    with {:ok, days} <- locale_weekdays(base, :weekend, opts) do
-      filter_by_weekdays(base, days)
-    end
   end
 
   # ---- Range: expand to integer list ----
 
-  def select(%Interval{} = base, %Range{} = range, opts) do
-    select(base, Enum.to_list(range), opts)
+  def select(%Interval{} = base, %Range{} = range) do
+    select(base, Enum.to_list(range))
   end
 
   # ---- Integer list: indices at next-finer unit ----
 
-  def select(%Interval{} = base, [head | _] = indices, _opts) when is_integer(head) do
+  def select(%Interval{} = base, [head | _] = indices) when is_integer(head) do
     select_indices(base, indices)
   end
 
   # ---- Tempo / Interval projection (single or list) ----
 
-  def select(%Interval{} = base, %Tempo{} = tempo, opts) do
-    select(base, [tempo], opts)
+  def select(%Interval{} = base, %Tempo{} = tempo) do
+    select(base, [tempo])
   end
 
-  def select(%Interval{} = base, %Interval{} = iv, opts) do
-    select(base, [iv], opts)
+  def select(%Interval{} = base, %Interval{} = iv) do
+    select(base, [iv])
   end
 
-  def select(%Interval{} = base, [%Tempo{} | _] = tempos, _opts) do
+  def select(%Interval{} = base, [%Tempo{} | _] = tempos) do
     select_projections(base, tempos)
   end
 
-  def select(%Interval{} = base, [%Interval{} | _] = intervals, _opts) do
+  def select(%Interval{} = base, [%Interval{} | _] = intervals) do
     select_projections(base, intervals)
   end
 
   # ---- Function: evaluate, recurse on the result ----
 
-  def select(%Interval{} = base, fun, opts) when is_function(fun, 1) do
-    select(base, fun.(base), opts)
+  def select(%Interval{} = base, fun) when is_function(fun, 1) do
+    select(base, fun.(base))
   end
 
   # ---- Catch-all: clearer error ----
 
-  def select(base, selector, _opts) do
+  def select(base, selector) do
     {:error,
      ArgumentError.exception(
-       "Tempo.Select.select/3 does not recognise selector #{inspect(selector)} " <>
+       "Tempo.Select.select/2 does not recognise selector #{inspect(selector)} " <>
          "for base #{inspect(base)}. See `Tempo.Select` moduledoc for the " <>
          "selector vocabulary."
      )}
   end
 
   ## -----------------------------------------------------------
-  ## Atom-selector helpers — locale-resolved weekday filtering
+  ## Weekday filter — consumed by the day-of-week-only projection
+  ## path (see `project_onto_base/2` below)
   ## -----------------------------------------------------------
-
-  defp locale_weekdays(base, which, opts) do
-    case resolve_territory(base, opts) do
-      {:ok, territory} ->
-        {:ok, apply(Localize.Calendar, which, [territory])}
-
-      {:error, _} = err ->
-        err
-    end
-  end
-
-  # Resolve territory through the priority chain:
-  #   1. explicit `territory:` option
-  #   2. explicit `locale:` option (validated, then reduced to a territory)
-  #   3. IXDTF `u-rg-XX` tag on the base's from-endpoint
-  #      (the `rg` is BCP 47's "region override" — names a territory)
-  #   4. application config
-  #   5. Localize locale default
-  defp resolve_territory(base, opts) do
-    cond do
-      territory = Keyword.get(opts, :territory) ->
-        {:ok, normalize_territory(territory)}
-
-      locale = Keyword.get(opts, :locale) ->
-        territory_from_locale(locale)
-
-      territory = ixdtf_territory(base) ->
-        {:ok, normalize_territory(territory)}
-
-      territory = Application.get_env(:ex_tempo, :default_territory) ->
-        {:ok, normalize_territory(territory)}
-
-      true ->
-        territory_from_locale(Localize.get_locale())
-    end
-  end
-
-  # Validate the locale through `Localize.validate_locale/1` (which
-  # accepts strings, atoms, and `%Localize.LanguageTag{}` values) and
-  # reduce it to a territory via `Localize.Territory.territory_from_locale/1`.
-  defp territory_from_locale(%Localize.LanguageTag{} = tag) do
-    Localize.Territory.territory_from_locale(tag)
-  end
-
-  defp territory_from_locale(locale) do
-    with {:ok, tag} <- Localize.validate_locale(locale) do
-      Localize.Territory.territory_from_locale(tag)
-    end
-  end
-
-  # The BCP 47 `u-rg-XX` subtag ("region override") names a territory.
-  # We keep BCP 47's own "rg" / "region" terminology only where the
-  # standard uses it; internally and at our API surface we say
-  # "territory" throughout.
-  defp ixdtf_territory(%Interval{from: %Tempo{extended: %{tags: tags}}}) when is_map(tags) do
-    extract_rg(Map.get(tags, "u-rg")) || extract_rg(Map.get(tags, "u"))
-  end
-
-  defp ixdtf_territory(_), do: nil
-
-  defp extract_rg([rg | _]) when is_binary(rg), do: String.trim_trailing(rg, "zzzz")
-  defp extract_rg(rg) when is_binary(rg), do: String.trim_trailing(rg, "zzzz")
-  defp extract_rg(_), do: nil
-
-  # Accept any of "AU", "au", :AU, :au, "au-zzzz" and canonicalise
-  # to the uppercase atom that `Localize.Calendar` expects.
-  defp normalize_territory(value) when is_atom(value) do
-    value |> Atom.to_string() |> normalize_territory()
-  end
-
-  defp normalize_territory(value) when is_binary(value) do
-    value
-    |> String.trim_trailing("zzzz")
-    |> String.upcase()
-    |> String.to_atom()
-  end
 
   # Walk `base` day-by-day, keeping dates whose ISO day-of-week
   # (Monday=1) is in the requested set. Returns an IntervalSet of
@@ -473,30 +368,36 @@ defmodule Tempo.Select do
   ## -----------------------------------------------------------
 
   defp select_projections(%Interval{} = base, constraints) do
-    intervals =
-      constraints
-      |> Enum.map(fn c -> project_onto_base(base, c) end)
-      |> Enum.flat_map(&List.wrap/1)
-      |> Enum.reject(&is_nil/1)
-
-    IntervalSet.new(intervals, coalesce: false)
+    constraints
+    |> Enum.reduce_while({:ok, []}, fn c, {:ok, acc} ->
+      case project_onto_base(base, c) do
+        {:error, _} = err -> {:halt, err}
+        list when is_list(list) -> {:cont, {:ok, acc ++ Enum.reject(list, &is_nil/1)}}
+        nil -> {:cont, {:ok, acc}}
+        other -> {:cont, {:ok, acc ++ List.wrap(other)}}
+      end
+    end)
+    |> case do
+      {:ok, intervals} -> IntervalSet.new(intervals, coalesce: false)
+      {:error, _} = err -> err
+    end
   end
 
   # Merge a constraint Tempo's time units onto base's from-endpoint
   # — units specified on the constraint take precedence; others
   # inherit from base. Then materialise and intersect with base.
   #
-  # A day-of-week-only constraint (`~o"5K"` for "Friday") is a
-  # recurring pattern rather than a specific date, so it routes
+  # A day-of-week-only constraint (`~o"5K"` for "Friday", or
+  # `Tempo.workdays(:US)` — `day_of_week: [1, 2, 3, 4, 5]`) is
+  # a recurring pattern rather than a specific date, so it routes
   # to the weekday filter instead of the merge-and-materialise
-  # path. Same for a day-of-week list (`~o"5K,6K"` for Fri/Sat)
-  # once the parser admits that shape.
+  # path.
   defp project_onto_base(%Interval{} = base, %Tempo{time: c_time}) do
     case day_of_week_only(c_time) do
       {:ok, weekdays} ->
         case filter_by_weekdays(base, weekdays) do
           {:ok, %IntervalSet{intervals: ivs}} -> ivs
-          _ -> []
+          {:error, _} = err -> err
         end
 
       :no ->
