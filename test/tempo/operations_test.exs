@@ -80,26 +80,34 @@ defmodule Tempo.Operations.Test do
     end
   end
 
-  describe "union/2" do
-    test "disjoint operands — returns both" do
+  describe "union/2 — member-preserving" do
+    test "disjoint operands — returns both as separate members" do
       {:ok, r} = Tempo.union(~o"2020Y", ~o"2022Y")
       assert length(r.intervals) == 2
     end
 
-    test "touching operands coalesce" do
+    test "touching operands keep both members distinct" do
+      # Member-preserving union: two touching intervals remain two
+      # members. Call `Tempo.IntervalSet.coalesce/1` for the
+      # canonical instant-set form (one merged span).
       {:ok, r} = Tempo.union(~o"2022Y", ~o"2023Y")
-      assert length(r.intervals) == 1
-      [iv] = r.intervals
+      assert length(r.intervals) == 2
+
+      coalesced = Tempo.IntervalSet.coalesce(r)
+      assert length(coalesced.intervals) == 1
+      [iv] = coalesced.intervals
       assert iv.from.time == [year: 2022, month: 1]
       assert iv.to.time == [year: 2024, month: 1]
     end
 
-    test "overlapping operands coalesce" do
-      # Interval [2022-Jan, 2022-Dec) overlaps [2022-Jun, 2023-Jan)
+    test "overlapping operands keep both members distinct" do
       {:ok, a} = Tempo.from_iso8601("2022-01/2022-12")
       {:ok, b} = Tempo.from_iso8601("2022-06/2023-01")
       {:ok, r} = Tempo.union(a, b)
-      assert length(r.intervals) == 1
+      assert length(r.intervals) == 2
+
+      coalesced = Tempo.IntervalSet.coalesce(r)
+      assert length(coalesced.intervals) == 1
     end
 
     test "identity with empty set: ∅ ∪ A = A" do
@@ -108,25 +116,25 @@ defmodule Tempo.Operations.Test do
       assert length(r.intervals) == 1
     end
 
-    test "commutativity" do
+    test "commutativity (member-set equality after coalescing)" do
       {:ok, r1} = Tempo.union(~o"2022Y", ~o"2024Y")
       {:ok, r2} = Tempo.union(~o"2024Y", ~o"2022Y")
+      # Member-preserving union sorts by `from`, so the two
+      # constructions produce the same ordered member list.
       assert r1.intervals == r2.intervals
     end
   end
 
-  describe "intersection/2" do
-    test "year ∩ day inside → the day span" do
-      # Both aligned to day's implicit enumeration (hour). 2022Y
-      # extends to [2022-01-01T00, 2023-01-01T00); the day
-      # extends to [2022-06-15T00, 2022-06-16T00). Intersection =
-      # the day's span.
+  describe "intersection/2 — member-preserving overlap-filter" do
+    test "year ∩ day inside → the year member (A side is kept whole)" do
+      # Member-preserving: the year member of A overlaps the day
+      # member of B, so the year member survives. For the trimmed
+      # overlap span use `Tempo.overlap_trim/2`.
       {:ok, r} = Tempo.intersection(~o"2022Y", ~o"2022-06-15")
       [iv] = r.intervals
       assert iv.from.time[:year] == 2022
-      assert iv.from.time[:month] == 6
-      assert iv.from.time[:day] == 15
-      assert iv.to.time[:day] == 16
+      assert iv.from.time[:month] == 1
+      assert iv.to.time[:year] == 2023
     end
 
     test "disjoint operands → empty" do
@@ -134,9 +142,7 @@ defmodule Tempo.Operations.Test do
       assert r.intervals == []
     end
 
-    test "touching operands → empty (half-open semantics)" do
-      # [2022-Jan, 2023-Jan) and [2023-Jan, 2024-Jan) touch at Jan 1
-      # 2023 but share no instant — both half-open.
+    test "touching operands → empty (half-open semantics, no shared instant)" do
       {:ok, r} = Tempo.intersection(~o"2022Y", ~o"2023Y")
       assert r.intervals == []
     end
@@ -147,16 +153,53 @@ defmodule Tempo.Operations.Test do
       assert r.intervals == []
     end
 
-    test "commutativity" do
+    test "commutativity — member-preserving is NOT symmetric" do
+      # Member-preserving intersection keeps the A-side member in
+      # its entirety. With different-resolution operands the two
+      # orderings produce different result shapes:
+      #   year ∩ month → [year] (the year, whole)
+      #   month ∩ year → [month] (the month, whole)
+      # For the instant-level symmetric form, use `overlap_trim/2`.
       {:ok, r1} = Tempo.intersection(~o"2022Y", ~o"2022-06")
       {:ok, r2} = Tempo.intersection(~o"2022-06", ~o"2022Y")
-      assert r1.intervals == r2.intervals
+
+      refute r1.intervals == r2.intervals
+
+      # overlap_trim IS commutative at the instant-set level.
+      {:ok, trim1} = Tempo.overlap_trim(~o"2022Y", ~o"2022-06")
+      {:ok, trim2} = Tempo.overlap_trim(~o"2022-06", ~o"2022Y")
+      assert Tempo.equal?(trim1, trim2)
     end
 
-    test "time-of-day axis intersection" do
-      {:ok, r} = Tempo.intersection(~o"T10", ~o"T10:30")
+    test "multi-member A — filters to members overlapping any B member" do
+      # A: two-member set; B: one member overlapping only the second.
+      a =
+        Tempo.IntervalSet.new!([
+          %Tempo.Interval{from: ~o"2022-01", to: ~o"2022-03"},
+          %Tempo.Interval{from: ~o"2022-06", to: ~o"2022-09"}
+        ])
+
+      {:ok, r} = Tempo.intersection(a, ~o"2022-07")
+
+      # Only the second member of A overlaps July.
+      assert length(r.intervals) == 1
       [iv] = r.intervals
-      # 10:30 is contained in 10:00-11:00.
+      assert iv.from.time[:month] == 6
+    end
+  end
+
+  describe "overlap_trim/2 — instant-level trimmed intersection" do
+    test "year ∩ day → the day-shaped span (trimmed)" do
+      {:ok, r} = Tempo.overlap_trim(~o"2022Y", ~o"2022-06-15")
+      [iv] = r.intervals
+      assert iv.from.time[:month] == 6
+      assert iv.from.time[:day] == 15
+      assert iv.to.time[:day] == 16
+    end
+
+    test "time-of-day axis trim" do
+      {:ok, r} = Tempo.overlap_trim(~o"T10", ~o"T10:30")
+      [iv] = r.intervals
       assert iv.from.time[:hour] == 10
       assert iv.from.time[:minute] == 30
     end
@@ -192,7 +235,7 @@ defmodule Tempo.Operations.Test do
     end
   end
 
-  describe "difference/2" do
+  describe "difference/2 — member-preserving anti-overlap-filter" do
     test "A ∖ A = ∅" do
       {:ok, r} = Tempo.difference(~o"2022Y", ~o"2022Y")
       assert r.intervals == []
@@ -210,20 +253,48 @@ defmodule Tempo.Operations.Test do
       assert r.intervals == []
     end
 
-    test "year ∖ single month → two intervals" do
+    test "year ∖ single month — the year member is dropped (it overlaps)" do
+      # Member-preserving: the single A member (year) overlaps B,
+      # so it's removed entirely. Use `split_difference/2` for the
+      # instant-level trim that produces the "year minus June" two
+      # remaining months.
       {:ok, r} = Tempo.difference(~o"2022Y", ~o"2022-06")
-      assert length(r.intervals) == 2
+      assert r.intervals == []
     end
 
-    test "year ∖ two non-adjacent months → three intervals" do
-      {:ok, two_months} = Tempo.union(~o"2022-03", ~o"2022-09")
-      {:ok, r} = Tempo.difference(~o"2022Y", two_months)
-      assert length(r.intervals) == 3
+    test "multi-member A — drops only members that overlap B" do
+      # Three month-members; B overlaps only the middle one.
+      a =
+        Tempo.IntervalSet.new!([
+          %Tempo.Interval{from: ~o"2022-01", to: ~o"2022-02"},
+          %Tempo.Interval{from: ~o"2022-06", to: ~o"2022-07"},
+          %Tempo.Interval{from: ~o"2022-12", to: ~o"2023-01"}
+        ])
+
+      {:ok, r} = Tempo.difference(a, ~o"2022-06")
+
+      assert length(r.intervals) == 2
+      [first, last] = r.intervals
+      assert first.from.time[:month] == 1
+      assert last.from.time[:month] == 12
     end
 
     test "A ∖ B where B is entirely outside A → A unchanged" do
       {:ok, r} = Tempo.difference(~o"2022-06", ~o"2023Y")
       assert length(r.intervals) == 1
+    end
+  end
+
+  describe "split_difference/2 — instant-level difference" do
+    test "year ∖ single month → two trimmed spans" do
+      {:ok, r} = Tempo.split_difference(~o"2022Y", ~o"2022-06")
+      assert length(r.intervals) == 2
+    end
+
+    test "year ∖ two non-adjacent months → three spans" do
+      {:ok, two_months} = Tempo.union(~o"2022-03", ~o"2022-09")
+      {:ok, r} = Tempo.split_difference(~o"2022Y", two_months)
+      assert length(r.intervals) == 3
     end
   end
 
@@ -239,12 +310,22 @@ defmodule Tempo.Operations.Test do
       assert sym.intervals == union.intervals
     end
 
-    test "overlapping — emits only the non-shared parts" do
+    test "overlapping single-member operands — each is kept whole or dropped" do
+      # Member-preserving symmetric difference: both members
+      # overlap each other, so both are dropped → empty.
+      # For the instant-level "only the non-shared parts" form use
+      # `split_difference(a, b) |> union(split_difference(b, a))`.
       {:ok, a} = Tempo.from_iso8601("2022-01/2022-07")
       {:ok, b} = Tempo.from_iso8601("2022-04/2022-10")
       {:ok, r} = Tempo.symmetric_difference(a, b)
-      # Symmetric difference = Jan-Mar ∪ Jul-Sep (two disjoint pieces).
-      assert length(r.intervals) == 2
+
+      assert r.intervals == []
+
+      # The instant-level form still works:
+      {:ok, a_minus_b} = Tempo.split_difference(a, b)
+      {:ok, b_minus_a} = Tempo.split_difference(b, a)
+      {:ok, instants} = Tempo.union(a_minus_b, b_minus_a)
+      assert length(instants.intervals) == 2
     end
   end
 
@@ -280,21 +361,20 @@ defmodule Tempo.Operations.Test do
   end
 
   describe "cross-axis with bound" do
-    test "anchored ∩ non-anchored within a single-day bound → single time slot" do
-      {:ok, r} = Tempo.intersection(~o"2026-01-04", ~o"T10:30", bound: ~o"2026-01-04")
+    test "anchored ∩ non-anchored within a single-day bound → trimmed time slot (overlap_trim)" do
+      # Trimmed intersection gives the minute slot inside the day
+      # span. The member-preserving form returns the day itself.
+      {:ok, r} = Tempo.overlap_trim(~o"2026-01-04", ~o"T10:30", bound: ~o"2026-01-04")
       assert length(r.intervals) == 1
       [iv] = r.intervals
       assert iv.from.time[:hour] == 10
       assert iv.from.time[:minute] == 30
     end
 
-    test "anchored ∩ non-anchored within a multi-day bound → single slot on matched day" do
-      # Bound covers a 10-day window; the anchored date is within it.
+    test "anchored ∩ non-anchored within a multi-day bound → trimmed slot on matched day" do
       {:ok, r} =
-        Tempo.intersection(~o"2026-01-04", ~o"T10:30", bound: ~o"2026-01-01/2026-01-10")
+        Tempo.overlap_trim(~o"2026-01-04", ~o"T10:30", bound: ~o"2026-01-01/2026-01-10")
 
-      # T10:30 is materialised on each of 9 days (Jan 1..9);
-      # intersection with 2026-01-04 yields only the slot on that day.
       assert length(r.intervals) == 1
       [iv] = r.intervals
       assert iv.from.time[:day] == 4
@@ -351,9 +431,10 @@ defmodule Tempo.Operations.Test do
   end
 
   describe "cross-calendar operations" do
-    test "Hebrew ∩ Gregorian converts B to A's calendar" do
+    test "Hebrew ∩ Gregorian — A's calendar is preserved on the surviving A member" do
       # Gregorian 2022-06-15 corresponds to Hebrew 5782-10-16.
-      # The Hebrew month 10 of year 5782 contains that date.
+      # The Hebrew month 10 of year 5782 contains that date, so
+      # the Hebrew-month member of A survives the overlap filter.
       hebrew_month = %Tempo{
         time: [year: 5782, month: 10],
         calendar: Calendrical.Hebrew
@@ -362,15 +443,25 @@ defmodule Tempo.Operations.Test do
       {:ok, r} = Tempo.intersection(hebrew_month, ~o"2022-06-15")
       assert length(r.intervals) == 1
 
-      # Result inherits first operand's calendar (Hebrew).
       [iv] = r.intervals
       assert iv.from.calendar == Calendrical.Hebrew
       assert iv.from.time[:year] == 5782
       assert iv.from.time[:month] == 10
+    end
+
+    test "overlap_trim preserves A's calendar on the trimmed span" do
+      hebrew_month = %Tempo{
+        time: [year: 5782, month: 10],
+        calendar: Calendrical.Hebrew
+      }
+
+      {:ok, r} = Tempo.overlap_trim(hebrew_month, ~o"2022-06-15")
+      [iv] = r.intervals
+      assert iv.from.calendar == Calendrical.Hebrew
       assert iv.from.time[:day] == 16
     end
 
-    test "Gregorian ∩ Hebrew converts B to A's calendar" do
+    test "Gregorian ∩ Hebrew — A's calendar is preserved on the surviving A member" do
       hebrew_day = %Tempo{
         time: [year: 5782, month: 10, day: 16],
         calendar: Calendrical.Hebrew
@@ -379,12 +470,10 @@ defmodule Tempo.Operations.Test do
       {:ok, r} = Tempo.intersection(~o"2022-06", hebrew_day)
       assert length(r.intervals) == 1
 
-      # Result inherits first operand's calendar (Gregorian).
       [iv] = r.intervals
       assert iv.from.calendar == Calendrical.Gregorian
       assert iv.from.time[:year] == 2022
       assert iv.from.time[:month] == 6
-      assert iv.from.time[:day] == 15
     end
 
     test "disjoint dates across calendars are correctly identified" do
@@ -409,60 +498,45 @@ defmodule Tempo.Operations.Test do
   end
 
   describe "midnight-crossing non-anchored intervals" do
-    test "anchor to a single day — crossing materialises on the correct days" do
+    test "overlap_trim with single-day anchor — crossing materialises the pre-midnight portion" do
       {:ok, na} = Tempo.from_iso8601("T23:30/T01:00")
 
-      # The non-anchored interval crosses midnight, so anchored
-      # to Jan 4 it becomes [Jan 4 23:30, Jan 5 01:00). Intersected
-      # with the date `2026-01-04` span [Jan 4, Jan 5), the result
-      # is [Jan 4 23:30, Jan 5 00:00) — the pre-midnight portion.
-      {:ok, r} = Tempo.intersection(~o"2026-01-04", na, bound: ~o"2026-01-04")
+      # Trimmed form: the overlap span inside the anchored day.
+      {:ok, r} = Tempo.overlap_trim(~o"2026-01-04", na, bound: ~o"2026-01-04")
       assert length(r.intervals) == 1
 
       [iv] = r.intervals
-      assert iv.from.time[:day] == 4
       assert iv.from.time[:hour] == 23
       assert iv.from.time[:minute] == 30
-      # Intersection clamped to the bound's upper edge: midnight
-      # of Jan 5 (which equals start-of-Jan-5, not Jan 4 24:00).
-      assert iv.to.time[:day] == 5
-      assert iv.to.time[:hour] == 0
     end
 
-    test "crossing materialises on each day of a multi-day bound" do
-      # 3-day bound (2026-01-01/2026-01-04 is the half-open span
-      # covering Jan 1, 2, 3). The non-anchored crossing interval
-      # produces 3 anchored intervals (one anchored to each day),
-      # but the last one's upper endpoint is clamped by the bound.
+    test "overlap_trim on multi-day bound — crossing materialises three trimmed slots" do
       {:ok, na} = Tempo.from_iso8601("T23:00/T01:00")
 
       {:ok, r} =
-        Tempo.intersection(~o"2026-01-01/2026-01-04", na, bound: ~o"2026-01-01/2026-01-04")
+        Tempo.overlap_trim(~o"2026-01-01/2026-01-04", na, bound: ~o"2026-01-01/2026-01-04")
 
       assert length(r.intervals) == 3
     end
 
-    test "time-of-day union: crossing ∪ non-crossing" do
+    test "time-of-day union: crossing ∪ non-crossing (member-preserving)" do
+      # After midnight-split: crossing becomes two members
+      # (pre-midnight + post-midnight); morning stays one. Union
+      # is all three members.
       {:ok, crossing} = Tempo.from_iso8601("T23:00/T01:00")
       {:ok, morning} = Tempo.from_iso8601("T00:30/T02:00")
 
       {:ok, r} = Tempo.union(crossing, morning)
-
-      # Split produces [T00:00, T01:00) from the crossing and
-      # [T00:30, T02:00) from morning, which overlap and coalesce
-      # to [T00:00, T02:00). Plus [T23:00, T24:00) from the
-      # crossing. Total: 2 intervals.
-      assert length(r.intervals) == 2
+      assert length(r.intervals) == 3
     end
 
-    test "time-of-day intersection: crossing ∩ non-crossing" do
+    test "time-of-day overlap_trim: crossing ∩ non-crossing" do
       {:ok, crossing} = Tempo.from_iso8601("T23:00/T01:00")
       {:ok, morning} = Tempo.from_iso8601("T00:30/T02:00")
 
-      {:ok, r} = Tempo.intersection(crossing, morning)
+      {:ok, r} = Tempo.overlap_trim(crossing, morning)
 
-      # Only the post-midnight portion of the crossing
-      # ([T00:00, T01:00)) overlaps morning ([T00:30, T02:00)).
+      # Only the post-midnight portion of the crossing overlaps.
       assert length(r.intervals) == 1
       [iv] = r.intervals
       assert iv.from.time[:hour] == 0
@@ -488,11 +562,12 @@ defmodule Tempo.Operations.Test do
     end
   end
 
-  describe "De Morgan's laws" do
-    # ¬(A ∪ B) = ¬A ∩ ¬B
-    # ¬(A ∩ B) = ¬A ∪ ¬B
-    #
-    # "Complement within the universe" is our ¬.
+  describe "De Morgan's laws (instant-set level)" do
+    # De Morgan's laws hold at the instant-set level — two sets
+    # are "equal" when they cover the same instants. Under Tempo's
+    # member-preserving defaults this means: coalesce both sides
+    # before comparing members, or just use `Tempo.equal?/2` which
+    # does it for you.
 
     test "¬(A ∪ B) = ¬A ∩ ¬B" do
       a = ~o"2022-03"
@@ -504,9 +579,12 @@ defmodule Tempo.Operations.Test do
 
       {:ok, not_a} = Tempo.complement(a, bound: u)
       {:ok, not_b} = Tempo.complement(b, bound: u)
-      {:ok, not_a_and_not_b} = Tempo.intersection(not_a, not_b)
+      # Instant-level intersection — the sides are both
+      # "covered-instants" sets, so the trimmed form is the
+      # faithful one for the identity.
+      {:ok, not_a_and_not_b} = Tempo.overlap_trim(not_a, not_b)
 
-      assert not_a_or_b.intervals == not_a_and_not_b.intervals
+      assert Tempo.equal?(not_a_or_b, not_a_and_not_b)
     end
 
     test "¬(A ∩ B) = ¬A ∪ ¬B" do
@@ -514,14 +592,14 @@ defmodule Tempo.Operations.Test do
       b = ~o"2022-04/2022-10"
       u = ~o"2022Y"
 
-      {:ok, a_and_b} = Tempo.intersection(a, b)
+      {:ok, a_and_b} = Tempo.overlap_trim(a, b)
       {:ok, not_a_and_b} = Tempo.complement(a_and_b, bound: u)
 
       {:ok, not_a} = Tempo.complement(a, bound: u)
       {:ok, not_b} = Tempo.complement(b, bound: u)
       {:ok, not_a_or_not_b} = Tempo.union(not_a, not_b)
 
-      assert not_a_and_b.intervals == not_a_or_not_b.intervals
+      assert Tempo.equal?(not_a_and_b, not_a_or_not_b)
     end
   end
 end

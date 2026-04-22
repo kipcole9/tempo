@@ -121,6 +121,79 @@ defmodule Tempo.Format do
   end
 
   ## ---------------------------------------------------------
+  ## Relative-time formatting — "3 hours ago", "in 2 days"
+  ## ---------------------------------------------------------
+
+  @doc """
+  Format a Tempo or Tempo.Interval as a locale-aware relative
+  time string, like `"3 hours ago"` or `"in 2 days"`.
+
+  Delegated from `Tempo.to_relative_string/1,2`.
+
+  """
+  @spec to_relative_string(Tempo.t() | Tempo.Interval.t(), keyword()) :: String.t()
+  def to_relative_string(value, options \\ [])
+
+  def to_relative_string(%Tempo{} = tempo, options) do
+    render_relative(tempo, options)
+  end
+
+  def to_relative_string(%Tempo.Interval{from: %Tempo{} = from}, options) do
+    render_relative(from, options)
+  end
+
+  def to_relative_string(%Tempo.Interval{}, _options) do
+    raise Tempo.IntervalEndpointsError,
+      operation: "to_relative_string/2",
+      reason: "Tempo.to_relative_string/2 requires an interval with a concrete :from endpoint."
+  end
+
+  defp render_relative(%Tempo{} = tempo, options) do
+    unless Tempo.anchored?(tempo) do
+      raise Tempo.NonAnchoredError.exception(
+              operation: :to_relative_string,
+              value: tempo
+            )
+    end
+
+    {from_tempo, options} = Keyword.pop_lazy(options, :from, &Tempo.utc_now/0)
+    delta_seconds = Tempo.Compare.to_utc_seconds(tempo) - Tempo.Compare.to_utc_seconds(from_tempo)
+
+    # Localize's `:unit` option tells it what unit the integer
+    # is *in* (not the output unit). If the caller supplied a
+    # unit, convert our seconds delta into that unit first.
+    relative_value =
+      case Keyword.get(options, :unit) do
+        nil -> delta_seconds
+        unit -> scale_to_unit(delta_seconds, unit)
+      end
+
+    case Localize.DateTime.Relative.to_string(relative_value, options) do
+      {:ok, string} -> string
+      {:error, exception} -> raise exception
+    end
+  end
+
+  @seconds_per_unit %{
+    second: 1,
+    minute: 60,
+    hour: 3600,
+    day: 86_400,
+    week: 604_800,
+    # Calendar-month approximation (30.44 days) matches Localize's
+    # internal constant.
+    month: 2_629_744,
+    # Gregorian mean year (365.2425 days).
+    year: 31_556_952
+  }
+
+  defp scale_to_unit(seconds, unit) when is_map_key(@seconds_per_unit, unit) do
+    div(seconds, @seconds_per_unit[unit])
+  end
+
+  defp scale_to_unit(seconds, _other), do: seconds
+
+  ## ---------------------------------------------------------
   ## Closed-interval expansion for year/month Tempo values
   ## ---------------------------------------------------------
 

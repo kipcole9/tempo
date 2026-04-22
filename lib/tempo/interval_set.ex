@@ -79,10 +79,15 @@ defmodule Tempo.IntervalSet do
   @spec new([Interval.t()], keyword()) :: {:ok, t()} | {:error, term()}
   def new(intervals, opts \\ []) when is_list(intervals) do
     with :ok <- validate_all_bounded(intervals) do
-      coalesce? = Keyword.get(opts, :coalesce, true)
+      # `coalesce: false` is the default: IntervalSet preserves
+      # member identity by design. Callers who want canonical
+      # instant-set form (touching or overlapping intervals merged
+      # into larger spans) must either pass `coalesce: true` here
+      # or apply `coalesce/1` explicitly after construction.
+      coalesce? = Keyword.get(opts, :coalesce, false)
 
       sorted = Enum.sort(intervals, &compare_from/2)
-      final = if coalesce?, do: coalesce(sorted), else: sorted
+      final = if coalesce?, do: coalesce_intervals(sorted), else: sorted
       metadata = Keyword.get(opts, :metadata, %{})
 
       {:ok, %__MODULE__{intervals: final, metadata: metadata}}
@@ -383,16 +388,155 @@ defmodule Tempo.IntervalSet do
   defp unit_minimum(:day_of_week), do: 1
   defp unit_minimum(_), do: 0
 
-  ## Coalesce
+  ## ---------------------------------------------------------
+  ## Coalesce — canonical instant-set form
+  ## ---------------------------------------------------------
+
+  @doc """
+  Merge touching or overlapping member intervals into larger
+  spans, returning a new `t:t/0` in **canonical instant-set
+  form**.
+
+  `IntervalSet` preserves member identity by default — each
+  interval stays a distinct member with its own metadata. That
+  shape is right for event management, bookings, and any query
+  that asks about individual members.
+
+  Some questions are about the *instants covered* by the set,
+  not the members: "is this point covered?", "what's the total
+  duration?", "are these two schedules equivalent?". For those,
+  the canonical instant-set form is the right shape — two
+  touching intervals merge into one, and the set has exactly
+  one member per contiguous covered region.
+
+  Under the half-open `[from, to)` convention, intervals merge
+  when the later one's `from` is at or before the earlier one's
+  `to`. Touching (`[a, b) ++ [b, c) == [a, c)`) and overlapping
+  cases both merge.
+
+  ### Metadata
+
+  When two members merge, the earlier member's metadata is kept
+  on the merged span and the later member's is dropped. If
+  metadata matters for your query, filter or project before
+  coalescing.
+
+  ### Arguments
+
+  * `set` is a `t:t/0`.
+
+  ### Returns
+
+  * A `t:t/0` with touching and overlapping intervals merged.
+
+  ### Examples
+
+      iex> set = Tempo.IntervalSet.new!([
+      ...>   %Tempo.Interval{from: ~o"2026-06-15", to: ~o"2026-06-16"},
+      ...>   %Tempo.Interval{from: ~o"2026-06-16", to: ~o"2026-06-17"}
+      ...> ])
+      iex> Tempo.IntervalSet.count(set)
+      2
+      iex> coalesced = Tempo.IntervalSet.coalesce(set)
+      iex> Tempo.IntervalSet.count(coalesced)
+      1
+
+  """
+  @spec coalesce(t()) :: t()
+  def coalesce(%__MODULE__{intervals: intervals} = set) do
+    %{set | intervals: coalesce_intervals(intervals)}
+  end
+
+  @doc """
+  `true` when any member interval of `set` covers `point`.
+
+  Coalesces internally — a point is "covered" iff it falls inside
+  at least one member span. For the common booking/scheduling
+  question "is this slot occupied?", this is the right predicate.
+
+  ### Arguments
+
+  * `set` is a `t:t/0`.
+
+  * `point` is any `t:Tempo.t/0`.
+
+  ### Returns
+
+  * `true` or `false`.
+
+  ### Examples
+
+      iex> set = Tempo.IntervalSet.new!([
+      ...>   %Tempo.Interval{from: ~o"2026-06-15", to: ~o"2026-06-20"}
+      ...> ])
+      iex> Tempo.IntervalSet.covered?(set, ~o"2026-06-17")
+      true
+      iex> Tempo.IntervalSet.covered?(set, ~o"2026-06-25")
+      false
+
+  """
+  @spec covered?(t(), Tempo.t()) :: boolean()
+  def covered?(%__MODULE__{intervals: intervals}, %Tempo{} = point) do
+    Enum.any?(intervals, fn interval -> Tempo.Interval.within?(point, interval) end)
+  end
+
+  @doc """
+  Total duration covered by the set's members, as a
+  `t:Tempo.Duration.t/0`.
+
+  Coalesces internally so overlapping members are not
+  double-counted — the returned duration is the length of the
+  union of covered instants, not the sum of individual member
+  durations. For the "sum of member durations" semantics, use
+  `map(set, &Tempo.Interval.duration/1) |> Enum.sum()` with
+  explicit arithmetic.
+
+  ### Arguments
+
+  * `set` is a `t:t/0`.
+
+  ### Returns
+
+  * A `t:Tempo.Duration.t/0`.
+
+  ### Examples
+
+      iex> set = Tempo.IntervalSet.new!([
+      ...>   %Tempo.Interval{from: ~o"2026-06-15T09:00:00", to: ~o"2026-06-15T10:00:00"},
+      ...>   %Tempo.Interval{from: ~o"2026-06-15T11:00:00", to: ~o"2026-06-15T12:00:00"}
+      ...> ])
+      iex> Tempo.IntervalSet.total_duration(set)
+      ~o"PT7200S"
+
+  """
+  @spec total_duration(t()) :: Tempo.Duration.t()
+  def total_duration(%__MODULE__{} = set) do
+    set
+    |> coalesce()
+    |> Map.fetch!(:intervals)
+    |> Enum.reduce(Tempo.Duration.new([]), fn interval, acc ->
+      add_durations(acc, Tempo.Interval.duration(interval))
+    end)
+  end
+
+  defp add_durations(%Tempo.Duration{time: a}, %Tempo.Duration{time: b}) do
+    merged =
+      Keyword.merge(a, b, fn _key, v1, v2 -> v1 + v2 end)
+
+    Tempo.Duration.new(merged)
+  end
 
   # Single forward pass. At each step, decide whether the next
   # interval should merge with the current "accumulator" interval
   # (overlap OR touch) or start a new span. Half-open semantics:
   # `[a, b)` and `[b, c)` touch at `b` and merge to `[a, c)`.
+  #
+  # Private helper used by `new/2` (when `coalesce: true` is
+  # passed) and by the public `coalesce/1` wrapper above.
 
-  defp coalesce([]), do: []
+  defp coalesce_intervals([]), do: []
 
-  defp coalesce([interval | rest]) do
+  defp coalesce_intervals([interval | rest]) do
     coalesce_step(rest, [interval])
   end
 

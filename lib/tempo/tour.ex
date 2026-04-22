@@ -60,12 +60,13 @@ defmodule Tempo.Tour do
 
     step(
       "Set operations on intervals",
-      "{:ok, merged} = Tempo.union(~o\"2022Y\", ~o\"2023Y\"); Tempo.IntervalSet.count(merged)",
+      "{:ok, both} = Tempo.union(~o\"2022Y\", ~o\"2023Y\"); Tempo.IntervalSet.count(both)",
       fn ->
-        {:ok, merged} = Tempo.union(~o"2022Y", ~o"2023Y")
-        Tempo.IntervalSet.count(merged)
+        {:ok, both} = Tempo.union(~o"2022Y", ~o"2023Y")
+        Tempo.IntervalSet.count(both)
       end,
-      "Touching years coalesce into one span — [2022-01-01, 2024-01-01)."
+      "Union preserves member identity — both years remain distinct members. " <>
+        "Call `Tempo.IntervalSet.coalesce/1` for the canonical single-span form."
     )
 
     step(

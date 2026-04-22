@@ -82,11 +82,15 @@ defmodule Tempo.FormatTest do
       assert Tempo.to_string(iv) == "Jan#{@en_dash_sep}Dec 2026"
     end
 
-    test "multi-year range uses the closed last year" do
+    test "multi-year range — union preserves members; coalesce for a single span" do
+      # Member-preserving union keeps both years distinct; the
+      # IntervalSet renders them as two comma-separated spans. For
+      # the "Jan 2022 – Dec 2023" single-span rendering, coalesce
+      # explicitly first.
       {:ok, yr_iv} = Tempo.union(~o"2022", ~o"2023")
-      # Endpoints after coalesce are month-resolution, closed_last
-      # subtracts 1 month → Dec 2023.
-      assert Tempo.to_string(yr_iv) == "Jan 2022#{@en_dash_sep}Dec 2023"
+      coalesced = Tempo.IntervalSet.coalesce(yr_iv)
+
+      assert Tempo.to_string(coalesced) == "Jan 2022#{@en_dash_sep}Dec 2023"
     end
 
     test "Tempo.to_string(tempo) matches Tempo.to_string(to_interval(tempo)) — year" do

@@ -2233,6 +2233,63 @@ defmodule Tempo do
   defdelegate to_string(value, options \\ []), to: Tempo.Format
 
   @doc """
+  Format a Tempo as a locale-aware relative time string like
+  `"3 hours ago"` or `"in 2 days"`.
+
+  Routes through Localize's CLDR `relativeTime` patterns. The
+  reference point ("now") comes from `Tempo.utc_now/0` unless
+  overridden with the `:from` option — which makes this safe to
+  use in tests via `Tempo.Clock.Test`.
+
+  For intervals, the `:from` endpoint of the interval is used as
+  the target — "the meeting starts in 2 hours" rather than
+  "lasts 2 hours" (for duration phrasing, use `Tempo.to_string/2`
+  on a `Tempo.Duration`).
+
+  ### Arguments
+
+  * `value` is a `t:t/0` or `t:Tempo.Interval.t/0`. The value
+    must be anchored (have a year component); non-anchored values
+    raise `Tempo.NonAnchoredError`.
+
+  ### Options
+
+  * `:from` is a `t:t/0` — the reference point the output is
+    relative to. Defaults to `Tempo.utc_now/0`.
+
+  * `:unit` forces the output unit (`:second`, `:minute`,
+    `:hour`, `:day`, `:week`, `:month`, `:year`). Omit to let
+    Localize auto-derive.
+
+  * `:format` is `:standard`, `:narrow`, or `:short`. Defaults to
+    `:standard`.
+
+  * `:locale` is a CLDR locale. Defaults to Localize's configured
+    default.
+
+  ### Returns
+
+  * A `t:String.t/0`.
+
+  ### Examples
+
+      iex> now = Tempo.from_iso8601!("2026-06-15T12:00:00Z")
+      iex> Tempo.to_relative_string(~o"2026-06-14T12:00:00Z", from: now)
+      "yesterday"
+
+      iex> now = Tempo.from_iso8601!("2026-06-15T12:00:00Z")
+      iex> Tempo.to_relative_string(~o"2026-06-15T15:00:00Z", from: now)
+      "in 3 hours"
+
+      iex> now = Tempo.from_iso8601!("2026-06-15T12:00:00Z")
+      iex> Tempo.to_relative_string(~o"2026-06-10T12:00:00Z", from: now)
+      "5 days ago"
+
+  """
+  @spec to_relative_string(t() | Tempo.Interval.t(), keyword()) :: String.t()
+  defdelegate to_relative_string(value, options \\ []), to: Tempo.Format
+
+  @doc """
   Convert an implicit-span `t:#{__MODULE__}.t/0` into the
   equivalent explicit `t:Tempo.Interval.t/0` or
   `t:Tempo.IntervalSet.t/0`.
@@ -2549,10 +2606,15 @@ defmodule Tempo do
   # span post-coalesce, which matches the documented contract.
   # Expansion consumers that care about event identity
   # (Tempo.ICal, the RRULE expander) pass `coalesce: false`.
+  # Pre-semantic-flip this defaulted to `true`. As of v0.2 the
+  # IntervalSet default is member-preserving (`coalesce: false`),
+  # so this helper passes the caller's explicit opt through
+  # unchanged and otherwise omits the option — letting
+  # `IntervalSet.new/2` apply its own default.
   defp coalesce_opt(opts) do
     case Keyword.get(opts, :coalesce) do
-      false -> false
-      _ -> true
+      nil -> false
+      value -> value
     end
   end
 
@@ -2936,6 +2998,20 @@ defmodule Tempo do
   the two operands. See `Tempo.Operations.symmetric_difference/3`.
   """
   defdelegate symmetric_difference(a, b, opts \\ []), to: Tempo.Operations
+
+  @doc """
+  Instant-level intersection — each result interval is the portion
+  of an `a` member trimmed to the overlap with `b`. See
+  `Tempo.Operations.overlap_trim/3`.
+  """
+  defdelegate overlap_trim(a, b, opts \\ []), to: Tempo.Operations
+
+  @doc """
+  Instant-level difference — each `a` member is trimmed to its
+  non-overlapping portions of `b` (can split one member into
+  multiple). See `Tempo.Operations.split_difference/3`.
+  """
+  defdelegate split_difference(a, b, opts \\ []), to: Tempo.Operations
 
   @doc """
   `true` when `a` and `b` share no instants.

@@ -25,12 +25,12 @@ rule = %Tempo.RRule.Rule{freq: :month, interval: 1, byday: [{2, 1}]}
 # `ast` is a %Tempo.Interval{recurrence: :infinity, ...} — not an error.
 # Materialising it requires a bound:
 
-{:ok, set} = Tempo.to_interval(ast, bound: ~o"2025-07-01", coalesce: false)
+{:ok, set} = Tempo.to_interval(ast, bound: ~o"2025-07-01")
 Tempo.IntervalSet.count(set)
 #=> 7
 ```
 
-> The **AST** is the recurrence *rule*; the **IntervalSet** is its *occurrences* inside a window. `:bound` is always supplied at materialisation, never at the rule. `coalesce: false` is what you want for scheduling — it keeps each occurrence as a separate member of the IntervalSet. With the default `coalesce: true` the individual occurrences merge into larger contiguous spans, useful for free/busy questions but not for "list the events."
+> The **AST** is the recurrence *rule*; the **IntervalSet** is its *occurrences* inside a window. `:bound` is always supplied at materialisation, never at the rule. Tempo's default member-preserving semantics keep each occurrence as a distinct member of the IntervalSet — which is what you want for scheduling. For the covered-instant form (individual occurrences merged into contiguous spans), pipe through `Tempo.IntervalSet.coalesce/1` — useful for free/busy questions but not for "list the events."
 
 For ad-hoc use, `Stream.take/2` and `Enum.take/2` work directly on the AST — it's enumerable, lazily:
 
@@ -170,7 +170,7 @@ defmodule Schedule do
 
   def occurrences_in(%{rule: ast}, from, to) do
     bound = %Tempo.Interval{from: from, to: to}
-    {:ok, set} = Tempo.to_interval(ast, bound: bound, coalesce: false)
+    {:ok, set} = Tempo.to_interval(ast, bound: bound)
     Tempo.IntervalSet.to_list(set)
   end
 end

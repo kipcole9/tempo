@@ -102,6 +102,8 @@ defmodule Tempo.MixProject do
         "guides/when-to-use-tempo.md",
         "guides/cookbook.md",
         "guides/scheduling.md",
+        "guides/workdays-and-weekends.md",
+        "guides/holidays.md",
         "guides/falsehoods.md",
         "guides/set-operations.md",
         "guides/enumeration-semantics.md",

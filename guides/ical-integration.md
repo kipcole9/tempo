@@ -19,14 +19,13 @@ ics = File.read!("~/my-calendar.ics")
 today = ~o"2026-04-21"
 {:ok, today_events} = Tempo.intersection(calendar, today)
 
-# What time am I actually busy?
-{:ok, busy} = Tempo.union(calendar, %Tempo.IntervalSet{})
-# Unioning with an empty set coalesces overlapping events into
-# busy-time spans.
+# What time am I actually busy? (the covered-instant form)
+busy = Tempo.IntervalSet.coalesce(calendar)
+# Overlapping events merge into contiguous busy-time spans.
 
 # When am I free during work hours?
 work_hours = ~o"2026-04-21T09/2026-04-21T17"
-{:ok, free} = Tempo.difference(work_hours, calendar)
+{:ok, free} = Tempo.split_difference(work_hours, calendar)
 ```
 
 Every result is a standard `%Tempo.IntervalSet{}`. Event metadata from the source calendar is preserved on whichever intervals came from those events.
@@ -104,7 +103,7 @@ The rule: **result intervals inherit the A-operand's per-interval metadata**. Fo
 
 ## 5. Overlapping events are preserved
 
-Real calendars routinely have overlapping events — a travel event on top of a lunch meeting, an all-day conference covering several one-hour talks. `Tempo.ICal.from_ical/2` returns **an IntervalSet with overlaps preserved**; it doesn't coalesce because that would destroy event identity.
+Real calendars routinely have overlapping events — a travel event on top of a lunch meeting, an all-day conference covering several one-hour talks. `Tempo.ICal.from_ical/2` returns **an IntervalSet with overlaps preserved** — the default member-preserving semantics of `Tempo.IntervalSet` keep each event as a distinct member so identity and metadata survive every subsequent set operation.
 
 ```elixir
 {:ok, set} = Tempo.ICal.from_ical(ics)
@@ -112,15 +111,13 @@ Real calendars routinely have overlapping events — a travel event on top of a 
 # distinct VEVENT with its own metadata.
 ```
 
-When you want free/busy spans (coalesced time), compute them explicitly:
+When you want free/busy spans (canonical covered-instant form), coalesce explicitly:
 
 ```elixir
-# Either: empty-set union coalesces
-{:ok, busy} = Tempo.union(set, %Tempo.IntervalSet{})
-
-# Or: pass through Tempo.IntervalSet.new/1 (which defaults to coalesce: true)
-{:ok, busy} = Tempo.IntervalSet.new(Tempo.IntervalSet.to_list(set))
+busy = Tempo.IntervalSet.coalesce(set)
 ```
+
+`Tempo.IntervalSet.coalesce/1` merges touching and overlapping members under the half-open convention and drops the dropped members' metadata. Use it only when you need the covered-instant shape; the default member-preserving form is what downstream set operations on calendars expect.
 
 ## 6. Free/busy patterns
 

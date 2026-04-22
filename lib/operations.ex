@@ -472,10 +472,15 @@ defmodule Tempo.Operations do
   ## ---------------------------------------------------------------
 
   @doc """
-  Union of two operands — every instant in either operand.
+  Union of two operands — every member of either operand, kept
+  as a distinct interval with its original metadata.
 
-  See the module doc and `plans/set-operations.md` for operand
-  requirements.
+  Under Tempo's member-preserving semantics, two inputs that
+  happen to cover the same time range produce **two** members in
+  the result, not one. If you want the canonical instant-set form
+  (touching members merged), call `Tempo.IntervalSet.coalesce/1`
+  on the result.
+
   """
   @spec union(operand :: any(), operand :: any(), keyword()) ::
           {:ok, IntervalSet.t()} | {:error, term()}
@@ -486,11 +491,46 @@ defmodule Tempo.Operations do
   end
 
   @doc """
-  Intersection of two operands — every instant present in both.
+  Intersection of two operands — the **members of `a`** that
+  overlap any member of `b`, kept as distinct intervals with
+  their original metadata.
+
+  This is the "which of these bookings hit the query window?"
+  query. Each surviving member is an entire member of `a` — not
+  a trimmed portion.
+
+  For the instant-level overlap form (each survivor trimmed to
+  its overlap with `b`), use `overlap_trim/3`.
+
   """
   @spec intersection(any(), any(), keyword()) ::
           {:ok, IntervalSet.t()} | {:error, term()}
   def intersection(a, b, opts \\ []) do
+    with {:ok, {a_set, b_set}} <- align(a, b, opts) do
+      result =
+        Enum.filter(a_set.intervals, fn a_int ->
+          Enum.any?(b_set.intervals, &intervals_overlap?(a_int, &1))
+        end)
+
+      IntervalSet.new(result, metadata: a_set.metadata)
+    end
+  end
+
+  @doc """
+  Instant-level intersection — each result interval is the
+  portion of an `a` member that overlaps some `b` member.
+  Members of `a` can be split into multiple fragments if `b`
+  covers only part of them.
+
+  Each emitted fragment carries the source `a` member's
+  metadata. Use this when you need the overlapping **time range**
+  rather than the overlapping **members** — e.g. "the parts of
+  my meetings that fall inside business hours".
+
+  """
+  @spec overlap_trim(any(), any(), keyword()) ::
+          {:ok, IntervalSet.t()} | {:error, term()}
+  def overlap_trim(a, b, opts \\ []) do
     with {:ok, {a_set, b_set}} <- align(a, b, opts) do
       IntervalSet.new(sweep_intersection(a_set.intervals, b_set.intervals),
         metadata: a_set.metadata
@@ -498,10 +538,19 @@ defmodule Tempo.Operations do
     end
   end
 
-  # Sweep-line intersection of two sorted interval lists. Each
-  # step finds the overlap between the current A and current B
-  # interval; if non-empty, add to the result; then advance
-  # whichever interval ends first (it can't contribute more).
+  # Two intervals overlap iff they share at least one instant.
+  # Under Allen's algebra, the non-overlapping relations are
+  # `:precedes`, `:preceded_by`, `:meets`, `:met_by` — the last
+  # two represent boundary-touching without instant overlap
+  # under half-open semantics.
+  defp intervals_overlap?(%Interval{} = a, %Interval{} = b) do
+    Interval.compare(a, b) not in [:precedes, :preceded_by, :meets, :met_by]
+  end
+
+  # Sweep-line instant-level intersection. Each step finds the
+  # overlap between the current A and current B interval; if
+  # non-empty, emit; advance whichever ends first. Used by
+  # `overlap_trim/3` and by `complement/2`'s internal pipeline.
 
   defp sweep_intersection([], _b), do: []
   defp sweep_intersection(_a, []), do: []
@@ -512,10 +561,6 @@ defmodule Tempo.Operations do
 
     case Compare.compare_endpoints(overlap_from, overlap_to) do
       :earlier ->
-        # Result interval inherits A's metadata (first-operand-wins
-        # policy). The metadata describes "what was happening at
-        # this time in A's world" — intersecting with B doesn't
-        # change that event's identity.
         result = %Interval{from: overlap_from, to: overlap_to, metadata: a.metadata}
         [result | advance(a, a_rest, b, b_rest)]
 
@@ -524,8 +569,6 @@ defmodule Tempo.Operations do
     end
   end
 
-  # Advance whichever interval ends first — the other might
-  # overlap more later.
   defp advance(a, a_rest, b, b_rest) do
     case Compare.compare_endpoints(a.to, b.to) do
       :later -> sweep_intersection([a | a_rest], b_rest)
@@ -548,12 +591,16 @@ defmodule Tempo.Operations do
   end
 
   @doc """
-  Complement of `set` within `bound` — every instant in `bound`
-  that is NOT in `set`.
+  Complement of `set` within `bound` — the instants in `bound`
+  that are NOT covered by any member of `set`.
 
-  The `:bound` option is **required**. An unbounded complement
-  is conceptually infinite; Tempo refuses to pick a universe
-  implicitly.
+  Unlike `difference/3` (which is member-preserving),
+  `complement/2` returns the **instant-set** form: one member
+  per gap in the covered region. This is the right semantics
+  for "find all free time in the workday" style queries.
+
+  The `:bound` option is required — an unbounded complement is
+  infinite, and Tempo refuses to pick a universe implicitly.
 
   ### Options
 
@@ -574,16 +621,60 @@ defmodule Tempo.Operations do
          )}
 
       bound ->
-        difference(bound, set, opts)
+        with {:ok, {bound_set, input_set}} <- align(bound, set, opts) do
+          # Coalesce the input so gaps are computed against the
+          # union-of-covered-instants, not against overlapping
+          # members individually.
+          coalesced_input = IntervalSet.coalesce(input_set)
+
+          IntervalSet.new(
+            sweep_difference(bound_set.intervals, coalesced_input.intervals),
+            metadata: bound_set.metadata
+          )
+        end
     end
   end
 
   @doc """
-  Difference `a \\ b` — every instant in `a` that is NOT in `b`.
+  Difference `a \\ b` — the **members of `a`** that do NOT
+  overlap any member of `b`.
+
+  Member-preserving: each surviving member is kept whole, with
+  its original metadata. A member of `a` is dropped entirely if
+  any member of `b` overlaps it, even partially.
+
+  For the instant-level form (trim each member of `a` to its
+  non-overlapping portion of `b`, splitting if necessary), use
+  `split_difference/3`.
+
   """
   @spec difference(any(), any(), keyword()) ::
           {:ok, IntervalSet.t()} | {:error, term()}
   def difference(a, b, opts \\ []) do
+    with {:ok, {a_set, b_set}} <- align(a, b, opts) do
+      result =
+        Enum.reject(a_set.intervals, fn a_int ->
+          Enum.any?(b_set.intervals, &intervals_overlap?(a_int, &1))
+        end)
+
+      IntervalSet.new(result, metadata: a_set.metadata)
+    end
+  end
+
+  @doc """
+  Instant-level difference — each member of `a` is trimmed to
+  its portions that don't overlap any member of `b`. A member
+  can be split into multiple fragments if `b` covers only the
+  middle.
+
+  Use this when you need the surviving **time range** rather
+  than the surviving **members** — e.g. "the parts of my meetings
+  that aren't in overlap with another booking".
+
+  """
+  @spec split_difference(any(), any(), keyword()) ::
+          {:ok, IntervalSet.t()} | {:error, term()}
+  def split_difference(a, b, opts \\ []) do
     with {:ok, {a_set, b_set}} <- align(a, b, opts) do
       IntervalSet.new(sweep_difference(a_set.intervals, b_set.intervals),
         metadata: a_set.metadata
@@ -657,8 +748,9 @@ defmodule Tempo.Operations do
   end
 
   @doc """
-  Symmetric difference `a △ b` — instants in exactly one of
-  `a` and `b`. Derived as `(a \\ b) ∪ (b \\ a)`.
+  Symmetric difference `a △ b` — members of either operand that
+  don't overlap any member of the other. Derived as
+  `(a \\ b) ∪ (b \\ a)` using the member-preserving difference.
   """
   @spec symmetric_difference(any(), any(), keyword()) ::
           {:ok, IntervalSet.t()} | {:error, term()}
@@ -676,7 +768,8 @@ defmodule Tempo.Operations do
   ## ---------------------------------------------------------------
 
   @doc """
-  `true` when `a` and `b` share no instants.
+  `true` when `a` and `b` share no instants — no member of `a`
+  overlaps any member of `b`.
   """
   @spec disjoint?(operand, operand, keyword()) :: boolean()
         when operand: Tempo.t() | Interval.t() | IntervalSet.t() | Tempo.Set.t()
@@ -696,12 +789,14 @@ defmodule Tempo.Operations do
   def overlaps?(a, b, opts \\ []), do: not disjoint?(a, b, opts)
 
   @doc """
-  `true` when every instant of `a` is also in `b`.
+  `true` when every instant covered by `a` is also covered by
+  `b`. Operates at the instant-set level (both operands
+  coalesced internally) — not member-by-member.
   """
   @spec subset?(operand, operand, keyword()) :: boolean()
         when operand: Tempo.t() | Interval.t() | IntervalSet.t() | Tempo.Set.t()
   def subset?(a, b, opts \\ []) do
-    case difference(a, b, opts) do
+    case split_difference(a, b, opts) do
       {:ok, %IntervalSet{intervals: []}} -> true
       {:ok, _} -> false
       {:error, exception} -> raise exception
@@ -709,21 +804,25 @@ defmodule Tempo.Operations do
   end
 
   @doc """
-  `true` when every instant of `b` is also in `a`. Alias for
-  `subset?(b, a, opts)`.
+  `true` when every instant covered by `b` is also covered by
+  `a`. Alias for `subset?(b, a, opts)`.
   """
   @spec contains?(operand, operand, keyword()) :: boolean()
         when operand: Tempo.t() | Interval.t() | IntervalSet.t() | Tempo.Set.t()
   def contains?(a, b, opts \\ []), do: subset?(b, a, opts)
 
   @doc """
-  `true` when `a` and `b` span the same instants.
+  `true` when `a` and `b` cover the same instants — i.e. they
+  are mutual subsets at the instant-set level. Member identity
+  and metadata are ignored; only the covered instants matter.
   """
   @spec equal?(operand, operand, keyword()) :: boolean()
         when operand: Tempo.t() | Interval.t() | IntervalSet.t() | Tempo.Set.t()
   def equal?(a, b, opts \\ []) do
     with {:ok, {a_set, b_set}} <- align(a, b, opts) do
-      a_set.intervals == b_set.intervals
+      coalesced_a = IntervalSet.coalesce(a_set)
+      coalesced_b = IntervalSet.coalesce(b_set)
+      coalesced_a.intervals == coalesced_b.intervals
     else
       {:error, exception} -> raise exception
     end

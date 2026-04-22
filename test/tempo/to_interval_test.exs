@@ -201,13 +201,16 @@ defmodule Tempo.ToInterval.Test do
       assert Exception.message(e) =~ "epistemic"
     end
 
-    test "all-of range (`{a..c}Y`) materialises to a coalesced IntervalSet" do
-      # `{…}Y` is the range-in-a-slot form. Three touching years
-      # coalesce to a single 3-year span.
+    test "all-of range (`{a..c}Y`) materialises to distinct year members" do
       {:ok, tempo} = Tempo.from_iso8601("{2020,2021,2022}Y")
-      {:ok, %Tempo.IntervalSet{intervals: intervals}} = Tempo.to_interval(tempo)
-      assert length(intervals) == 1
-      [interval] = intervals
+      {:ok, set} = Tempo.to_interval(tempo)
+
+      # Three distinct year members by default.
+      assert length(set.intervals) == 3
+
+      # Coalesced: the touching years merge into a single 3-year span.
+      coalesced = Tempo.IntervalSet.coalesce(set)
+      [interval] = coalesced.intervals
       assert interval.from.time == [year: 2020, month: 1]
       assert interval.to.time == [year: 2023, month: 1]
     end

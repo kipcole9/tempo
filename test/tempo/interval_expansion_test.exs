@@ -60,30 +60,39 @@ defmodule Tempo.IntervalExpansion.Test do
   end
 
   describe "bounded recurrence" do
-    test "`R3/1985-01/P1M` expands to 3 disjoint months (coalesced to 1 span)" do
+    test "`R3/1985-01/P1M` expands to 3 distinct month members" do
       {:ok, interval} = Tempo.from_iso8601("R3/1985-01/P1M")
-      {:ok, %Tempo.IntervalSet{intervals: intervals}} = Tempo.to_interval(interval)
+      {:ok, set} = Tempo.to_interval(interval)
 
-      # Three touching month-intervals coalesce to a single
-      # 3-month span under the half-open rule.
-      assert length(intervals) == 1
-      [span] = intervals
+      # Under member-preserving default, each occurrence is a
+      # distinct member. Call `coalesce/1` for the canonical span.
+      assert length(set.intervals) == 3
+      assert Enum.map(set.intervals, & &1.from.time[:month]) == [1, 2, 3]
+
+      coalesced = Tempo.IntervalSet.coalesce(set)
+      [span] = coalesced.intervals
       assert span.from.time == [year: 1985, month: 1]
       assert span.to.time == [year: 1985, month: 4]
     end
 
-    test "`R5/1985-01-01/P1D` — 5 consecutive days coalesce" do
+    test "`R5/1985-01-01/P1D` — 5 distinct day members" do
       {:ok, interval} = Tempo.from_iso8601("R5/1985-01-01/P1D")
-      {:ok, %Tempo.IntervalSet{intervals: intervals}} = Tempo.to_interval(interval)
-      assert length(intervals) == 1
-      [span] = intervals
+      {:ok, set} = Tempo.to_interval(interval)
+      assert length(set.intervals) == 5
+
+      coalesced = Tempo.IntervalSet.coalesce(set)
+      [span] = coalesced.intervals
       assert span.from.time == [year: 1985, month: 1, day: 1]
       assert span.to.time == [year: 1985, month: 1, day: 6]
     end
 
-    test "`R2/1985-01/P1Y` — two consecutive years coalesce to a 2-year span" do
+    test "`R2/1985-01/P1Y` — two distinct year members; coalesce to a 2-year span" do
       {:ok, interval} = Tempo.from_iso8601("R2/1985-01/P1Y")
-      {:ok, %Tempo.IntervalSet{intervals: [span]}} = Tempo.to_interval(interval)
+      {:ok, set} = Tempo.to_interval(interval)
+      assert length(set.intervals) == 2
+
+      coalesced = Tempo.IntervalSet.coalesce(set)
+      [span] = coalesced.intervals
       assert span.from.time == [year: 1985, month: 1]
       assert span.to.time == [year: 1987, month: 1]
     end

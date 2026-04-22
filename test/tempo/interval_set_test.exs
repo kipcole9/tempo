@@ -24,37 +24,46 @@ defmodule Tempo.IntervalSet.Test do
              ]
     end
 
-    test "touching intervals coalesce (half-open semantics)" do
-      # `[Jan, Feb) ++ [Feb, Mar)` = `[Jan, Mar)`.
+    test "touching intervals stay as distinct members (member-preserving default)" do
       jan = interval(~o"2022Y1M")
       feb = interval(~o"2022Y2M")
 
       {:ok, set} = Tempo.IntervalSet.new([jan, feb])
+      assert length(set.intervals) == 2
 
-      assert length(set.intervals) == 1
-      [interval] = set.intervals
+      # Explicit coalescing merges touching members under the
+      # half-open convention: `[Jan, Feb) ++ [Feb, Mar)` = `[Jan, Mar)`.
+      coalesced = Tempo.IntervalSet.coalesce(set)
+      assert length(coalesced.intervals) == 1
+      [interval] = coalesced.intervals
       assert interval.from.time == [year: 2022, month: 1, day: 1]
       assert interval.to.time == [year: 2022, month: 3, day: 1]
     end
 
-    test "overlapping intervals coalesce" do
+    test "overlapping intervals stay distinct by default; coalesce to merge" do
       jan = interval(~o"2022Y1M")
       q1 = %Tempo.Interval{from: ~o"2022Y1M15D", to: ~o"2022Y3M15D"}
 
       {:ok, set} = Tempo.IntervalSet.new([jan, q1])
+      assert length(set.intervals) == 2
 
-      assert length(set.intervals) == 1
-      [interval] = set.intervals
+      coalesced = Tempo.IntervalSet.coalesce(set)
+      assert length(coalesced.intervals) == 1
+      [interval] = coalesced.intervals
       assert interval.from.time == [year: 2022, month: 1, day: 1]
       assert interval.to.time == [year: 2022, month: 3, day: 15]
     end
 
-    test "three touching intervals coalesce to one" do
-      # Known from the integration tests but verified here in
-      # isolation against the constructor itself.
+    test "three touching intervals — distinct by default; coalesce to one" do
       {:ok, tempo} = Tempo.from_iso8601("{2020,2021,2022}Y")
-      {:ok, %Tempo.IntervalSet{intervals: intervals}} = Tempo.to_interval(tempo)
-      assert length(intervals) == 1
+      {:ok, %Tempo.IntervalSet{intervals: intervals} = set} = Tempo.to_interval(tempo)
+
+      # Three separate year members.
+      assert length(intervals) == 3
+
+      # Coalesced: touching years merge into a single 3-year span.
+      coalesced = Tempo.IntervalSet.coalesce(set)
+      assert length(coalesced.intervals) == 1
     end
 
     test "empty list yields an empty set" do
@@ -232,9 +241,17 @@ defmodule Tempo.IntervalSet.Test do
   end
 
   describe "to_interval/1 routing — multi-interval shapes" do
-    test "range in a time slot → IntervalSet (coalesced if touching)" do
+    test "range in a time slot → IntervalSet with distinct members (coalesce to merge)" do
       {:ok, tempo} = Tempo.from_iso8601("2022Y{1..3}M")
-      {:ok, %Tempo.IntervalSet{intervals: [q1]}} = Tempo.to_interval(tempo)
+      {:ok, set} = Tempo.to_interval(tempo)
+
+      # Three separate month members by default.
+      assert length(set.intervals) == 3
+
+      # Explicit coalesce merges the touching months into one span.
+      coalesced = Tempo.IntervalSet.coalesce(set)
+      assert length(coalesced.intervals) == 1
+      [q1] = coalesced.intervals
       assert q1.from.time == [year: 2022, month: 1, day: 1]
       assert q1.to.time == [year: 2022, month: 4, day: 1]
     end
@@ -246,13 +263,18 @@ defmodule Tempo.IntervalSet.Test do
       assert Enum.map(intervals, & &1.from.time[:month]) == [1, 4, 7, 10]
     end
 
-    test "cartesian range expansion with partial coalescing" do
-      # `{1..2}M{1..2}D` gives four points: Jan 1, Jan 2, Feb 1,
-      # Feb 2. Jan 1 and Jan 2 are touching; Feb 1 and Feb 2 are
-      # touching; Jan 2 and Feb 1 don't touch (Jan 3..Feb 1 gap).
+    test "cartesian range expansion — distinct members by default" do
+      # `{1..2}M{1..2}D` gives four point-members: Jan 1, Jan 2,
+      # Feb 1, Feb 2. All are distinct under member-preserving
+      # semantics; `coalesce/1` merges touching pairs.
       {:ok, tempo} = Tempo.from_iso8601("2022Y{1..2}M{1..2}D")
-      {:ok, %Tempo.IntervalSet{intervals: intervals}} = Tempo.to_interval(tempo)
-      assert length(intervals) == 2
+      {:ok, set} = Tempo.to_interval(tempo)
+      assert length(set.intervals) == 4
+
+      coalesced = Tempo.IntervalSet.coalesce(set)
+      # Jan 1 + Jan 2 touch → merged; Feb 1 + Feb 2 touch → merged;
+      # gap between Jan 3 and Feb 1 → stays two spans.
+      assert length(coalesced.intervals) == 2
     end
 
     test "scalar input still returns a single Interval" do

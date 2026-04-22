@@ -1,8 +1,34 @@
 # Set operations
 
-Tempo implements the core set operations — union, intersection, complement, difference, symmetric difference — and a companion set of predicates (`disjoint?/2`, `overlaps?/2`, `subset?/2`, `contains?/2`, `equal?/2`) on every Tempo value.
+Tempo implements the core set operations — union, intersection, complement, difference, symmetric difference — with **member-preserving** semantics by default. Companion predicates (`disjoint?/2`, `overlaps?/2`, `subset?/2`, `contains?/2`, `equal?/2`) operate at the instant-set level.
 
 Every operation accepts any Tempo shape — an implicit `%Tempo{}`, an `%Tempo.Interval{}`, a `%Tempo.IntervalSet{}`, or an all-of `%Tempo.Set{}` — and returns a `%Tempo.IntervalSet{}` (or a boolean for predicates). The top-level API lives on the `Tempo` module: `Tempo.union/2`, `Tempo.intersection/2`, and so on.
+
+## 0. Member-preserving vs instant-level
+
+This is the most important distinction in Tempo's set algebra, and the one that drives every design decision below.
+
+A `%Tempo.IntervalSet{}` represents **a set of distinct member intervals** — typically events, bookings, meetings, holidays, or any domain object with identity and metadata. Set operations respect that identity:
+
+* **`Tempo.union/2`** — concatenates the members of both operands. Two touching year-intervals stay two members, not one merged span.
+
+* **`Tempo.intersection/2`** — returns the members of A that overlap any member of B, kept whole with their original metadata. This is "which of these bookings hit the query window?".
+
+* **`Tempo.difference/2`** — returns the members of A that *don't* overlap any member of B, kept whole. This is "which workdays aren't holidays?".
+
+* **`Tempo.symmetric_difference/2`** — members of either operand that don't overlap any member of the other.
+
+Some questions are about **covered instants** rather than members: "is this point in a busy period?", "what's the total free time?", "are these two schedules equivalent?". For those, Tempo exposes parallel **instant-level** operations that trim and compute at the point level:
+
+* **`Tempo.overlap_trim/2`** — each result interval is the *portion* of an A member trimmed to the overlap with some B member. Members can split into multiple fragments.
+
+* **`Tempo.split_difference/2`** — each A member is trimmed to its non-overlapping portions of B, possibly splitting one member into multiple fragments.
+
+* **`Tempo.complement/2`** — coalesces internally; returns the uncovered portions of a bound.
+
+* **`Tempo.IntervalSet.coalesce/1`**, **`covered?/2`**, **`total_duration/1`** — canonical instant-set queries on an IntervalSet.
+
+The test: **if your question is about events or members, use the default operations; if it's about covered time, use the instant-level variants.** "Which bookings overlap this window?" uses `intersection`. "How much overlapping time is there?" uses `overlap_trim` + `total_duration`.
 
 ## 1. The three rules
 
@@ -81,38 +107,51 @@ iex> Tempo.anchor(~o"2026-01-04", ~o"T10:30")
 
 ## 3. The operations
 
-### Union
+### Union — member-preserving
 
-Every instant in either operand.
+All members of both operands, kept as distinct intervals with their original metadata.
 
 ```elixir
 iex> {:ok, r} = Tempo.union(~o"2022Y", ~o"2023Y")
 iex> Tempo.IntervalSet.count(r)
-1                                    # touching years coalesce
-
-iex> {:ok, r} = Tempo.union(~o"2020Y", ~o"2022Y")
-iex> Tempo.IntervalSet.count(r)
-2                                    # non-touching stay separate
+2                                    # two distinct year members
 ```
 
-Identities: `∅ ∪ A = A`. Commutative: `A ∪ B = B ∪ A`.
+For the canonical instant-set form (touching members merged into one span), coalesce explicitly:
 
-### Intersection
+```elixir
+iex> {:ok, r} = Tempo.union(~o"2022Y", ~o"2023Y")
+iex> r |> Tempo.IntervalSet.coalesce() |> Tempo.IntervalSet.count()
+1                                    # [2022-01-01, 2024-01-01)
+```
 
-Every instant in both operands.
+Identities hold at the instant-set level: `∅ ∪ A` has the same covered instants as `A`; `A ∪ B` and `B ∪ A` differ only in sort order, which is normalised.
+
+### Intersection — member-preserving overlap-filter
+
+Members of `a` that overlap any member of `b`, kept whole.
 
 ```elixir
 iex> {:ok, r} = Tempo.intersection(~o"2022Y", ~o"2022-06-15")
-iex> [span] = Tempo.IntervalSet.to_list(r)
-iex> Tempo.day(span)
-15                                   # the day is contained in the year
+iex> [iv] = Tempo.IntervalSet.to_list(r)
+iex> iv.from.time[:year]
+2022                                 # the year member is kept whole
 ```
 
-Identities: `∅ ∩ A = ∅`. Commutative. Half-open: touching intervals (`2022Y ∩ 2023Y`) share no instants; intersection is empty.
+The surviving A member inherits A's calendar and metadata; the operand's time range is used only to decide *whether* to keep the member, not to trim it.
 
-### Complement
+For the trimmed instant-level form:
 
-Every instant in the universe that is NOT in `set`. The `:bound` option is **required**.
+```elixir
+iex> {:ok, r} = Tempo.overlap_trim(~o"2022Y", ~o"2022-06-15")
+iex> [iv] = Tempo.IntervalSet.to_list(r)
+iex> iv.from.time[:day]
+15                                   # trimmed to the day-shaped overlap
+```
+
+### Complement — instant-level
+
+Every instant in the universe that is NOT covered by any member of `set`. The `:bound` option is **required**. Internally coalesces before computing gaps.
 
 ```elixir
 iex> {:ok, r} = Tempo.complement(~o"2022-06", bound: ~o"2022Y")
@@ -122,33 +161,49 @@ iex> Tempo.IntervalSet.count(r)
 
 An unbounded complement is infinite; Tempo refuses to pick a universe implicitly.
 
-### Difference
+### Difference — member-preserving anti-overlap-filter
 
-`A \ B` — every instant in `A` that is not in `B`.
+Members of `a` that do NOT overlap any member of `b`, kept whole.
 
 ```elixir
-iex> {:ok, r} = Tempo.difference(~o"2022Y", ~o"2022-06")
-iex> Tempo.IntervalSet.count(r)
-2                                    # same as complement(2022-06, bound: 2022Y)
+iex> workdays = Tempo.select!(window, :workdays)
+iex> {:ok, net_workdays} = Tempo.difference(workdays, holidays)
+# each surviving workday is a distinct day-member, holidays removed
 ```
 
-Identities: `A \ A = ∅`, `A \ ∅ = A`, `∅ \ A = ∅`.
+A member of `a` is dropped entirely if any member of `b` overlaps it, even partially. For a single `a` member that partially overlaps `b`, that member is dropped — use `split_difference/2` to keep its non-overlapping portions:
 
-### Symmetric difference
+```elixir
+iex> {:ok, r} = Tempo.split_difference(~o"2022Y", ~o"2022-06")
+iex> Tempo.IntervalSet.count(r)
+2                                    # Jan–Jun and Jul–Dec
+```
 
-`A △ B` — instants in exactly one of `A` and `B`. Derived from `(A \ B) ∪ (B \ A)`.
+### Symmetric difference — member-preserving
+
+`A △ B` — members of either operand that don't overlap any member of the other. Derived from `(A \ B) ∪ (B \ A)`.
+
+```elixir
+iex> {:ok, r} = Tempo.symmetric_difference(~o"2020Y", ~o"2022Y")
+iex> Tempo.IntervalSet.count(r)
+2                                    # disjoint operands → both members survive
+```
+
+For the instant-level "only the non-shared portions" form, use `split_difference` on both directions and union:
 
 ```elixir
 iex> a = ~o"2022-01/2022-07"
 iex> b = ~o"2022-04/2022-10"
-iex> {:ok, r} = Tempo.symmetric_difference(a, b)
-iex> Tempo.IntervalSet.count(r)
-2                                    # Jan-Mar and Jul-Sep (non-overlap portions)
+iex> {:ok, left}  = Tempo.split_difference(a, b)
+iex> {:ok, right} = Tempo.split_difference(b, a)
+iex> {:ok, trim}  = Tempo.union(left, right)
+iex> Tempo.IntervalSet.count(trim)
+2                                    # Jan–Mar and Jul–Oct (the trimmed edges)
 ```
 
-### Predicates
+### Predicates — instant-level
 
-All return booleans; all short-circuit where possible.
+All return booleans. Predicates answer "covered instants" questions — they ignore member identity and compare the coalesced forms.
 
 ```elixir
 iex> Tempo.disjoint?(~o"2020Y", ~o"2022Y")
@@ -164,19 +219,21 @@ iex> Tempo.contains?(~o"2022Y", ~o"2022-06")
 true                                 # 2022 ⊇ June (alias: subset?(b, a))
 
 iex> Tempo.equal?(~o"2022Y", Tempo.from_iso8601!("2022-01-01/2023-01-01"))
-true                                 # same span, different representations
+true                                 # same covered instants, different representations
 ```
 
 ## 4. Algebraic laws
 
-The operations satisfy the standard set-algebra identities, provided both operands are in the same anchor class or a `:bound` is supplied:
+Set-algebra identities hold at the **instant-set level** — i.e. after coalescing, or equivalently, when compared via `Tempo.equal?/2`. The member-preserving operations don't satisfy laws like classical commutativity of intersection because they preserve A-side member identity; for that, use the instant-level variants (`overlap_trim`, `split_difference`) which do satisfy them:
 
-- Commutativity: `A ∪ B = B ∪ A`, `A ∩ B = B ∩ A`
-- Associativity: `(A ∪ B) ∪ C = A ∪ (B ∪ C)` and similarly for ∩
-- Identity: `A ∪ ∅ = A`, `A ∩ U = A` (with `U` = bound)
-- De Morgan's laws: `¬(A ∪ B) = ¬A ∩ ¬B` and `¬(A ∩ B) = ¬A ∪ ¬B` (within a common bound)
+- Commutativity: `overlap_trim(A, B) ≡ overlap_trim(B, A)` (same covered instants)
+- Associativity: `(A ∪ B) ∪ C ≡ A ∪ (B ∪ C)` under coalescing
+- Identity: `A ∪ ∅ ≡ A`, `overlap_trim(A, U) ≡ A` (with `U` = bound)
+- De Morgan's laws: `¬(A ∪ B) ≡ ¬A ∩ ¬B` and `¬(overlap_trim(A, B)) ≡ ¬A ∪ ¬B` (within a common bound)
 
 Tempo's test suite covers all of these.
+
+Note that `≡` here is covered-instant equality (via `Tempo.equal?/2`), not member-list equality. Member-preserving `intersection` and `difference` are *not* commutative in the classical sense: `intersection(a, b)` returns A-side members, `intersection(b, a)` returns B-side — same covered instants, different members.
 
 ## 5. Edge cases
 
@@ -198,10 +255,12 @@ Tempo's test suite covers all of these.
 
 ## 7. Implementation notes
 
-- Union: concat + `IntervalSet.new/1` (which sorts and coalesces). O(n log n) on the combined input.
-- Intersection: sweep-line, O(n+m).
-- Complement: derived as `difference(bound, set)`.
-- Difference: sweep-line over A with a running cursor into B, emitting the uncovered portions.
-- Symmetric difference: derived as `(A \ B) ∪ (B \ A)`.
+- **Union**: concat + `IntervalSet.new/1` (which sorts but does *not* coalesce by default). O(n log n) on the combined input.
+- **Intersection** (member-preserving): per-A-member overlap check against B. O(n × m) in the worst case; sweep-line optimisation planned for large sets.
+- **Difference** (member-preserving): per-A-member anti-overlap check against B. Same complexity as intersection.
+- **Symmetric difference**: derived as `(A \ B) ∪ (B \ A)`.
+- **`overlap_trim`** (instant-level): sweep-line, O(n+m). Each step emits the trimmed overlap and advances whichever interval ends first.
+- **`split_difference`** (instant-level): sweep-line over A with a running cursor into B, emitting A's uncovered portions.
+- **`complement`**: internally coalesces the input and then calls `split_difference(bound, coalesced)`.
 
 Implementation in `lib/operations.ex`. Shared comparison primitives in `lib/compare.ex`. Tests in `test/tempo/operations_test.exs`.

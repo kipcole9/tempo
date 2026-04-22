@@ -404,7 +404,7 @@ iex> length(occurrences)
 
 ```elixir
 iex> {:ok, ast} = Tempo.RRule.parse("FREQ=WEEKLY;BYDAY=MO;COUNT=10", from: ~o"2026-06-01")
-iex> {:ok, set} = Tempo.to_interval(ast, coalesce: false)
+iex> {:ok, set} = Tempo.to_interval(ast)
 iex> Tempo.IntervalSet.count(set)
 10
 ```
@@ -823,6 +823,8 @@ iex> Tempo.compare(~o"2022-06", ~o"2023-06")
 
 * [When to use Tempo](./when-to-use-tempo.md) — a short decision guide on choosing between Tempo and the Elixir standard library.
 * [Scheduling](./scheduling.md) — bounded enumeration, wall-clock-vs-UTC authority, floating vs zoned events, and how future dates survive Tzdata rule changes.
+* [Working with workdays and weekends](./workdays-and-weekends.md) — business-day queries (N days from today, next workday, workdays between two dates) built from the `:workdays` selector and set algebra.
+* [Holidays — planning with a real holiday calendar](./holidays.md) — fetch an ICS holiday feed, parse it with `Tempo.ICal.from_ical/1`, and compose it with the `:workdays` selector for territory-aware scheduling.
 * [Falsehoods programmers believe about time](./falsehoods.md) — the ten most impactful wrong assumptions, each with the Tempo idiom that makes the right behaviour automatic.
 * [ISO 8601 conformance](./iso8601-conformance.md) — what's supported from the standard.
 * [Enumeration semantics](./enumeration-semantics.md) — how iteration works across Tempo values.

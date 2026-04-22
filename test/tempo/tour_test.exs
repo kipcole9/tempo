@@ -33,8 +33,8 @@ defmodule Tempo.TourTest do
     assert output =~ "1560"
     assert output =~ "1569"
 
-    # Step 4: union of 2022Y and 2023Y coalesces into 1 interval.
-    assert output =~ "#=> 1"
+    # Step 4: member-preserving union of 2022Y and 2023Y has 2 members.
+    assert output =~ "#=> 2"
 
     # Step 5: Hebrew ∩ Gregorian returns a boolean.
     assert output =~ "#=> true" or output =~ "#=> false"

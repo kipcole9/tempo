@@ -36,3 +36,39 @@
   The right answer depends on which use case dominates in practice;
   defer until we have more real-world examples.
 
+* **Cron parser — AST gaps identified during implementation of `Tempo.Cron`.**
+
+  The cron parser (`Tempo.Cron.parse/1`) converts cron expressions into the
+  `%Tempo.RRule.Rule{}` AST used by the rest of the recurrence pipeline. Four
+  cron features do not map cleanly to the current AST. Each will require
+  either an AST extension or a new operator to support faithfully.
+
+  1. **`W` (nearest-weekday) day-of-month** — e.g. `15W` meaning "the nearest
+     weekday to the 15th". RFC 5545 has no equivalent; `Tempo.RRule.Rule` has
+     no field for it. The parser rejects `W` with
+     `{:error, %Tempo.CronError{reason: :unsupported_w}}`. Adding this would
+     need a new `:bymonthday_nearest_weekday` field on `Rule` and a matching
+     clause in the expander.
+
+  2. **Multi-year lists in 7-field cron** — e.g. `0 0 1 1 * 2025,2027,2029`.
+     A single concrete year becomes `:until` (Dec 31 of that year). Multi-
+     year lists have no direct AST field (`:byyear` does not exist) and the
+     constraint is silently dropped; callers currently have to supply a
+     `:bound` at materialisation time. Adding a `:byyear` field to `Rule`
+     would be the cleanest fix.
+
+  3. **POSIX day-of-month OR day-of-week semantics** — when a cron expression
+     has both `dom` and `dow` non-`*`, POSIX specifies the union (either
+     condition true). RRule BY rules AND-compose. Currently the parser
+     tightens `dom` into a conjunction alongside `dow`, producing fewer
+     matches than POSIX would. Exact OR would require a disjunction operator
+     in the AST — e.g. `:or_clauses` holding a list of sub-rules whose match
+     sets are unioned.
+
+  4. **Step LHS semantics on day-of-week** — `MON-FRI/2` works, but `FRI/2`
+     (a step starting from a named day) currently expands to `FRI..SUN` at
+     step 2, which is the conservative interpretation. cron dialects
+     disagree on whether `N/S` means "every S from N to end of range" or
+     "every S starting from N with wrap-around". No AST change needed — a
+     design call only.
+

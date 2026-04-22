@@ -388,7 +388,7 @@ defmodule Tempo.ICal.Test do
       assert iv.metadata.location == "Room 101"
     end
 
-    test "difference preserves A-side per-interval metadata" do
+    test "split_difference preserves A-side per-interval metadata across splits" do
       import Tempo.Sigil
 
       ics = """
@@ -408,9 +408,10 @@ defmodule Tempo.ICal.Test do
       {:ok, events} = Tempo.ICal.from_ical(ics)
       break_time = ~o"2022-06-15T10/2022-06-15T11"
 
-      {:ok, remaining} = Tempo.difference(events, break_time)
-      # Event is split into pre-break and post-break, both tagged
-      # with the original event's metadata.
+      # Instant-level difference: the event member is trimmed into
+      # the pre-break and post-break portions. Both carry the
+      # source event's metadata.
+      {:ok, remaining} = Tempo.split_difference(events, break_time)
       assert length(remaining.intervals) == 2
 
       assert Enum.all?(remaining.intervals, fn iv ->
