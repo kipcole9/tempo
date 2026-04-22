@@ -385,6 +385,30 @@ holidays = fn _base -> [~o"01-01", ~o"07-04", ~o"12-25"] end
 
 > **Function selectors** receive the base and return any selector shape (list of Tempos here). This is the extension point for user-defined holiday calendars, business rules, or anything else you want to compute from the base.
 
+### How do I pick "the last X of Y"?
+
+ISO 8601-2 §4.4.1 allows any component to be negative, meaning "count from the end of the containing unit". Negative components flow straight through `Tempo.select/2` — no string arithmetic, no `days_in_month/2` calls, no calendar branches:
+
+```elixir
+iex> {:ok, last_month} = Tempo.select(~o"2026", ~o"-1M")
+iex> Tempo.month(Tempo.IntervalSet.to_list(last_month) |> hd())
+12
+
+iex> {:ok, last_day_of_feb} = Tempo.select(~o"2024-02", ~o"-1D")
+iex> Tempo.day(Tempo.IntervalSet.to_list(last_day_of_feb) |> hd())
+29
+
+iex> {:ok, last_day_of_feb} = Tempo.select(~o"2026-02", ~o"-1D")
+iex> Tempo.day(Tempo.IntervalSet.to_list(last_day_of_feb) |> hd())
+28
+```
+
+> **`-1M`** on a year base is the **last month**. **`-1D`** on a month base is the **last day of that month** — **leap-aware** (Feb 29 in 2024, Feb 28 in 2026). **`-1W`** on a year base is the **last ISO week** (52 or 53 depending on year).
+
+The resolution is axis-aware: `-1W` on a month base gives the last week-of-month (4 or 5), while on a year base it gives the last ISO week-of-year (52 or 53). `-1O` (ordinal) on a year base is the year's last day; `-1K` is the week's last day-of-week.
+
+Negative components compose with the rest of the selector vocabulary — `Tempo.select(~o"2026", [~o"-1D", ~o"12-25"])` projects *both* "last day of year" and "Christmas" onto 2026, yielding Dec 25 and Dec 31 as separate members.
+
 See `Tempo.Select` for the full selector vocabulary.
 
 ---

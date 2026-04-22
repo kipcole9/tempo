@@ -11,6 +11,8 @@ defmodule Tempo.Select do
   Tempo.select(~o"2026", ~o"12-25")
   Tempo.select(~o"2026", ~o"10O")     # ISO 8601-2 ordinal day — the 10th day of 2026
   Tempo.select(~o"2026-06", ~o"5K")   # ISO 8601-2 day-of-week — every Friday in June 2026
+  Tempo.select(~o"2026", ~o"-1M")     # ISO 8601-2 negative — the last month of 2026
+  Tempo.select(~o"2026-06", ~o"-1D")  # ISO 8601-2 negative — the last day of June 2026
   Tempo.select(~o"2026", &my_holidays/1)
   ```
 
@@ -43,12 +45,41 @@ defmodule Tempo.Select do
   | `%Tempo{day_of_week: …}` | `Tempo.select(m, ~o"5K")` | Day-of-week pattern — every matching weekday in the base (ISO 8601-2 `K` suffix) |
   | `%Tempo{day_of_week: [...]}` | `Tempo.select(m, Tempo.workdays(:US))` | Day-of-week list — every matching weekday in the base |
   | `%Tempo{day: N}` (ordinal) | `Tempo.select(y, ~o"10O")` | Ordinal day in the year — the Nth day (ISO 8601-2 `O` suffix) |
+  | Negative components | `Tempo.select(y, ~o"-1M")` | ISO 8601-2 §4.4.1 — count from the end of the containing unit |
   | `%Tempo.Interval{}` or list | `Tempo.select(y, vacation)` | Same, for explicit intervals |
   | Function | `Tempo.select(y, &fn/1)` | The function returns any of the above; evaluated against the base |
 
   Base can be a `t:Tempo.t/0`, `t:Tempo.Interval.t/0`, or
   `t:Tempo.IntervalSet.t/0`. IntervalSet bases flat-map the
   selector across each member and collect the results.
+
+  ## Negative components — "last N from the end"
+
+  ISO 8601-2 §4.4.1 allows any integer component to be negative,
+  meaning "count from the end of the containing time-scale unit".
+  `Tempo.select/2` honours this: the resolution is context-aware
+  and produces end-of-span selections without string munging or
+  calendar arithmetic at the call site.
+
+  ```elixir
+  Tempo.select(~o"2026",    ~o"-1M")  #=> December 2026 (last month of year)
+  Tempo.select(~o"2026",    ~o"-1D")  #=> Dec 31 2026 (last day of year)
+  Tempo.select(~o"2026",    ~o"-1W")  #=> week 52 of 2026 (last ISO week)
+  Tempo.select(~o"2026-06", ~o"-1D")  #=> Jun 30 2026 (last day of month)
+  Tempo.select(~o"2026-02", ~o"-1D")  #=> Feb 28 2026 (leap-aware — Feb 29 in 2024)
+  ```
+
+  The resolution is calendar-aware — `Tempo.select(~o"2024-02",
+  ~o"-1D")` returns Feb 29 because 2024 is a leap year. It is
+  also axis-aware: `-1W` on a year base uses ISO
+  weeks-in-year (52 or 53); `-1W` on a month base uses weeks of
+  that month (4 or 5). `-1M` always refers to the calendar
+  month; `-1K` to the week's last day-of-week; `-1O` to the
+  year's last ordinal day.
+
+  Negative `:year` values are preserved (BC designator per ISO
+  8601-2 expanded year form) — they're not flipped to "last
+  year" because a time line has no "end" to count from.
 
   """
 
