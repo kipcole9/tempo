@@ -8,6 +8,8 @@ defmodule Tempo.Select do
   Tempo.select(~o"2026-06", :workdays)
   Tempo.select(~o"2026", [1, 15])
   Tempo.select(~o"2026", ~o"12-25")
+  Tempo.select(~o"2026", ~o"10O")     # ISO 8601-2 ordinal day — the 10th day of 2026
+  Tempo.select(~o"2026-06", ~o"5K")   # ISO 8601-2 day-of-week — every Friday in June 2026
   Tempo.select(~o"2026", &my_holidays/1)
   ```
 
@@ -23,6 +25,8 @@ defmodule Tempo.Select do
   | `:workdays` / `:weekend` | `Tempo.select(m, :workdays)` | Locale-resolved weekday set |
   | `[integer]` / `Range` | `Tempo.select(m, [1, 15])` | Integer indices applied at base's next-finer unit |
   | `%Tempo{}` or list | `Tempo.select(y, ~o"12-25")` | Project the constraint's specified units onto the base |
+  | `%Tempo{day_of_week: …}` | `Tempo.select(m, ~o"5K")` | Day-of-week pattern — every matching weekday in the base (ISO 8601-2 `K` suffix) |
+  | `%Tempo{day: N}` (ordinal) | `Tempo.select(y, ~o"10O")` | Ordinal day in the year — the Nth day (ISO 8601-2 `O` suffix) |
   | `%Tempo.Interval{}` or list | `Tempo.select(y, vacation)` | Same, for explicit intervals |
   | Function | `Tempo.select(y, &fn/1)` | The function returns any of the above; evaluated against the base |
 
@@ -120,6 +124,15 @@ defmodule Tempo.Select do
       iex> [xmas] = Tempo.IntervalSet.to_list(set)
       iex> xmas.from.time
       [year: 2026, month: 12, day: 25]
+
+      iex> {:ok, set} = Tempo.Select.select(~o"2026", ~o"10O")
+      iex> [day10] = Tempo.IntervalSet.to_list(set)
+      iex> {day10.from.time[:month], day10.from.time[:day]}
+      {1, 10}
+
+      iex> {:ok, set} = Tempo.Select.select(~o"2026-06", ~o"5K")
+      iex> set |> Tempo.IntervalSet.to_list() |> Enum.map(& &1.from.time[:day])
+      [5, 12, 19, 26]
 
   """
   @spec select(base(), selector(), opts()) ::
@@ -472,20 +485,22 @@ defmodule Tempo.Select do
   # Merge a constraint Tempo's time units onto base's from-endpoint
   # — units specified on the constraint take precedence; others
   # inherit from base. Then materialise and intersect with base.
-  defp project_onto_base(%Interval{from: %Tempo{} = base_from} = base, %Tempo{time: c_time}) do
-    base_time = base_from.time
+  #
+  # A day-of-week-only constraint (`~o"5K"` for "Friday") is a
+  # recurring pattern rather than a specific date, so it routes
+  # to the weekday filter instead of the merge-and-materialise
+  # path. Same for a day-of-week list (`~o"5K,6K"` for Fri/Sat)
+  # once the parser admits that shape.
+  defp project_onto_base(%Interval{} = base, %Tempo{time: c_time}) do
+    case day_of_week_only(c_time) do
+      {:ok, weekdays} ->
+        case filter_by_weekdays(base, weekdays) do
+          {:ok, %IntervalSet{intervals: ivs}} -> ivs
+          _ -> []
+        end
 
-    merged_time =
-      base_time
-      |> Enum.map(fn {unit, value} -> {unit, Keyword.get(c_time, unit, value)} end)
-      |> Kernel.++(Enum.reject(c_time, fn {unit, _} -> Keyword.has_key?(base_time, unit) end))
-
-    merged = %Tempo{base_from | time: merged_time}
-
-    case Tempo.to_interval(merged) do
-      {:ok, %Interval{} = iv} -> intersect_with_base(iv, base)
-      {:ok, %IntervalSet{intervals: ivs}} -> Enum.map(ivs, &intersect_with_base(&1, base))
-      _ -> nil
+      :no ->
+        project_merge(base, c_time)
     end
   end
 
@@ -495,7 +510,101 @@ defmodule Tempo.Select do
     project_onto_base(base, c_from)
   end
 
-  defp intersect_with_base(%Interval{from: %Tempo{} = from}, %Interval{
+  defp project_merge(%Interval{from: %Tempo{} = base_from} = base, c_time) do
+    base_time = base_from.time
+
+    merged_time =
+      base_time
+      |> Enum.map(fn {unit, value} -> {unit, Keyword.get(c_time, unit, value)} end)
+      |> Kernel.++(Enum.reject(c_time, fn {unit, _} -> Keyword.has_key?(base_time, unit) end))
+      |> trim_finer_than_constraint(c_time)
+
+    merged = %Tempo{base_from | time: merged_time}
+
+    case Tempo.to_interval(merged) do
+      {:ok, %Interval{} = iv} ->
+        intersect_with_base(trim_iv_to_constraint(iv, c_time), base)
+
+      {:ok, %IntervalSet{intervals: ivs}} ->
+        Enum.map(ivs, &intersect_with_base(trim_iv_to_constraint(&1, c_time), base))
+
+      _ ->
+        nil
+    end
+  end
+
+  # After materialisation, `Tempo.to_interval/1` may pad the
+  # endpoints with `hour: 0` (the natural start-of-day representation
+  # of a day-resolution span). For selector results we want the
+  # endpoint time to match the constraint's resolution exactly —
+  # a `~o"12-25"` projection should read as day-shaped, not
+  # hour-shaped. Trim both endpoints to the constraint's finest
+  # unit.
+  defp trim_iv_to_constraint(%Interval{from: %Tempo{} = from, to: %Tempo{} = to} = iv, c_time) do
+    %{
+      iv
+      | from: %{from | time: trim_finer_than_constraint(from.time, c_time)},
+        to: %{to | time: trim_finer_than_constraint(to.time, c_time)}
+    }
+  end
+
+  defp trim_iv_to_constraint(iv, _c_time), do: iv
+
+  # The projection's natural resolution is the finest unit the
+  # CONSTRAINT specifies — `~o"12-25"` means "a day" (finest unit
+  # :day), `~o"12-25T14:30"` means "a minute". Anything finer
+  # carried through from the base's materialisation is dropped
+  # so the result is shaped at the constraint's resolution.
+  defp trim_finer_than_constraint(time, c_time) do
+    case finest_unit(c_time) do
+      nil -> time
+      finest -> Enum.take_while(time, fn {unit, _} -> not finer_than?(unit, finest) end)
+    end
+  end
+
+  @unit_order_coarse_to_fine [
+    :year,
+    :month,
+    :week,
+    :day,
+    :day_of_year,
+    :day_of_week,
+    :hour,
+    :minute,
+    :second
+  ]
+
+  defp finest_unit(time) do
+    time
+    |> Keyword.keys()
+    |> Enum.reverse()
+    |> Enum.find(&(&1 in @unit_order_coarse_to_fine))
+  end
+
+  defp finer_than?(a, b) do
+    i_a = Enum.find_index(@unit_order_coarse_to_fine, &(&1 == a))
+    i_b = Enum.find_index(@unit_order_coarse_to_fine, &(&1 == b))
+    not is_nil(i_a) and not is_nil(i_b) and i_a > i_b
+  end
+
+  # A constraint is "day-of-week-only" when its :time keyword list
+  # has a `:day_of_week` entry (scalar integer or list) and no
+  # date-axis key (`:year`, `:month`, `:day`, `:week`).
+  defp day_of_week_only(c_time) do
+    case Keyword.get(c_time, :day_of_week) do
+      nil ->
+        :no
+
+      dow ->
+        if Enum.any?([:year, :month, :day, :week], &Keyword.has_key?(c_time, &1)) do
+          :no
+        else
+          {:ok, List.wrap(dow)}
+        end
+    end
+  end
+
+  defp intersect_with_base(%Interval{from: %Tempo{} = from} = iv, %Interval{
          from: %Tempo{} = bf,
          to: %Tempo{} = bt
        }) do
@@ -505,20 +614,13 @@ defmodule Tempo.Select do
 
       _ ->
         case Tempo.Compare.compare_endpoints(from, bt) do
-          r when r in [:earlier, :same] -> iv_from_projection(from)
+          r when r in [:earlier, :same] -> iv
           _ -> nil
         end
     end
   end
 
   defp intersect_with_base(_, _), do: nil
-
-  defp iv_from_projection(%Tempo{} = from) do
-    case Tempo.to_interval(from) do
-      {:ok, %Interval{} = iv} -> iv
-      _ -> nil
-    end
-  end
 
   ## ---------------------------------------------------------
   ## Grouped-endpoint resolution

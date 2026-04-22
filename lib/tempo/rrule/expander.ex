@@ -298,7 +298,7 @@ defmodule Tempo.RRule.Expander do
              interval: r.interval || 1,
              count: r.count,
              until: convert_until(r.until),
-             wkst: map_weekday(r.weekday) || 1,
+             wkst: map_weekday(r.week_start_day) || 1,
              bymonth: r.by_month,
              bymonthday: r.by_month_day,
              byyearday: r.by_year_day,
@@ -351,9 +351,15 @@ defmodule Tempo.RRule.Expander do
       Enum.map(entries, &map_byday_entry/1)
     end
 
-    # The ical library's BYDAY entry shape is `{ordinal_or_nil,
-    # weekday_atom}` — e.g. `{1, :monday}` for "1MO". Normalise to
-    # our integer-weekday form.
+    # The ical library's BYDAY entry shape is
+    # `{ordinal_or_zero_for_none, weekday_atom}` — e.g. `{1, :monday}`
+    # for "1MO" and `{0, :monday}` for a plain "MO" (no ordinal).
+    # Normalise to our AST form, which uses `nil` for the
+    # "no ordinal" case.
+    defp map_byday_entry({0, day_atom}) do
+      {nil, map_weekday(day_atom) || 1}
+    end
+
     defp map_byday_entry({ord, day_atom}) do
       {ord, map_weekday(day_atom) || 1}
     end

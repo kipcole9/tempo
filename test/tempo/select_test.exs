@@ -2,6 +2,8 @@ defmodule Tempo.Select.Test do
   use ExUnit.Case, async: false
   import Tempo.Sigil
 
+  doctest Tempo.Select
+
   # `Tempo.select/3` narrows a base span by a selector, returning
   # an `{:ok, %Tempo.IntervalSet{}}` tuple. The tests below cover
   # every selector shape, every base shape (Tempo / Interval /
@@ -253,6 +255,52 @@ defmodule Tempo.Select.Test do
         |> Enum.map(&{&1.from.time[:month], &1.from.time[:day]})
 
       assert pairs == [{7, 10}, {12, 20}]
+    end
+
+    test "day-of-week-only projection (`~o\"5K\"`) — every Friday in the base" do
+      {:ok, set} = Tempo.select(~o"2026-06", ~o"5K")
+
+      days = set |> Tempo.IntervalSet.to_list() |> Enum.map(& &1.from.time[:day])
+      assert days == [5, 12, 19, 26]
+    end
+
+    test "day-of-week projection in a whole-year base" do
+      {:ok, set} = Tempo.select(~o"2026", ~o"5K")
+      # 2026 has 52 Fridays.
+      assert Tempo.IntervalSet.count(set) == 52
+    end
+
+    test "day-of-week projection composes with quarter-shaped base" do
+      {:ok, set} = Tempo.select(~o"2026Y3Q", ~o"5K")
+      # Q3 2026: 13 Fridays.
+      assert Tempo.IntervalSet.count(set) == 13
+    end
+
+    test "ordinal-day projection (`~o\"10O\"`) — the 10th day of the year" do
+      {:ok, set} = Tempo.select(~o"2026", ~o"10O")
+
+      [iv] = Tempo.IntervalSet.to_list(set)
+      assert iv.from.time[:year] == 2026
+      assert iv.from.time[:month] == 1
+      assert iv.from.time[:day] == 10
+    end
+
+    test "ordinal-day projection produces a day-shaped span" do
+      # The 10th day of 2026 is Jan 10 — the projection's span is
+      # one day, not one hour.
+      {:ok, set} = Tempo.select(~o"2026", ~o"10O")
+
+      [iv] = Tempo.IntervalSet.to_list(set)
+      assert iv.to.time[:day] == 11
+      assert iv.to.time[:month] == 1
+    end
+
+    test "month-day projection (`~o\"12-25\"`) produces a day-shaped span" do
+      {:ok, set} = Tempo.select(~o"2026", ~o"12-25")
+
+      [iv] = Tempo.IntervalSet.to_list(set)
+      assert iv.from.time[:day] == 25
+      assert iv.to.time[:day] == 26
     end
   end
 

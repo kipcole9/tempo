@@ -111,6 +111,7 @@ defmodule Tempo.MixProject do
       ],
       Reference: [
         "guides/iso8601-conformance.md",
+        "guides/rfc5545_rrule_conformance.md",
         "guides/shared-ast-iso8601-and-rrule.md"
       ]
     ]
@@ -129,7 +130,7 @@ defmodule Tempo.MixProject do
       {:astro, "~> 2.0"},
       {:localize, "~> 0.21"},
       {:tzdata, "~> 1.1"},
-      {:ical, github: "expothecary/ical", optional: true},
+      {:ical, "~> 2.0", optional: true},
       {:plug, "~> 1.15", optional: true},
       {:bandit, "~> 1.5", optional: true},
       {:ex_doc, "~> 0.21", runtime: false},

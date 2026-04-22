@@ -32,18 +32,16 @@ Every result is a standard `%Tempo.IntervalSet{}`. Event metadata from the sourc
 
 ## 2. Setup
 
-`Tempo.ICal` depends on the [`ical`](https://github.com/expothecary/ical) library, declared `optional: true` on Tempo's side. Pull it into your own project:
+`Tempo.ICal` depends on the [`ical`](https://hex.pm/packages/ical) library, declared `optional: true` on Tempo's side. Pull it into your own project:
 
 ```elixir
 def deps do
   [
     {:tempo, "~> 0.2"},
-    {:ical, github: "expothecary/ical"}
+    {:ical, "~> 2.0"}
   ]
 end
 ```
-
-The GitHub version is used rather than the hex release because Tempo targets `gettext ~> 1.0`, while the hex release of `ical` transitively requires an older `gettext`. The GitHub main branch has dropped that dependency.
 
 ## 3. What each event produces
 
@@ -237,6 +235,7 @@ Every arithmetic operation goes through the candidate's own calendar (`calendar.
 
 ## 9. Related reading
 
+- [`guides/rfc5545_rrule_conformance.md`](./rfc5545_rrule_conformance.md) for the property-by-property RRULE coverage table.
 - [`guides/set-operations.md`](./set-operations.md) for how to combine imported calendars.
 - [`guides/enumeration-semantics.md`](./enumeration-semantics.md) for how iteration works over the resulting IntervalSets.
 - [RFC 5545](https://www.rfc-editor.org/rfc/rfc5545) for the iCalendar spec itself.

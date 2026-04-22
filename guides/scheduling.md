@@ -192,4 +192,6 @@ Schedule.occurrences_in(retrospective, ~o"2025-07-01", ~o"2025-10-01")
 
 * [iCalendar integration](./ical-integration.md) — round-trip a real `.ics` file, preserve metadata, expand RRULEs from it.
 
+* [RFC 5545 RRULE conformance](./rfc5545_rrule_conformance.md) — property-by-property coverage of the standard.
+
 * [The cookbook](./cookbook.md) — recipe-format queries for the common scheduling patterns.
