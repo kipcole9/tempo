@@ -4,10 +4,11 @@ defmodule Tempo.Select.Test do
 
   doctest Tempo.Select
 
-  # `Tempo.select/3` narrows a base span by a selector, returning
+  # `Tempo.select/2` narrows a base span by a selector, returning
   # an `{:ok, %Tempo.IntervalSet{}}` tuple. The tests below cover
   # every selector shape, every base shape (Tempo / Interval /
-  # IntervalSet), and every rung of the territory-resolution chain.
+  # IntervalSet), and every rung of the territory-resolution chain
+  # inside `Tempo.workdays/1` / `Tempo.weekend/1`.
   #
   # This suite is `async: false` because a couple of tests mutate
   # `Application.put_env(:ex_tempo, :default_territory, _)` to exercise

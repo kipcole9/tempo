@@ -121,6 +121,8 @@ defmodule Tempo do
           | {:month, token}
           | {:week, token}
           | {:day, token}
+          | {:day_of_year, token}
+          | {:day_of_week, token | [integer()]}
           | {:hour, token}
           | {:minute, token}
           | {:second, token}
