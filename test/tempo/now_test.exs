@@ -1,21 +1,15 @@
 defmodule Tempo.NowTest do
   use ExUnit.Case, async: true
 
-  # Save the application-wide clock setting and install
-  # Tempo.Clock.Test for the duration of each test. async: true is
-  # safe because Tempo.Clock.Test stores its pin in the calling
-  # process's dictionary.
+  # Install `Tempo.Clock.Test` as the clock for this test process
+  # only. Using `Process.put` (not `Application.put_env`) keeps the
+  # swap process-local so it does not leak into other async tests
+  # or doctests running concurrently in the same VM.
+  #
+  # `Tempo.Clock.clock/0` reads the process-local override first and
+  # falls back to the application environment.
   setup do
-    previous = Application.get_env(:ex_tempo, :clock)
-    Application.put_env(:ex_tempo, :clock, Tempo.Clock.Test)
-
-    on_exit(fn ->
-      case previous do
-        nil -> Application.delete_env(:ex_tempo, :clock)
-        module -> Application.put_env(:ex_tempo, :clock, module)
-      end
-    end)
-
+    Process.put({Tempo.Clock, :clock}, Tempo.Clock.Test)
     :ok
   end
 

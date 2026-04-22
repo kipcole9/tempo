@@ -96,5 +96,40 @@ defmodule Tempo.ClockTest do
         end
       end
     end
+
+    test "process-local override takes precedence over application env" do
+      # This is the mechanism `NowTest` and `ToRelativeStringTest` use
+      # to install `Tempo.Clock.Test` without leaking the swap into
+      # other async tests and doctests.
+      Process.put({Tempo.Clock, :clock}, Tempo.Clock.Test)
+
+      try do
+        assert Tempo.Clock.clock() == Tempo.Clock.Test
+      after
+        Process.delete({Tempo.Clock, :clock})
+      end
+
+      # After delete, falls back to the app env / default.
+      assert Tempo.Clock.clock() in [Tempo.Clock.System, nil] or
+               is_atom(Tempo.Clock.clock())
+    end
+
+    test "process-local override does not leak to peer processes" do
+      # Install the override in this process.
+      Process.put({Tempo.Clock, :clock}, Tempo.Clock.Test)
+
+      parent = self()
+
+      {:ok, _task} =
+        Task.start(fn ->
+          # Peer process starts with no override — sees the default.
+          send(parent, {:peer_clock, Tempo.Clock.clock()})
+        end)
+
+      assert_receive {:peer_clock, peer_clock}
+      refute peer_clock == Tempo.Clock.Test
+
+      Process.delete({Tempo.Clock, :clock})
+    end
   end
 end

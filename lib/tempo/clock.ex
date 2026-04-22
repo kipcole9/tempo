@@ -14,13 +14,18 @@ defmodule Tempo.Clock do
 
   ### Configuring the clock
 
-  In `config/test.exs`:
+  Application-wide default in `config/test.exs`:
 
       config :ex_tempo, clock: Tempo.Clock.Test
 
+  Process-local override (safer in `async: true` ExUnit suites —
+  swaps the clock for the calling process only, leaving concurrent
+  tests and doctests with the default clock):
+
+      Process.put({Tempo.Clock, :clock}, Tempo.Clock.Test)
+
   In application code, use `Tempo.utc_now/0` etc. rather than calling
-  the clock directly — the module attribute means the swap is
-  transparent to callers.
+  the clock directly — the swap is transparent to callers.
 
   ### Implementing a custom clock
 
@@ -53,12 +58,20 @@ defmodule Tempo.Clock do
   @doc """
   Return the currently configured clock module.
 
-  Reads `Application.get_env(:ex_tempo, :clock)`, defaulting to
-  `Tempo.Clock.System` when unset.
+  Looks first at `Process.get({Tempo.Clock, :clock})` (the
+  process-local override used by ExUnit setups), then falls back to
+  `Application.get_env(:ex_tempo, :clock)`, defaulting to
+  `Tempo.Clock.System` when neither is set.
+
+  The process-local override means tests that install
+  `Tempo.Clock.Test` do not leak that choice into unrelated
+  concurrent processes — a non-test doctest sharing the VM continues
+  to see the default system clock.
 
   """
   @spec clock() :: module()
   def clock do
-    Application.get_env(:ex_tempo, :clock, Tempo.Clock.System)
+    Process.get({__MODULE__, :clock}) ||
+      Application.get_env(:ex_tempo, :clock, Tempo.Clock.System)
   end
 end

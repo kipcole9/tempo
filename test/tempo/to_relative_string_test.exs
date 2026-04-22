@@ -3,19 +3,12 @@ defmodule Tempo.ToRelativeStringTest do
 
   import Tempo.Sigil
 
-  # Pin the Tempo.Clock.Test for the :from-defaulting path. Process-
-  # local, so async is safe.
+  # Install Tempo.Clock.Test for this test process only. Using
+  # `Process.put` (not `Application.put_env`) keeps the swap
+  # process-local so it doesn't leak into other async tests or
+  # doctests in the same VM.
   setup do
-    previous = Application.get_env(:ex_tempo, :clock)
-    Application.put_env(:ex_tempo, :clock, Tempo.Clock.Test)
-
-    on_exit(fn ->
-      case previous do
-        nil -> Application.delete_env(:ex_tempo, :clock)
-        module -> Application.put_env(:ex_tempo, :clock, module)
-      end
-    end)
-
+    Process.put({Tempo.Clock, :clock}, Tempo.Clock.Test)
     :ok
   end
 
