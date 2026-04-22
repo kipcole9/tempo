@@ -22,7 +22,7 @@ Two fictional calendars for April 2026, built to exercise Tempo's iCalendar impo
 
 ## Format notes
 
-The `ical` 2.0 library that Tempo uses does not currently parse `DTSTART;TZID=...` parameters — the resulting `dtstart` comes through as `nil`. To get the demo working today, these files use naive local times (no TZID, no Z suffix). The `ical` library treats them as UTC on parse, but the narrative "9am standup, 2pm roadmap review" is still correct against Sydney wall clocks. When the upstream parser is fixed we can restore the VTIMEZONE + `TZID=Australia/Sydney` form and the events will re-anchor correctly.
+Events use `DTSTART;TZID=Australia/Sydney:…` and the file carries a matching `VTIMEZONE` block. The `ical` 2.0 library only populates the event's datetime fields when a `Calendar.TimeZoneDatabase` is installed — this project pulls in `tz` as a dev/test dependency and points `config/dev.exs` and `config/test.exs` at `Tz.TimeZoneDatabase` so the demo calendars round-trip without workarounds. Consumers running `mix test` or an iex session inside the project will see each event anchored to `Australia/Sydney` with the correct UTC offset (AEDT until 5 April, AEST from 6 April onwards).
 
 ## Quick demo lines
 

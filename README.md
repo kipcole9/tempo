@@ -142,12 +142,25 @@ def deps do
   [
     {:ex_tempo, github: "kipcole9/tempo"},
     # Optional, only needed for iCalendar import:
-    {:ical, github: "expothecary/ical"}
+    {:ical, "~> 2.0"}
   ]
 end
 ```
 
 A hex release is imminent. The package name is `ex_tempo` because the `tempo` name on hex was already taken; the library is imported as `use Tempo` / `alias Tempo` and feels like `tempo` in code. Docs at [https://hexdocs.pm/ex_tempo](https://hexdocs.pm/ex_tempo).
+
+### Time-zone database
+
+Any application that works with zoned datetimes needs a `Calendar.TimeZoneDatabase`. Tempo itself already depends on [`:tzdata`](https://hex.pm/packages/tzdata), and most Tempo APIs accept a zone database explicitly where one is needed — so you can use Tempo without any global configuration.
+
+**iCalendar import is the exception**: the upstream `:ical` library only populates an event's `dtstart`/`dtend` fields when a default `Calendar.TimeZoneDatabase` is installed at the Elixir application level. If your `.ics` files use the `DTSTART;TZID=...` form (which most calendar tools produce), configure a database in your host application:
+
+```elixir
+# config/config.exs
+config :elixir, :time_zone_database, Tzdata.TimeZoneDatabase
+```
+
+Either [`:tzdata`](https://hex.pm/packages/tzdata) or [`:tz`](https://hex.pm/packages/tz) works. Tempo's own dev and test environments pull in `:tz` (compile-time data, no runtime downloads) and wire `Tz.TimeZoneDatabase` via `config/dev.exs` and `config/test.exs`. Without a configured database, iCalendar events using `TZID=` come through with `dtstart: nil` and Tempo silently drops them — expect to see an empty `IntervalSet` if this isn't set up.
 
 ## Guides
 

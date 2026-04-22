@@ -134,7 +134,13 @@ defmodule Tempo.MixProject do
       {:plug, "~> 1.15", optional: true},
       {:bandit, "~> 1.5", optional: true},
       {:ex_doc, "~> 0.21", runtime: false},
-      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
+      # `tz` provides a `Calendar.TimeZoneDatabase` implementation used
+      # only in dev/test so iCal 2.0 can resolve `DTSTART;TZID=...`
+      # properties and Tempo examples can round-trip zoned values.
+      # Runtime consumers supply their own zone DB (e.g. `:tzdata`,
+      # which Tempo already depends on).
+      {:tz, "~> 0.28", only: [:dev, :test]}
     ] ++ maybe_json_polyfill()
   end
 

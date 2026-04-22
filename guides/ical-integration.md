@@ -43,6 +43,21 @@ def deps do
 end
 ```
 
+### Time-zone database
+
+**The `ical` library needs a `Calendar.TimeZoneDatabase` installed to parse `DTSTART;TZID=...` and `DTEND;TZID=...` properties.** Without one, those datetime fields come through as `nil` and Tempo silently drops the event. For most real `.ics` feeds (Google Calendar, iCloud, Outlook all emit zoned datetimes), this is not optional.
+
+Configure a database in the host application's `config/config.exs` (or per-environment file):
+
+```elixir
+# config/config.exs
+config :elixir, :time_zone_database, Tzdata.TimeZoneDatabase
+```
+
+Either [`:tzdata`](https://hex.pm/packages/tzdata) (which Tempo already depends on) or [`:tz`](https://hex.pm/packages/tz) works. Tempo's own dev and test environments pull in `:tz` and configure `Tz.TimeZoneDatabase` via `config/dev.exs` and `config/test.exs`, which is how the project's demo calendars (`demo/calendars/*.ics`) round-trip zoned events in `mix test` runs.
+
+UTC-anchored datetimes (the `20260401T090000Z` form) and floating/naive datetimes do not need a zone database — only the `TZID=`-parameterised form does.
+
 ## 3. What each event produces
 
 A `VEVENT` becomes a `%Tempo.Interval{}`:
