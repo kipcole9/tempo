@@ -407,6 +407,20 @@ iex> Tempo.day(Tempo.IntervalSet.to_list(last_day_of_feb) |> hd())
 
 The resolution is axis-aware: `-1W` on a month base gives the last week-of-month (4 or 5), while on a year base it gives the last ISO week-of-year (52 or 53). `-1O` (ordinal) on a year base is the year's last day; `-1K` is the week's last day-of-week.
 
+Time-of-day units work the same way. `~o"-1H"` is hour 23, `~o"T-1M"` is minute 59, `~o"T-1S"` is second 59:
+
+```elixir
+iex> {:ok, last_hour} = Tempo.select(~o"2026-06-15", ~o"-1H")
+iex> last_hour |> Tempo.IntervalSet.to_list() |> hd() |> Tempo.hour()
+23
+
+iex> {:ok, last_minute} = Tempo.select(~o"2026-06-15T14", ~o"T-1M")
+iex> last_minute |> Tempo.IntervalSet.to_list() |> hd() |> Tempo.minute()
+59
+```
+
+> **`~o"-1M"`** is always **month** (last month of year). Use **`~o"T-1M"`** — with the `T` time designator — to select **minute-of-hour**. The bare-form `M` belongs to the date axis; the `T`-prefixed form belongs to time-of-day.
+
 Negative components compose with the rest of the selector vocabulary — `Tempo.select(~o"2026", [~o"-1D", ~o"12-25"])` projects *both* "last day of year" and "Christmas" onto 2026, yielding Dec 25 and Dec 31 as separate members.
 
 See `Tempo.Select` for the full selector vocabulary.

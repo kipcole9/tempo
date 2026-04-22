@@ -62,11 +62,13 @@ defmodule Tempo.Select do
   calendar arithmetic at the call site.
 
   ```elixir
-  Tempo.select(~o"2026",    ~o"-1M")  #=> December 2026 (last month of year)
-  Tempo.select(~o"2026",    ~o"-1D")  #=> Dec 31 2026 (last day of year)
-  Tempo.select(~o"2026",    ~o"-1W")  #=> week 52 of 2026 (last ISO week)
-  Tempo.select(~o"2026-06", ~o"-1D")  #=> Jun 30 2026 (last day of month)
-  Tempo.select(~o"2026-02", ~o"-1D")  #=> Feb 28 2026 (leap-aware — Feb 29 in 2024)
+  Tempo.select(~o"2026",    ~o"-1M")   #=> December 2026 (last month of year)
+  Tempo.select(~o"2026",    ~o"-1D")   #=> Dec 31 2026 (last day of year)
+  Tempo.select(~o"2026",    ~o"-1W")   #=> week 52 of 2026 (last ISO week)
+  Tempo.select(~o"2026-06", ~o"-1D")   #=> Jun 30 2026 (last day of month)
+  Tempo.select(~o"2026-02", ~o"-1D")   #=> Feb 28 2026 (leap-aware — Feb 29 in 2024)
+  Tempo.select(~o"2026-06-15", ~o"-1H") #=> 23:00 (last hour of day)
+  Tempo.select(~o"2026-06-15T14", ~o"T-1M") #=> 14:59 (last minute of hour)
   ```
 
   The resolution is calendar-aware — `Tempo.select(~o"2024-02",
@@ -76,6 +78,18 @@ defmodule Tempo.Select do
   that month (4 or 5). `-1M` always refers to the calendar
   month; `-1K` to the week's last day-of-week; `-1O` to the
   year's last ordinal day.
+
+  Time-of-day components (`:hour`, `:minute`, `:second`,
+  `:day_of_week`) have fixed ranges and resolve at **parse time**
+  — `~o"-1H"` parses directly as `hour: 23`, `~o"T-1M"` as
+  `minute: 59`, `~o"T-1S"` as `second: 59`, `~o"-1K"` as
+  `day_of_week: 7`. Calendar-dependent units (`:month`, `:week`,
+  `:day`, `:day_of_year`) keep their negative value through parse
+  and are resolved against the base context when `Tempo.select/2`
+  materialises them.
+
+  `~o"-1M"` is always "last month" (never "last minute") — use
+  the `T` time designator (`~o"T-1M"`) to select minute-of-hour.
 
   Negative `:year` values are preserved (BC designator per ISO
   8601-2 expanded year form) — they're not flipped to "last

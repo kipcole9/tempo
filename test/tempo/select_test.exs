@@ -429,6 +429,68 @@ defmodule Tempo.Select.Test do
     end
   end
 
+  describe "negative time-component projection" do
+    # Time-of-day units (`:hour`, `:minute`, `:second`, `:day_of_week`)
+    # have fixed ranges — 0..23, 0..59, 1..7 — so the parser resolves
+    # their negatives directly at parse time rather than waiting for
+    # calendar context. `~o"-1H"` parses as `hour: 23`, `~o"T-1M"`
+    # parses as `minute: 59`, etc.
+
+    test "`-1H` parses as hour 23" do
+      t = ~o"-1H"
+      assert t.time[:hour] == 23
+      assert t.shift == nil
+    end
+
+    test "`T-1M` parses as minute 59 (T-prefix disambiguates from month)" do
+      t = ~o"T-1M"
+      assert t.time[:minute] == 59
+      assert t.shift == nil
+    end
+
+    test "`T-1S` parses as second 59" do
+      t = ~o"T-1S"
+      assert t.time[:second] == 59
+    end
+
+    test "`-1H` on a day base selects the last hour of the day" do
+      {:ok, set} = Tempo.select(~o"2026-06-15", ~o"-1H")
+      [iv] = Tempo.IntervalSet.to_list(set)
+
+      assert iv.from.time[:day] == 15
+      assert iv.from.time[:hour] == 23
+    end
+
+    test "`T-1M` on an hour base selects the last minute of the hour" do
+      {:ok, set} = Tempo.select(~o"2026-06-15T14", ~o"T-1M")
+      [iv] = Tempo.IntervalSet.to_list(set)
+
+      assert iv.from.time[:hour] == 14
+      assert iv.from.time[:minute] == 59
+    end
+
+    test "bare signed-hour shifts no longer shadow time-component selectors" do
+      # Previously `~o"-1H"` parsed as a UTC shift of -1 hour,
+      # making `Tempo.select(..., ~o"-1H")` impossible. The parser
+      # now reserves signed shifts for `Z`-prefixed forms (or the
+      # 2-digit implicit form `-05`, `-0500`, `-05:30` — which are
+      # unambiguous).
+      valid_shifts = [
+        {"Z", [hour: 0]},
+        {"Z0H", [hour: 0]},
+        {"Z+1H", [hour: 1]},
+        {"2026T12+05:30", [hour: 5, minute: 30]},
+        {"2026T12-05", [hour: -5]},
+        {"2026T12Z", [hour: 0]}
+      ]
+
+      for {input, expected_shift} <- valid_shifts do
+        t = Tempo.from_iso8601!(input)
+        assert t.shift == expected_shift, "shift parse regression for #{input}"
+      end
+    end
+  end
+
   describe "IntervalSet base" do
     test "selector flat-maps across every member interval" do
       {:ok, jan} = Tempo.to_interval(~o"2026Y1M")

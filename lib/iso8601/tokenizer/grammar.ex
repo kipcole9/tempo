@@ -619,23 +619,30 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
     |> unwrap_and_tag(:time_shift)
   end
 
-  # An explicit time shift must start with either the zulu indicator
-  # alone (`Z`) or a signed hour (`+05H`, `-05H`). Minute and second
-  # components are only accepted when an hour is present. Permitting a
-  # bare signed minute like `-1M` would collide with the ISO 8601-2
-  # "signed calendar month" form, which a standalone `-1M` more
-  # plausibly means — an isolated time-zone shift of a single minute
-  # isn't a shape anyone actually writes.
+  # An explicit time shift must begin with the zulu indicator `Z`.
+  # Permitting a bare signed + explicit-designator shift like `-1H`
+  # or `-1M` would collide with the ISO 8601-2 "signed calendar
+  # component" forms (§4.4.1), which a standalone `-1H` / `-1M`
+  # more plausibly means as selectors.
+  #
+  # Signed shifts like `-05`, `-0530`, `-05:30` use `implicit_time_shift`
+  # / `extended_time_shift` — those require a 2-digit implicit hour
+  # and are unambiguous.
+  #
+  # Valid forms handled here:
+  #
+  #   * `Z`                 — UTC
+  #   * `Z0H`, `Z0H0M`      — UTC with explicit-designator components
+  #   * `Z+1H`, `Z-05H30M`  — UTC with signed explicit components
   def explicit_time_shift do
-    choice([
-      shift_indicator()
+    zulu()
+    |> optional(
+      optional(sign())
       |> concat(explicit_hour())
       |> optional(explicit_minute())
       |> optional(explicit_second())
-      |> lookahead_not(digit()),
-      # Zulu alone — no signed hour/minute/second.
-      zulu() |> lookahead_not(digit())
-    ])
+    )
+    |> lookahead_not(digit())
     |> reduce(:resolve_shift)
     |> unwrap_and_tag(:time_shift)
   end
