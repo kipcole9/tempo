@@ -104,16 +104,18 @@ defmodule Tempo.MixProject do
 
   defp groups_for_extras do
     [
-      Guides: [
-        "guides/when-to-use-tempo.md",
+      Cookbooks: [
         "guides/cookbook.md",
         "guides/scheduling.md",
         "guides/workdays-and-weekends.md",
-        "guides/holidays.md",
-        "guides/falsehoods.md",
+        "guides/holidays.md"
+      ],
+      Guides: [
+        "guides/when-to-use-tempo.md",
         "guides/set-operations.md",
         "guides/enumeration-semantics.md",
-        "guides/ical-integration.md"
+        "guides/ical-integration.md",
+        "guides/falsehoods.md"
       ],
       Reference: [
         "guides/iso8601-conformance.md",
