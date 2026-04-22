@@ -301,6 +301,48 @@ defmodule Tempo.Select.Test do
     end
   end
 
+  describe "grouped / ISO 8601-2 bases" do
+    test "quarter (`3Q`) materialises and filters to quarter workdays" do
+      # Q3 2026 — July, August, September. 66 Mon–Fri days in the
+      # en-US default territory.
+      {:ok, set} = Tempo.select(~o"2026Y3Q", :workdays)
+      assert Tempo.IntervalSet.count(set) == 66
+    end
+
+    test "season code 26 (Northern summer) filters to workdays inside it" do
+      # Season 26 runs Jun 21 → Sep 23 (solstice-to-equinox). All
+      # workdays inside that 94-day window.
+      {:ok, set} = Tempo.select(~o"2026Y26M", :workdays)
+      count = Tempo.IntervalSet.count(set)
+      # Rough sanity: 94 days × 5/7 ≈ 67. Exact value depends on
+      # which days of week the season boundaries land on.
+      assert count in 65..70
+    end
+
+    test "month-range in a slot (`{6..8}M`) filters each member's workdays" do
+      # Jun + Jul + Aug — three-month window of 66 workdays.
+      {:ok, set} = Tempo.select(~o"2026Y{6..8}M", :workdays)
+      assert Tempo.IntervalSet.count(set) == 66
+    end
+
+    test "masked year (`156X`) flows through — 1560s workdays count" do
+      # Ten years × ~261 workdays/year ≈ 2600 workdays (coarse).
+      # Historical Gregorian in the 1560s is well-defined.
+      {:ok, set} = Tempo.select(~o"156X", :workdays)
+      count = Tempo.IntervalSet.count(set)
+      assert count > 2500 and count < 2700
+    end
+
+    test "stepped month range (`{1..-1//3}M`) returns workdays in each quarterly month" do
+      # Jan, Apr, Jul, Oct — four months worth of workdays.
+      {:ok, set} = Tempo.select(~o"2026Y{1..-1//3}M", :workdays)
+      count = Tempo.IntervalSet.count(set)
+      # 4 months × ~22 workdays ≈ 88. Exact value depends on which
+      # days of week the month edges land on.
+      assert count in 80..95
+    end
+  end
+
   describe "error cases" do
     test "an unrecognised selector returns an error tuple" do
       assert {:error, message} = Tempo.select(~o"2026-02", :banana)

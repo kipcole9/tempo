@@ -87,6 +87,29 @@ defmodule Tempo.Select do
   See the module doc for the selector vocabulary and runtime-
   resolution caveats.
 
+  ### Supported base shapes
+
+  `base` can be any Tempo value that materialises to an Interval
+  or IntervalSet. Grouped and masked forms have their endpoints
+  resolved to concrete values before the selector runs, so every
+  ISO 8601-2 shape composes with every selector:
+
+  | Base shape | Example | Materialises to |
+  | ---------- | ------- | --------------- |
+  | Scalar `%Tempo{}` | `~o"2026-06"` | single Interval |
+  | Explicit Interval | `~o"2026-07/2026-10"` | single Interval |
+  | IntervalSet | output of `Tempo.union/2` etc. | IntervalSet (flat-mapped) |
+  | Quarter (`NQ`) | `~o"2026Y3Q"` | single Interval (group resolved) |
+  | Season (codes 25–32) | `~o"2026Y26M"` | Interval bounded by equinox/solstice |
+  | Month/day range in a slot | `~o"2026Y{6..8}M"` | IntervalSet of three members |
+  | Stepped range | `~o"2026Y{1..-1//3}M"` | IntervalSet of disjoint members |
+  | Archaeological mask | `~o"156X"` | decade-long Interval |
+
+  Example with a quarter base:
+
+      Tempo.select(~o"2026Y3Q", :workdays)
+      #=> {:ok, IntervalSet with 66 members — workdays of Q3 2026}
+
   ### Examples
 
       iex> {:ok, set} = Tempo.Select.select(~o"2026-02", [1, 15])
@@ -136,7 +159,7 @@ defmodule Tempo.Select do
 
   def select(%Tempo{} = tempo, selector, opts) do
     case Tempo.to_interval(tempo) do
-      {:ok, %Interval{} = iv} -> select(iv, selector, opts)
+      {:ok, %Interval{} = iv} -> select(resolve_grouped_endpoints(iv), selector, opts)
       {:ok, %IntervalSet{} = set} -> select(set, selector, opts)
       {:error, _} = err -> err
     end
@@ -496,4 +519,58 @@ defmodule Tempo.Select do
       _ -> nil
     end
   end
+
+  ## ---------------------------------------------------------
+  ## Grouped-endpoint resolution
+  ## ---------------------------------------------------------
+
+  # Some AST shapes — notably the ISO 8601-2 quarter designator
+  # (`~o"2026Y3Q"`) — materialise into an Interval whose `:from`
+  # endpoint still carries a `{:group, range}` value for one of
+  # its time units. Downstream selectors (`filter_by_weekdays`,
+  # integer-index selection) expect concrete integer units.
+  #
+  # When we find a group on `from`, resolve both endpoints from
+  # the group's range:
+  #
+  #   * `from`  gets the group's FIRST element (the concrete start).
+  #   * `to`    is rebuilt from `from`'s time with the grouped unit
+  #             replaced by `group.last + 1` — the exclusive
+  #             upper bound under the half-open convention.
+  #
+  # This replaces whatever `to` value `to_interval/1` previously
+  # produced for the quarter case, which advances past the span
+  # (a known quirk for the quarter designator). For other AST
+  # shapes — seasons, range-in-slot, masks — `to_interval/1`
+  # already produces concrete endpoints and `from` has no group,
+  # so this helper is a no-op.
+  defp resolve_grouped_endpoints(%Interval{from: %Tempo{time: from_time} = from, to: to} = iv) do
+    case find_group(from_time) do
+      {unit, %Range{first: first, last: last}} ->
+        resolved_from = %{from | time: Keyword.replace(from_time, unit, first)}
+        resolved_to_time = Keyword.replace(from_time, unit, last + 1)
+        resolved_to = %{from | time: resolved_to_time}
+        %{iv | from: resolved_from, to: merge_to_calendar(resolved_to, to)}
+
+      nil ->
+        iv
+    end
+  end
+
+  defp resolve_grouped_endpoints(other), do: other
+
+  defp find_group(time) do
+    Enum.find_value(time, fn
+      {unit, {:group, range}} -> {unit, range}
+      _ -> nil
+    end)
+  end
+
+  # Preserve calendar/extended/shift from the original `to`
+  # endpoint where available; only the :time list is rebuilt.
+  defp merge_to_calendar(%Tempo{} = new_to, %Tempo{} = old_to) do
+    %{new_to | calendar: old_to.calendar, extended: old_to.extended, shift: old_to.shift}
+  end
+
+  defp merge_to_calendar(new_to, _), do: new_to
 end
