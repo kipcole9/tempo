@@ -287,6 +287,148 @@ defmodule Tempo.Select.Test do
     end
   end
 
+  describe "negative-component projection (ISO 8601-2 §4.4.1)" do
+    # Negative integers count from the end of their containing time
+    # scale unit. `~o"-1M"` means "last month of year"; `~o"-1D"`
+    # means "last day of year" on a year base and "last day of month"
+    # on a month base; `~o"-1W"` means "last week of year" or "last
+    # week of month" depending on base resolution.
+
+    test "`~o\"-1M\"` inspects without raising" do
+      # Previously the parser interpreted `-1M` as a time-zone shift
+      # of `-1 minute`, which then broke the inspect path.
+      assert inspect(~o"-1M") == "~o\"-1M\""
+    end
+
+    test "`~o\"-1M\"` parses as a month, not a time shift" do
+      t = ~o"-1M"
+      assert t.time == [month: -1]
+      assert t.shift == nil
+    end
+
+    test "`-1M` on a year base selects the last month (December for Gregorian)" do
+      {:ok, set} = Tempo.select(~o"2026", ~o"-1M")
+      [iv] = Tempo.IntervalSet.to_list(set)
+
+      assert iv.from.time[:year] == 2026
+      assert iv.from.time[:month] == 12
+      assert iv.to.time[:year] == 2027
+      assert iv.to.time[:month] == 1
+    end
+
+    test "`-2M` on a year base selects the second-to-last month (November)" do
+      {:ok, set} = Tempo.select(~o"2026", ~o"-2M")
+      [iv] = Tempo.IntervalSet.to_list(set)
+
+      assert iv.from.time[:month] == 11
+    end
+
+    test "`-1D` on a year base selects the last day of the year (Dec 31)" do
+      {:ok, set} = Tempo.select(~o"2026", ~o"-1D")
+      [iv] = Tempo.IntervalSet.to_list(set)
+
+      assert iv.from.time[:year] == 2026
+      assert iv.from.time[:month] == 12
+      assert iv.from.time[:day] == 31
+    end
+
+    test "`-1D` on a month base selects the last day of that month" do
+      {:ok, set} = Tempo.select(~o"2026-06", ~o"-1D")
+      [iv] = Tempo.IntervalSet.to_list(set)
+
+      assert iv.from.time[:month] == 6
+      assert iv.from.time[:day] == 30
+    end
+
+    test "`-1D` on February resolves to the correct last-day for leap-year context" do
+      {:ok, feb_2024} = Tempo.select(~o"2024-02", ~o"-1D")
+      [iv_24] = Tempo.IntervalSet.to_list(feb_2024)
+      assert iv_24.from.time[:day] == 29
+
+      {:ok, feb_2026} = Tempo.select(~o"2026-02", ~o"-1D")
+      [iv_26] = Tempo.IntervalSet.to_list(feb_2026)
+      assert iv_26.from.time[:day] == 28
+    end
+
+    test "`-1W` on a year base selects the last ISO week of the year" do
+      {:ok, set_2026} = Tempo.select(~o"2026", ~o"-1W")
+      [iv_2026] = Tempo.IntervalSet.to_list(set_2026)
+      assert iv_2026.from.time[:year] == 2026
+      assert iv_2026.from.time[:week] == 52
+      # No spurious `:month` — week-of-year is on its own axis.
+      refute Keyword.has_key?(iv_2026.from.time, :month)
+
+      # 2028 is a 53-week year per the Gregorian calendar.
+      {:ok, set_2028} = Tempo.select(~o"2028", ~o"-1W")
+      [iv_2028] = Tempo.IntervalSet.to_list(set_2028)
+      assert iv_2028.from.time[:week] == 53
+    end
+
+    test "`1W` on a month base resolves as week-of-month" do
+      # Week-of-month is non-standard in ISO 8601 but Tempo accepts
+      # a `[year, month, week]` composite and materialises it as an
+      # N-week span within the month.
+      {:ok, set} = Tempo.select(~o"2026-06", ~o"1W")
+      [iv] = Tempo.IntervalSet.to_list(set)
+
+      assert iv.from.time[:month] == 6
+      assert iv.from.time[:week] == 1
+    end
+
+    test "`-1W` on a month base resolves as last week-of-month" do
+      # Gregorian June has 30 days → 5 week-of-month slots.
+      {:ok, set} = Tempo.select(~o"2026-06", ~o"-1W")
+      [iv] = Tempo.IntervalSet.to_list(set)
+
+      assert iv.from.time[:month] == 6
+      assert iv.from.time[:week] == 5
+    end
+
+    test "`-1W` on a February base resolves to week 4 (28-day month)" do
+      {:ok, set} = Tempo.select(~o"2026-02", ~o"-1W")
+      [iv] = Tempo.IntervalSet.to_list(set)
+
+      assert iv.from.time[:month] == 2
+      assert iv.from.time[:week] == 4
+    end
+
+    test "`-1O` (ordinal-day) on a year base selects the last day of the year" do
+      # Parser stores `~o"-1O"` with `:day` key; the resolution is
+      # the same as `~o"-1D"` on a year base — last day of year.
+      {:ok, set} = Tempo.select(~o"2026", ~o"-1O")
+      [iv] = Tempo.IntervalSet.to_list(set)
+
+      assert iv.from.time[:month] == 12
+      assert iv.from.time[:day] == 31
+    end
+
+    test "`-1K` (day-of-week) parses as `day_of_week: 7` directly" do
+      # `-1K` is resolved by the parser (not the selector) because
+      # day-of-week is a fixed 7-day cycle with no calendar context.
+      t = ~o"-1K"
+      assert t.time[:day_of_week] == 7
+    end
+
+    test "`-1K` as a selector returns Sundays of the base" do
+      {:ok, set} = Tempo.select(~o"2026-06", ~o"-1K")
+      days = set |> Tempo.IntervalSet.to_list() |> Enum.map(& &1.from.time[:day])
+
+      # June 2026 Sundays: 7, 14, 21, 28.
+      assert days == [7, 14, 21, 28]
+    end
+
+    test "negative components compose with set operations via select results" do
+      # The whole point of selector composition — the negative
+      # component flows through into an IntervalSet that plugs into
+      # union/intersection/difference.
+      {:ok, last_month} = Tempo.select(~o"2026", ~o"-1M")
+      {:ok, first_month} = Tempo.select(~o"2026", ~o"1M")
+      {:ok, union} = Tempo.union(first_month, last_month)
+
+      assert Tempo.IntervalSet.count(union) == 2
+    end
+  end
+
   describe "IntervalSet base" do
     test "selector flat-maps across every member interval" do
       {:ok, jan} = Tempo.to_interval(~o"2026Y1M")

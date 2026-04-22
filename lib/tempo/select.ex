@@ -65,6 +65,21 @@ defmodule Tempo.Select do
 
   @type base :: Tempo.t() | Interval.t() | IntervalSet.t()
 
+  # Time units from coarsest to finest. Used for constraint-vs-base
+  # resolution comparison, merged-keyword-list canonical ordering,
+  # and the `propagate_last_for_negatives/3` intermediate detection.
+  @unit_order_coarse_to_fine [
+    :year,
+    :month,
+    :week,
+    :day,
+    :day_of_year,
+    :day_of_week,
+    :hour,
+    :minute,
+    :second
+  ]
+
   @doc """
   Narrow `base` by `selector`, returning the selected intervals
   as a `t:Tempo.IntervalSet.t/0`.
@@ -411,14 +426,18 @@ defmodule Tempo.Select do
     project_onto_base(base, c_from)
   end
 
-  defp project_merge(%Interval{from: %Tempo{} = base_from} = base, c_time) do
+  defp project_merge(%Interval{from: %Tempo{calendar: calendar} = base_from} = base, c_time) do
     base_time = base_from.time
+    base_res = Interval.resolution(base)
 
     merged_time =
       base_time
-      |> Enum.map(fn {unit, value} -> {unit, Keyword.get(c_time, unit, value)} end)
-      |> Kernel.++(Enum.reject(c_time, fn {unit, _} -> Keyword.has_key?(base_time, unit) end))
+      |> prune_off_axis_defaults(c_time, base_res)
+      |> merge_with_constraint(c_time)
+      |> propagate_last_for_negatives(c_time, base_res)
       |> trim_finer_than_constraint(c_time)
+      |> reorder_coarse_to_fine()
+      |> resolve_negatives(calendar)
 
     merged = %Tempo{base_from | time: merged_time}
 
@@ -433,6 +452,231 @@ defmodule Tempo.Select do
         nil
     end
   end
+
+  # ISO 8601 defines three calendar-date axes plus one time-of-day
+  # axis. A constraint selects the axis it's on via its units —
+  # `:week` puts us on the ISO-week axis; `:day_of_year` puts us on
+  # the ordinal axis; everything else is Gregorian.
+  @gregorian_axis [:year, :month, :day, :hour, :minute, :second]
+  @week_axis [:year, :week, :day_of_week, :hour, :minute, :second]
+  @ordinal_axis [:year, :day_of_year, :hour, :minute, :second]
+
+  defp axis_for_constraint(c_time) do
+    cond do
+      Keyword.has_key?(c_time, :week) or Keyword.has_key?(c_time, :day_of_week) ->
+        @week_axis
+
+      Keyword.has_key?(c_time, :day_of_year) ->
+        @ordinal_axis
+
+      true ->
+        @gregorian_axis
+    end
+  end
+
+  # Drop units from `base_time` that are NOT on the constraint's
+  # axis AND are finer than the base's declared resolution (i.e.
+  # they were filled in by materialisation, not specified by the
+  # user). This stops defaults like `month: 1` leaking into a
+  # week-of-year selection and producing nonsense AST like
+  # `[year, month, week]` — which Tempo's materialiser cannot
+  # resolve coherently.
+  #
+  # User-specified units (at or coarser than base's resolution) are
+  # always kept, even off-axis — on a month base, a week selector
+  # should honour the base's month context, yielding Tempo's
+  # non-standard "week-of-month" materialisation.
+  defp prune_off_axis_defaults(base_time, c_time, base_resolution) do
+    base_res_idx = unit_index(base_resolution) || -1
+    axis = axis_for_constraint(c_time)
+
+    Enum.filter(base_time, fn {unit, _} ->
+      case unit_index(unit) do
+        nil ->
+          true
+
+        idx when idx <= base_res_idx ->
+          true
+
+        _ ->
+          unit in axis
+      end
+    end)
+  end
+
+  # Merge base + constraint into a single keyword list. Constraint
+  # values override base values; constraint-only units are appended.
+  # Final ordering is fixed up by `reorder_coarse_to_fine/1` after
+  # all transformations — individual steps don't need to maintain it.
+  defp merge_with_constraint(base_time, c_time) do
+    base_time
+    |> Enum.map(fn {unit, value} -> {unit, Keyword.get(c_time, unit, value)} end)
+    |> Kernel.++(Enum.reject(c_time, fn {unit, _} -> Keyword.has_key?(base_time, unit) end))
+  end
+
+  # The natural ancestors of a time-scale unit on its ISO 8601 axis.
+  # Used by `propagate_last_for_negatives/2` to identify which
+  # intermediate units need "last" propagation.
+  #
+  #   * Gregorian axis: year → month → day → hour → minute → second
+  #   * Week axis:      year → week → day_of_week
+  #   * Ordinal axis:   year → day_of_year
+  defp axis_ancestors(:month), do: [:year]
+  defp axis_ancestors(:day), do: [:year, :month]
+  defp axis_ancestors(:week), do: [:year]
+  defp axis_ancestors(:day_of_week), do: [:year, :week]
+  defp axis_ancestors(:day_of_year), do: [:year]
+  defp axis_ancestors(:hour), do: [:year, :month, :day]
+  defp axis_ancestors(:minute), do: [:year, :month, :day, :hour]
+  defp axis_ancestors(:second), do: [:year, :month, :day, :hour, :minute]
+  defp axis_ancestors(_), do: []
+
+  # ISO 8601-2 §4.4.1 negative values count from the end. When the
+  # constraint specifies a negative value at its finest unit (e.g.
+  # `~o"-1D"` on a year base), any intermediate coarser units on
+  # the constraint's axis that came from the base's start-of-span
+  # materialisation should also mean "last" — otherwise `-1D` on
+  # `~o"2026"` would resolve to "last day of January" (base's first
+  # month) rather than "last day of year". The propagation rewrites
+  # those intermediates as `-1` sentinels so the subsequent
+  # resolve-negatives pass picks up their correct end-of-span value.
+  #
+  # `:year` is never propagated — a negative `:year` means BC, not
+  # "last year", per ISO 8601-2's expanded-year form.
+  #
+  # Units that are user-specified by the base (at or coarser than
+  # `base_resolution`) are also never propagated — on a month base,
+  # a `~o"-1D"` selector should resolve to "last day of the user's
+  # month", not "last day of December".
+  defp propagate_last_for_negatives(merged, c_time, base_resolution) do
+    if has_negative?(c_time) do
+      finest = finest_unit(c_time)
+      base_res_idx = unit_index(base_resolution) || -1
+
+      intermediates =
+        finest
+        |> axis_ancestors()
+        |> Enum.reject(&(&1 == :year))
+        |> Enum.filter(fn unit ->
+          idx = unit_index(unit)
+          not_user_specified? = is_nil(idx) or idx > base_res_idx
+
+          not_user_specified? and
+            Keyword.has_key?(merged, unit) and
+            not Keyword.has_key?(c_time, unit)
+        end)
+
+      Enum.reduce(intermediates, merged, fn unit, acc ->
+        Keyword.replace!(acc, unit, -1)
+      end)
+    else
+      merged
+    end
+  end
+
+  defp has_negative?(time) do
+    Enum.any?(time, fn
+      {_unit, value} when is_integer(value) -> value < 0
+      _ -> false
+    end)
+  end
+
+  defp unit_index(unit) do
+    Enum.find_index(@unit_order_coarse_to_fine, &(&1 == unit))
+  end
+
+  # Put units in canonical coarse-to-fine order. `merge_with_constraint/2`
+  # can append constraint-only units at the end; if such a unit is
+  # coarser than an earlier unit, materialisation would see them out
+  # of order. Sort by `@unit_order_coarse_to_fine` rank.
+  defp reorder_coarse_to_fine(time) do
+    time
+    |> Enum.sort_by(fn {unit, _} -> unit_index(unit) || 9_999 end)
+  end
+
+  # Resolve any negative component values to their positive equivalent,
+  # counting from the end as specified by ISO 8601-2 §4.4.1:
+  #
+  #   * `month: -1` → `months_in_year(year)` (12 for Gregorian).
+  #
+  #   * `day: -N` → when `:month` is present, count from end of that
+  #     month; otherwise count from end of year.
+  #
+  #   * `week: -N` → count from end of year's weeks.
+  #
+  #   * `day_of_year: -N` → count from end of year's days.
+  #
+  #   * `day_of_week: -N` → count from end of week's days.
+  #
+  # Negative years are NOT resolved — they remain as BC/negative year
+  # designators per ISO 8601-2.
+  defp resolve_negatives(time, calendar) do
+    time
+    |> Enum.reduce({[], []}, fn {unit, value}, {acc, ctx} ->
+      resolved = resolve_negative_unit(unit, value, ctx, calendar)
+      entry = {unit, resolved}
+      {[entry | acc], ctx ++ [entry]}
+    end)
+    |> elem(0)
+    |> Enum.reverse()
+  end
+
+  defp resolve_negative_unit(_unit, value, _ctx, _cal) when not is_integer(value),
+    do: value
+
+  defp resolve_negative_unit(_unit, value, _ctx, _cal) when value >= 0,
+    do: value
+
+  # Years keep their negative sign (BC designator).
+  defp resolve_negative_unit(:year, value, _ctx, _cal), do: value
+
+  defp resolve_negative_unit(:month, value, ctx, cal) do
+    year = Keyword.fetch!(ctx, :year)
+    cal.months_in_year(year) + 1 + value
+  end
+
+  defp resolve_negative_unit(:day, value, ctx, cal) do
+    year = Keyword.fetch!(ctx, :year)
+
+    case Keyword.get(ctx, :month) do
+      nil -> cal.days_in_year(year) + 1 + value
+      month when is_integer(month) -> cal.days_in_month(year, month) + 1 + value
+      _ -> value
+    end
+  end
+
+  defp resolve_negative_unit(:week, value, ctx, cal) do
+    year = Keyword.fetch!(ctx, :year)
+
+    weeks =
+      case Keyword.get(ctx, :month) do
+        month when is_integer(month) ->
+          # Week-of-month is non-standard — approximate as the number
+          # of whole or partial weeks that fit in the month. Keeps
+          # `~o"-1W"` on a month base giving a sensible "last week of
+          # month" (4 or 5 for Gregorian) rather than resolving to the
+          # year's week 52/53, which would fall outside the base.
+          days = cal.days_in_month(year, month)
+          div(days + 6, 7)
+
+        _ ->
+          {w, _} = cal.weeks_in_year(year)
+          w
+      end
+
+    weeks + 1 + value
+  end
+
+  defp resolve_negative_unit(:day_of_year, value, ctx, cal) do
+    year = Keyword.fetch!(ctx, :year)
+    cal.days_in_year(year) + 1 + value
+  end
+
+  defp resolve_negative_unit(:day_of_week, value, _ctx, cal) do
+    cal.days_in_week() + 1 + value
+  end
+
+  defp resolve_negative_unit(_unit, value, _ctx, _cal), do: value
 
   # After materialisation, `Tempo.to_interval/1` may pad the
   # endpoints with `hour: 0` (the natural start-of-day representation
@@ -456,24 +700,18 @@ defmodule Tempo.Select do
   # :day), `~o"12-25T14:30"` means "a minute". Anything finer
   # carried through from the base's materialisation is dropped
   # so the result is shaped at the constraint's resolution.
+  #
+  # Uses `filter` (not `take_while`) because the merged keyword list
+  # may have constraint-only units appended out of coarse-to-fine
+  # order — e.g. merging `~o"1W"` onto a day-resolution base gives
+  # `[year, month, day, week]`, and a take_while stops at `:day`
+  # before reaching `:week`.
   defp trim_finer_than_constraint(time, c_time) do
     case finest_unit(c_time) do
       nil -> time
-      finest -> Enum.take_while(time, fn {unit, _} -> not finer_than?(unit, finest) end)
+      finest -> Enum.filter(time, fn {unit, _} -> not finer_than?(unit, finest) end)
     end
   end
-
-  @unit_order_coarse_to_fine [
-    :year,
-    :month,
-    :week,
-    :day,
-    :day_of_year,
-    :day_of_week,
-    :hour,
-    :minute,
-    :second
-  ]
 
   defp finest_unit(time) do
     time

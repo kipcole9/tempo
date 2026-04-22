@@ -619,12 +619,23 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
     |> unwrap_and_tag(:time_shift)
   end
 
+  # An explicit time shift must start with either the zulu indicator
+  # alone (`Z`) or a signed hour (`+05H`, `-05H`). Minute and second
+  # components are only accepted when an hour is present. Permitting a
+  # bare signed minute like `-1M` would collide with the ISO 8601-2
+  # "signed calendar month" form, which a standalone `-1M` more
+  # plausibly means — an isolated time-zone shift of a single minute
+  # isn't a shape anyone actually writes.
   def explicit_time_shift do
-    shift_indicator()
-    |> optional(explicit_hour())
-    |> optional(explicit_minute())
-    |> optional(explicit_second())
-    |> lookahead_not(digit())
+    choice([
+      shift_indicator()
+      |> concat(explicit_hour())
+      |> optional(explicit_minute())
+      |> optional(explicit_second())
+      |> lookahead_not(digit()),
+      # Zulu alone — no signed hour/minute/second.
+      zulu() |> lookahead_not(digit())
+    ])
     |> reduce(:resolve_shift)
     |> unwrap_and_tag(:time_shift)
   end
