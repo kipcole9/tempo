@@ -69,7 +69,7 @@ defmodule Tempo.MixProject do
           "LICENSE.md",
           "CHANGELOG.md"
         ] ++ Path.wildcard("guides/*.md"),
-      formatters: ["html"],
+      formatters: ["html", "markdonw"],
       groups_for_modules: groups_for_modules(),
       groups_for_extras: groups_for_extras(),
       skip_undefined_reference_warnings_on:
