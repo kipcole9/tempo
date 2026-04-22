@@ -192,7 +192,7 @@ defmodule Tempo.Inspect do
   # inspect_value/1 for everything else
 
   defp inspect_value([{unit, _value1} = first, {time, _value2} = second | t])
-       when unit in [:year, :month, :day, :week, :day_of_week] and
+       when unit in [:year, :month, :day, :day_of_year, :week, :day_of_week] and
               time in [:hour, :minute, :second] do
     [inspect_value(first), inspect_value([second | t])]
   end
@@ -542,6 +542,7 @@ defmodule Tempo.Inspect do
   defp inspect_value({:year, year}), do: [inspect_list(year), ?Y]
   defp inspect_value({:month, month}), do: [inspect_list(month), ?M]
   defp inspect_value({:day, day}), do: [inspect_list(day), ?D]
+  defp inspect_value({:day_of_year, day}), do: [inspect_list(day), ?O]
   defp inspect_value({:hour, hour}), do: [inspect_list(hour), ?H]
   defp inspect_value({:minute, minute}), do: [inspect_list(minute), ?M]
   defp inspect_value({:second, second}), do: [inspect_list(second), ?S]

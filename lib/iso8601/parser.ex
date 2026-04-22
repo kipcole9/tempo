@@ -56,13 +56,13 @@ defmodule Tempo.Iso8601.Parser do
 
   def parse([{type, tokens}]) when type in [:date, :time_of_day, :datetime] do
     with parsed <- parse_date(tokens) do
-      Tempo.new(parsed)
+      Tempo.Iso8601.AST.build(parsed)
     end
   end
 
   def parse(interval: tokens) do
     with parsed <- parse_date(tokens) do
-      Tempo.Interval.new(parsed)
+      Tempo.Iso8601.AST.build_interval(parsed)
     end
   end
 
@@ -70,7 +70,7 @@ defmodule Tempo.Iso8601.Parser do
     with parsed <- parse_date(tokens) do
       parsed
       |> adjust_for_direction()
-      |> Tempo.Duration.new()
+      |> Tempo.Duration.build()
     end
   end
 

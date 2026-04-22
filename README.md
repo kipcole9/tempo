@@ -41,10 +41,27 @@ iex> Tempo.overlaps?(paris, utc_window)
 true   # Paris 10:00 CEST == UTC 08:00 — inside the window
 
 # Cross-calendar comparison, no manual conversion
-iex> hebrew = %Tempo{time: [year: 5786, month: 10, day: 30], calendar: Calendrical.Hebrew}
+iex> hebrew = Tempo.new!(year: 5786, month: 10, day: 30, calendar: Calendrical.Hebrew)
 iex> Tempo.overlaps?(hebrew, ~o"2026-06-15")
 true   # Hebrew 5786-10-30 is Gregorian 2026-06-15
 ```
+
+### Three ways to construct a Tempo
+
+The `~o` sigil is ideal for literal values in source code. For runtime data — form inputs, database rows, API payloads — reach for `Tempo.new/1`, which takes any order of keyword components and validates them against the target calendar:
+
+```elixir
+# Compile-time literal — the sigil
+iex> ~o"2026-06-15T14:30[Australia/Sydney]"
+
+# Runtime components — `new/1` reorders any input shape coarse-to-fine
+iex> Tempo.new!(day: 15, year: 2026, month: 6, hour: 14, minute: 30, zone: "Australia/Sydney")
+
+# Bridging stdlib — `from_elixir/1` accepts Date / Time / NaiveDateTime / DateTime
+iex> Tempo.from_elixir(~U[2026-06-15 14:30:00Z])
+```
+
+`Tempo.new/1` validates components against the target calendar (Gregorian's February only has 28 days in non-leap years, Hebrew has a 13th month in leap years, etc.), returns `{:ok, tempo}` or `{:error, exception}`, and has a `new!/1` bang variant that raises on invalid input. `Tempo.Interval.new/1` and `Tempo.Duration.new/1` follow the same contract.
 
 Now the playful side — what you actually get to write:
 

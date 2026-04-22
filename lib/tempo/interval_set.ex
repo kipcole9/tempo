@@ -514,7 +514,7 @@ defmodule Tempo.IntervalSet do
     set
     |> coalesce()
     |> Map.fetch!(:intervals)
-    |> Enum.reduce(Tempo.Duration.new([]), fn interval, acc ->
+    |> Enum.reduce(Tempo.Duration.build([]), fn interval, acc ->
       add_durations(acc, Tempo.Interval.duration(interval))
     end)
   end
@@ -523,7 +523,7 @@ defmodule Tempo.IntervalSet do
     merged =
       Keyword.merge(a, b, fn _key, v1, v2 -> v1 + v2 end)
 
-    Tempo.Duration.new(merged)
+    Tempo.Duration.build(merged)
   end
 
   # Single forward pass. At each step, decide whether the next

@@ -20,8 +20,8 @@ defmodule Tempo.Range do
 
   @doc false
   def new(first, last, calendar \\ Calendrical.Gregorian) do
-    first = Tempo.new(first, calendar)
-    last = Tempo.new(last, calendar)
+    first = Tempo.Iso8601.AST.build(first, calendar)
+    last = Tempo.Iso8601.AST.build(last, calendar)
     %__MODULE__{first: first, last: last}
   end
 end

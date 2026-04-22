@@ -223,7 +223,7 @@ defmodule Tempo.Format do
 
         closed_last =
           to
-          |> Tempo.Math.subtract(Tempo.Duration.new([{iter_unit, 1}]))
+          |> Tempo.Math.subtract(Tempo.Duration.build([{iter_unit, 1}]))
           |> Tempo.trunc(iter_unit)
 
         options = with_default_interval_options(options, first, closed_last)
@@ -334,7 +334,7 @@ defmodule Tempo.Format do
   # note in CLAUDE.md).
   defp closed_last_for_interval(%Tempo{} = from, %Tempo{} = to) do
     {iter_unit, _} = Tempo.resolution(from)
-    Tempo.Math.subtract(to, Tempo.Duration.new([{iter_unit, 1}]))
+    Tempo.Math.subtract(to, Tempo.Duration.build([{iter_unit, 1}]))
   end
 
   # When an interval's endpoints carry time-of-day components that

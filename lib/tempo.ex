@@ -194,70 +194,273 @@ defmodule Tempo do
   """
   @type error_reason :: Exception.t()
 
-  @doc false
-  def new(tokens, calendar \\ Calendrical.Gregorian)
+  # Canonical coarse-to-fine order of time-scale units. Used by
+  # `new/1` to reorder components before building, so callers can
+  # pass them in any convenient order.
+  @canonical_unit_order [
+    :year,
+    :month,
+    :week,
+    :day,
+    :day_of_year,
+    :day_of_week,
+    :hour,
+    :minute,
+    :second
+  ]
 
-  def new({:range, [first, last]}, calendar) do
-    Tempo.Range.new(first, last, calendar)
+  @time_axis_units [:hour, :minute, :second]
+  @week_axis_units [:week, :day_of_week]
+  @gregorian_axis_units [:month, :day]
+
+  @known_options [:calendar, :zone, :shift, :qualification, :metadata]
+  @qualification_values [
+    :uncertain,
+    :approximate,
+    :uncertain_and_approximate
+  ]
+
+  @doc """
+  Construct a `t:Tempo.t/0` from a keyword list of time-scale
+  components and options.
+
+  The companion to `~o` sigils and `Tempo.from_iso8601/1`: where the
+  sigil is ideal for literal values and `from_iso8601/1` for already-
+  formatted strings, `new/1` is the right constructor when you have
+  structured data at runtime — form inputs, database rows, API
+  payloads, test fixtures.
+
+  Components can be passed in any order; `new/1` reorders them
+  coarse-to-fine (year → month → day → hour → minute → second)
+  before building the struct.
+
+  ### Arguments
+
+  * `components` is a keyword list. Recognised keys:
+
+    * **Time-scale components** — `:year`, `:month`, `:week`, `:day`,
+      `:day_of_year`, `:day_of_week`, `:hour`, `:minute`, `:second`.
+      Each value must be an integer.
+
+    * **Options** — `:calendar` (defaults to `Calendrical.Gregorian`),
+      `:zone` (IANA time-zone name as a binary — sets
+      `extended.zone_id`), `:shift` (manual UTC offset as
+      `[hour: n]` or `[hour: n, minute: m]`),
+      `:qualification` (`:uncertain` / `:approximate` /
+      `:uncertain_and_approximate`), `:metadata` (free-form map
+      attached to `extended.tags`).
+
+  At least one time-scale component must be supplied. Axis coherence
+  is enforced: the Gregorian axis (`:month`, `:day`), the ISO-week
+  axis (`:week`, `:day_of_week`), and the ordinal axis
+  (`:day_of_year`) are mutually exclusive.
+
+  ### Returns
+
+  * `{:ok, t()}` on success.
+
+  * `{:error, reason}` when components are missing, have non-integer
+    values, mix axes, or name a non-existent zone.
+
+  ### Examples
+
+      iex> {:ok, tempo} = Tempo.new(year: 2026, month: 6, day: 15)
+      iex> tempo.time
+      [year: 2026, month: 6, day: 15]
+
+      iex> {:ok, tempo} = Tempo.new(day: 15, month: 6, year: 2026)
+      iex> tempo.time
+      [year: 2026, month: 6, day: 15]
+
+      iex> {:ok, meeting} = Tempo.new(year: 2026, month: 6, day: 15, hour: 14, minute: 30)
+      iex> meeting.time
+      [year: 2026, month: 6, day: 15, hour: 14, minute: 30]
+
+      iex> {:ok, ww} = Tempo.new(year: 2026, week: 24, day_of_week: 3)
+      iex> ww.time
+      [year: 2026, week: 24, day_of_week: 3]
+
+      iex> {:error, _} = Tempo.new(year: 2026, month: 13)
+
+      iex> {:error, _} = Tempo.new(year: 2026, month: 6, week: 24)
+
+  """
+  @spec new(keyword()) :: {:ok, t()} | {:error, error_reason()}
+  def new(components) when is_list(components) do
+    with :ok <- ensure_keyword(components),
+         {components, options} <- split_components_and_options(components),
+         :ok <- validate_options(options),
+         :ok <- validate_components(components),
+         :ok <- validate_axis_coherence(components),
+         :ok <- validate_zone_requires_time(components, options),
+         {:ok, tempo} <- build_tempo(components, options) do
+      validate_against_calendar(tempo)
+    end
   end
 
-  def new(:undefined, _calendar) do
-    :undefined
+  @doc """
+  Bang variant of `new/1` — raises on invalid input.
+
+  ### Examples
+
+      iex> Tempo.new!(year: 2026, month: 6, day: 15).time
+      [year: 2026, month: 6, day: 15]
+
+  """
+  @spec new!(keyword()) :: t()
+  def new!(components) when is_list(components) do
+    case new(components) do
+      {:ok, tempo} -> tempo
+      {:error, exception} when is_exception(exception) -> raise exception
+      {:error, reason} -> raise ArgumentError, "Tempo.new!/1 failed: #{inspect(reason)}"
+    end
   end
 
-  def new(tokens, calendar) when is_list(tokens) do
-    {shift, tokens} = Keyword.pop(tokens, :time_shift)
-    {qualification, tokens} = Keyword.pop(tokens, :qualification)
-    {extended, tokens} = Keyword.pop(tokens, :extended)
-    {component_qualifications, time} = pop_component_qualifications(tokens)
-
-    %__MODULE__{
-      time: time,
-      shift: shift,
-      calendar: calendar,
-      extended: extended,
-      qualification: qualification,
-      qualifications: component_qualifications
-    }
+  defp ensure_keyword(components) do
+    if Keyword.keyword?(components) do
+      :ok
+    else
+      {:error,
+       ArgumentError.exception(
+         "Tempo.new/1 expects a keyword list of time-scale components " <>
+           "and options. Got: #{inspect(components)}"
+       )}
+    end
   end
 
-  # Removes any `{<unit>_qualification, value}` entries from `tokens`
-  # and returns them as a plain `%{unit => value}` map. Returns `nil`
-  # for the map when no component-level qualifications were present
-  # so that the `%Tempo{}` struct stays compact when the feature
-  # isn't used.
-  defp pop_component_qualifications(tokens) do
-    {remaining, acc} =
-      Enum.reduce(tokens, {[], %{}}, fn
-        {key, value}, {rest, acc} when is_atom(key) ->
-          case unit_from_qualification_key(key) do
-            nil -> {[{key, value} | rest], acc}
-            unit -> {rest, Map.put(acc, unit, value)}
-          end
+  defp split_components_and_options(kw) do
+    {options, components} =
+      Enum.split_with(kw, fn {key, _value} -> key in @known_options end)
 
-        other, {rest, acc} ->
-          {[other | rest], acc}
+    {components, options}
+  end
+
+  defp validate_options(options) do
+    case Keyword.get(options, :qualification) do
+      nil ->
+        :ok
+
+      value when value in @qualification_values ->
+        :ok
+
+      other ->
+        {:error,
+         ArgumentError.exception(
+           ":qualification must be one of #{inspect(@qualification_values)}, got #{inspect(other)}"
+         )}
+    end
+  end
+
+  defp validate_components([]) do
+    {:error,
+     ArgumentError.exception(
+       "Tempo.new/1 requires at least one time-scale component — e.g. " <>
+         "[year: 2026] or [hour: 14, minute: 30]. None were given."
+     )}
+  end
+
+  defp validate_components(components) do
+    Enum.reduce_while(components, :ok, fn {unit, value}, :ok ->
+      cond do
+        unit not in @canonical_unit_order ->
+          {:halt,
+           {:error,
+            ArgumentError.exception(
+              "Tempo.new/1 does not recognise the component #{inspect(unit)}. " <>
+                "Valid components are #{inspect(@canonical_unit_order)}."
+            )}}
+
+        not is_integer(value) ->
+          {:halt,
+           {:error,
+            Tempo.InvalidDateError.exception(
+              unit: unit,
+              value: value,
+              reason: "must be an integer"
+            )}}
+
+        true ->
+          {:cont, :ok}
+      end
+    end)
+  end
+
+  defp validate_axis_coherence(components) do
+    keys = Keyword.keys(components)
+
+    week_axis? = Enum.any?(keys, &(&1 in @week_axis_units))
+    gregorian_axis? = Enum.any?(keys, &(&1 in @gregorian_axis_units))
+    ordinal_axis? = :day_of_year in keys
+
+    mixed = Enum.count([week_axis?, gregorian_axis?, ordinal_axis?], & &1)
+
+    if mixed > 1 do
+      {:error,
+       ArgumentError.exception(
+         "Tempo.new/1 cannot mix calendar axes — choose one of: " <>
+           ":month/:day (Gregorian), :week/:day_of_week (ISO week), or " <>
+           ":day_of_year (ordinal). Got: #{inspect(keys)}"
+       )}
+    else
+      :ok
+    end
+  end
+
+  defp validate_zone_requires_time(components, options) do
+    zone = Keyword.get(options, :zone)
+    has_time_of_day? = Enum.any?(Keyword.keys(components), &(&1 in @time_axis_units))
+
+    if zone && not has_time_of_day? do
+      {:error,
+       ArgumentError.exception(
+         ":zone requires at least one of #{inspect(@time_axis_units)} — a " <>
+           "zoned value without a time of day has no UTC projection."
+       )}
+    else
+      :ok
+    end
+  end
+
+  defp build_tempo(components, options) do
+    calendar = Keyword.get(options, :calendar, Calendrical.Gregorian)
+    zone = Keyword.get(options, :zone)
+    shift = Keyword.get(options, :shift)
+    qualification = Keyword.get(options, :qualification)
+    metadata = Keyword.get(options, :metadata)
+
+    ordered_time =
+      components
+      |> Enum.sort_by(fn {unit, _value} ->
+        Enum.find_index(@canonical_unit_order, &(&1 == unit))
       end)
 
-    result = if map_size(acc) == 0, do: nil, else: acc
-    {result, Enum.reverse(remaining)}
+    extended =
+      cond do
+        zone && metadata -> %{calendar: nil, zone_id: zone, zone_offset: nil, tags: metadata}
+        zone -> %{calendar: nil, zone_id: zone, zone_offset: nil, tags: %{}}
+        metadata -> %{calendar: nil, zone_id: nil, zone_offset: nil, tags: metadata}
+        true -> nil
+      end
+
+    {:ok,
+     %__MODULE__{
+       time: ordered_time,
+       shift: shift,
+       calendar: calendar,
+       extended: extended,
+       qualification: qualification,
+       qualifications: nil
+     }}
   end
 
-  @qualification_suffix "_qualification"
-  @qualification_suffix_size byte_size(@qualification_suffix)
-
-  defp unit_from_qualification_key(key) do
-    key_string = Atom.to_string(key)
-    size = byte_size(key_string)
-
-    if size > @qualification_suffix_size and
-         binary_part(key_string, size - @qualification_suffix_size, @qualification_suffix_size) ==
-           @qualification_suffix do
-      key_string
-      |> binary_part(0, size - @qualification_suffix_size)
-      |> String.to_existing_atom()
-    else
-      nil
+  # Defer to `Tempo.Validation.validate/2` for calendar-aware range
+  # checks (month ≤ months_in_year, day ≤ days_in_month, leap-aware
+  # Feb 29, etc.). Validation may return an `InvalidDateError` with
+  # rich context.
+  defp validate_against_calendar(%__MODULE__{calendar: calendar} = tempo) do
+    case Tempo.Validation.validate(tempo, calendar) do
+      {:ok, _validated} -> {:ok, tempo}
+      {:error, _} = err -> err
     end
   end
 
@@ -617,15 +820,15 @@ defmodule Tempo do
 
   @spec from_date(date :: Date.t()) :: t()
   def from_date(%{year: year, month: month, day: day, calendar: Calendar.ISO}) do
-    new(year: year, month: month, day: day)
+    Tempo.Iso8601.AST.build(year: year, month: month, day: day)
   end
 
   def from_date(%{year: year, month: month, day: day, calendar: Calendrical.Gregorian}) do
-    new(year: year, month: month, day: day)
+    Tempo.Iso8601.AST.build(year: year, month: month, day: day)
   end
 
   def from_date(%{year: year, month: month, day: day, calendar: calendar}) do
-    new([year: year, month: month, day: day], calendar)
+    Tempo.Iso8601.AST.build([year: year, month: month, day: day], calendar)
   end
 
   @doc """
@@ -649,7 +852,7 @@ defmodule Tempo do
   """
   @spec from_time(time :: Time.t()) :: t()
   def from_time(%{hour: hour, minute: minute, second: second}) do
-    new(hour: hour, minute: minute, second: second)
+    Tempo.Iso8601.AST.build(hour: hour, minute: minute, second: second)
   end
 
   @doc """
@@ -681,7 +884,14 @@ defmodule Tempo do
         second: second,
         calendar: Calendar.ISO
       }) do
-    new(year: year, month: month, day: day, hour: hour, minute: minute, second: second)
+    Tempo.Iso8601.AST.build(
+      year: year,
+      month: month,
+      day: day,
+      hour: hour,
+      minute: minute,
+      second: second
+    )
   end
 
   def from_naive_date_time(%{
@@ -693,7 +903,14 @@ defmodule Tempo do
         second: second,
         calendar: Calendrical.Gregorian
       }) do
-    new(year: year, month: month, day: day, hour: hour, minute: minute, second: second)
+    Tempo.Iso8601.AST.build(
+      year: year,
+      month: month,
+      day: day,
+      hour: hour,
+      minute: minute,
+      second: second
+    )
   end
 
   def from_naive_date_time(%{
@@ -705,7 +922,7 @@ defmodule Tempo do
         second: second,
         calendar: calendar
       }) do
-    new(
+    Tempo.Iso8601.AST.build(
       [year: year, month: month, day: day, hour: hour, minute: minute, second: second],
       calendar
     )
@@ -2037,7 +2254,7 @@ defmodule Tempo do
   def end_of_day(%Tempo{} = tempo) do
     case beginning_of_day(tempo) do
       {:error, _} = err -> err
-      %Tempo{} = start -> Tempo.Math.add(start, Tempo.Duration.new(day: 1))
+      %Tempo{} = start -> Tempo.Math.add(start, Tempo.Duration.build(day: 1))
     end
   end
 
@@ -2097,7 +2314,7 @@ defmodule Tempo do
   def end_of_month(%Tempo{} = tempo) do
     case beginning_of_month(tempo) do
       {:error, _} = err -> err
-      %Tempo{} = start -> Tempo.Math.add(start, Tempo.Duration.new(month: 1))
+      %Tempo{} = start -> Tempo.Math.add(start, Tempo.Duration.build(month: 1))
     end
   end
 
@@ -2154,7 +2371,7 @@ defmodule Tempo do
   """
   @spec shift(t(), keyword()) :: t()
   def shift(%Tempo{} = tempo, units) when is_list(units) do
-    Tempo.Math.add(tempo, Tempo.Duration.new(units))
+    Tempo.Math.add(tempo, Tempo.Duration.build(units))
   end
 
   ## ---------------------------------------------------------

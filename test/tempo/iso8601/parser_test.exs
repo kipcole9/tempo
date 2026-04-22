@@ -3,17 +3,20 @@ defmodule Tempo.Iso8601.Parser.Test do
   import Tempo.Sigil
 
   test "Parsing centuries and decades resolves to a year group" do
+    # The tokenizer emits group/range values as the component value;
+    # these shapes go through the internal AST builder, not the
+    # public `Tempo.new/1` (which validates for integer components).
     assert Tempo.from_iso8601("20C") ==
-             {:ok, Tempo.new(year: {:group, 2000..2099})}
+             {:ok, Tempo.Iso8601.AST.build(year: {:group, 2000..2099})}
 
     assert Tempo.from_iso8601("200J") ==
-             {:ok, Tempo.new(year: {:group, 2000..2009})}
+             {:ok, Tempo.Iso8601.AST.build(year: {:group, 2000..2009})}
 
     assert Tempo.from_iso8601("199J") ==
-             {:ok, Tempo.new(year: {:group, 1990..1999})}
+             {:ok, Tempo.Iso8601.AST.build(year: {:group, 1990..1999})}
 
     assert Tempo.from_iso8601("{1990..1999}Y") ==
-             {:ok, Tempo.new(year: [1990..1999])}
+             {:ok, Tempo.Iso8601.AST.build(year: [1990..1999])}
   end
 
   test "Section 5: groups" do

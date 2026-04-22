@@ -154,7 +154,7 @@ defmodule Tempo.RRule.SelectionTest do
       # day 365 = Dec 31. In both cases BYYEARDAY=-1 picks the
       # last day.
       for year <- [2022, 2024] do
-        candidate = %Tempo.Interval{from: Tempo.new(year: year, month: 12, day: 31)}
+        candidate = %Tempo.Interval{from: Tempo.new!(year: year, month: 12, day: 31)}
         rule = %Tempo{time: [selection: [day_of_year: -1]], calendar: Calendrical.Gregorian}
         assert Selection.apply(candidate, rule, :year) == [candidate]
       end

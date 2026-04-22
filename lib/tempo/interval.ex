@@ -69,84 +69,238 @@ defmodule Tempo.Interval do
             repeat_rule: nil,
             metadata: %{}
 
-  # Clause ordering matters. The `:recurrence` peeler is the first
-  # defence — it strips a leading recurrence token and recurses so
-  # every other clause can ignore recurrence entirely.
-  #
-  # After that, clauses that reference the literal `:duration` tag
-  # must come *before* any clause using a wildcard in the same
-  # position, otherwise the wildcard clause will swallow duration
-  # tokens and mis-classify them as dates.
-  #
-  # The tokenizer emits dates as one of `:date`, `:datetime`, or
-  # `:time_of_day`; durations as `:duration`; undefined endpoints
-  # as the atom `:undefined`. All of the following clauses
-  # collectively cover every combination the tokenizer can produce.
+  @public_new_options [:from, :to, :duration, :recurrence, :repeat_rule, :metadata]
+
+  @doc """
+  Construct a `t:Tempo.Interval.t/0` from a keyword list of options.
+
+  The companion to `~o` interval sigils and `Tempo.to_interval/1`.
+  Use this when you have the endpoints as runtime values (e.g. two
+  `%Tempo{}` structs) rather than an ISO 8601 string.
+
+  ### Arguments
+
+  * `options` is a keyword list. Recognised keys:
+
+    * `:from` — a `t:Tempo.t/0` or the atom `:undefined` (open start).
+
+    * `:to` — a `t:Tempo.t/0` or the atom `:undefined` (open end).
+
+    * `:duration` — a `t:Tempo.Duration.t/0`. When combined with
+      `:from`, the `:to` endpoint is derived lazily by
+      `Tempo.to_interval/1`.
+
+    * `:recurrence` — `pos_integer()` or `:infinity`.
+
+    * `:repeat_rule` — a `t:Tempo.RRule.Rule.t/0` or `t:Tempo.t/0`.
+
+    * `:metadata` — free-form map carried through set operations.
+
+  At least one of `:from`, `:to`, or `:duration` must be supplied.
+
+  ### Returns
+
+  * `{:ok, t()}` on success.
+
+  * `{:error, reason}` when endpoints are invalid, `:from` is greater
+    than `:to`, or required fields are missing.
+
+  ### Examples
+
+      iex> {:ok, iv} = Tempo.Interval.new(
+      ...>   from: Tempo.new!(year: 2026, month: 6, day: 15, hour: 9),
+      ...>   to:   Tempo.new!(year: 2026, month: 6, day: 15, hour: 17)
+      ...> )
+      iex> iv.from.time
+      [year: 2026, month: 6, day: 15, hour: 9]
+
+      iex> {:ok, iv} = Tempo.Interval.new(
+      ...>   from: Tempo.new!(year: 1985),
+      ...>   to: :undefined
+      ...> )
+      iex> iv.to
+      :undefined
+
+  """
+  @spec new(keyword()) :: {:ok, t()} | {:error, Exception.t()}
+  def new(options) when is_list(options) do
+    with :ok <- ensure_keyword_options(options),
+         :ok <- ensure_has_anchor(options),
+         from <- Keyword.get(options, :from),
+         to <- Keyword.get(options, :to),
+         :ok <- validate_endpoint_types(from, to),
+         :ok <- validate_from_to_order(from, to) do
+      recurrence = Keyword.get(options, :recurrence, 1)
+      duration = Keyword.get(options, :duration)
+      repeat_rule = Keyword.get(options, :repeat_rule)
+      metadata = Keyword.get(options, :metadata, %{})
+
+      {:ok,
+       %__MODULE__{
+         from: from || :undefined,
+         to: to || :undefined,
+         duration: duration,
+         recurrence: recurrence,
+         repeat_rule: repeat_rule,
+         metadata: metadata
+       }}
+    end
+  end
+
+  @doc """
+  Bang variant of `new/1`. Raises on invalid input.
+  """
+  @spec new!(keyword()) :: t()
+  def new!(options) when is_list(options) do
+    case new(options) do
+      {:ok, iv} -> iv
+      {:error, exception} when is_exception(exception) -> raise exception
+      {:error, reason} -> raise ArgumentError, "Tempo.Interval.new!/1 failed: #{inspect(reason)}"
+    end
+  end
+
+  defp ensure_keyword_options(options) do
+    cond do
+      not Keyword.keyword?(options) ->
+        {:error,
+         ArgumentError.exception(
+           "Tempo.Interval.new/1 expects a keyword list; got #{inspect(options)}"
+         )}
+
+      unknown = Enum.find(Keyword.keys(options), &(&1 not in @public_new_options)) ->
+        {:error,
+         ArgumentError.exception(
+           "Tempo.Interval.new/1 does not recognise option #{inspect(unknown)}. " <>
+             "Valid options: #{inspect(@public_new_options)}"
+         )}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp ensure_has_anchor(options) do
+    if Keyword.has_key?(options, :from) or Keyword.has_key?(options, :to) or
+         Keyword.has_key?(options, :duration) do
+      :ok
+    else
+      {:error,
+       ArgumentError.exception(
+         "Tempo.Interval.new/1 requires at least one of :from, :to, or :duration."
+       )}
+    end
+  end
+
+  defp validate_endpoint_types(from, to) do
+    cond do
+      not valid_endpoint?(from) ->
+        {:error,
+         ArgumentError.exception(":from must be a %Tempo{} or :undefined, got #{inspect(from)}")}
+
+      not valid_endpoint?(to) ->
+        {:error,
+         ArgumentError.exception(":to must be a %Tempo{} or :undefined, got #{inspect(to)}")}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp valid_endpoint?(nil), do: true
+  defp valid_endpoint?(:undefined), do: true
+  defp valid_endpoint?(%Tempo{}), do: true
+  defp valid_endpoint?(_other), do: false
+
+  defp validate_from_to_order(%Tempo{} = from, %Tempo{} = to) do
+    case Compare.compare_endpoints(from, to) do
+      :later ->
+        {:error,
+         Tempo.IntervalEndpointsError.exception(
+           interval: %__MODULE__{from: from, to: to},
+           operation: :new,
+           reason: ":from endpoint is later than :to endpoint"
+         )}
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp validate_from_to_order(_from, _to), do: :ok
+
+  @doc false
+  # Internal constructor called by the parser / tokenizer pipeline.
+  # Accepts tokenizer-emitted tagged-tuple shapes — not part of the
+  # public API. Use `new/1` for developer-facing construction.
 
   ## Recurrence peeler
 
-  def new([{:recurrence, recur} | rest]) do
+  def build([{:recurrence, recur} | rest]) do
     rest
-    |> new()
+    |> build()
     |> Map.put(:recurrence, recur)
   end
 
   ## Two-element forms: undefined endpoints
 
-  def new([:undefined, :undefined]) do
+  def build([:undefined, :undefined]) do
     %__MODULE__{from: :undefined, to: :undefined}
   end
 
-  def new([{_from_tag, time}, :undefined]) do
-    %__MODULE__{from: Tempo.new(time), to: :undefined}
+  def build([{_from_tag, time}, :undefined]) do
+    %__MODULE__{from: Tempo.Iso8601.AST.build(time), to: :undefined}
   end
 
-  def new([:undefined, {_to_tag, time}]) do
-    %__MODULE__{from: :undefined, to: Tempo.new(time)}
+  def build([:undefined, {_to_tag, time}]) do
+    %__MODULE__{from: :undefined, to: Tempo.Iso8601.AST.build(time)}
   end
 
   ## Two-element forms with a duration (must precede the
   ## wildcard date/date clause below).
 
-  def new([{:duration, duration}, {_to_tag, time}]) do
-    %__MODULE__{from: :undefined, duration: Duration.new(duration), to: Tempo.new(time)}
+  def build([{:duration, duration}, {_to_tag, time}]) do
+    %__MODULE__{
+      from: :undefined,
+      duration: Duration.build(duration),
+      to: Tempo.Iso8601.AST.build(time)
+    }
   end
 
-  def new([{_from_tag, time}, {:duration, duration}]) do
-    %__MODULE__{from: Tempo.new(time), duration: Duration.new(duration)}
+  def build([{_from_tag, time}, {:duration, duration}]) do
+    %__MODULE__{from: Tempo.Iso8601.AST.build(time), duration: Duration.build(duration)}
   end
 
   ## Two-element date/date form (wildcard; must be last among
   ## two-element clauses).
 
-  def new([{_from_tag, from}, {_to_tag, to}]) do
-    %__MODULE__{from: Tempo.new(from), to: Tempo.new(to)}
+  def build([{_from_tag, from}, {_to_tag, to}]) do
+    %__MODULE__{from: Tempo.Iso8601.AST.build(from), to: Tempo.Iso8601.AST.build(to)}
   end
 
   ## Three-element forms with a repeat_rule.
 
-  def new([{:duration, duration}, {_to_tag, to}, {:repeat_rule, repeat_rule}]) do
+  def build([{:duration, duration}, {_to_tag, to}, {:repeat_rule, repeat_rule}]) do
     %__MODULE__{
       from: :undefined,
-      to: Tempo.new(to),
-      duration: Duration.new(duration),
-      repeat_rule: Tempo.new(repeat_rule)
+      to: Tempo.Iso8601.AST.build(to),
+      duration: Duration.build(duration),
+      repeat_rule: Tempo.Iso8601.AST.build(repeat_rule)
     }
   end
 
-  def new([{_from_tag, from}, {:duration, duration}, {:repeat_rule, repeat_rule}]) do
+  def build([{_from_tag, from}, {:duration, duration}, {:repeat_rule, repeat_rule}]) do
     %__MODULE__{
-      from: Tempo.new(from),
-      duration: Duration.new(duration),
-      repeat_rule: Tempo.new(repeat_rule)
+      from: Tempo.Iso8601.AST.build(from),
+      duration: Duration.build(duration),
+      repeat_rule: Tempo.Iso8601.AST.build(repeat_rule)
     }
   end
 
-  def new([{_from_tag, from}, {_to_tag, to}, {:repeat_rule, repeat_rule}]) do
+  def build([{_from_tag, from}, {_to_tag, to}, {:repeat_rule, repeat_rule}]) do
     %__MODULE__{
-      from: Tempo.new(from),
-      to: Tempo.new(to),
-      repeat_rule: Tempo.new(repeat_rule)
+      from: Tempo.Iso8601.AST.build(from),
+      to: Tempo.Iso8601.AST.build(to),
+      repeat_rule: Tempo.Iso8601.AST.build(repeat_rule)
     }
   end
 
