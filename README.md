@@ -1,12 +1,22 @@
 # Tempo
 
-**Time as an interval, not an instant.**
-
 ![Tempo](assets/logo-social.png)
 
 Tempo is an Elixir library that models time the way humans actually use it — as bounded spans on a shared timeline rather than as scalar instants. One type represents every temporal value you might deal with: a year, a month, an afternoon, a meeting, an archaeological period, a recurring event, a free-busy calendar. Every value is a bounded interval at some resolution, and every operation (iteration, comparison, set-theoretic combination) is defined uniformly.
 
 This conceptual shift — *time as interval, not instant* — removes a surprising number of real-world bugs (off-by-one day errors, ambiguous "end of day", last day of month, last day of year, DST edge cases, "what date does this year mean?") while unlocking queries that are awkward or impossible in other libraries.
+
+## Installation
+
+```elixir
+def deps do
+  [
+    {:ex_tempo, github: "kipcole9/tempo"},
+    # Optional but recommended - needed for iCalendar import
+    {:ical, "~> 2.0"}
+  ]
+end
+```
 
 ## Why intervals, not instants
 
@@ -151,18 +161,6 @@ Tempo draws on several bodies of work:
 * **RFC 5545 (iCalendar) / RFC 7529 (RSCALE).** The iCalendar specification for RRULE, RDATE, EXDATE, VTIMEZONE. Tempo imports `.ics` data via `Tempo.ICal.from_ical/2`.
 
 * **IETF draft-ietf-sedate-datetime-extended (IXDTF).** The extended date-time format for annotations such as `[Europe/Paris][u-ca=hebrew]`. Supported in both parse and round-trip.
-
-## Installation
-
-```elixir
-def deps do
-  [
-    {:ex_tempo, github: "kipcole9/tempo"},
-    # Optional, only needed for iCalendar import:
-    {:ical, "~> 2.0"}
-  ]
-end
-```
 
 A hex release is imminent. The package name is `ex_tempo` because the `tempo` name on hex was already taken; the library is imported as `use Tempo` / `alias Tempo` and feels like `tempo` in code. Docs at [https://hexdocs.pm/ex_tempo](https://hexdocs.pm/ex_tempo).
 
