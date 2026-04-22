@@ -39,8 +39,9 @@ Before any operation runs, both operands are **aligned** by a shared preflight. 
 Given operands at different resolutions, the coarser one is extended to the finer one before math runs. This is lossless: extending `2022Y` to day resolution yields `[2022-01-01, 2023-01-01)` — the same span, just more explicit.
 
 ```
-iex> Tempo.intersection(~o"2022Y", ~o"2022-06-15")
-{:ok, %Tempo.IntervalSet{intervals: [...]}}
+iex> {:ok, set} = Tempo.intersection(~o"2022Y", ~o"2022-06-15")
+iex> Tempo.IntervalSet.count(set)
+1
 ```
 
 The result's endpoints are at day precision — the finer of the two inputs. The alternative (truncate the finer operand to year) would silently destroy information.
@@ -91,7 +92,7 @@ Tempo.intersection(~o"2026-01-04", ~o"T10:30")
 
 # With bound — works
 Tempo.intersection(~o"2026-01-04", ~o"T10:30", bound: ~o"2026-01-04")
-# {:ok, %Tempo.IntervalSet{intervals: [<2026-01-04 10:30-10:31>]}}
+# {:ok, #Tempo.IntervalSet<[~o"2026Y1M4DT10H30M/2026Y1M4DT10H31M"]>}
 ```
 
 The `:bound` option is also required on `complement/2` — for the same reason. An unbounded complement is infinite; Tempo refuses to pick a universe.

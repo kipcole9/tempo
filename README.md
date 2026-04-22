@@ -54,8 +54,8 @@ iex> Enum.take(~o"156X", 5)
 [~o"1560Y", ~o"1561Y", ~o"1562Y", ~o"1563Y", ~o"1564Y"]
 
 # "The 15th of every month in 1985" — not one span, a real set of days
-iex> {:ok, %Tempo.IntervalSet{intervals: ivs}} = Tempo.to_interval(~o"1985-XX-15")
-iex> length(ivs)
+iex> {:ok, set} = Tempo.to_interval(~o"1985-XX-15")
+iex> Tempo.IntervalSet.count(set)
 12
 
 # Free time, accounting for meetings in a real calendar

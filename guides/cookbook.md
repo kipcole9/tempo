@@ -611,8 +611,8 @@ iex> ~o"156X"
 ### How do I say "the 15th of every month in 1985"?
 
 ```elixir
-iex> {:ok, %Tempo.IntervalSet{intervals: days}} = Tempo.to_interval(~o"1985-XX-15")
-iex> length(days)
+iex> {:ok, set} = Tempo.to_interval(~o"1985-XX-15")
+iex> Tempo.IntervalSet.count(set)
 12
 ```
 
