@@ -111,8 +111,8 @@ defmodule Tempo.Iso8601.Parser.Test do
              {:ok, %Tempo{calendar: Calendrical.Gregorian, time: [year: 2018, month: 1, day: 30]}}
 
     # 5.4.3 Example 2
-    assert Tempo.from_iso8601("2018Y1G2MU60D") ==
-             {:error, "60 is not valid. The valid values are 1..59"}
+    assert {:error, %Tempo.InvalidDateError{} = e} = Tempo.from_iso8601("2018Y1G2MU60D")
+    assert Exception.message(e) =~ "60 is not valid"
 
     # 5.4.4 Example 1
     assert Tempo.from_iso8601("2018Y3G60DU6DZ-5H") ==
@@ -143,8 +143,8 @@ defmodule Tempo.Iso8601.Parser.Test do
 
   test "todo tests" do
     # 5.3 Example 3
-    assert Tempo.from_iso8601("2G2DT6HU") ==
-             {:error, "Complex groupings not yet supported. Found [nth: 2, day: 2, hour: 6]"}
+    assert {:error, %Tempo.ParseError{} = e} = Tempo.from_iso8601("2G2DT6HU")
+    assert Exception.message(e) =~ "Complex groupings not yet supported"
   end
 
   test "Section 6 Sets" do
@@ -247,7 +247,7 @@ defmodule Tempo.Iso8601.Parser.Test do
     # Tempo rejects offsets outside ±24h at validation; the
     # tokenizer still accepts the grammar.
     assert {:error, message} = Tempo.from_iso8601("Z28H")
-    assert message =~ "out of range"
+    assert Exception.message(message) =~ "out of range"
 
     # Section 7.4 Example 4
     assert Tempo.from_iso8601("Z6H0M") ==
@@ -414,9 +414,8 @@ defmodule Tempo.Iso8601.Parser.Test do
   end
 
   test "Fractional units can only be the last unit" do
-    assert Tempo.from_iso8601("1985Y2.5M1D") ==
-             {:error,
-              "A fractional unit can only be used for the highest resolution unit (smallest time unit)"}
+    assert {:error, %Tempo.ParseError{} = e} = Tempo.from_iso8601("1985Y2.5M1D")
+    assert Exception.message(e) =~ "fractional unit can only be used"
 
     assert Tempo.from_iso8601("1985Y1M5.5D") ==
              {:ok,
@@ -487,14 +486,14 @@ defmodule Tempo.Iso8601.Parser.Test do
     assert Tempo.from_iso8601("T-24H") ==
              {:ok, %Tempo{time: [hour: 0], shift: nil, calendar: Calendrical.Gregorian}}
 
-    assert Tempo.from_iso8601("T-25H") ==
-             {:error, "-25 is not valid. The normalized value of -1 is outside the range 0..23"}
+    assert {:error, %Tempo.InvalidDateError{} = e} = Tempo.from_iso8601("T-25H")
+    assert Exception.message(e) =~ "-25 is not valid"
 
-    assert Tempo.from_iso8601("2022Y-13M31D") ==
-             {:error, "-13 is not valid. The normalized value of 0 is outside the range 1..12"}
+    assert {:error, %Tempo.InvalidDateError{} = e} = Tempo.from_iso8601("2022Y-13M31D")
+    assert Exception.message(e) =~ "-13 is not valid"
 
-    assert Tempo.from_iso8601("2022Y-13M") ==
-             {:error, "-13 is not valid. The normalized value of 0 is outside the range 1..12"}
+    assert {:error, %Tempo.InvalidDateError{} = e} = Tempo.from_iso8601("2022Y-13M")
+    assert Exception.message(e) =~ "-13 is not valid"
   end
 
   test "Day of week adheres to calendar limit" do
@@ -522,8 +521,10 @@ defmodule Tempo.Iso8601.Parser.Test do
                 calendar: Calendrical.ISOWeek
               }}
 
-    assert Tempo.from_iso8601("2022Y1W8K", Calendrical.ISOWeek) ==
-             {:error, "8 is not valid. The valid values are 1..7"}
+    assert {:error, %Tempo.InvalidDateError{} = e} =
+             Tempo.from_iso8601("2022Y1W8K", Calendrical.ISOWeek)
+
+    assert Exception.message(e) =~ "8 is not valid"
   end
 
   test "Quarters, Quadrimesters and Semestrals" do
@@ -618,8 +619,7 @@ defmodule Tempo.Iso8601.Parser.Test do
   end
 
   test "Ranges must have the same time unit keys" do
-    assert Tempo.from_iso8601("[1760-12..1760]") ==
-             {:error,
-              "Time ranges must have the same time units on both sides. Found [year: 1760, month: 12]..[year: 1760]"}
+    assert {:error, %Tempo.ParseError{} = e} = Tempo.from_iso8601("[1760-12..1760]")
+    assert Exception.message(e) =~ "Time ranges must have the same time units"
   end
 end

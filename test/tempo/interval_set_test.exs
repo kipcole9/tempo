@@ -64,7 +64,7 @@ defmodule Tempo.IntervalSet.Test do
     test "rejects open-ended intervals" do
       {:ok, open} = Tempo.from_iso8601("1985/..")
       assert {:error, message} = Tempo.IntervalSet.new([open])
-      assert message =~ "open-ended"
+      assert Exception.message(message) =~ "open-ended"
     end
   end
 
@@ -284,7 +284,7 @@ defmodule Tempo.IntervalSet.Test do
     test "errors on a one-of Tempo.Set (epistemic)" do
       {:ok, set} = Tempo.from_iso8601("[2020Y,2021Y,2022Y]")
       assert {:error, message} = Tempo.to_interval_set(set)
-      assert message =~ "epistemic"
+      assert Exception.message(message) =~ "epistemic"
     end
   end
 

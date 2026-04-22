@@ -200,7 +200,10 @@ defmodule Tempo.Iso8601.Group do
 
   # TODO implement complex groups
   def expand_groups([{:group, group} | _rest], _calendar) do
-    {:error, "Complex groupings not yet supported. Found #{inspect(group)}"}
+    {:error,
+     Tempo.ParseError.exception(
+       reason: "Complex groupings not yet supported. Found #{inspect(group)}"
+     )}
   end
 
   def expand_groups([first | rest], calendar) do

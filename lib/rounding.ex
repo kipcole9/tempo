@@ -204,7 +204,10 @@ defmodule Tempo.Rounding do
   end
 
   defp rounding_error(time, resolution, time_unit) do
-    {Tempo.RoundingError,
-     "Time #{inspect(time)} resolution #{inspect(resolution)} cannot be rounded to #{inspect(time_unit)}"}
+    Tempo.RoundingError.exception(
+      unit: time_unit,
+      reason:
+        "Time #{inspect(time)} resolution #{inspect(resolution)} cannot be rounded to #{inspect(time_unit)}"
+    )
   end
 end

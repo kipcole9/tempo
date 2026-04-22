@@ -20,8 +20,8 @@ defmodule Tempo.ZoneValidationTest do
       assert {:error, message} =
                Tempo.from_iso8601("2024-03-10T02:30:00[America/New_York]")
 
-      assert message =~ "does not exist"
-      assert message =~ "America/New_York"
+      assert Exception.message(message) =~ "does not exist"
+      assert Exception.message(message) =~ "America/New_York"
     end
 
     test "every minute in the gap is rejected" do
@@ -36,7 +36,7 @@ defmodule Tempo.ZoneValidationTest do
       assert {:error, message} =
                Tempo.from_iso8601("2024-03-10T02:30:00[America/New_York]")
 
-      assert message =~ "\"America/New_York\""
+      assert Exception.message(message) =~ "\"America/New_York\""
     end
   end
 
@@ -187,12 +187,12 @@ defmodule Tempo.ZoneValidationTest do
 
     test "+25:00 inline is rejected" do
       assert {:error, message} = Tempo.from_iso8601("2024-03-10T12:00:00+25:00")
-      assert message =~ "out of range"
+      assert Exception.message(message) =~ "out of range"
     end
 
     test "-25:00 inline is rejected" do
       assert {:error, message} = Tempo.from_iso8601("2024-03-10T12:00:00-25:00")
-      assert message =~ "out of range"
+      assert Exception.message(message) =~ "out of range"
     end
 
     test "+14:00 inline (Pacific/Kiritimati) is accepted" do
@@ -213,7 +213,7 @@ defmodule Tempo.ZoneValidationTest do
 
     test "IXDTF [+25:00] is rejected" do
       assert {:error, message} = Tempo.from_iso8601("2024-03-10T12:00:00[+25:00]")
-      assert message =~ "out of range"
+      assert Exception.message(message) =~ "out of range"
     end
 
     test "IXDTF [+14:00] is accepted" do

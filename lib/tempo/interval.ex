@@ -200,9 +200,7 @@ defmodule Tempo.Interval do
 
     case Unit.implicit_enumerator(unit, calendar) do
       nil ->
-        {:error,
-         "Cannot materialise a Tempo at #{inspect(unit)} resolution into an explicit " <>
-           "interval — no finer unit is defined. Got: #{inspect(tempo)}"}
+        {:error, Tempo.MaterialisationError.exception(value: tempo, reason: :finest_resolution)}
 
       {next_unit, range} ->
         lower_time = time ++ [{next_unit, range_first(range)}]

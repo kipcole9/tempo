@@ -107,11 +107,14 @@ defmodule Tempo.Visualizer.ParseView do
       "<div class=\"vz-card vz-error\">",
       "<h2>Parse error</h2>",
       "<div class=\"vz-error-message\">",
-      Render.escape(to_string(reason)),
+      Render.escape(error_message(reason)),
       "</div>",
       "</div>"
     ]
   end
+
+  defp error_message(reason) when is_exception(reason), do: Exception.message(reason)
+  defp error_message(reason), do: inspect(reason)
 
   ## Segment breakdown
 

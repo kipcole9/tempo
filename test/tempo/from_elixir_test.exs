@@ -160,8 +160,8 @@ defmodule Tempo.FromElixir.Test do
 
     test "coarser target returns an error" do
       assert {:error, message} = Tempo.extend_resolution(~o"2020Y6M15D", :year)
-      assert message =~ ":year is coarser"
-      assert message =~ "Tempo.trunc/2"
+      assert Exception.message(message) =~ ":year is coarser"
+      assert Exception.message(message) =~ "Tempo.trunc/2"
     end
   end
 

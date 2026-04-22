@@ -18,16 +18,18 @@ defmodule TempoTest do
   end
 
   test "times with invalid groups" do
-    assert Tempo.from_iso8601("2018Y1G2MU60D") ==
-             {:error, "60 is not valid. The valid values are 1..59"}
+    assert {:error, %Tempo.InvalidDateError{} = e} = Tempo.from_iso8601("2018Y1G2MU60D")
+    assert Exception.message(e) =~ "60 is not valid"
   end
 
   test "time with month and day but no year" do
     assert Tempo.from_iso8601("4M{1..-1}D") == {:ok, ~o"4M{1..30}D"}
     assert Tempo.from_iso8601("1M{1..-1}D") == {:ok, ~o"1M{1..31}D"}
 
-    assert Tempo.from_iso8601("2M{1..-1}D") ==
-             {:error, "Cannot resolve days in month 2 without knowing the year"}
+    assert {:error, %Tempo.InvalidDateError{month: 2} = e} =
+             Tempo.from_iso8601("2M{1..-1}D")
+
+    assert Exception.message(e) =~ "Cannot resolve days in month 2"
   end
 
   # 5.4.2 Group Example 8
@@ -43,15 +45,18 @@ defmodule TempoTest do
   test "tempo truncation" do
     assert Tempo.trunc(~o"12M31DT1H10M59S", :day) == ~o"12M31D"
 
-    assert Tempo.trunc(~o"12M31DT1H10M59S", :year) ==
-             {:error, "Truncation would result in no time resolution"}
+    assert {:error, %Tempo.ResolutionError{operation: :trunc, reason: :empty_resolution}} =
+             Tempo.trunc(~o"12M31DT1H10M59S", :year)
 
-    assert Tempo.trunc(~o"12M31DT1H10M59S", :date) == {:error, "Invalid time unit :date"}
+    assert {:error, %Tempo.InvalidUnitError{unit: :date}} =
+             Tempo.trunc(~o"12M31DT1H10M59S", :date)
   end
 
   test "tempo merging" do
-    assert Tempo.merge(~o"50M", ~o"2022Y") ==
-             {:error, "50 is not valid. The valid values are 1..12"}
+    assert {:error, %Tempo.InvalidDateError{value: 50} = e} =
+             Tempo.merge(~o"50M", ~o"2022Y")
+
+    assert Exception.message(e) =~ "50 is not valid"
 
     assert Tempo.merge(~o"12M", ~o"2022Y") == ~o"2022Y12M"
     assert Tempo.merge(~o"12M", ~o"2022Y1M") == ~o"2022Y1M"
@@ -59,21 +64,30 @@ defmodule TempoTest do
 
   test "to_date/1" do
     assert Tempo.to_date(~o"2022-11-19") == {:ok, ~D[2022-11-19]}
-    assert Tempo.to_date(~o"2022-11-19T01:02:03") == {:error, :invalid_date}
-    assert Tempo.to_date(~o"2022") == {:error, :invalid_date}
+
+    assert {:error, %Tempo.ConversionError{target: Date}} =
+             Tempo.to_date(~o"2022-11-19T01:02:03")
+
+    assert {:error, %Tempo.ConversionError{target: Date}} = Tempo.to_date(~o"2022")
   end
 
   test "to_time/1" do
     assert Tempo.to_time(~o"01:02:03") == {:ok, ~T[01:02:03.000000]}
-    assert Tempo.to_time(~o"2022-11-19T01:02:03") == {:error, :invalid_time}
-    assert Tempo.to_time(~o"01:02") == {:error, :invalid_time}
+
+    assert {:error, %Tempo.ConversionError{target: Time}} =
+             Tempo.to_time(~o"2022-11-19T01:02:03")
+
+    assert {:error, %Tempo.ConversionError{target: Time}} = Tempo.to_time(~o"01:02")
   end
 
   test "to_naive_date_time/1" do
     assert Tempo.to_naive_date_time(~o"2022-11-19T01:02:03") ==
              {:ok, ~N[2022-11-19 01:02:03.000000]}
 
-    assert Tempo.to_naive_date_time(~o"2022-11") == {:error, :invalid_date_time}
-    assert Tempo.to_naive_date_time(~o"01:02") == {:error, :invalid_date_time}
+    assert {:error, %Tempo.ConversionError{target: NaiveDateTime}} =
+             Tempo.to_naive_date_time(~o"2022-11")
+
+    assert {:error, %Tempo.ConversionError{target: NaiveDateTime}} =
+             Tempo.to_naive_date_time(~o"01:02")
   end
 end

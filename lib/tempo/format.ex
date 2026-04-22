@@ -57,8 +57,10 @@ defmodule Tempo.Format do
   Delegated from `Tempo.to_string/1,2`.
 
   """
-  @spec to_string(Tempo.t() | Tempo.Interval.t() | Tempo.IntervalSet.t(), keyword()) ::
-          String.t()
+  @spec to_string(
+          Tempo.t() | Tempo.Interval.t() | Tempo.IntervalSet.t() | Tempo.Duration.t(),
+          keyword()
+        ) :: String.t()
   def to_string(value, options \\ [])
 
   def to_string(%Tempo{} = tempo, options) do
@@ -89,6 +91,33 @@ defmodule Tempo.Format do
     set
     |> Tempo.IntervalSet.to_list()
     |> Enum.map_join(", ", &to_string(&1, options))
+  end
+
+  def to_string(%Tempo.Duration{} = duration, options) do
+    case Localize.Duration.to_string(to_localize_duration(duration), options) do
+      {:ok, string} -> string
+      {:error, exception} -> raise exception
+    end
+  end
+
+  # Convert a Tempo.Duration (keyword-list time) into a
+  # Localize.Duration struct. Weeks are normalised to days (7× per
+  # week, added onto any existing :day count) because
+  # Localize.Duration has no :week field. Missing units default to
+  # 0; microseconds to `{0, 6}` since Tempo is second-resolution.
+  defp to_localize_duration(%Tempo.Duration{time: time}) do
+    {weeks, rest} = Keyword.pop(time, :week, 0)
+    rest = if weeks == 0, do: rest, else: Keyword.update(rest, :day, weeks * 7, &(&1 + weeks * 7))
+
+    %Localize.Duration{
+      year: Keyword.get(rest, :year, 0),
+      month: Keyword.get(rest, :month, 0),
+      day: Keyword.get(rest, :day, 0),
+      hour: Keyword.get(rest, :hour, 0),
+      minute: Keyword.get(rest, :minute, 0),
+      second: Keyword.get(rest, :second, 0),
+      microsecond: {0, 6}
+    }
   end
 
   ## ---------------------------------------------------------
@@ -349,10 +378,9 @@ defmodule Tempo.Format do
         {from, to}
 
       _other ->
-        raise ArgumentError,
-              "Tempo.Format.to_string/2 requires an interval with concrete " <>
-                "endpoints. Materialise recurrence/duration-only intervals via " <>
-                "`Tempo.to_interval/1,2` first."
+        raise Tempo.IntervalEndpointsError,
+          operation: "Tempo.Format.to_string/2",
+          interval: interval
     end
   end
 end

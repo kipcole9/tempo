@@ -202,9 +202,11 @@ defmodule Tempo.Select do
 
   def select(base, selector, _opts) do
     {:error,
-     "Tempo.Select.select/3 does not recognise selector #{inspect(selector)} " <>
-       "for base #{inspect(base)}. See `Tempo.Select` moduledoc for the " <>
-       "selector vocabulary."}
+     ArgumentError.exception(
+       "Tempo.Select.select/3 does not recognise selector #{inspect(selector)} " <>
+         "for base #{inspect(base)}. See `Tempo.Select` moduledoc for the " <>
+         "selector vocabulary."
+     )}
   end
 
   ## -----------------------------------------------------------
@@ -303,8 +305,13 @@ defmodule Tempo.Select do
     IntervalSet.new(intervals, coalesce: false)
   end
 
-  defp filter_by_weekdays(%Interval{}, _weekdays) do
-    {:error, "Cannot select weekdays across an open-ended interval."}
+  defp filter_by_weekdays(%Interval{} = interval, _weekdays) do
+    {:error,
+     Tempo.IntervalEndpointsError.exception(
+       interval: interval,
+       operation: :select_weekdays,
+       reason: "Cannot select weekdays across an open-ended interval."
+     )}
   end
 
   defp stream_days(from, to, calendar) do

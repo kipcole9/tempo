@@ -12,24 +12,24 @@ defmodule Tempo.Iso8601.LeapSecond.Test do
   describe ":second 60 is rejected at parse" do
     test "historical IERS date (2016-12-31) is rejected" do
       assert {:error, message} = Tempo.from_iso8601("2016-12-31T23:59:60Z")
-      assert message =~ "not accepted as a Tempo value"
-      assert message =~ "Tempo.LeapSeconds.dates/0"
-      assert message =~ "Tempo.Interval.spans_leap_second?/1"
+      assert Exception.message(message) =~ "not accepted as a Tempo value"
+      assert Exception.message(message) =~ "Tempo.LeapSeconds.dates/0"
+      assert Exception.message(message) =~ "Tempo.Interval.spans_leap_second?/1"
     end
 
     test "non-IERS date (2026-12-31) is rejected with the same message" do
       assert {:error, message} = Tempo.from_iso8601("2026-12-31T23:59:60Z")
-      assert message =~ "not accepted"
+      assert Exception.message(message) =~ "not accepted"
     end
 
     test "mid-day :60 is rejected (was rejected before too, uniform message now)" do
       assert {:error, message} = Tempo.from_iso8601("2022-05-15T10:30:60")
-      assert message =~ "not accepted"
+      assert Exception.message(message) =~ "not accepted"
     end
 
     test "non-zero offset :60 is rejected" do
       assert {:error, message} = Tempo.from_iso8601("2016-12-31T23:59:60+05:30")
-      assert message =~ "not accepted"
+      assert Exception.message(message) =~ "not accepted"
     end
 
     test "time-only :60 is rejected" do

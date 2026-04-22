@@ -115,7 +115,7 @@ defmodule Tempo.RRule.ExpanderTest do
       rule = %Rule{freq: :day}
       {:error, reason} = Expander.expand(rule, ~o"2022-06-01")
 
-      assert reason =~ "unbounded"
+      assert Exception.message(reason) =~ "unbounded"
     end
 
     test ":base_to preserves each occurrence's event span" do

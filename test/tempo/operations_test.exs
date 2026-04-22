@@ -21,14 +21,20 @@ defmodule Tempo.Operations.Test do
   describe "align/2,3 — operand validation" do
     test "rejects Tempo.Duration" do
       {:ok, d} = Tempo.from_iso8601("P3M")
-      assert {:error, message} = Tempo.Operations.align(~o"2022Y", d)
-      assert message =~ "Duration"
+
+      assert {:error, %Tempo.MaterialisationError{reason: :bare_duration} = e} =
+               Tempo.Operations.align(~o"2022Y", d)
+
+      assert Exception.message(e) =~ "Duration"
     end
 
     test "rejects one-of Tempo.Set" do
       {:ok, s} = Tempo.from_iso8601("[2020Y,2021Y,2022Y]")
-      assert {:error, message} = Tempo.Operations.align(~o"2023Y", s)
-      assert message =~ "one-of"
+
+      assert {:error, %Tempo.MaterialisationError{reason: :one_of_set} = e} =
+               Tempo.Operations.align(~o"2023Y", s)
+
+      assert Exception.message(e) =~ "one-of"
     end
 
     test "accepts Tempo.IntervalSet passthrough" do
@@ -49,9 +55,11 @@ defmodule Tempo.Operations.Test do
     end
 
     test "anchored + non-anchored without bound — error" do
-      assert {:error, message} = Tempo.Operations.align(~o"2022Y", ~o"T10:30")
-      assert message =~ ":bound"
-      assert message =~ "anchor/2"
+      assert {:error, %Tempo.NonAnchoredError{} = e} =
+               Tempo.Operations.align(~o"2022Y", ~o"T10:30")
+
+      assert Exception.message(e) =~ ":bound"
+      assert Exception.message(e) =~ "anchor/2"
     end
 
     test "anchored + non-anchored WITH bound — OK" do
@@ -156,8 +164,10 @@ defmodule Tempo.Operations.Test do
 
   describe "complement/2" do
     test "requires :bound" do
-      assert {:error, message} = Tempo.complement(~o"2022-06", [])
-      assert message =~ ":bound"
+      assert {:error, %Tempo.UnboundedRecurrenceError{} = e} =
+               Tempo.complement(~o"2022-06", [])
+
+      assert Exception.message(e) =~ ":bound"
     end
 
     test "gap in the middle → two intervals" do
@@ -291,11 +301,11 @@ defmodule Tempo.Operations.Test do
     end
 
     test "non-anchored bound is rejected" do
-      assert {:error, message} =
+      assert {:error, %Tempo.NonAnchoredError{} = e} =
                Tempo.Operations.align(~o"2026-01-04", ~o"T10:30", bound: ~o"T00:00")
 
-      assert message =~ "bound"
-      assert message =~ "anchored"
+      assert Exception.message(e) =~ "bound"
+      assert Exception.message(e) =~ "anchored"
     end
   end
 

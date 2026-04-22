@@ -19,8 +19,8 @@ defmodule Tempo.GroupResolution.Test do
 
     assert ~o"T1G4HU239M" == ~o"3H59M"
 
-    assert Tempo.from_iso8601("T1G4HU240M") ==
-             {:error, "240 is not valid. The valid values are 0..239"}
+    assert {:error, %Tempo.InvalidDateError{} = e} = Tempo.from_iso8601("T1G4HU240M")
+    assert Exception.message(e) =~ "240 is not valid"
   end
 
   test "Group resolution minutes to seconds" do
@@ -29,8 +29,8 @@ defmodule Tempo.GroupResolution.Test do
     assert ~o"T2G1MU1S" == ~o"1M1S"
     assert ~o"T2G4MU1S" == ~o"4M1S"
 
-    assert Tempo.from_iso8601("T2G4MU240S") ==
-             {:error, "480 is not valid. The valid values are 240..479"}
+    assert {:error, %Tempo.InvalidDateError{} = e} = Tempo.from_iso8601("T2G4MU240S")
+    assert Exception.message(e) =~ "480 is not valid"
   end
 
   test "Astronomical seasons (25-32) expand to equinox/solstice-bounded intervals" do

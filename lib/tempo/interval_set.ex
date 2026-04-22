@@ -294,7 +294,10 @@ defmodule Tempo.IntervalSet do
   defp coerce(%__MODULE__{} = set), do: {:ok, set}
   defp coerce(%Interval{} = iv), do: new([iv], coalesce: false)
   defp coerce(%Tempo{} = point), do: Tempo.to_interval_set(point)
-  defp coerce(other), do: {:error, "cannot convert to IntervalSet: #{inspect(other)}"}
+
+  defp coerce(other) do
+    {:error, Tempo.ConversionError.exception(value: other, target: Tempo.IntervalSet)}
+  end
 
   ## Validation
 
@@ -305,7 +308,12 @@ defmodule Tempo.IntervalSet do
           {:cont, :ok}
 
         false ->
-          {:halt, {:error, "Cannot include open-ended interval in a set: #{inspect(interval)}"}}
+          {:halt,
+           {:error,
+            Tempo.IntervalEndpointsError.exception(
+              interval: interval,
+              operation: "include open-ended interval in a set"
+            )}}
       end
     end)
   end

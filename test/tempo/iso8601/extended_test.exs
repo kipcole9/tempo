@@ -73,7 +73,7 @@ defmodule Tempo.Iso8601.Extended.Test do
       assert {:error, msg} =
                Tokenizer.tokenize("2022-11-20T10:30:00Z[!America/Not_A_Place]")
 
-      assert msg =~ "Unknown IANA time zone"
+      assert Exception.message(msg) =~ "Unknown IANA time zone"
     end
 
     test "elective (non-critical) unknown zone retains tag but no zone_id" do
@@ -137,7 +137,7 @@ defmodule Tempo.Iso8601.Extended.Test do
       assert {:error, msg} =
                Tokenizer.tokenize("2022-11-20T10:30:00Z[!u-ca=nonesuch]")
 
-      assert msg =~ "Unknown calendar identifier"
+      assert Exception.message(msg) =~ "Unknown calendar identifier"
     end
 
     test "elective unknown calendar is silently ignored" do
@@ -377,8 +377,8 @@ defmodule Tempo.Iso8601.Extended.Test do
       assert {:error, msg} =
                Tempo.from_iso8601("2022-06-15T10:00[!Continent/Imaginary]/2022-06-15T12:00")
 
-      assert msg =~ "Unknown IANA time zone"
-      assert msg =~ "Continent/Imaginary"
+      assert Exception.message(msg) =~ "Unknown IANA time zone"
+      assert Exception.message(msg) =~ "Continent/Imaginary"
     end
   end
 end

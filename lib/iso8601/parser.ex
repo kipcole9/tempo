@@ -13,7 +13,7 @@ defmodule Tempo.Iso8601.Parser do
     |> wrap(:ok)
   rescue
     e in Tempo.ParseError ->
-      {:error, e.message}
+      {:error, e}
   end
 
   # Handles the case where the tokenizer attached a top-level

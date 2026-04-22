@@ -75,9 +75,11 @@ defmodule Tempo.ToInterval.Test do
 
     test "second — no finer unit, refuses with a clear error" do
       {:ok, tempo} = Tempo.from_iso8601("2026-01-15T10:30:00")
-      assert {:error, message} = Tempo.to_interval(tempo)
-      assert message =~ ":second resolution"
-      assert message =~ "no finer unit"
+
+      assert {:error, %Tempo.MaterialisationError{reason: :finest_resolution} = e} =
+               Tempo.to_interval(tempo)
+
+      assert Exception.message(e) =~ "finest resolution"
     end
   end
 
@@ -160,15 +162,18 @@ defmodule Tempo.ToInterval.Test do
 
     test "bare Tempo.Duration returns an error" do
       {:ok, duration} = Tempo.from_iso8601("P3M")
-      assert {:error, message} = Tempo.to_interval(duration)
-      assert message =~ "Duration"
-      assert message =~ "no anchor"
+
+      assert {:error, %Tempo.MaterialisationError{reason: :bare_duration} = e} =
+               Tempo.to_interval(duration)
+
+      assert Exception.message(e) =~ "Duration"
+      assert Exception.message(e) =~ "no anchor"
     end
 
     test "to_interval!/1 raises on duration" do
       {:ok, duration} = Tempo.from_iso8601("P3M")
 
-      assert_raise ArgumentError, ~r/no anchor/, fn ->
+      assert_raise Tempo.MaterialisationError, ~r/no anchor/, fn ->
         Tempo.to_interval!(duration)
       end
     end
@@ -176,7 +181,7 @@ defmodule Tempo.ToInterval.Test do
     test "to_interval!/1 raises on second-resolution Tempo" do
       {:ok, tempo} = Tempo.from_iso8601("2026-01-15T10:30:00")
 
-      assert_raise ArgumentError, ~r/no finer unit/, fn ->
+      assert_raise Tempo.MaterialisationError, ~r/finest resolution/, fn ->
         Tempo.to_interval!(tempo)
       end
     end
@@ -188,9 +193,12 @@ defmodule Tempo.ToInterval.Test do
       # know which." Flattening to an IntervalSet would lie about
       # certainty.
       {:ok, set} = Tempo.from_iso8601("[2020Y,2021Y,2022Y]")
-      assert {:error, message} = Tempo.to_interval(set)
-      assert message =~ "one-of"
-      assert message =~ "epistemic"
+
+      assert {:error, %Tempo.MaterialisationError{reason: :one_of_set} = e} =
+               Tempo.to_interval(set)
+
+      assert Exception.message(e) =~ "one-of"
+      assert Exception.message(e) =~ "epistemic"
     end
 
     test "all-of range (`{a..c}Y`) materialises to a coalesced IntervalSet" do

@@ -304,14 +304,17 @@ defmodule Tempo.Select.Test do
   describe "error cases" do
     test "an unrecognised selector returns an error tuple" do
       assert {:error, message} = Tempo.select(~o"2026-02", :banana)
-      assert message =~ "does not recognise selector :banana"
-      assert message =~ "selector vocabulary"
+      assert Exception.message(message) =~ "does not recognise selector :banana"
+      assert Exception.message(message) =~ "selector vocabulary"
     end
 
     test "workdays on an open-ended interval returns an error" do
       {:ok, open} = Tempo.from_iso8601("2026-02/..")
-      assert {:error, message} = Tempo.select(open, :workdays)
-      assert message =~ "open-ended"
+
+      assert {:error, %Tempo.IntervalEndpointsError{} = e} =
+               Tempo.select(open, :workdays)
+
+      assert Exception.message(e) =~ "open-ended"
     end
   end
 

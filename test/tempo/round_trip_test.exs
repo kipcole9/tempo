@@ -163,7 +163,7 @@ defmodule Tempo.RoundTripTest do
 
   describe "to_rrule error cases (ConversionError)" do
     test "non-interval rejected with ConversionError" do
-      assert {:error, %Tempo.ConversionError{target: :rrule, message: message}} =
+      assert {:error, %Tempo.ConversionError{target: :rrule, reason: message}} =
                Tempo.to_rrule(Tempo.from_iso8601!("2022-06-15"))
 
       assert message =~ "Interval"
@@ -175,7 +175,7 @@ defmodule Tempo.RoundTripTest do
         to: Tempo.from_iso8601!("2022-12-31")
       }
 
-      assert {:error, %Tempo.ConversionError{target: :rrule, message: message}} =
+      assert {:error, %Tempo.ConversionError{target: :rrule, reason: message}} =
                Tempo.to_rrule(interval)
 
       assert message =~ "duration"
@@ -184,7 +184,7 @@ defmodule Tempo.RoundTripTest do
     test "interval with multi-unit duration rejected" do
       interval = %Tempo.Interval{duration: %Tempo.Duration{time: [year: 1, month: 6]}}
 
-      assert {:error, %Tempo.ConversionError{target: :rrule, message: message}} =
+      assert {:error, %Tempo.ConversionError{target: :rrule, reason: message}} =
                Tempo.to_rrule(interval)
 
       assert message =~ "single"
@@ -193,7 +193,7 @@ defmodule Tempo.RoundTripTest do
     test "interval with unsupported duration unit rejected" do
       interval = %Tempo.Interval{duration: %Tempo.Duration{time: [century: 1]}}
 
-      assert {:error, %Tempo.ConversionError{target: :rrule, message: message}} =
+      assert {:error, %Tempo.ConversionError{target: :rrule, reason: message}} =
                Tempo.to_rrule(interval)
 
       assert message =~ "century"

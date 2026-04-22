@@ -161,8 +161,10 @@ defmodule Tempo.Operations do
     with {:ok, bound_set} <- Tempo.to_interval_set(bound) do
       if anchor_class(bound_set) != :anchored do
         {:error,
-         "The `:bound` must be anchored (have a year component). " <>
-           "A non-anchored bound cannot materialise a time-of-day operand."}
+         Tempo.NonAnchoredError.exception(
+           operation: "use as :bound",
+           value: bound
+         )}
       else
         a_anchored = if class_a == :non_anchored, do: anchor_to_days(a, bound_set), else: {:ok, a}
         b_anchored = if class_b == :non_anchored, do: anchor_to_days(b, bound_set), else: {:ok, b}
@@ -243,18 +245,20 @@ defmodule Tempo.Operations do
 
   ## Operand validation — reject durations and one-of sets up-front.
 
-  defp validate_operand(%Tempo.Duration{}) do
+  defp validate_operand(%Tempo.Duration{} = value) do
     {:error,
-     "Cannot apply set operations to a Tempo.Duration — " <>
-       "a duration is a length, not a set of instants. Anchor it first " <>
-       "(e.g. `1985-01/P3M` or `P1M/1985-06`) via an interval."}
+     Tempo.MaterialisationError.exception(
+       value: value,
+       reason: :bare_duration
+     )}
   end
 
-  defp validate_operand(%Tempo.Set{type: :one}) do
+  defp validate_operand(%Tempo.Set{type: :one} = value) do
     {:error,
-     "Cannot apply set operations to a one-of Tempo.Set " <>
-       "(epistemic disjunction). Pick a specific member or handle the " <>
-       "disjunction in calling code."}
+     Tempo.MaterialisationError.exception(
+       value: value,
+       reason: :one_of_set
+     )}
   end
 
   defp validate_operand(_), do: :ok
@@ -281,10 +285,12 @@ defmodule Tempo.Operations do
 
       true ->
         {:error,
-         "Set operations between a #{class_a} operand and a #{class_b} operand " <>
-           "require a `:bound` option to anchor the non-anchored side. Alternatively, " <>
-           "use `Tempo.anchor/2` to combine a date-like value with a time-of-day " <>
-           "value before the operation."}
+         Tempo.NonAnchoredError.exception(
+           operation:
+             "combine a #{class_a} operand with a #{class_b} operand " <>
+               "in a set operation (use a `:bound` option, or anchor the " <>
+               "non-anchored side via `Tempo.anchor/2`)"
+         )}
     end
   end
 
@@ -560,8 +566,12 @@ defmodule Tempo.Operations do
     case Keyword.get(opts, :bound) do
       nil ->
         {:error,
-         "`complement/2` requires an explicit `:bound` option. " <>
-           "An unbounded complement is infinite; supply the universe to complement within."}
+         Tempo.UnboundedRecurrenceError.exception(
+           reason:
+             "`complement/2` requires an explicit `:bound` option. " <>
+               "An unbounded complement is infinite; supply the universe to " <>
+               "complement within."
+         )}
 
       bound ->
         difference(bound, set, opts)
@@ -674,7 +684,7 @@ defmodule Tempo.Operations do
     case intersection(a, b, opts) do
       {:ok, %IntervalSet{intervals: []}} -> true
       {:ok, _} -> false
-      {:error, reason} -> raise ArgumentError, reason
+      {:error, exception} -> raise exception
     end
   end
 
@@ -694,7 +704,7 @@ defmodule Tempo.Operations do
     case difference(a, b, opts) do
       {:ok, %IntervalSet{intervals: []}} -> true
       {:ok, _} -> false
-      {:error, reason} -> raise ArgumentError, reason
+      {:error, exception} -> raise exception
     end
   end
 
@@ -715,7 +725,7 @@ defmodule Tempo.Operations do
     with {:ok, {a_set, b_set}} <- align(a, b, opts) do
       a_set.intervals == b_set.intervals
     else
-      {:error, reason} -> raise ArgumentError, reason
+      {:error, exception} -> raise exception
     end
   end
 end

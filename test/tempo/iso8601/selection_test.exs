@@ -147,14 +147,15 @@ defmodule Tempo.Parser.Selection.Test do
   end
 
   test "when time units are out of order in a selection" do
-    assert Tempo.from_iso8601("2018YL1K2MN1D") ==
-             {:error,
-              "Selection time units must be in decreasing time scale order. Found [day_of_week: 1, month: 2]."}
+    assert {:error, %Tempo.ParseError{} = e} = Tempo.from_iso8601("2018YL1K2MN1D")
+
+    assert Exception.message(e) =~
+             "Selection time units must be in decreasing time scale order"
   end
 
   test "when subsequent time units are greater than the prior selection" do
-    assert Tempo.from_iso8601("L1DN1M") ==
-             {:error, ":month is greater than the selection max of :day"}
+    assert {:error, %Tempo.ParseError{} = e} = Tempo.from_iso8601("L1DN1M")
+    assert Exception.message(e) =~ ":month is greater than the selection max of :day"
   end
 
   # FIXME Raises on inspection

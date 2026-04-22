@@ -51,20 +51,22 @@ defmodule Tempo.ShiftZoneTest do
     test "rejects a floating Tempo" do
       floating = Tempo.from_iso8601!("2026-06-15T14:00:00")
 
-      assert {:error, message} = Tempo.shift_zone(floating, "Europe/Paris")
-      assert message =~ "floating"
+      assert {:error, %Tempo.FloatingTempoError{operation: :shift_zone}} =
+               Tempo.shift_zone(floating, "Europe/Paris")
     end
 
     test "rejects a non-anchored Tempo" do
       non_anchored = %Tempo{time: [hour: 10, minute: 30, second: 0]}
 
-      assert {:error, message} = Tempo.shift_zone(non_anchored, "Europe/Paris")
-      assert message =~ "non-anchored"
+      assert {:error, %Tempo.NonAnchoredError{operation: :shift_zone}} =
+               Tempo.shift_zone(non_anchored, "Europe/Paris")
     end
 
     test "returns an error for an unknown zone" do
       paris = Tempo.from_iso8601!("2026-06-15T14:00:00[Europe/Paris]")
-      assert {:error, _} = Tempo.shift_zone(paris, "Moon/Tranquility")
+
+      assert {:error, %Tempo.UnknownZoneError{zone_id: "Moon/Tranquility"}} =
+               Tempo.shift_zone(paris, "Moon/Tranquility")
     end
   end
 end

@@ -311,7 +311,11 @@ defmodule Tempo.RRule.Expander do
            }}
 
         :error ->
-          {:error, "Unsupported ical frequency: #{inspect(r.frequency)}"}
+          {:error,
+           Tempo.RRuleError.exception(
+             reason: "Unsupported ical frequency: #{inspect(r.frequency)}",
+             rule: r
+           )}
       end
     end
 

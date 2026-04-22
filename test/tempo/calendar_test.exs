@@ -61,8 +61,8 @@ defmodule Tempo.CalendarTest do
       assert {:error, message} =
                Tempo.from_iso8601("2022-06-15[!u-ca=fakecalendar]")
 
-      assert message =~ "Unknown calendar identifier"
-      assert message =~ "fakecalendar"
+      assert Exception.message(message) =~ "Unknown calendar identifier"
+      assert Exception.message(message) =~ "fakecalendar"
     end
 
     test "non-critical [u-ca=fake] is silently ignored" do

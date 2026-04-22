@@ -9,3 +9,7 @@ end
 defimpl String.Chars, for: Tempo.IntervalSet do
   def to_string(set), do: Tempo.to_string(set)
 end
+
+defimpl String.Chars, for: Tempo.Duration do
+  def to_string(duration), do: Tempo.to_string(duration)
+end

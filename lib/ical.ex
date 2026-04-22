@@ -269,9 +269,12 @@ if Code.ensure_loaded?(ICal) do
       cond do
         rule.count == nil and rule.until == nil and not Keyword.has_key?(opts, :bound) ->
           {:error,
-           "Event #{inspect(event.uid)} has an unbounded recurrence rule " <>
-             "(no COUNT, no UNTIL). Provide a `:bound` option — a Tempo " <>
-             "value within which the recurrence will be materialised."}
+           Tempo.UnboundedRecurrenceError.exception(
+             reason:
+               "Event #{inspect(event.uid)} has an unbounded recurrence rule " <>
+                 "(no COUNT, no UNTIL). Provide a `:bound` option — a Tempo " <>
+                 "value within which the recurrence will be materialised."
+           )}
 
         true ->
           with {:ok, base} <- single_event_to_interval(event) do
@@ -451,7 +454,12 @@ if Code.ensure_loaded?(ICal) do
     end
 
     defp dtstart_to_tempo(other) do
-      {:error, "Unsupported DTSTART type: #{inspect(other)}"}
+      {:error,
+       Tempo.ConversionError.exception(
+         value: other,
+         target: Tempo,
+         reason: "Unsupported DTSTART type: #{inspect(other)}"
+       )}
     end
 
     defp dtend_to_tempo(%ICal.Event{dtend: nil, duration: nil}, from) do
@@ -471,7 +479,11 @@ if Code.ensure_loaded?(ICal) do
       # `Tempo.Math.add/2` on a Duration token whose shape the
       # `ical` library surfaces as a `Timex.Duration`-ish record.
       # Not in v1.
-      {:error, "Duration-only VEVENT (no DTEND) is not yet supported."}
+      {:error,
+       Tempo.ConversionError.exception(
+         target: Tempo.Interval,
+         reason: "Duration-only VEVENT (no DTEND) is not yet supported."
+       )}
     end
 
     defp dtend_to_tempo(%ICal.Event{dtend: %Date{} = date}, _from) do
@@ -487,7 +499,12 @@ if Code.ensure_loaded?(ICal) do
     end
 
     defp dtend_to_tempo(%ICal.Event{dtend: other}, _from) do
-      {:error, "Unsupported DTEND type: #{inspect(other)}"}
+      {:error,
+       Tempo.ConversionError.exception(
+         value: other,
+         target: Tempo,
+         reason: "Unsupported DTEND type: #{inspect(other)}"
+       )}
     end
 
     # Lift the iCalendar properties users most often care about.

@@ -165,6 +165,36 @@ defmodule Tempo.FormatTest do
     end
   end
 
+  describe "Tempo.to_string/2 on Tempo.Duration — Localize-backed" do
+    test "year + month duration" do
+      assert Tempo.to_string(~o"P1Y6M") == "1 year and 6 months"
+    end
+
+    test "day + hour duration" do
+      assert Tempo.to_string(~o"P3DT2H") == "3 days and 2 hours"
+    end
+
+    test "weeks normalise to days" do
+      assert Tempo.to_string(~o"P2W3D") == "17 days"
+    end
+
+    test "zero duration renders as `0 seconds`" do
+      assert Tempo.to_string(~o"P0D") == "0 seconds"
+    end
+
+    test ":style short abbreviates" do
+      assert Tempo.to_string(~o"P3DT2H", style: :short) == "3 days and 2 hr"
+    end
+
+    test "locale honoured" do
+      assert Tempo.to_string(~o"P1Y6M", locale: :de) == "1 Jahr und 6 Monate"
+    end
+
+    test "String.Chars interpolates duration" do
+      assert "Elapsed: #{~o"P1Y6M"}" == "Elapsed: 1 year and 6 months"
+    end
+  end
+
   describe "Inspect remains unchanged" do
     test "inspect returns the sigil form, not the localized form" do
       assert inspect(~o"2026-06-15") == ~s|~o"2026Y6M15D"|

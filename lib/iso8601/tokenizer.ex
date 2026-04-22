@@ -51,10 +51,18 @@ defmodule Tempo.Iso8601.Tokenizer do
         Extended.split_extended(tokens)
 
       {:ok, _tokens, remaining, _, {_line, _}, _char} ->
-        {:error, "Could not parse #{inspect(string)}. Error detected at #{inspect(remaining)}"}
+        {:error,
+         Tempo.ParseError.exception(
+           input: string,
+           reason: "Could not parse #{inspect(string)}. Error detected at #{inspect(remaining)}"
+         )}
 
       {:error, message, detected_at, _, _, _} ->
-        {:error, String.capitalize(message) <> ". Error detected at #{inspect(detected_at)}"}
+        {:error,
+         Tempo.ParseError.exception(
+           input: string,
+           reason: String.capitalize(message) <> ". Error detected at #{inspect(detected_at)}"
+         )}
     end
   end
 

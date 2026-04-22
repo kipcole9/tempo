@@ -92,8 +92,12 @@ defmodule Tempo.Validation do
       resolve([{unit, [first..last//1]} | rest], calendar)
     else
       {:error,
-       "#{inspect(first)} is outside the #{unit} range #{inspect(range1)} " <>
-         "for the calendar #{inspect(calendar)}"}
+       Tempo.InvalidDateError.exception(
+         unit: unit,
+         value: first,
+         valid_range: range1,
+         calendar: calendar
+       )}
     end
   end
 
@@ -168,8 +172,13 @@ defmodule Tempo.Validation do
       resolve([{:year, year}, {:month, month}, {:day, day} | rest], calendar)
     else
       {:error,
-       "#{inspect(abs(day))} is outside the group #{inspect(days_of_year)} " <>
-         "for the calendar #{inspect(calendar)}"}
+       Tempo.InvalidDateError.exception(
+         unit: :day_of_year,
+         value: abs(day),
+         valid_range: days_of_year,
+         year: year,
+         calendar: calendar
+       )}
     end
   end
 
@@ -315,7 +324,11 @@ defmodule Tempo.Validation do
       [{:month, month}, {:day, days}]
     else
       {:ambiguous, _values} ->
-        {:error, "Cannot resolve days in month #{month} without knowing the year"}
+        {:error,
+         Tempo.InvalidDateError.exception(
+           month: month,
+           reason: "Cannot resolve days in month #{month} without knowing the year"
+         )}
 
       other ->
         other
@@ -421,7 +434,10 @@ defmodule Tempo.Validation do
   def resolve([{_unit, fraction}, {_unit_2, _value} | _rest], _calendar)
       when is_float(fraction) do
     {:error,
-     "A fractional unit can only be used for the highest resolution unit (smallest time unit)"}
+     Tempo.ParseError.exception(
+       reason:
+         "A fractional unit can only be used for the highest resolution unit (smallest time unit)"
+     )}
   end
 
   def resolve([{:hour, hour} | rest], calendar) when is_integer(hour) do
@@ -607,13 +623,29 @@ defmodule Tempo.Validation do
   end
 
   def conform(from, to) do
-    {:error, "#{inspect(from)} is not valid. The valid values are #{inspect(to)}"}
+    range =
+      case to do
+        %Range{} = r -> r
+        _other -> nil
+      end
+
+    {:error,
+     Tempo.InvalidDateError.exception(
+       value: from,
+       valid_range: range,
+       reason: "#{inspect(from)} is not valid. The valid values are #{inspect(to)}"
+     )}
   end
 
   defp normalized_error(value, normalized, range) do
     {:error,
-     "#{inspect(value)} is not valid. The normalized value of #{inspect(normalized)} " <>
-       "is outside the range #{inspect(range)}"}
+     Tempo.InvalidDateError.exception(
+       value: value,
+       valid_range: range,
+       reason:
+         "#{inspect(value)} is not valid. The normalized value of " <>
+           "#{inspect(normalized)} is outside the range #{inspect(range)}"
+     )}
   end
 
   ## Leap-second validation
@@ -660,11 +692,17 @@ defmodule Tempo.Validation do
     case List.keyfind(units, :second, 0) do
       {:second, 60} ->
         {:error,
-         "A second value of 60 (leap second) is not accepted as a Tempo value. " <>
-           "Elixir's `Calendar.ISO` and `DateTime` reject it too. Use " <>
-           "`Tempo.LeapSeconds.dates/0` for the historical list, or " <>
-           "`Tempo.Interval.spans_leap_second?/1` to detect leap seconds in " <>
-           "an interval."}
+         Tempo.InvalidTimeError.exception(
+           unit: :second,
+           value: 60,
+           valid_range: 0..59,
+           reason:
+             "A second value of 60 (leap second) is not accepted as a Tempo value. " <>
+               "Elixir's `Calendar.ISO` and `DateTime` reject it too. Use " <>
+               "`Tempo.LeapSeconds.dates/0` for the historical list, or " <>
+               "`Tempo.Interval.spans_leap_second?/1` to detect leap seconds in " <>
+               "an interval."
+         )}
 
       _ ->
         :ok
@@ -700,8 +738,11 @@ defmodule Tempo.Validation do
 
     if magnitude > @max_offset_minutes * 60 do
       {:error,
-       "Time-zone offset out of range. Offsets must be within ±24h; " <>
-         "got #{inspect(shift)}."}
+       Tempo.ParseError.exception(
+         reason:
+           "Time-zone offset out of range. Offsets must be within ±24h; " <>
+             "got #{inspect(shift)}."
+       )}
     else
       :ok
     end
@@ -714,12 +755,15 @@ defmodule Tempo.Validation do
   form. Called from the tokenizer when the offset lands on
   `extended.zone_offset`.
   """
-  @spec validate_ixdtf_offset_minutes(integer()) :: :ok | {:error, String.t()}
+  @spec validate_ixdtf_offset_minutes(integer()) :: :ok | {:error, Exception.t()}
   def validate_ixdtf_offset_minutes(minutes) when is_integer(minutes) do
     if abs(minutes) > @max_offset_minutes do
       {:error,
-       "Numeric zone offset out of range. Offsets must be within ±24h; " <>
-         "got #{format_offset(minutes)}."}
+       Tempo.ParseError.exception(
+         reason:
+           "Numeric zone offset out of range. Offsets must be within ±24h; " <>
+             "got #{format_offset(minutes)}."
+       )}
     else
       :ok
     end
@@ -762,7 +806,7 @@ defmodule Tempo.Validation do
 
   """
   @spec validate_zone_existence(Tempo.t() | Tempo.Interval.t() | Tempo.Set.t() | term()) ::
-          :ok | {:error, String.t()}
+          :ok | {:error, Exception.t()}
   def validate_zone_existence(%Tempo.Interval{from: from, to: to}) do
     with :ok <- validate_zone_existence(from) do
       validate_zone_existence(to)
@@ -800,10 +844,13 @@ defmodule Tempo.Validation do
         case Tzdata.periods_for_time(zone, wall, :wall) do
           [] ->
             {:error,
-             "Wall time #{year}-#{pad2(month)}-#{pad2(day)}T" <>
-               "#{pad2(hour)}:#{pad2(minute)}:#{pad2(second)} does not exist in " <>
-               "#{inspect(zone)} — it falls inside a daylight-saving or " <>
-               "zone-transition gap."}
+             Tempo.ZoneGapError.exception(
+               wall_time:
+                 "#{year}-#{pad2(month)}-#{pad2(day)}T#{pad2(hour)}:#{pad2(minute)}:#{pad2(second)}",
+               zone_id: zone,
+               reason: :dst_gap,
+               detail: "it falls inside a daylight-saving or zone-transition gap"
+             )}
 
           _periods ->
             # One period = unambiguous. Two = fall-back ambiguity,

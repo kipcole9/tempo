@@ -4,7 +4,7 @@ defmodule Tempo.Sigil do
 
     case Tempo.from_iso8601(string, calendar) do
       {:ok, tempo} -> Macro.escape(tempo)
-      {:error, message} -> raise Tempo.ParseError, message
+      {:error, exception} -> raise exception
     end
   end
 
@@ -13,7 +13,7 @@ defmodule Tempo.Sigil do
 
     case Tempo.from_iso8601(string, calendar) do
       {:ok, tempo} -> Macro.escape(tempo)
-      {:error, message} -> raise Tempo.ParseError, message
+      {:error, exception} -> raise exception
     end
   end
 

@@ -298,7 +298,7 @@ defmodule Tempo.Iso8601.Tokenizer.Extended do
   # IXDTF construction.  We reject critical duplicates and ignore
   # elective ones.
   defp apply_payload({:zone, zone}, true, _acc, _index) do
-    {:error, "Only one time zone may appear in an IXDTF suffix, got duplicate #{inspect(zone)}"}
+    {:error, Tempo.DuplicateZoneError.exception(zones: [zone])}
   end
 
   defp apply_payload({:zone, _zone}, false, acc, _index) do
@@ -306,7 +306,7 @@ defmodule Tempo.Iso8601.Tokenizer.Extended do
   end
 
   defp apply_payload({:offset, _}, true, _acc, _index) do
-    {:error, "Only one time zone may appear in an IXDTF suffix, got duplicate offset"}
+    {:error, Tempo.DuplicateZoneError.exception(zones: [])}
   end
 
   defp apply_payload({:offset, _}, false, acc, _index) do
@@ -318,7 +318,7 @@ defmodule Tempo.Iso8601.Tokenizer.Extended do
       {:ok, %{acc | zone_id: zone}}
     else
       if critical do
-        {:error, "Unknown IANA time zone: #{inspect(zone)}"}
+        {:error, Tempo.UnknownZoneError.exception(zone_id: zone)}
       else
         # Retain the string verbatim so callers can round-trip it,
         # but leave `:zone_id` signalled as unknown via the tags map.
@@ -346,7 +346,11 @@ defmodule Tempo.Iso8601.Tokenizer.Extended do
         {:ok, %{acc | calendar: calendar}}
 
       {:error, _} when critical ->
-        {:error, "Unknown calendar identifier #{inspect(raw)} in extended suffix"}
+        {:error,
+         Tempo.ParseError.exception(
+           input: raw,
+           reason: "Unknown calendar identifier #{inspect(raw)} in extended suffix"
+         )}
 
       {:error, _} ->
         {:ok, acc}
@@ -354,7 +358,7 @@ defmodule Tempo.Iso8601.Tokenizer.Extended do
   end
 
   defp apply_tag(_key, _values, true, _acc) do
-    {:error, "Unrecognised critical extended suffix"}
+    {:error, Tempo.ParseError.exception(reason: "Unrecognised critical extended suffix")}
   end
 
   defp apply_tag(key, values, false, acc) do

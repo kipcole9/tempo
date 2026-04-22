@@ -260,8 +260,8 @@ defmodule Tempo.ICal.Test do
       """
 
       assert {:error, reason} = Tempo.ICal.from_ical(ics)
-      assert reason =~ "unbounded"
-      assert reason =~ "bound"
+      assert Exception.message(reason) =~ "unbounded"
+      assert Exception.message(reason) =~ "bound"
     end
 
     test "unbounded recurrence with :bound — materialises within the bound" do
