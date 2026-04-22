@@ -2,33 +2,34 @@
 
 Tempo imports iCalendar (RFC 5545) data — the interchange format used by Google Calendar, Apple Calendar, Outlook, CalDAV servers, and every `.ics` file on disk — via `Tempo.ICal.from_ical/2`. Events convert to `%Tempo.Interval{}` values with their full metadata (summary, location, attendees, status, …) preserved and carried through every downstream operation, including set operations and enumeration.
 
-This unlocks free/busy scheduling, calendar overlap analysis, and event-aware time queries as direct expressions over the same API you use for any other Tempo value.
+This unlocks free/busy scheduling, schedule overlap analysis, and event-aware time queries as direct expressions over the same API you use for any other Tempo value.
 
 ## 1. A complete round-trip
 
 ```elixir
-ics = File.read!("~/my-calendar.ics")
+ics = File.read!("~/my-schedule.ics")
 
-{:ok, calendar} = Tempo.ICal.from_ical(ics)
-# %Tempo.IntervalSet{
-#   intervals: [%Tempo.Interval{metadata: %{summary: ..., location: ...}}, ...],
-#   metadata: %{prodid: "-//Apple Inc...", name: "Work", ...}
-# }
+{:ok, schedule} = Tempo.ICal.from_ical(ics)
+# #Tempo.IntervalSet<[
+#   #Tempo.Interval<~o"..." · Design review @ Room 101>,
+#   #Tempo.Interval<~o"..." · 1:1 with Ada>,
+#   ...
+# ] · Work>
 
-# What's on the calendar today?
+# What's on the schedule today?
 today = ~o"2026-04-21"
-{:ok, today_events} = Tempo.intersection(calendar, today)
+{:ok, today_events} = Tempo.intersection(schedule, today)
 
 # What time am I actually busy? (the covered-instant form)
-busy = Tempo.IntervalSet.coalesce(calendar)
+busy = Tempo.IntervalSet.coalesce(schedule)
 # Overlapping events merge into contiguous busy-time spans.
 
 # When am I free during work hours?
 work_hours = ~o"2026-04-21T09/2026-04-21T17"
-{:ok, free} = Tempo.split_difference(work_hours, calendar)
+{:ok, free} = Tempo.split_difference(work_hours, schedule)
 ```
 
-Every result is a standard `%Tempo.IntervalSet{}`. Event metadata from the source calendar is preserved on whichever intervals came from those events.
+Every result is a standard `%Tempo.IntervalSet{}`. Event metadata from the source schedule is preserved on whichever intervals came from those events.
 
 ## 2. Setup
 
@@ -54,7 +55,7 @@ Configure a database in the host application's `config/config.exs` (or per-envir
 config :elixir, :time_zone_database, Tzdata.TimeZoneDatabase
 ```
 
-Either [`:tzdata`](https://hex.pm/packages/tzdata) (which Tempo already depends on) or [`:tz`](https://hex.pm/packages/tz) works. Tempo's own dev and test environments pull in `:tz` and configure `Tz.TimeZoneDatabase` via `config/dev.exs` and `config/test.exs`, which is how the project's demo calendars (`demo/calendars/*.ics`) round-trip zoned events in `mix test` runs.
+Either [`:tzdata`](https://hex.pm/packages/tzdata) (which Tempo already depends on) or [`:tz`](https://hex.pm/packages/tz) works. Tempo's own dev and test environments pull in `:tz` and configure `Tz.TimeZoneDatabase` via `config/dev.exs` and `config/test.exs`, which is how the project's demo schedules (`demo/calendars/*.ics`) round-trip zoned events in `mix test` runs.
 
 UTC-anchored datetimes (the `20260401T090000Z` form) and floating/naive datetimes do not need a zone database — only the `TZID=`-parameterised form does.
 
@@ -116,7 +117,7 @@ The rule: **result intervals inherit the A-operand's per-interval metadata**. Fo
 
 ## 5. Overlapping events are preserved
 
-Real calendars routinely have overlapping events — a travel event on top of a lunch meeting, an all-day conference covering several one-hour talks. `Tempo.ICal.from_ical/2` returns **an IntervalSet with overlaps preserved** — the default member-preserving semantics of `Tempo.IntervalSet` keep each event as a distinct member so identity and metadata survive every subsequent set operation.
+Real schedules routinely have overlapping events — a travel event on top of a lunch meeting, an all-day conference covering several one-hour talks. `Tempo.ICal.from_ical/2` returns **an IntervalSet with overlaps preserved** — the default member-preserving semantics of `Tempo.IntervalSet` keep each event as a distinct member so identity and metadata survive every subsequent set operation.
 
 ```elixir
 {:ok, set} = Tempo.ICal.from_ical(ics)
@@ -130,14 +131,14 @@ When you want free/busy spans (canonical covered-instant form), coalesce explici
 busy = Tempo.IntervalSet.coalesce(set)
 ```
 
-`Tempo.IntervalSet.coalesce/1` merges touching and overlapping members under the half-open convention and drops the dropped members' metadata. Use it only when you need the covered-instant shape; the default member-preserving form is what downstream set operations on calendars expect.
+`Tempo.IntervalSet.coalesce/1` merges touching and overlapping members under the half-open convention and drops the dropped members' metadata. Use it only when you need the covered-instant shape; the default member-preserving form is what downstream set operations on schedules expect.
 
 ## 6. Free/busy patterns
 
 The most common iCal workflow:
 
 ```elixir
-# 1. Import calendars
+# 1. Import the schedules
 {:ok, work} = Tempo.ICal.from_ical_file("work.ics")
 {:ok, personal} = Tempo.ICal.from_ical_file("personal.ics")
 
@@ -251,6 +252,6 @@ Every arithmetic operation goes through the candidate's own calendar (`calendar.
 ## 9. Related reading
 
 - [`guides/rfc5545_rrule_conformance.md`](./rfc5545_rrule_conformance.md) for the property-by-property RRULE coverage table.
-- [`guides/set-operations.md`](./set-operations.md) for how to combine imported calendars.
+- [`guides/set-operations.md`](./set-operations.md) for how to combine imported schedules.
 - [`guides/enumeration-semantics.md`](./enumeration-semantics.md) for how iteration works over the resulting IntervalSets.
 - [RFC 5545](https://www.rfc-editor.org/rfc/rfc5545) for the iCalendar spec itself.

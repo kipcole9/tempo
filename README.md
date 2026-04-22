@@ -58,17 +58,17 @@ iex> {:ok, set} = Tempo.to_interval(~o"1985-XX-15")
 iex> Tempo.IntervalSet.count(set)
 12
 
-# Free time, accounting for meetings in a real calendar
-iex> {:ok, calendar} = Tempo.ICal.from_ical_file("~/work.ics")
-iex> {:ok, free} = Tempo.difference(~o"2026-06-15T09/2026-06-15T17", calendar)
+# Free time, accounting for meetings in a real schedule
+iex> {:ok, schedule} = Tempo.ICal.from_ical_file("~/work.ics")
+iex> {:ok, free} = Tempo.difference(~o"2026-06-15T09/2026-06-15T17", schedule)
 ```
 
 The inspect output carries metadata inline — iCalendar events show their summary and location on every interval that survives set operations:
 
 ```elixir
 iex> ics = File.read!("~/work.ics")
-iex> {:ok, calendar} = Tempo.ICal.from_ical(ics)
-iex> calendar
+iex> {:ok, schedule} = Tempo.ICal.from_ical(ics)
+iex> schedule
 #Tempo.IntervalSet<[
   #Tempo.Interval<~o"2026Y6M15DT10HZ/2026Y6M15DT11HZ" · Design review @ Room 101>,
   #Tempo.Interval<~o"2026Y6M16DT14HZ/2026Y6M16DT15HZ" · 1:1 with Ada>,
@@ -107,7 +107,7 @@ To:   2004-01-01 (exclusive — half-open `[from, to)`).
 
 * **First-class set algebra on time.** Union, intersection, complement, difference, symmetric difference — plus the predicate set (`disjoint?`, `overlaps?`, `subset?`, `contains?`, `equal?`) — all defined over any Tempo value. Cross-zone, cross-calendar, across resolutions.
 
-* **iCalendar import with metadata that travels.** `Tempo.ICal.from_ical/2` parses RFC 5545 `.ics` data and every event's metadata (summary, location, attendees, status, …) rides along through every downstream operation. Intersect your calendar with work hours, get back *which meetings* are in work hours.
+* **iCalendar import with metadata that travels.** `Tempo.ICal.from_ical/2` parses RFC 5545 `.ics` data and every event's metadata (summary, location, attendees, status, …) rides along through every downstream operation. Intersect your schedule with work hours, get back *which meetings* are in work hours.
 
 * **Unlocking queries that used to be hard.** "Every Friday the 13th this century." "When was I both in Japan and enrolled at my university?" "Free time on Tuesday, accounting for meetings across three zones." "Does this dig layer overlap with this dynasty?" All direct expressions over the same `Tempo` API.
 
@@ -167,7 +167,7 @@ Either [`:tzdata`](https://hex.pm/packages/tzdata) or [`:tz`](https://hex.pm/pac
 * [ISO 8601 conformance](guides/iso8601-conformance.md) — what's supported from the standards.
 * [Enumeration semantics](guides/enumeration-semantics.md) — iterating across Tempo values.
 * [Set operations](guides/set-operations.md) — union, intersection, complement, difference, predicates.
-* [iCalendar integration](guides/ical-integration.md) — importing `.ics` calendars with metadata preserved.
+* [iCalendar integration](guides/ical-integration.md) — importing `.ics` schedules with metadata preserved.
 * [Shared AST for ISO 8601 and RRULE](guides/shared-ast-iso8601-and-rrule.md) — the internal representation that unifies both.
 
 ## Related links

@@ -290,18 +290,18 @@ lunch    = ~o"2026-06-15T12/2026-06-15T13"
 
 > The **workday minus lunch** is my **free** time — two intervals, 09:00-12:00 and 13:00-17:00.
 
-### How do I compose free/busy across a real calendar?
+### How do I compose free/busy across a real schedule?
 
 ```elixir
-{:ok, calendar} = Tempo.ICal.from_ical_file("~/work.ics")
+{:ok, schedule} = Tempo.ICal.from_ical_file("~/work.ics")
 
 work = ~o"2026-06-15T09/2026-06-15T17"
-{:ok, free} = Tempo.difference(work, calendar)
+{:ok, free} = Tempo.difference(work, schedule)
 ```
 
-> **Work** minus **my calendar** gives me **free** time that day.
+> **Work** minus **my schedule** gives me **free** time that day.
 
-Result intervals carry the event metadata from the subtracted calendar where relevant, so you can trace each "busy" segment back to the meeting that caused it.
+Result intervals carry the event metadata from the subtracted schedule where relevant, so you can trace each "busy" segment back to the meeting that caused it.
 
 ### How do I get the symmetric difference (everything in A or B but not both)?
 
@@ -526,8 +526,8 @@ iex> length(occurrences)
 ### How do I import an `.ics` file?
 
 ```elixir
-iex> {:ok, calendar} = Tempo.ICal.from_ical_file("~/work.ics")
-iex> Tempo.IntervalSet.count(calendar)
+iex> {:ok, schedule} = Tempo.ICal.from_ical_file("~/work.ics")
+iex> Tempo.IntervalSet.count(schedule)
 # One interval per VEVENT (or per materialised recurrence occurrence).
 ```
 
@@ -538,7 +538,7 @@ Each event becomes a `%Tempo.Interval{}` with full metadata (summary, location, 
 Pass a `:bound` so unbounded recurrences terminate:
 
 ```elixir
-iex> {:ok, calendar} = Tempo.ICal.from_ical(ics, bound: ~o"2026-04-01/2026-07-01")
+iex> {:ok, schedule} = Tempo.ICal.from_ical(ics, bound: ~o"2026-04-01/2026-07-01")
 ```
 
 Every RRULE part (including BY-rules, BYSETPOS, WKST, RDATE, EXDATE) materialises correctly — one `%Tempo.Interval{}` per occurrence carrying the event's metadata.
@@ -546,17 +546,17 @@ Every RRULE part (including BY-rules, BYSETPOS, WKST, RDATE, EXDATE) materialise
 ### How do I find when a specific attendee is in a meeting?
 
 ```elixir
-{:ok, calendar} = Tempo.ICal.from_ical(ics)
+{:ok, schedule} = Tempo.ICal.from_ical(ics)
 
 ada_meetings =
-  calendar
+  schedule
   |> Tempo.IntervalSet.to_list()
   |> Enum.filter(fn meeting ->
     "ada@example.com" in (meeting.metadata[:attendees] || [])
   end)
 ```
 
-> **Ada's meetings** are every event in the **calendar** whose **attendees** include her.
+> **Ada's meetings** are every event in the **schedule** whose **attendees** include her.
 
 Metadata rides through any downstream set operation — after `intersection/difference/union`, you can still trace each result fragment to its originating event.
 
@@ -711,7 +711,7 @@ Tempo.overlaps?(dig_layer, ming_period)
 
 > The **dig layer overlaps** the **Ming period** — the site was in use during the dynasty.
 
-### How do I find free time across multiple calendars and timezones?
+### How do I find free time across multiple schedules and timezones?
 
 ```elixir
 {:ok, ny}     = Tempo.ICal.from_ical_file("~/cal_ny.ics")
@@ -759,13 +759,13 @@ weekdays = %Tempo.RRule.Rule{
 ### Every free minute in a month
 
 ```elixir
-{:ok, calendar} = Tempo.ICal.from_ical(ics, bound: ~o"2026-06")
+{:ok, schedule} = Tempo.ICal.from_ical(ics, bound: ~o"2026-06")
 
 month = ~o"2026-06"
-{:ok, free} = Tempo.difference(month, calendar)
+{:ok, free} = Tempo.difference(month, schedule)
 ```
 
-> The **month** of June **minus** my **calendar** is my **free** time that month.
+> The **month** of June **minus** my **schedule** is my **free** time that month.
 
 ---
 
