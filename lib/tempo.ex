@@ -1494,6 +1494,718 @@ defmodule Tempo do
     {:error, :invalid_date_time}
   end
 
+  ## ---------------------------------------------------------
+  ## Current time — clock-backed "now" entry points
+  ## ---------------------------------------------------------
+
+  @doc """
+  Return the current UTC time as a second-resolution `t:t/0`
+  anchored in `Etc/UTC`.
+
+  Reads from the clock configured under `:ex_tempo, :clock`,
+  defaulting to `Tempo.Clock.System`. Tests that need determinism
+  should configure `Tempo.Clock.Test` — see its module doc.
+
+  ### Returns
+
+  * A `t:t/0` at second resolution with `shift: [hour: 0]` and
+    `extended.zone_id: "Etc/UTC"`.
+
+  ### Examples
+
+      iex> tempo = Tempo.utc_now()
+      iex> tempo.extended.zone_id
+      "Etc/UTC"
+
+      iex> Tempo.utc_now() |> Tempo.resolution()
+      {:second, 1}
+
+  """
+  @spec utc_now() :: t()
+  def utc_now do
+    Tempo.Clock.utc_now() |> from_date_time()
+  end
+
+  @doc """
+  Return the current time in the given IANA time zone as a
+  second-resolution `t:t/0`.
+
+  Reads from the configured clock (as `utc_now/0` does) and shifts
+  the result into `zone`. The returned Tempo's wall-clock time is
+  the zone-local reading of the current UTC instant.
+
+  ### Arguments
+
+  * `zone` is an IANA time zone name (e.g. `"Europe/Paris"`,
+    `"America/New_York"`). Defaults to `"Etc/UTC"`, in which case
+    `now/1` is equivalent to `utc_now/0`.
+
+  ### Returns
+
+  * A `t:t/0` at second resolution with `extended.zone_id: zone`.
+
+  ### Examples
+
+      iex> tempo = Tempo.now("Europe/London")
+      iex> tempo.extended.zone_id
+      "Europe/London"
+
+      iex> Tempo.now("Etc/UTC").extended.zone_id
+      "Etc/UTC"
+
+  """
+  @spec now(String.t()) :: t()
+  def now(zone \\ "Etc/UTC") when is_binary(zone) do
+    utc = Tempo.Clock.utc_now()
+
+    case zone do
+      "Etc/UTC" ->
+        from_date_time(utc)
+
+      _other ->
+        utc
+        |> DateTime.shift_zone!(zone, Tzdata.TimeZoneDatabase)
+        |> from_date_time()
+    end
+  end
+
+  @doc """
+  Return today's date in UTC as a day-resolution `t:t/0`.
+
+  ### Returns
+
+  * A `t:t/0` at day resolution anchored in `Etc/UTC`.
+
+  ### Examples
+
+      iex> Tempo.utc_today() |> Tempo.resolution()
+      {:day, 1}
+
+  """
+  @spec utc_today() :: t() | {:error, error_reason()}
+  def utc_today do
+    utc_now() |> trunc(:day)
+  end
+
+  @doc """
+  Return today's date in the given IANA time zone as a
+  day-resolution `t:t/0`.
+
+  "Today" is zone-relative: at 11pm New York on the 14th it is
+  already the 15th in Paris. This function answers the zone-local
+  question.
+
+  ### Arguments
+
+  * `zone` is an IANA time zone name. Defaults to `"Etc/UTC"`.
+
+  ### Returns
+
+  * A `t:t/0` at day resolution whose wall date is the date in
+    `zone` at the current UTC instant.
+
+  ### Examples
+
+      iex> Tempo.today("Etc/UTC") |> Tempo.resolution()
+      {:day, 1}
+
+  """
+  @spec today(String.t()) :: t() | {:error, error_reason()}
+  def today(zone \\ "Etc/UTC") when is_binary(zone) do
+    now(zone) |> trunc(:day)
+  end
+
+  ## ---------------------------------------------------------
+  ## Zone shifting — project a zoned Tempo into another zone
+  ## ---------------------------------------------------------
+
+  @doc """
+  Project a zoned or UTC-anchored Tempo into another IANA time
+  zone, preserving the UTC instant.
+
+  The returned Tempo names the same point on the time line, but the
+  wall-clock reading is the one an observer in `target_zone` would
+  see. This is the stdlib analogue of `DateTime.shift_zone/2`: in
+  Tempo it routes through `Tempo.Compare.to_utc_seconds/1` so zone
+  rules are re-evaluated from Tzdata at call time.
+
+  ### Arguments
+
+  * `tempo` is a `t:t/0` that carries zone information — either an
+    IANA zone on `extended.zone_id`, a numeric `zone_offset`, or a
+    `shift` keyword list. A floating Tempo (no zone info) cannot be
+    projected because its UTC instant is undefined.
+
+  * `target_zone` is an IANA zone name (`"Europe/Paris"`,
+    `"America/New_York"`, `"Etc/UTC"`, …).
+
+  ### Returns
+
+  * `{:ok, tempo}` at second resolution in `target_zone`, or
+
+  * `{:error, reason}` when `tempo` is not zoned or `target_zone`
+    is unknown to Tzdata.
+
+  ### Examples
+
+      iex> paris = Tempo.from_iso8601!("2026-06-15T14:00:00[Europe/Paris]")
+      iex> {:ok, new_york} = Tempo.shift_zone(paris, "America/New_York")
+      iex> new_york.extended.zone_id
+      "America/New_York"
+      iex> Keyword.take(new_york.time, [:hour, :minute])
+      [hour: 8, minute: 0]
+
+  """
+  @spec shift_zone(t(), String.t()) :: {:ok, t()} | {:error, error_reason()}
+  def shift_zone(%Tempo{} = tempo, target_zone) when is_binary(target_zone) do
+    cond do
+      not anchored?(tempo) ->
+        {:error,
+         "Cannot shift_zone/2 a non-anchored Tempo (no :year component). Only " <>
+           "anchored values have a UTC projection."}
+
+      floating?(tempo) ->
+        {:error,
+         "Cannot shift_zone/2 a floating Tempo (no zone or offset information). " <>
+           "Attach a zone via parse (`~o\"...[#{target_zone}]\"`) or an offset " <>
+           "(`~o\"...Z\"` or `~o\"...+HH:MM\"`) first."}
+
+      true ->
+        do_shift_zone(tempo, target_zone)
+    end
+  end
+
+  defp floating?(%Tempo{shift: nil, extended: nil}), do: true
+  defp floating?(%Tempo{shift: nil, extended: %{zone_id: nil, zone_offset: nil}}), do: true
+  defp floating?(%Tempo{}), do: false
+
+  defp do_shift_zone(%Tempo{calendar: calendar} = tempo, "Etc/UTC") do
+    utc_seconds = Tempo.Compare.to_utc_seconds(tempo)
+
+    {{year, month, day}, {hour, minute, second}} =
+      :calendar.gregorian_seconds_to_datetime(utc_seconds)
+
+    {:ok,
+     %__MODULE__{
+       time: [
+         year: year,
+         month: month,
+         day: day,
+         hour: hour,
+         minute: minute,
+         second: second
+       ],
+       shift: [hour: 0],
+       calendar: calendar || Calendrical.Gregorian,
+       extended: %{zone_id: "Etc/UTC", zone_offset: 0, calendar: nil, tags: %{}}
+     }}
+  end
+
+  defp do_shift_zone(%Tempo{calendar: calendar} = tempo, target_zone) do
+    utc_seconds = Tempo.Compare.to_utc_seconds(tempo)
+
+    case Tzdata.periods_for_time(target_zone, utc_seconds, :utc) do
+      [period | _] ->
+        offset_seconds = period.utc_off + period.std_off
+        wall_seconds = utc_seconds + offset_seconds
+
+        {{year, month, day}, {hour, minute, second}} =
+          :calendar.gregorian_seconds_to_datetime(wall_seconds)
+
+        {:ok,
+         %__MODULE__{
+           time: [
+             year: year,
+             month: month,
+             day: day,
+             hour: hour,
+             minute: minute,
+             second: second
+           ],
+           shift: offset_to_shift(offset_seconds),
+           calendar: calendar || Calendrical.Gregorian,
+           extended: %{
+             zone_id: target_zone,
+             zone_offset: div(offset_seconds, 60),
+             calendar: nil,
+             tags: %{}
+           }
+         }}
+
+      [] ->
+        {:error,
+         "Tzdata has no period for #{inspect(target_zone)} at the given UTC " <>
+           "instant. Check the zone name."}
+    end
+  end
+
+  ## ---------------------------------------------------------
+  ## Calendar accessors — day_of_week, day_of_year, …
+  ## ---------------------------------------------------------
+
+  @doc """
+  Return the day of the week as an integer (`1..7`) using the
+  Tempo value's calendar.
+
+  For the Gregorian calendar with `:default` ordering, `1` is
+  Monday and `7` is Sunday — matching `Date.day_of_week/1`.
+
+  ### Arguments
+
+  * `tempo` is a `t:t/0` anchored with at least year/month/day
+    components.
+
+  * `starting_on` is a day-of-week atom controlling which day is
+    numbered `1`. Accepts `:default` (calendar's default),
+    `:monday`, `:tuesday`, `:wednesday`, `:thursday`, `:friday`,
+    `:saturday`, or `:sunday`. Defaults to `:default`.
+
+  ### Returns
+
+  * Integer `1..7`.
+
+  ### Raises
+
+  * `ArgumentError` when `tempo` has no date components.
+
+  ### Examples
+
+      iex> Tempo.day_of_week(~o"2026-06-15")
+      1
+
+      iex> Tempo.day_of_week(~o"2026-06-15", :sunday)
+      2
+
+  """
+  @spec day_of_week(t(), atom()) :: 1..7
+  def day_of_week(%Tempo{} = tempo, starting_on \\ :default) do
+    {year, month, day} = require_ymd!(tempo, :day_of_week)
+    {dow, _first, _last} = calendar_of(tempo).day_of_week(year, month, day, starting_on)
+    dow
+  end
+
+  @doc """
+  Return the 1-based ordinal day of the year (`1..365` or `1..366`
+  in a leap year) using the Tempo value's calendar.
+
+  ### Arguments
+
+  * `tempo` is a `t:t/0` anchored with at least year/month/day
+    components.
+
+  ### Returns
+
+  * A positive integer.
+
+  ### Raises
+
+  * `ArgumentError` when `tempo` has no date components.
+
+  ### Examples
+
+      iex> Tempo.day_of_year(~o"2026-01-01")
+      1
+
+      iex> Tempo.day_of_year(~o"2024-12-31")
+      366
+
+  """
+  @spec day_of_year(t()) :: pos_integer()
+  def day_of_year(%Tempo{} = tempo) do
+    {year, month, day} = require_ymd!(tempo, :day_of_year)
+    calendar_of(tempo).day_of_year(year, month, day)
+  end
+
+  @doc """
+  Return the 1-based quarter of the year (`1..4`) for Gregorian-like
+  calendars.
+
+  ### Arguments
+
+  * `tempo` is a `t:t/0` anchored with at least year/month
+    components.
+
+  ### Returns
+
+  * An integer `1..4`.
+
+  ### Raises
+
+  * `ArgumentError` when `tempo` has no year/month components.
+
+  ### Examples
+
+      iex> Tempo.quarter_of_year(~o"2026-01-15")
+      1
+
+      iex> Tempo.quarter_of_year(~o"2026-11-30")
+      4
+
+  """
+  @spec quarter_of_year(t()) :: 1..4
+  def quarter_of_year(%Tempo{} = tempo) do
+    {year, month, day} = require_ymd!(tempo, :quarter_of_year, default_day: 1)
+    calendar_of(tempo).quarter_of_year(year, month, day)
+  end
+
+  @doc """
+  Return `true` when the Tempo's year is a leap year under its
+  calendar.
+
+  ### Arguments
+
+  * `tempo` is a `t:t/0` with at least a year component.
+
+  ### Returns
+
+  * `true` or `false`.
+
+  ### Raises
+
+  * `ArgumentError` when `tempo` has no year component.
+
+  ### Examples
+
+      iex> Tempo.leap_year?(~o"2024")
+      true
+
+      iex> Tempo.leap_year?(~o"2025")
+      false
+
+  """
+  @spec leap_year?(t()) :: boolean()
+  def leap_year?(%Tempo{time: time} = tempo) do
+    year =
+      Keyword.get(time, :year) ||
+        raise ArgumentError,
+              "Tempo.leap_year?/1 requires a year component. Got: #{inspect(tempo)}"
+
+    calendar_of(tempo).leap_year?(year)
+  end
+
+  @doc """
+  Return the number of days in the Tempo's month under its
+  calendar.
+
+  ### Arguments
+
+  * `tempo` is a `t:t/0` with year and month components.
+
+  ### Returns
+
+  * A positive integer.
+
+  ### Raises
+
+  * `ArgumentError` when `tempo` has no year or no month
+    component.
+
+  ### Examples
+
+      iex> Tempo.days_in_month(~o"2024-02-15")
+      29
+
+      iex> Tempo.days_in_month(~o"2025-02")
+      28
+
+      iex> Tempo.days_in_month(~o"2026-04")
+      30
+
+  """
+  @spec days_in_month(t()) :: pos_integer()
+  def days_in_month(%Tempo{time: time} = tempo) do
+    year =
+      Keyword.get(time, :year) ||
+        raise ArgumentError,
+              "Tempo.days_in_month/1 requires a year component. Got: #{inspect(tempo)}"
+
+    month =
+      Keyword.get(time, :month) ||
+        raise ArgumentError,
+              "Tempo.days_in_month/1 requires a month component. Got: #{inspect(tempo)}"
+
+    calendar_of(tempo).days_in_month(year, month)
+  end
+
+  # Return the calendar module for a Tempo, defaulting to
+  # Calendrical.Gregorian when nil. Centralises the fallback so
+  # every accessor uses the same rule.
+  defp calendar_of(%Tempo{calendar: nil}), do: Calendrical.Gregorian
+  defp calendar_of(%Tempo{calendar: calendar}), do: calendar
+
+  # Extract {year, month, day} from a Tempo or raise a uniform
+  # error. Missing month or day default to 1 (start-of-unit) so
+  # quarter-of-year on a year-resolution value still works.
+  defp require_ymd!(%Tempo{time: time} = tempo, function, opts \\ []) do
+    default_day = Keyword.get(opts, :default_day, 1)
+
+    year =
+      Keyword.get(time, :year) ||
+        raise ArgumentError,
+              "Tempo.#{function}/1 requires a year component. Got: #{inspect(tempo)}"
+
+    month = Keyword.get(time, :month, 1)
+    day = Keyword.get(time, :day, default_day)
+    {year, month, day}
+  end
+
+  ## ---------------------------------------------------------
+  ## Day and month boundary helpers
+  ## ---------------------------------------------------------
+
+  @doc """
+  Return a second-resolution `t:t/0` at the start (`00:00:00`) of
+  the day that contains `tempo`.
+
+  Preserves the input's calendar, shift, and zone metadata so that
+  beginning-of-day in `[Europe/Paris]` still names midnight Paris
+  time, not midnight UTC.
+
+  ### Arguments
+
+  * `tempo` is a `t:t/0` with at least year/month/day components.
+
+  ### Returns
+
+  * A second-resolution `t:t/0`.
+
+  ### Examples
+
+      iex> Tempo.beginning_of_day(~o"2026-06-15T14:30:00")
+      ~o"2026Y6M15DT0H0M0S"
+
+      iex> Tempo.beginning_of_day(~o"2026-06-15")
+      ~o"2026Y6M15DT0H0M0S"
+
+  """
+  @spec beginning_of_day(t()) :: t() | {:error, error_reason()}
+  def beginning_of_day(%Tempo{} = tempo) do
+    tempo
+    |> trunc(:day)
+    |> extend_to_second()
+  end
+
+  @doc """
+  Return a second-resolution `t:t/0` at the **exclusive** end of
+  the day that contains `tempo` — i.e. `00:00:00` of the following
+  day.
+
+  Tempo follows the half-open `[from, to)` convention everywhere,
+  so `end_of_day/1` returns the upper bound at which the day ends
+  and the next day begins. This is the right argument for
+  interval construction — pairing `beginning_of_day/1` and
+  `end_of_day/1` gives you the 24-hour (or DST-adjusted) window.
+
+  ### Arguments
+
+  * `tempo` is a `t:t/0` with at least year/month/day components.
+
+  ### Returns
+
+  * A second-resolution `t:t/0`.
+
+  ### Examples
+
+      iex> Tempo.end_of_day(~o"2026-06-15T14:30:00")
+      ~o"2026Y6M16DT0H0M0S"
+
+      iex> Tempo.end_of_day(~o"2026-12-31")
+      ~o"2027Y1M1DT0H0M0S"
+
+  """
+  @spec end_of_day(t()) :: t() | {:error, error_reason()}
+  def end_of_day(%Tempo{} = tempo) do
+    case beginning_of_day(tempo) do
+      {:error, _} = err -> err
+      %Tempo{} = start -> Tempo.Math.add(start, Tempo.Duration.new(day: 1))
+    end
+  end
+
+  @doc """
+  Return a second-resolution `t:t/0` at the start of the month
+  (`YYYY-MM-01T00:00:00`) that contains `tempo`.
+
+  ### Arguments
+
+  * `tempo` is a `t:t/0` with at least year/month components.
+
+  ### Returns
+
+  * A second-resolution `t:t/0`.
+
+  ### Examples
+
+      iex> Tempo.beginning_of_month(~o"2026-06-15T14:30:00")
+      ~o"2026Y6M1DT0H0M0S"
+
+      iex> Tempo.beginning_of_month(~o"2026-06")
+      ~o"2026Y6M1DT0H0M0S"
+
+  """
+  @spec beginning_of_month(t()) :: t() | {:error, error_reason()}
+  def beginning_of_month(%Tempo{} = tempo) do
+    tempo
+    |> trunc(:month)
+    |> extend_to_second()
+  end
+
+  @doc """
+  Return a second-resolution `t:t/0` at the **exclusive** end of
+  the month that contains `tempo` — i.e. the first day of the
+  following month at `00:00:00`.
+
+  Half-open by design; see `end_of_day/1` for the rationale.
+
+  ### Arguments
+
+  * `tempo` is a `t:t/0` with at least year/month components.
+
+  ### Returns
+
+  * A second-resolution `t:t/0`.
+
+  ### Examples
+
+      iex> Tempo.end_of_month(~o"2026-06-15")
+      ~o"2026Y7M1DT0H0M0S"
+
+      iex> Tempo.end_of_month(~o"2026-12")
+      ~o"2027Y1M1DT0H0M0S"
+
+  """
+  @spec end_of_month(t()) :: t() | {:error, error_reason()}
+  def end_of_month(%Tempo{} = tempo) do
+    case beginning_of_month(tempo) do
+      {:error, _} = err -> err
+      %Tempo{} = start -> Tempo.Math.add(start, Tempo.Duration.new(month: 1))
+    end
+  end
+
+  # Pad to second resolution. `extend_resolution/2` handles the
+  # general case; this helper just threads the {:error, _} case
+  # through so the boundary helpers degrade gracefully.
+  defp extend_to_second(%Tempo{} = tempo) do
+    extend_resolution(tempo, :second)
+  end
+
+  defp extend_to_second({:error, _} = err), do: err
+
+  ## ---------------------------------------------------------
+  ## shift/2 — ergonomic keyword-list arithmetic
+  ## ---------------------------------------------------------
+
+  @doc """
+  Shift a `t:t/0` by a keyword list of signed unit amounts,
+  returning a new `t:t/0`.
+
+  This is the ergonomic companion to `Tempo.Math.add/2` — the
+  Duration-based API remains the principled path (durations carry
+  their own calendar and leap-second semantics), but for ad-hoc
+  shifts a keyword list reads more naturally.
+
+  Units are applied largest-to-smallest with the standard
+  month-end clamping rule (e.g. `~o"2024-01-31" + 1 month` is
+  `2024-02-29`, not `2024-03-02`).
+
+  ### Arguments
+
+  * `tempo` is any `t:t/0`.
+
+  * `units` is a keyword list of `{unit, amount}` pairs such as
+    `[month: 1, day: -5]` or `[year: 2]`. Valid units: `:year`,
+    `:month`, `:week`, `:day`, `:hour`, `:minute`, `:second`.
+    Amounts may be negative.
+
+  ### Returns
+
+  * The shifted `t:t/0`.
+
+  ### Examples
+
+      iex> Tempo.shift(~o"2026-06-15", month: 1, day: -5)
+      ~o"2026Y7M10D"
+
+      iex> Tempo.shift(~o"2026-01-31", month: 1)
+      ~o"2026Y2M28D"
+
+      iex> Tempo.shift(~o"2026-06-15T10:00:00", hour: -3)
+      ~o"2026Y6M15DT7H0M0S"
+
+  """
+  @spec shift(t(), keyword()) :: t()
+  def shift(%Tempo{} = tempo, units) when is_list(units) do
+    Tempo.Math.add(tempo, Tempo.Duration.new(units))
+  end
+
+  ## ---------------------------------------------------------
+  ## Locale-aware formatting — to_string/1,2
+  ## ---------------------------------------------------------
+
+  @doc """
+  Format a Tempo value as a locale-aware string.
+
+  Routes through Localize so format patterns, month and weekday
+  names, day periods, and punctuation all follow CLDR data for
+  the chosen locale. The default format is keyed off the Tempo's
+  resolution — a year-only value renders as `"2026"`, a month
+  value as `"Jun 2026"`, a day value as `"Jun 15, 2026"`, and so
+  on.
+
+  `Tempo.to_string/1,2` is the end-user display function.
+  `inspect/1` remains the programmer-facing form and returns the
+  `~o"…"` sigil representation unchanged.
+
+  ### Arguments
+
+  * `value` is a `t:t/0`, `t:Tempo.Interval.t/0`, or
+    `t:Tempo.IntervalSet.t/0`.
+
+  ### Options
+
+  * `:format` is a CLDR format atom (`:short | :medium | :long |
+    :full`), a skeleton atom (`:yMMM`, `:yMMMd`, `:hm`, …), or a
+    pattern string. Defaults to a resolution-appropriate choice
+    (see the module doc of `Tempo.Format` for the table).
+
+  * `:locale` is a CLDR locale identifier such as `"en"`,
+    `"en-GB"`, or `"de"`. Defaults to Localize's configured
+    default locale.
+
+  * Any other option accepted by `Localize.Date.to_string/2`,
+    `Localize.Time.to_string/2`, `Localize.DateTime.to_string/2`,
+    or `Localize.Interval.to_string/3` is forwarded verbatim.
+
+  ### Returns
+
+  * A `t:String.t/0`.
+
+  ### Raises
+
+  * Any exception Localize raises for invalid locales, missing
+    CLDR data, or unresolvable format skeletons.
+
+  ### Examples
+
+      iex> Tempo.to_string(~o"2026")
+      "Jan\u2009\u2013\u2009Dec 2026"
+
+      iex> Tempo.to_string(~o"2026-06")
+      "Jun 1\u2009\u2013\u200930, 2026"
+
+      iex> Tempo.to_string(~o"2026-06-15")
+      "Jun 15, 2026"
+
+      iex> Tempo.to_string(~o"2026-06-15", format: :long)
+      "June 15, 2026"
+
+      iex> Tempo.to_string(~o"2026", format: :long)
+      "January\u2009\u2013\u2009December 2026"
+
+  """
+  @spec to_string(t() | Tempo.Interval.t() | Tempo.IntervalSet.t(), keyword()) ::
+          String.t()
+  defdelegate to_string(value, options \\ []), to: Tempo.Format
+
   @doc """
   Convert an implicit-span `t:#{__MODULE__}.t/0` into the
   equivalent explicit `t:Tempo.Interval.t/0` or

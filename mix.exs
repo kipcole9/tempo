@@ -82,13 +82,15 @@ defmodule Tempo.MixProject do
   def groups_for_modules do
     [
       Core: ~r/^Tempo(?:\.(Interval|IntervalSet|Duration|Range|Set))?$/,
+      "Clock and current time": ~r/^Tempo\.Clock(\.|$)/,
       "Set algebra and comparison":
         ~r/^Tempo\.(Operations|Compare|Math|Rounding|Split|Select|Mask)$/,
       "Recurrence (RRULE)": ~r/^Tempo\.RRule(\.|$)/,
       "iCalendar integration": ~r/^Tempo\.ICal(\.|$)/,
       "ISO 8601 and IXDTF": ~r/^Tempo\.Iso8601(\.|$)/,
       Enumeration: ~r/^Tempo\.Enumeration$|^Enumerable\.Tempo/,
-      "Explanation and inspection": ~r/^Tempo\.(Explain|Explanation|Inspect|Sigil|Validation)$/,
+      "Explanation and inspection":
+        ~r/^Tempo\.(Explain|Explanation|Inspect|Format|Sigil|Validation)$/,
       Visualizer: ~r/^Tempo\.Visualizer(\.|$)/,
       Exceptions: ~r/^Tempo\.\w+Error$/
     ]
@@ -97,6 +99,7 @@ defmodule Tempo.MixProject do
   defp groups_for_extras do
     [
       Guides: [
+        "guides/when-to-use-tempo.md",
         "guides/cookbook.md",
         "guides/scheduling.md",
         "guides/falsehoods.md",
@@ -122,7 +125,7 @@ defmodule Tempo.MixProject do
       {:nimble_parsec, "~> 1.0"},
       {:calendrical, "~> 0.3"},
       {:astro, "~> 2.0"},
-      {:localize, "~> 0.20"},
+      {:localize, "~> 0.21"},
       {:tzdata, "~> 1.1"},
       {:ical, github: "expothecary/ical", optional: true},
       {:plug, "~> 1.15", optional: true},

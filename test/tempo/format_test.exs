@@ -1,0 +1,174 @@
+defmodule Tempo.FormatTest do
+  use ExUnit.Case, async: true
+
+  import Tempo.Sigil
+
+  doctest Tempo, only: [to_string: 2]
+
+  # The CLDR range separator is a thin-space + en-dash + thin-space.
+  @en_dash_sep "\u2009\u2013\u2009"
+
+  describe "Tempo.to_string/1 — Rule B expansion" do
+    test "year resolution expands to Jan–Dec (closed interval)" do
+      assert Tempo.to_string(~o"2026") == "Jan#{@en_dash_sep}Dec 2026"
+    end
+
+    test "year :long uses full month names" do
+      assert Tempo.to_string(~o"2026", format: :long) ==
+               "January#{@en_dash_sep}December 2026"
+    end
+
+    test "month resolution expands to day 1–N" do
+      assert Tempo.to_string(~o"2026-06") == "Jun 1#{@en_dash_sep}30, 2026"
+    end
+
+    test "month length follows the calendar (29 in a leap Feb)" do
+      assert Tempo.to_string(~o"2024-02") == "Feb 1#{@en_dash_sep}29, 2024"
+    end
+
+    test "month length in a common-year Feb is 28" do
+      assert Tempo.to_string(~o"2025-02") == "Feb 1#{@en_dash_sep}28, 2025"
+    end
+
+    test "day resolution collapses to a single value" do
+      assert Tempo.to_string(~o"2026-06-15") == "Jun 15, 2026"
+    end
+
+    test "day :long uses full month name" do
+      assert Tempo.to_string(~o"2026-06-15", format: :long) == "June 15, 2026"
+    end
+
+    test "second resolution collapses to a single datetime" do
+      string = Tempo.to_string(~o"2026-06-15T14:30:00")
+      assert string =~ "Jun 15, 2026"
+      assert string =~ "2:30"
+    end
+  end
+
+  describe "Tempo.to_string/2 — locale" do
+    test "en-GB switches to DMY ordering on day values" do
+      assert Tempo.to_string(~o"2026-06-15", format: :long, locale: "en-GB") ==
+               "15 June 2026"
+    end
+
+    test "de renders German month names" do
+      assert Tempo.to_string(~o"2026-06-15", format: :long, locale: "de") ==
+               "15. Juni 2026"
+    end
+
+    test "year expansion honours the locale" do
+      assert Tempo.to_string(~o"2026", locale: "de", format: :long) ==
+               "Januar\u2013Dezember 2026"
+    end
+
+    test "fr month expansion" do
+      assert Tempo.to_string(~o"2026-06", locale: "fr") =~ "juin"
+    end
+  end
+
+  describe "Tempo.to_string/2 on Tempo.Interval — same rule" do
+    test "day-resolution interval collapses to a single day when from == to − 1 day" do
+      {:ok, iv} = Tempo.to_interval(~o"2026-06-15")
+      assert Tempo.to_string(iv) == "Jun 15, 2026"
+    end
+
+    test "month-resolution interval renders the day range of the month" do
+      {:ok, iv} = Tempo.to_interval(~o"2026-06")
+      assert Tempo.to_string(iv) == "Jun 1#{@en_dash_sep}30, 2026"
+    end
+
+    test "year-resolution interval renders Jan–Dec" do
+      {:ok, iv} = Tempo.to_interval(~o"2026")
+      assert Tempo.to_string(iv) == "Jan#{@en_dash_sep}Dec 2026"
+    end
+
+    test "multi-year range uses the closed last year" do
+      {:ok, yr_iv} = Tempo.union(~o"2022", ~o"2023")
+      # Endpoints after coalesce are month-resolution, closed_last
+      # subtracts 1 month → Dec 2023.
+      assert Tempo.to_string(yr_iv) == "Jan 2022#{@en_dash_sep}Dec 2023"
+    end
+
+    test "Tempo.to_string(tempo) matches Tempo.to_string(to_interval(tempo)) — year" do
+      tempo = ~o"2026"
+      {:ok, iv} = Tempo.to_interval(tempo)
+      assert Tempo.to_string(tempo) == Tempo.to_string(iv)
+    end
+
+    test "Tempo.to_string(tempo) matches Tempo.to_string(to_interval(tempo)) — month" do
+      tempo = ~o"2026-06"
+      {:ok, iv} = Tempo.to_interval(tempo)
+      assert Tempo.to_string(tempo) == Tempo.to_string(iv)
+    end
+
+    test "Tempo.to_string(tempo) matches Tempo.to_string(to_interval(tempo)) — day" do
+      # The materialised interval has T00H endpoints; the
+      # midnight-to-midnight trunc in Tempo.Format ensures the
+      # display resolution matches the source Tempo's.
+      tempo = ~o"2026-06-15"
+      {:ok, iv} = Tempo.to_interval(tempo)
+      assert Tempo.to_string(tempo) == Tempo.to_string(iv)
+    end
+
+    test "explicit hour-level interval preserves hour display" do
+      iv = %Tempo.Interval{from: ~o"2026-06-15T10", to: ~o"2026-06-15T18"}
+      string = Tempo.to_string(iv)
+      assert string =~ "Jun 15, 2026"
+      assert string =~ "10"
+      assert string =~ "5"
+    end
+
+    test "month :long uses the day-of-week-and-month format" do
+      {:ok, iv} = Tempo.to_interval(~o"2026-06")
+      string = Tempo.to_string(iv, format: :long)
+      # CLDR :long for date-style intervals includes the abbreviated
+      # weekday + abbreviated month, e.g. "Mon, Jun 1 – Tue, Jun 30, 2026".
+      assert string =~ "Mon"
+      assert string =~ "Tue"
+      assert string =~ "Jun"
+      assert string =~ "30, 2026"
+    end
+  end
+
+  describe "Tempo.to_string/2 on Tempo.IntervalSet" do
+    test "joins members with ', '" do
+      {:ok, set} = Tempo.union(~o"2022", ~o"2024")
+
+      assert Tempo.to_string(set) ==
+               "Jan#{@en_dash_sep}Dec 2022, Jan#{@en_dash_sep}Dec 2024"
+    end
+  end
+
+  describe "String.Chars protocol" do
+    test "Tempo interpolates into a string" do
+      assert "Date: #{~o"2026-06-15"}" == "Date: Jun 15, 2026"
+    end
+
+    test "Year interpolation expands to Jan–Dec" do
+      assert "#{~o"2026"}" == "Jan#{@en_dash_sep}Dec 2026"
+    end
+
+    test "Tempo.Interval interpolates" do
+      {:ok, iv} = Tempo.to_interval(~o"2026-06")
+      assert "#{iv}" == "Jun 1#{@en_dash_sep}30, 2026"
+    end
+
+    test "Tempo.IntervalSet interpolates" do
+      {:ok, set} = Tempo.union(~o"2022", ~o"2024")
+      assert "#{set}" =~ "2022"
+      assert "#{set}" =~ "2024"
+    end
+
+    test "to_string/1 on Tempo equals Tempo.to_string/1" do
+      tempo = ~o"2026-06-15"
+      assert to_string(tempo) == Tempo.to_string(tempo)
+    end
+  end
+
+  describe "Inspect remains unchanged" do
+    test "inspect returns the sigil form, not the localized form" do
+      assert inspect(~o"2026-06-15") == ~s|~o"2026Y6M15D"|
+      assert inspect(~o"2026") == ~s|~o"2026Y"|
+    end
+  end
+end

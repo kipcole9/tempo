@@ -1,0 +1,64 @@
+defmodule Tempo.Clock do
+  @moduledoc """
+  A behaviour for providing the current time to Tempo.
+
+  All "now" queries in Tempo (`Tempo.utc_now/0`, `Tempo.now/1`,
+  `Tempo.utc_today/0`, `Tempo.today/1`) go through the clock
+  configured under `:ex_tempo, :clock`. The default is
+  `Tempo.Clock.System`, which delegates to `DateTime.utc_now/0`.
+
+  The indirection exists so tests can swap in a deterministic clock
+  without stubbing the Erlang system time. `Tempo.Clock.Test` is a
+  process-local stub suitable for `ExUnit` tests; see its module doc
+  for the usage pattern.
+
+  ### Configuring the clock
+
+  In `config/test.exs`:
+
+      config :ex_tempo, clock: Tempo.Clock.Test
+
+  In application code, use `Tempo.utc_now/0` etc. rather than calling
+  the clock directly — the module attribute means the swap is
+  transparent to callers.
+
+  ### Implementing a custom clock
+
+  A custom clock must return a `t:DateTime.t/0`. Implementations are
+  free to read from a database, a time-service mock, or a
+  distributed-system clock skew model. The one rule: the returned
+  `DateTime` must be in UTC (i.e. `time_zone: "Etc/UTC"`, zero
+  offset). Zone projection happens downstream in `Tempo.now/1`.
+
+  """
+
+  @doc """
+  Return the current UTC time as a `t:DateTime.t/0` in `Etc/UTC`.
+
+  """
+  @callback utc_now() :: DateTime.t()
+
+  @doc """
+  Return the current UTC time from the configured clock.
+
+  Delegates to the module configured under `:ex_tempo, :clock`,
+  defaulting to `Tempo.Clock.System`.
+
+  """
+  @spec utc_now() :: DateTime.t()
+  def utc_now do
+    clock().utc_now()
+  end
+
+  @doc """
+  Return the currently configured clock module.
+
+  Reads `Application.get_env(:ex_tempo, :clock)`, defaulting to
+  `Tempo.Clock.System` when unset.
+
+  """
+  @spec clock() :: module()
+  def clock do
+    Application.get_env(:ex_tempo, :clock, Tempo.Clock.System)
+  end
+end
