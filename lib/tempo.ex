@@ -3515,30 +3515,6 @@ defmodule Tempo do
     value |> Tempo.Explain.explain() |> Tempo.Explain.to_string()
   end
 
-  @doc """
-  Print a guided tour of Tempo's distinctive capabilities to the
-  iex console.
-
-  Eight short examples run live against the current build —
-  implicit spans, enumeration, archaeological dates, set
-  operations, cross-calendar comparison, locale-aware selectors,
-  leap seconds, and femtosecond precision. Useful as a first
-  contact with the library, a conference demo, or a sanity check
-  after a version bump.
-
-  Call `Tempo.tour()` at an iex prompt to see the tour's eight
-  steps printed to stdout. Returns `:ok` so the prompt shows
-  cleanly after the output.
-
-  The tour is tested via `ExUnit.CaptureIO` in
-  `test/tempo/tour_test.exs`; no doctest is included here because
-  the tour's raison d'être is the printed output, which would
-  otherwise flood every test-suite run.
-
-  """
-  @spec tour() :: :ok
-  defdelegate tour(), to: Tempo.Tour, as: :run
-
   @valid_units Unit.units()
 
   @doc false

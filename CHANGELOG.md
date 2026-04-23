@@ -10,8 +10,6 @@
 
 * `Tempo.LeapSeconds.removals/0`. Extension point for future negative leap seconds (CGPM agreed in 2022 that they may become necessary from ~2035). Empty today; interval-level helpers already treat insertions and removals uniformly.
 
-* `Tempo.tour/0`. Live-evaluated iex walkthrough of eight distinctive Tempo capabilities (intervals-not-instants, enumeration, archaeological masks, set ops, cross-calendar, locale-aware selectors, leap seconds, Allen's algebra). Conference-demo output.
-
 * `Tempo.LeapSeconds`. The 27 IERS-announced positive leap-second dates from 1972-06-30 through 2016-12-31, exposed as `dates/0`, `on_date?/3`, and `latest/0`. Drives historical validation of `:60` seconds.
 
 * Historical leap-second validation. `23:59:60` is now accepted only on the 27 IERS-announced dates. The previous structural check (hour/minute/month-day/offset) remains; a new check rejects `:60` on any other June 30 or December 31. Error messages point callers at `Tempo.LeapSeconds.dates/0`.
