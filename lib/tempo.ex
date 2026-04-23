@@ -1721,9 +1721,79 @@ defmodule Tempo do
   @doc """
   Convert a Tempo struct into a Date.
 
+  Accepts the three single-day Tempo shapes:
+
+  * Calendar date — `[year: Y, month: M, day: D]`.
+
+  * Ordinal date — `[year: Y, day: DDD]`. When the Tempo carries
+    only year and day (no month), the day is interpreted as
+    day-of-year per ISO 8601-2 §4.3.4. `D` and `O` both parse to
+    the same `:day` key, so `~o"2020-166"`, `~o"2020Y166O"`, and
+    `~o"2020Y166D"` all convert correctly.
+
+  * ISO week date — `[year: Y, week: W, day_of_week: K]`.
+
+  ### Returns
+
+  * `{:ok, %Date{}}` on success.
+
+  * `{:error, reason}` when the Tempo covers a span rather than a
+    single day, or the components don't form a valid date.
+
+  ### Examples
+
+      iex> {:ok, date} = Tempo.to_date(~o"2020-06-15")
+      iex> date
+      ~D[2020-06-15]
+
+      iex> {:ok, date} = Tempo.to_date(~o"2020-166")
+      iex> date
+      ~D[2020-06-14]
+
+      iex> {:ok, date} = Tempo.to_date(~o"2020-W24-3")
+      iex> date
+      ~D[2020-06-10]
+
   """
   def to_date(%Tempo{time: [year: year, month: month, day: day]}) do
     Date.new(year, month, day)
+  end
+
+  # Ordinal date: year plus day-of-year. Both `~o"...O"` and the
+  # bare `~o"YYYY-DDD"` form land here because Tempo's grammar
+  # stores `D` and `O` under the same `:day` key; the absence of
+  # `:month` is the disambiguator.
+  def to_date(%Tempo{time: [year: year, day: day_of_year]})
+      when is_integer(year) and is_integer(day_of_year) do
+    with {:ok, jan_1} <- Date.new(year, 1, 1) do
+      result = Date.add(jan_1, day_of_year - 1)
+
+      if result.year == year and day_of_year >= 1 do
+        {:ok, result}
+      else
+        {:error,
+         Tempo.InvalidDateError.exception(
+           unit: :day_of_year,
+           value: day_of_year,
+           year: year,
+           reason: "out of range for year #{year}"
+         )}
+      end
+    end
+  end
+
+  # ISO week date: year plus week-of-year plus day-of-week.
+  def to_date(%Tempo{time: [year: year, week: week, day_of_week: dow]})
+      when is_integer(year) and is_integer(week) and is_integer(dow) do
+    # ISO 8601-1 §5.2.3: week 01 is the week containing the year's
+    # first Thursday, equivalently the week containing Jan 4. Take
+    # the Monday of that week and add (week − 1) × 7 + (dow − 1).
+    with {:ok, jan_4} <- Date.new(year, 1, 4) do
+      jan_4_dow = Date.day_of_week(jan_4)
+      week_1_monday = Date.add(jan_4, -(jan_4_dow - 1))
+      target = Date.add(week_1_monday, (week - 1) * 7 + (dow - 1))
+      {:ok, target}
+    end
   end
 
   def to_date(%Tempo{} = value) do
