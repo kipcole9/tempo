@@ -1,6 +1,6 @@
 # Tempo
 
-![Tempo](assets/logo-social.png)
+![Tempo](assets/logo-social-cropped.png)
 
 Tempo is an Elixir library that models time the way humans actually use it — as bounded spans on a shared timeline rather than as scalar instants. One type represents every temporal value you might deal with: a year, a month, an afternoon, a meeting, an archaeological period, a recurring event, a free-busy calendar. Every value is a bounded interval at some resolution, and every operation (iteration, comparison, set-theoretic combination) is defined uniformly.
 

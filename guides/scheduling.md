@@ -161,8 +161,17 @@ A practical scheduling layer built on Tempo looks like:
 
 ```elixir
 defmodule Schedule do
-  def weekly_meeting(name, day, time, zone) do
-    dtstart = Tempo.from_iso8601!("#{day}T#{time}[#{zone}]")
+  def weekly_meeting(name, %Date{} = date, %Time{} = time, zone) do
+    dtstart =
+      Tempo.new!(
+        year: date.year,
+        month: date.month,
+        day: date.day,
+        hour: time.hour,
+        minute: time.minute,
+        zone: zone
+      )
+
     rule = %Tempo.RRule.Rule{freq: :week, interval: 1}
     {:ok, ast} = Tempo.RRule.Expander.to_ast(rule, dtstart)
     %{name: name, rule: ast}
@@ -175,12 +184,15 @@ defmodule Schedule do
   end
 end
 
-retrospective = Schedule.weekly_meeting("Retro", "2025-06-01", "14:00", "Europe/London")
+retrospective =
+  Schedule.weekly_meeting("Retro", ~D[2025-06-01], ~T[14:00:00], "Europe/London")
 
 # Occurrences for Q3:
 Schedule.occurrences_in(retrospective, ~o"2025-07-01", ~o"2025-10-01")
 # 18 weekly occurrences, each with wall time 14:00 in Europe/London
 ```
+
+> **`Tempo.new/1` is the runtime companion to the `~o` sigil.** The sigil is for literal values in source; `new/1` takes keyword components that can come from anywhere — function arguments, database rows, API payloads, form inputs. String interpolation to assemble an ISO 8601 value and then parse it back is always the wrong move: it round-trips through formatting twice and bypasses the type-level validation that component construction gives you.
 
 > **Store** the rule as an AST (with zoned wall time). **Materialise** into an IntervalSet only when you need concrete occurrences, bounded to the query window. **Display** by projecting each endpoint's wall time through the viewer's preferred zone. Nothing about the stored rule changes when Tzdata does.
 

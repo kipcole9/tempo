@@ -19,8 +19,8 @@ Country names are lowercase with hyphens: `usa`, `united-kingdom`, `germany`, `j
 The end-to-end fetch-and-parse is three lines:
 
 ```elixir
-{:ok, %HTTPoison.Response{body: ics}} =
-  HTTPoison.get("https://www.officeholidays.com/ics-fed/usa")
+%Req.Response{body: ics} =
+  Req.get!("https://www.officeholidays.com/ics-fed/usa")
 
 {:ok, holidays} = Tempo.ICal.from_ical(ics)
 
@@ -28,7 +28,7 @@ Tempo.IntervalSet.count(holidays)
 #=> 12    (US federal holidays for 2026)
 ```
 
-(If you don't already have `:httpoison` as a dep, `:req` or `:httpc` work equivalently — any HTTP client that hands you a response body does.)
+(Any HTTP client works — the examples use [`:req`](https://hex.pm/packages/req); `:httpc` from OTP or another library is equally fine. What Tempo needs is the response body as a string.)
 
 `Tempo.ICal.from_ical/1` returns a `%Tempo.IntervalSet{}` where each member is a `%Tempo.Interval{}` with the iCal event metadata preserved on `:metadata` — `summary`, `description`, `location`, `uid`, custom `X-*` properties. The intervals themselves are half-open `[from, to)` day-spans in Tempo's standard convention.
 
@@ -140,7 +140,7 @@ defmodule MyApp.HolidayCalendar do
   def fetch(territory) do
     url = "https://www.officeholidays.com/ics/#{territory_slug(territory)}"
 
-    with {:ok, %{body: ics}} <- HTTPoison.get(url, [], follow_redirect: true),
+    with {:ok, %Req.Response{status: 200, body: ics}} <- Req.get(url),
          {:ok, set} <- Tempo.ICal.from_ical(ics) do
       {:ok, set}
     end
