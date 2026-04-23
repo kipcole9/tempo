@@ -291,7 +291,7 @@ defmodule Tempo.IntervalSet do
          {:ok, %__MODULE__{intervals: b_ivs}} <- coerce(b) do
       for {iv_a, ai} <- Enum.with_index(a_ivs),
           {iv_b, bi} <- Enum.with_index(b_ivs) do
-        {ai, bi, Interval.compare(iv_a, iv_b)}
+        {ai, bi, Interval.relation(iv_a, iv_b)}
       end
     end
   end

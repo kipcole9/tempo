@@ -192,7 +192,7 @@ Any timestamp in that zone on that date is rejected. The same mechanism that cat
 ```elixir
 iex> a = Tempo.from_iso8601!("2026-04-15T10:30:00+05:30")
 iex> b = Tempo.from_iso8601!("2026-04-15T10:30:00+09:00")
-iex> Tempo.compare(a, b)
+iex> Tempo.relation(a, b)
 {:ok, :preceded_by}
 ```
 
@@ -209,7 +209,7 @@ The guide above shows Tempo making correct behaviour automatic. Here are three a
 Tempo parses fractional seconds and stores them, but comparison and arithmetic at sub-second resolution currently fail:
 
 ```elixir
-iex> Tempo.compare(~o"2024-06-15T12:00:00.1", ~o"2024-06-15T12:00:00.2")
+iex> Tempo.relation(~o"2024-06-15T12:00:00.1", ~o"2024-06-15T12:00:00.2")
 {:error, "Cannot materialise a Tempo at :second resolution into an explicit interval"}
 ```
 

@@ -183,15 +183,15 @@ true
 
 ### What's the full set of relationships between two intervals?
 
-Tempo implements Allen's interval algebra — every pair of bounded intervals stands in exactly one of 13 relations. `Tempo.compare/2` returns the atom:
+Tempo implements Allen's interval algebra — every pair of bounded intervals stands in exactly one of 13 relations. `Tempo.relation/2` returns the atom:
 
 ```elixir
 iex> a = %Tempo.Interval{from: ~o"2026-06-01", to: ~o"2026-06-10"}
 iex> b = %Tempo.Interval{from: ~o"2026-06-05", to: ~o"2026-06-15"}
-iex> Tempo.compare(a, b)
+iex> Tempo.relation(a, b)
 :overlaps
 
-iex> Tempo.compare(~o"2026-06-15", ~o"2026-06-16")
+iex> Tempo.relation(~o"2026-06-15", ~o"2026-06-16")
 :meets
 ```
 
@@ -843,13 +843,13 @@ false
 ### Allen's interval algebra
 
 ```elixir
-iex> Tempo.compare(~o"2022-06", ~o"2022-07")
+iex> Tempo.relation(~o"2022-06", ~o"2022-07")
 :meets
 
-iex> Tempo.compare(~o"2022-06", ~o"2022-06-15")
+iex> Tempo.relation(~o"2022-06", ~o"2022-06-15")
 :contains
 
-iex> Tempo.compare(~o"2022-06", ~o"2023-06")
+iex> Tempo.relation(~o"2022-06", ~o"2023-06")
 :precedes
 ```
 

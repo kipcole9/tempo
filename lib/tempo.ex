@@ -3366,24 +3366,29 @@ defmodule Tempo do
   Classify the Allen interval-algebra relation between two
   interval-like values.
 
-  Thin delegate to `Tempo.Interval.compare/2` — see that
+  Thin delegate to `Tempo.Interval.relation/2` — see that
   function's docs for the full table of 13 relations.
+
+  Named `relation` (not `compare`) because it returns one of 13
+  Allen relations rather than stdlib's ternary `:lt | :eq | :gt`
+  — using `compare` would invite the wrong mental model at the
+  call site.
 
   Use `Tempo.IntervalSet.relation_matrix/2` when both operands
   are multi-member sets and you want the per-pair breakdown.
 
   ### Examples
 
-      iex> Tempo.compare(~o"2026-06-15", ~o"2026-06-16")
+      iex> Tempo.relation(~o"2026-06-15", ~o"2026-06-16")
       :meets
 
-      iex> a = %Tempo.Interval{from: ~o"2026-06-01", to: ~o"2026-06-10"}
-      iex> b = %Tempo.Interval{from: ~o"2026-06-05", to: ~o"2026-06-15"}
-      iex> Tempo.compare(a, b)
+      iex> a = Tempo.Interval.new!(from: ~o"2026-06-01", to: ~o"2026-06-10")
+      iex> b = Tempo.Interval.new!(from: ~o"2026-06-05", to: ~o"2026-06-15")
+      iex> Tempo.relation(a, b)
       :overlaps
 
   """
-  defdelegate compare(a, b), to: Tempo.Interval
+  defdelegate relation(a, b), to: Tempo.Interval
 
   @doc """
   Return the interval's length as a `%Tempo.Duration{}`, or

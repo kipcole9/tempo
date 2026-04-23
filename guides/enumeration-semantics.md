@@ -249,7 +249,7 @@ Precise implementations need:
 
 * For `slice/1` — addressing the Nth element directly.
 
-Tracked with the set-operations milestone, which also depends on `Tempo.compare/2`.
+Tracked with the set-operations milestone, which also depends on `Tempo.relation/2`.
 
 ### 4.2. `count/1` and `member?/2` on `%Tempo{}` and `%Tempo.Set{}`
 

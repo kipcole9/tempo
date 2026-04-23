@@ -97,7 +97,7 @@ defmodule Tempo.Interval.PredicatesTest do
     end
   end
 
-  describe "relation predicates — thin wrappers over compare/2" do
+  describe "relation predicates — thin wrappers over relation/2" do
     @y %Interval{from: ~o"2026-06-05", to: ~o"2026-06-11"}
 
     test "before?/2 — strict precedes" do

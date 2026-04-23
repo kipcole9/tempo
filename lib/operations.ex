@@ -544,7 +544,7 @@ defmodule Tempo.Operations do
   # two represent boundary-touching without instant overlap
   # under half-open semantics.
   defp intervals_overlap?(%Interval{} = a, %Interval{} = b) do
-    Interval.compare(a, b) not in [:precedes, :preceded_by, :meets, :met_by]
+    Interval.relation(a, b) not in [:precedes, :preceded_by, :meets, :met_by]
   end
 
   # Sweep-line instant-level intersection. Each step finds the

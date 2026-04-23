@@ -15,7 +15,7 @@ defmodule Tempo.Interval do
 
   ## Comparing intervals
 
-  `compare/2` classifies two intervals by Allen's interval
+  `relation/2` classifies two intervals by Allen's interval
   algebra, returning one of 13 mutually-exclusive relations.
   See the function docs for the full table.
 
@@ -57,7 +57,7 @@ defmodule Tempo.Interval do
           | :preceded_by
 
   @typedoc """
-  Anything `compare/2` can reduce to a single bounded interval.
+  Anything `relation/2` can reduce to a single bounded interval.
   """
   @type interval_like :: Tempo.t() | t() | IntervalSet.t()
 
@@ -471,6 +471,13 @@ defmodule Tempo.Interval do
   @doc """
   Classify the Allen relation between two interval-like values.
 
+  Returns one of 13 mutually exclusive relations from Allen's
+  interval algebra — a richer answer than stdlib's ternary
+  `compare/2` (`:lt` / `:eq` / `:gt`), which collapses intervals
+  to their start points and loses the containment and overlap
+  distinctions that interval algebra captures. Hence the name
+  `relation` rather than `compare`.
+
   For intervals `X = [x₁, x₂)` and `Y = [y₁, y₂)` under Tempo's
   half-open convention:
 
@@ -514,17 +521,17 @@ defmodule Tempo.Interval do
 
   ### Examples
 
-      iex> a = %Tempo.Interval{from: ~o"2026-06-01", to: ~o"2026-06-10"}
-      iex> b = %Tempo.Interval{from: ~o"2026-06-05", to: ~o"2026-06-15"}
-      iex> Tempo.Interval.compare(a, b)
+      iex> a = Tempo.Interval.new!(from: ~o"2026-06-01", to: ~o"2026-06-10")
+      iex> b = Tempo.Interval.new!(from: ~o"2026-06-05", to: ~o"2026-06-15")
+      iex> Tempo.Interval.relation(a, b)
       :overlaps
 
-      iex> Tempo.Interval.compare(~o"2026Y", ~o"2026-06-15")
+      iex> Tempo.Interval.relation(~o"2026Y", ~o"2026-06-15")
       :contains
 
   """
-  @spec compare(interval_like(), interval_like()) :: relation() | {:error, term()}
-  def compare(a, b) do
+  @spec relation(interval_like(), interval_like()) :: relation() | {:error, term()}
+  def relation(a, b) do
     with {:ok, iv_a} <- to_single_interval(a, :a),
          {:ok, iv_b} <- to_single_interval(b, :b) do
       classify(iv_a, iv_b)
@@ -534,7 +541,7 @@ defmodule Tempo.Interval do
   @doc """
   The inverse Allen relation.
 
-  If `compare(a, b)` returns `r`, then `compare(b, a)` returns
+  If `relation(a, b)` returns `r`, then `relation(b, a)` returns
   `inverse_relation(r)`.
 
   ### Examples
@@ -598,7 +605,7 @@ defmodule Tempo.Interval do
 
   defp to_single_interval(%IntervalSet{intervals: ivs}, label) do
     {:error,
-     "Tempo.Interval.compare/2 requires a single bounded interval on each side. " <>
+     "Tempo.Interval.relation/2 requires a single bounded interval on each side. " <>
        "Operand #{inspect(label)} is an IntervalSet with #{length(ivs)} members. " <>
        "For set-level questions use `Tempo.overlaps?/2`, `Tempo.disjoint?/2`, " <>
        "`Tempo.intersection/2`, or `Tempo.IntervalSet.relation_matrix/2`."}
@@ -614,13 +621,13 @@ defmodule Tempo.Interval do
 
   defp to_single_interval(%__MODULE__{}, label) do
     {:error,
-     "Tempo.Interval.compare/2 needs bounded intervals on both sides. " <>
+     "Tempo.Interval.relation/2 needs bounded intervals on both sides. " <>
        "Operand #{inspect(label)} has an open-ended endpoint (`:undefined`)."}
   end
 
   defp to_single_interval(other, label) do
     {:error,
-     "Tempo.Interval.compare/2 cannot classify operand #{inspect(label)}: " <>
+     "Tempo.Interval.relation/2 cannot classify operand #{inspect(label)}: " <>
        "#{inspect(other)}"}
   end
 
@@ -1149,7 +1156,7 @@ defmodule Tempo.Interval do
   end
 
   ## ----------------------------------------------------------
-  ## Relation predicates — thin shortcuts over compare/2
+  ## Relation predicates — thin shortcuts over relation/2
   ## ----------------------------------------------------------
 
   @doc """
@@ -1225,7 +1232,7 @@ defmodule Tempo.Interval do
   def within?(a, b), do: match_relation(a, b, [:equals, :starts, :during, :finishes])
 
   defp match_relation(a, b, allowed_relations) do
-    case compare(a, b) do
+    case relation(a, b) do
       r when is_atom(r) -> r in allowed_relations
       _ -> false
     end
