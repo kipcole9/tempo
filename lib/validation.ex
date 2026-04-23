@@ -130,15 +130,33 @@ defmodule Tempo.Validation do
     end
   end
 
-  # TODO Make sure that the day of week fits into the available
-  # days in the last week
-
+  # Week numbering is inherently ISO-week semantics regardless of
+  # the caller's declared calendar. `Calendrical.Gregorian.weeks_in_year/1`
+  # always reports 52 weeks because Gregorian doesn't define week
+  # numbering — that's ISO-8601's job. Validating via
+  # `Calendrical.ISOWeek.weeks_in_year/1` gives the correct answer
+  # for every year (including 53-week years like 2004, 2009, 2015,
+  # 2020, 2026).
+  #
+  # Resolution of (year, week, day) to a concrete calendar date
+  # depends on the caller's calendar base:
+  #
+  #   * `:month`-based (Gregorian and the other civil calendars) —
+  #     resolve the week-date under ISOWeek, then `Date.convert/2`
+  #     into the caller's calendar, yielding a Gregorian-shaped
+  #     `[year, month, day]` value. This is the common path and the
+  #     one that picks up the W01-after-a-53-week-year rollover
+  #     correctly.
+  #
+  #   * `:week`-based (`Calendrical.ISOWeek` itself) — keep the
+  #     native `[year, week, day]` shape; the caller asked for ISO
+  #     week calendar so preserve it.
   def resolve([{:year, year}, {:week, week}, {:day_of_week, day} | rest], calendar)
       when is_integer(year) and is_integer(week) and is_integer(day) do
-    {weeks_in_year, _days_in_last_week} = calendar.weeks_in_year(year)
+    {weeks_in_year, _days_in_last_week} = Calendrical.ISOWeek.weeks_in_year(year)
 
     with {:ok, week} <- conform(week, 1..weeks_in_year),
-         [day_of_week: day] <- resolve([day_of_week: day], calendar) do
+         [day_of_week: day] <- resolve([day_of_week: day], Calendrical.ISOWeek) do
       year_week_day(year, week, day, rest, calendar.calendar_base(), calendar)
     end
   end
@@ -507,16 +525,23 @@ defmodule Tempo.Validation do
   ### Helpers
 
   def year_week_day(year, week, day, rest, :month, calendar) do
-    {weeks_in_year, days_in_last_week} = calendar.weeks_in_year(year)
+    # The week → date lookup must happen under ISOWeek semantics
+    # regardless of the caller's month-based calendar. Under
+    # `Calendrical.Gregorian.week/2`, `week(2020, 53)` returns
+    # `{:error, :invalid_date}` (Gregorian doesn't model week 53);
+    # and the `(week - 1) * 7` arithmetic fails across the W01-
+    # starts-Jan-4 rollover after a 53-week year (2016, 2021, …).
+    # `Calendrical.ISOWeek` handles both correctly, and
+    # `Date.convert/2` brings the result into the caller's calendar.
+    {weeks_in_year, days_in_last_week} = Calendrical.ISOWeek.weeks_in_year(year)
 
     if day <= days_in_last_week do
-      %Date.Range{first: start_of_week} = calendar.week(year, week)
-      iso_days = Calendrical.date_to_iso_days(start_of_week) + day - 1
-      {year, month, day} = calendar.date_from_iso_days(iso_days)
-
-      case resolve([{:month, month}, {:day, day} | rest], calendar) do
-        {:error, reason} -> {:error, reason}
-        resolved -> [{:year, year} | resolved]
+      with {:ok, isoweek_date} <- Date.new(year, week, day, Calendrical.ISOWeek),
+           {:ok, out_date} <- Date.convert(isoweek_date, calendar) do
+        case resolve([{:month, out_date.month}, {:day, out_date.day} | rest], calendar) do
+          {:error, reason} -> {:error, reason}
+          resolved -> [{:year, out_date.year} | resolved]
+        end
       end
     else
       {:error,

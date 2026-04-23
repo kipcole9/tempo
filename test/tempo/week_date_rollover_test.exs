@@ -55,25 +55,12 @@ defmodule Tempo.WeekDateRolloverTest do
     # Jan 1-3 2021 belong to 2020-W53 (Fri, Sat, Sun). 2021-W01
     # therefore starts on Monday Jan 4 — four days into the
     # calendar year.
-    #
-    # KNOWN BUG: `Tempo.from_iso8601/1` with the default Gregorian
-    # calendar currently resolves `2021-W01-1` to `2020-12-28`
-    # (the Monday of 2020-W53, one week too early) because
-    # `Calendrical.Gregorian.weeks_in_year/1` returns `{52, _}` for
-    # every year and the week-resolution path never consults
-    # `Calendrical.ISOWeek`. Filed for fix; test is skipped until
-    # the parser routes week-valued inputs through ISOWeek
-    # regardless of the caller's explicit calendar.
-    @tag :skip
     test "W01-1 starts Jan 4 when previous year has 53 weeks" do
-      {:ok, tempo} = Tempo.from_iso8601("2021-W01-1")
-      assert Tempo.to_date(tempo) == {:ok, ~D[2021-01-04]}
+      assert Tempo.to_date(~o"2021-W01-1") == {:ok, ~D[2021-01-04]}
     end
 
-    @tag :skip
     test "W52-5 is Dec 31 in a 52-week year" do
-      {:ok, tempo} = Tempo.from_iso8601("2021-W52-5")
-      assert Tempo.to_date(tempo) == {:ok, ~D[2021-12-31]}
+      assert Tempo.to_date(~o"2021-W52-5") == {:ok, ~D[2021-12-31]}
     end
   end
 
@@ -82,21 +69,12 @@ defmodule Tempo.WeekDateRolloverTest do
       assert Tempo.to_date(~o"2015-W01-4") == {:ok, ~D[2015-01-01]}
     end
 
-    # KNOWN BUG: W53 is rejected with "53 is not valid. The valid
-    # values are 1..52" because the parser validates week numbers
-    # against `Calendrical.Gregorian.weeks_in_year/1` (always 52)
-    # instead of `Calendrical.ISOWeek.weeks_in_year/1` (which
-    # correctly returns 53 for 2015 and 2020). Filed for fix.
-    @tag :skip
     test "W53-7 is the last day of W53 in a 53-week year" do
-      {:ok, tempo} = Tempo.from_iso8601("2015-W53-7")
-      assert Tempo.to_date(tempo) == {:ok, ~D[2016-01-03]}
+      assert Tempo.to_date(~o"2015-W53-7") == {:ok, ~D[2016-01-03]}
     end
 
-    @tag :skip
     test "W53-1 is the Monday of the 53rd week" do
-      {:ok, tempo} = Tempo.from_iso8601("2015-W53-1")
-      assert Tempo.to_date(tempo) == {:ok, ~D[2015-12-28]}
+      assert Tempo.to_date(~o"2015-W53-1") == {:ok, ~D[2015-12-28]}
     end
   end
 
