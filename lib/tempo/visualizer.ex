@@ -34,19 +34,26 @@ defmodule Tempo.Visualizer do
 
   ## Optional dependencies
 
-  This module requires `:plug`. The standalone helper additionally
-  requires `:bandit`. Both are declared `optional: true` in
-  Tempo's `mix.exs`:
+  The visualizer requires **both** `:plug` and `:bandit`. Both are
+  declared `optional: true` in Tempo's `mix.exs`:
 
       {:plug, "~> 1.15"},
       {:bandit, "~> 1.5"}
 
+  The module is compiled only when both are available at build time.
   The core parser has no such dependency and will compile without
   either in place.
 
   """
 
-  if Code.ensure_loaded?(Plug.Router) do
+  # Compile the visualizer only when both Plug and Bandit are
+  # loaded. A client application that depends on Tempo without
+  # pulling in Plug + Bandit gets a clean compile — no undefined
+  # module warnings, no stray references. The stub branch below
+  # still exposes `init/1` and `call/2` so a misconfigured mount
+  # produces a clear actionable error rather than a FunctionClauseError
+  # deep in Plug.
+  if Code.ensure_loaded?(Plug.Router) and Code.ensure_loaded?(Bandit) do
     use Plug.Router
 
     plug(:match)
@@ -86,8 +93,9 @@ defmodule Tempo.Visualizer do
     defp base_path(%Plug.Conn{script_name: []}), do: ""
     defp base_path(%Plug.Conn{script_name: segments}), do: "/" <> Enum.join(segments, "/")
   else
-    @compile_error "Tempo.Visualizer requires :plug. " <>
-                     "Add `{:plug, \"~> 1.15\"}` to your project's deps."
+    @compile_error "Tempo.Visualizer requires both :plug and :bandit. " <>
+                     "Add `{:plug, \"~> 1.15\"}` and `{:bandit, \"~> 1.5\"}` " <>
+                     "to your project's deps and run `mix deps.get`."
 
     @doc false
     def init(_), do: raise(@compile_error)
