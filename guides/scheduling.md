@@ -12,6 +12,16 @@ This guide is about the hard part of time: **future dates, recurring events, and
 
 Each section below gives the principle, the Tempo idiom, and the pitfall to avoid.
 
+## Setup — required for every example
+
+Every code example in this guide uses the `~o` sigil from `Tempo.Sigils`. Before running any of them — in `iex`, a script, or a module — you must bring the sigil into scope:
+
+```elixir
+import Tempo.Sigils
+```
+
+The import adds only `sigil_o/2` and `sigil_TEMPO/2` to the caller's namespace; no helper functions leak in.
+
 ## 1. Bounded enumeration
 
 An RRULE like `FREQ=MONTHLY;BYDAY=2MO` ("the second Monday of every month") is **infinite** — occurrences continue forever. You cannot call `Enum.to_list/1` on an infinite sequence.

@@ -4,6 +4,16 @@ Tempo imports iCalendar (RFC 5545) data — the interchange format used by Googl
 
 This unlocks free/busy scheduling, schedule overlap analysis, and event-aware time queries as direct expressions over the same API you use for any other Tempo value.
 
+## Setup — required for every example
+
+Every code example in this guide uses the `~o` sigil from `Tempo.Sigils`. Before running any of them — in `iex`, a script, or a module — you must bring the sigil into scope:
+
+```elixir
+import Tempo.Sigils
+```
+
+The import adds only `sigil_o/2` and `sigil_TEMPO/2` to the caller's namespace; no helper functions leak in.
+
 ## 1. A complete round-trip
 
 ```elixir

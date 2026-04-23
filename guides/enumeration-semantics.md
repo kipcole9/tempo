@@ -2,6 +2,16 @@
 
 Tempo implements the `Enumerable` protocol for `%Tempo{}`, `%Tempo.Set{}`, and `%Tempo.Interval{}`. This document explains what each value can and cannot be iterated over, and why.
 
+## Setup — required for every example
+
+Every code example in this guide uses the `~o` sigil from `Tempo.Sigils`. Before running any of them — in `iex`, a script, or a module — you must bring the sigil into scope:
+
+```elixir
+import Tempo.Sigils
+```
+
+The import adds only `sigil_o/2` and `sigil_TEMPO/2` to the caller's namespace; no helper functions leak in.
+
 ## 1. The two kinds of iteration
 
 Tempo values are **bounded intervals on the time line**, not instants. That informs two distinct iteration modes, each produced by a different shape of value:

@@ -4,6 +4,16 @@ Tempo implements the core set operations — union, intersection, complement, di
 
 Every operation accepts any Tempo shape — an implicit `%Tempo{}`, an `%Tempo.Interval{}`, a `%Tempo.IntervalSet{}`, or an all-of `%Tempo.Set{}` — and returns a `%Tempo.IntervalSet{}` (or a boolean for predicates). The top-level API lives on the `Tempo` module: `Tempo.union/2`, `Tempo.intersection/2`, and so on.
 
+## Setup — required for every example
+
+Every code example in this guide uses the `~o` sigil from `Tempo.Sigils`. Before running any of them — in `iex`, a script, or a module — you must bring the sigil into scope:
+
+```elixir
+import Tempo.Sigils
+```
+
+The import adds only `sigil_o/2` and `sigil_TEMPO/2` to the caller's namespace; no helper functions leak in.
+
 ## 0. Member-preserving vs instant-level
 
 This is the most important distinction in Tempo's set algebra, and the one that drives every design decision below.

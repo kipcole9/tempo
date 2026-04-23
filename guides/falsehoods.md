@@ -4,6 +4,16 @@ Every programmer who has worked seriously with calendars has their own version o
 
 The final section is honest: three things where Tempo does not yet improve the situation. Those deserve attention too.
 
+## Setup — required for every example
+
+Every code example in this guide uses the `~o` sigil from `Tempo.Sigils`. Before running any of them — in `iex`, a script, or a module — you must bring the sigil into scope:
+
+```elixir
+import Tempo.Sigils
+```
+
+The import adds only `sigil_o/2` and `sigil_TEMPO/2` to the caller's namespace; no helper functions leak in.
+
 ---
 
 ## 1. "Every day has 24 hours"

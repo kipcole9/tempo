@@ -1,5 +1,9 @@
 # A tour of Tempo
 
+## Setup — required for every example
+
+The cell below installs Tempo, pulls in Kino for rich output, and — critically — `import`s `Tempo.Sigils` so the `~o` sigil used throughout this notebook is in scope. Run it first; every subsequent cell depends on it. The import brings only `sigil_o/2` and `sigil_TEMPO/2` into the caller's namespace — no helper functions leak in.
+
 ```elixir
 Mix.install([
   {:ex_tempo, github: "kipcole9/tempo"},

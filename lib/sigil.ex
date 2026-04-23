@@ -20,8 +20,8 @@ defmodule Tempo.Sigils do
   The module exposes **only** the sigil macros so `import Tempo.Sigils`
   in application code adds exactly `sigil_o/2` and `sigil_TEMPO/2` to
   the caller's scope — no helper functions leak into the caller's
-  namespace. Helpers used by the sigils at expansion time live in
-  `Tempo.Sigils.Options`; they are implementation details.
+  namespace. Any expansion-time helpers live in a private sibling
+  module that isn't part of the public API.
 
   ### Modifiers
 

@@ -4,6 +4,16 @@ The [workdays-and-weekends guide](./workdays-and-weekends.md) showed how `Tempo.
 
 This guide walks through fetching a real holiday calendar from [officeholidays.com](https://www.officeholidays.com/subscribe), parsing it into a `%Tempo.IntervalSet{}`, and using it to answer three scheduling questions: "how many working days are actually in Q3?", "which holidays will hit my project?", and "what's five business days from today if we skip holidays?".
 
+## Setup — required for every example
+
+Every code example in this guide uses the `~o` sigil from `Tempo.Sigils`. Before running any of them — in `iex`, a script, or a module — you must bring the sigil into scope:
+
+```elixir
+import Tempo.Sigils
+```
+
+The import adds only `sigil_o/2` and `sigil_TEMPO/2` to the caller's namespace; no helper functions leak in.
+
 ## The data source
 
 [officeholidays.com](https://www.officeholidays.com/subscribe) publishes public-holiday calendars for every UN-recognised country and territory, updated weekly, delivered as iCalendar `.ics` feeds. Two URL patterns to know:

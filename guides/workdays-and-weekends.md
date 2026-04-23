@@ -4,6 +4,16 @@ Business-day queries are the most common reason developers reach for a date libr
 
 This guide works up from the primitives to the idiomatic compositions, then shows how to wrap them into a reusable helper if you find yourself writing the same shape repeatedly.
 
+## Setup — required for every example
+
+Every code example in this guide uses the `~o` sigil from `Tempo.Sigils`. Before running any of them — in `iex`, a script, or a module — you must bring the sigil into scope:
+
+```elixir
+import Tempo.Sigils
+```
+
+The import adds only `sigil_o/2` and `sigil_TEMPO/2` to the caller's namespace; no helper functions leak in.
+
 ## The three primitives
 
 All business-day queries in Tempo reduce to three capabilities the library already provides:

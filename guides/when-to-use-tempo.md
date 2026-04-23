@@ -4,6 +4,16 @@ The one-line answer: reach for Tempo whenever **time is a span**. Reach for the 
 
 Interop between the two is deliberate and cheap. Convert at the boundary; use whichever idiom fits the task.
 
+## Setup — required for every example
+
+Every code example in this guide uses the `~o` sigil from `Tempo.Sigils`. Before running any of them — in `iex`, a script, or a module — you must bring the sigil into scope:
+
+```elixir
+import Tempo.Sigils
+```
+
+The import adds only `sigil_o/2` and `sigil_TEMPO/2` to the caller's namespace; no helper functions leak in.
+
 ## Tempo is the right call when…
 
 ### You're thinking in intervals

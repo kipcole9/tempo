@@ -34,6 +34,14 @@ Once every value is a bounded interval, set operations follow naturally: union, 
 
 Full ISO 8601-2 / EDTF / IXDTF support, calendar-aware arithmetic, cross-zone set operations. In fact, probably the only fully ISO 8601 Parts 1 and 2 in existence (really, I couldn't find one anywhere - please let me know if you know of one).
 
+Every example below uses the `~o` sigil to construct Tempo values at compile time. Before running any of them — in `iex`, a script, or a module — you must bring the sigil into scope:
+
+```elixir
+import Tempo.Sigils
+```
+
+The import adds only `sigil_o/2` and `sigil_TEMPO/2` to the caller's namespace; no helper functions leak in. Treat this line as a prerequisite for every code block that follows in this README.
+
 ```elixir
 # A date is an interval
 iex> ~o"2026-06-15"
