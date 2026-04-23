@@ -1,59 +1,52 @@
-defmodule Tempo.Visualizer do
-  @moduledoc """
-  A web-based visualizer for ISO 8601 / ISO 8601-2 / IXDTF strings.
+if Code.ensure_loaded?(Plug.Router) and Code.ensure_loaded?(Bandit) do
+  defmodule Tempo.Visualizer do
+    @moduledoc """
+    A web-based visualizer for ISO 8601 / ISO 8601-2 / IXDTF strings.
 
-  This module is a `Plug.Router` that can be mounted inside a
-  Phoenix or Plug application, or run standalone during development
-  via `Tempo.Visualizer.Standalone`.
+    This module is a `Plug.Router` that can be mounted inside a
+    Phoenix or Plug application, or run standalone during development
+    via `Tempo.Visualizer.Standalone`.
 
-  ## What it does
+    ## What it does
 
-  Enter any ISO 8601, ISO 8601-2 (EDTF), or IXDTF string into the
-  top input. The page renders a visual breakdown:
+    Enter any ISO 8601, ISO 8601-2 (EDTF), or IXDTF string into the
+    top input. The page renders a visual breakdown:
 
-  * The input echoed in large monospace.
+    * The input echoed in large monospace.
 
-  * Each parsed component as its own box (year, month, day, hour,
-    time zone, qualification, IXDTF suffix, …) with the canonical
-    glyph above a short description.
+    * Each parsed component as its own box (year, month, day, hour,
+      time zone, qualification, IXDTF suffix, …) with the canonical
+      glyph above a short description.
 
-  * A details card showing every field of the parsed
-    `%Tempo{}` / `%Tempo.Interval{}` / `%Tempo.Duration{}` /
-    `%Tempo.Set{}` struct.
+    * A details card showing every field of the parsed
+      `%Tempo{}` / `%Tempo.Interval{}` / `%Tempo.Duration{}` /
+      `%Tempo.Set{}` struct.
 
-  All state lives in the URL — share a link, share a parse.
+    All state lives in the URL — share a link, share a parse.
 
-  ## Mounting in Phoenix / Plug
+    ## Mounting in Phoenix / Plug
 
-      forward "/visualize", Tempo.Visualizer
+        forward "/visualize", Tempo.Visualizer
 
-  ## Running standalone
+    ## Running standalone
 
-      Tempo.Visualizer.Standalone.start(port: 4001)
-      # Visit http://localhost:4001
+        Tempo.Visualizer.Standalone.start(port: 4001)
+        # Visit http://localhost:4001
 
-  ## Optional dependencies
+    ## Optional dependencies
 
-  The visualizer requires **both** `:plug` and `:bandit`. Both are
-  declared `optional: true` in Tempo's `mix.exs`:
+    The visualizer requires **both** `:plug` and `:bandit`. Both are
+    declared `optional: true` in Tempo's `mix.exs`:
 
-      {:plug, "~> 1.15"},
-      {:bandit, "~> 1.5"}
+        {:plug, "~> 1.15"},
+        {:bandit, "~> 1.5"}
 
-  The module is compiled only when both are available at build time.
-  The core parser has no such dependency and will compile without
-  either in place.
+    The module is compiled only when both are available at build time.
+    The core parser has no such dependency and will compile without
+    either in place.
 
-  """
+    """
 
-  # Compile the visualizer only when both Plug and Bandit are
-  # loaded. A client application that depends on Tempo without
-  # pulling in Plug + Bandit gets a clean compile — no undefined
-  # module warnings, no stray references. The stub branch below
-  # still exposes `init/1` and `call/2` so a misconfigured mount
-  # produces a clear actionable error rather than a FunctionClauseError
-  # deep in Plug.
-  if Code.ensure_loaded?(Plug.Router) and Code.ensure_loaded?(Bandit) do
     use Plug.Router
 
     plug(:match)
@@ -92,7 +85,17 @@ defmodule Tempo.Visualizer do
     # resolve correctly whether mounted at / or at /visualize.
     defp base_path(%Plug.Conn{script_name: []}), do: ""
     defp base_path(%Plug.Conn{script_name: segments}), do: "/" <> Enum.join(segments, "/")
-  else
+  end
+else
+  defmodule Tempo.Visualizer do
+    @moduledoc """
+    Stub for `Tempo.Visualizer` — compiled when the optional
+    `:plug` and `:bandit` dependencies are not available.
+
+    Mounting this stub raises a clear error pointing at the
+    missing dependencies.
+    """
+
     @compile_error "Tempo.Visualizer requires both :plug and :bandit. " <>
                      "Add `{:plug, \"~> 1.15\"}` and `{:bandit, \"~> 1.5\"}` " <>
                      "to your project's deps and run `mix deps.get`."
