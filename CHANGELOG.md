@@ -2,6 +2,12 @@
 
 ## Tempo v0.3.0 - Unreleased
 
+### Changed
+
+* Renamed `Tempo.compare/2` and `Tempo.Interval.compare/2` to `Tempo.relation/2` and `Tempo.Interval.relation/2`. The function returns one of 13 Allen interval-algebra relations (`:precedes`, `:meets`, `:overlaps`, …), not the `:lt | :eq | :gt` shape stdlib's `compare/2` promises. The new name avoids the trap.
+
+* Renamed `Tempo.Sigil` to `Tempo.Sigils` (plural), and moved `calendar_from/1` out to `Tempo.Sigils.Options`. `import Tempo.Sigils` now brings only `sigil_o/2` and `sigil_TEMPO/2` into scope — no helper functions leak. The old `Tempo.Sigil` module remains as a deprecated compatibility shim and will be removed in a future major version.
+
 ### Bug Fixes
 
 * `Tempo.to_date/1` now handles ordinal dates (`[year, day]` — produced by the `O` designator, the extended `YYYY-DDD` form, or by enumerating a year-only Tempo as days) and ISO week dates (`[year, week, day_of_week]`). Previously both shapes returned a `Tempo.ConversionError` even though the components unambiguously identify a single calendar day. Examples: `Tempo.to_date(~o"2020-166")` now returns `{:ok, ~D[2020-06-14]}`; `Tempo.to_date(~o"2020-W24-3")` returns `{:ok, ~D[2020-06-10]}`; and `~o"2020Y{1..-1}D" |> Enum.to_list() |> hd() |> Tempo.to_date()` returns `{:ok, ~D[2020-01-01]}`.

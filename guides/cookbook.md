@@ -2,10 +2,10 @@
 
 Task-oriented recipes for common time-and-calendar problems. Each recipe states the problem, shows the solution, and explains why it works. Copy, adapt, iterate.
 
-Every example uses the `~o` sigil (`import Tempo.Sigil`). In iex, paste the setup once and the rest of the snippets run against it:
+Every example uses the `~o` sigil (`import Tempo.Sigils`). In iex, paste the setup once and the rest of the snippets run against it:
 
 ```elixir
-import Tempo.Sigil
+import Tempo.Sigils
 ```
 
 ---

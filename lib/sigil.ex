@@ -80,13 +80,32 @@ defmodule Tempo.Sigil do
 
   """
 
-  # Re-export the macros so existing `import Tempo.Sigil` call sites
-  # continue to work during the deprecation window.
-  defmacro sigil_o(string, opts),
-    do: quote(do: Tempo.Sigils.sigil_o(unquote(string), unquote(opts)))
+  alias Tempo.Sigils.Options
 
-  defmacro sigil_TEMPO(string, opts),
-    do: quote(do: Tempo.Sigils.sigil_TEMPO(unquote(string), unquote(opts)))
+  # Re-implement the macros directly rather than delegating to
+  # `Tempo.Sigils.sigil_o/2`. Macro-to-macro forwarding would require
+  # every legacy call site to `require Tempo.Sigils` for the inner
+  # macro to be expanded, which defeats the point of a compatibility
+  # shim. Keeping the logic inline means existing `import Tempo.Sigil`
+  # call sites continue to work unchanged during the deprecation
+  # window.
+  defmacro sigil_o({:<<>>, _meta, [string]}, opts) do
+    calendar = Options.calendar_from(opts)
+
+    case Tempo.from_iso8601(string, calendar) do
+      {:ok, tempo} -> Macro.escape(tempo)
+      {:error, exception} -> raise exception
+    end
+  end
+
+  defmacro sigil_TEMPO({:<<>>, _meta, [string]}, opts) do
+    calendar = Options.calendar_from(opts)
+
+    case Tempo.from_iso8601(string, calendar) do
+      {:ok, tempo} -> Macro.escape(tempo)
+      {:error, exception} -> raise exception
+    end
+  end
 end
 
 defmodule Tempo.Sigils.Options do
