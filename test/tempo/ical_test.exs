@@ -265,7 +265,7 @@ defmodule Tempo.ICal.Test do
     end
 
     test "unbounded recurrence with :bound — materialises within the bound" do
-      import Tempo.Sigil
+      import Tempo.Sigils
 
       ics = """
       BEGIN:VCALENDAR
@@ -359,7 +359,7 @@ defmodule Tempo.ICal.Test do
 
   describe "metadata propagation through set operations" do
     test "intersection preserves A-side per-interval metadata" do
-      import Tempo.Sigil
+      import Tempo.Sigils
 
       ics = """
       BEGIN:VCALENDAR
@@ -389,7 +389,7 @@ defmodule Tempo.ICal.Test do
     end
 
     test "split_difference preserves A-side per-interval metadata across splits" do
-      import Tempo.Sigil
+      import Tempo.Sigils
 
       ics = """
       BEGIN:VCALENDAR

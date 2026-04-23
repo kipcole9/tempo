@@ -1,6 +1,6 @@
 defmodule Tempo.Explain.Test do
   use ExUnit.Case, async: true
-  import Tempo.Sigil
+  import Tempo.Sigils
 
   # Tests for `Tempo.Explain.explain/1` — structured prose
   # descriptions of Tempo values. Three formatters (`to_string`,

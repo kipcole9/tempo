@@ -2,6 +2,10 @@
 
 ## Tempo v0.3.0 - Unreleased
 
+### Added
+
+* `Tempo.Interval.metadata/1`. Named accessor for the `:metadata` map on an interval. Mirrors `from/1`, `to/1`, `endpoints/1`, and `resolution/1` added in v0.2.0, so user-facing code never has to reach into struct fields to read iCal `SUMMARY`, `LOCATION`, event UIDs, or any other per-interval data attached by the caller.
+
 ### Changed
 
 * Renamed `Tempo.compare/2` and `Tempo.Interval.compare/2` to `Tempo.relation/2` and `Tempo.Interval.relation/2`. The function returns one of 13 Allen interval-algebra relations (`:precedes`, `:meets`, `:overlaps`, …), not the `:lt | :eq | :gt` shape stdlib's `compare/2` promises. The new name avoids the trap.
@@ -9,6 +13,10 @@
 * Renamed `Tempo.Sigil` to `Tempo.Sigils` (plural), and moved `calendar_from/1` out to `Tempo.Sigils.Options`. `import Tempo.Sigils` now brings only `sigil_o/2` and `sigil_TEMPO/2` into scope — no helper functions leak. The old `Tempo.Sigil` module remains as a deprecated compatibility shim and will be removed in a future major version.
 
 * `Tempo.Visualizer` and `Tempo.Visualizer.Standalone` now compile only when **both** `:plug` and `:bandit` are available. Previously Plug alone was enough to trigger compilation of `Tempo.Visualizer`, and `Standalone` referenced `Bandit` unguarded — so a downstream application that depended on Tempo without pulling in either library saw "undefined module" warnings during compilation. Both modules still expose stub `init/call/start/child_spec/stop` functions that raise a single actionable error when called without the deps in place.
+
+### Known Issues
+
+* Week-date parsing under the default Gregorian calendar routes through `Calendrical.Gregorian.weeks_in_year/1`, which always returns `{52, _}`. As a result, `~o"2020-W53-7"` and `~o"2015-W53-7"` are rejected as invalid even though both are valid ISO week dates (2020 and 2015 are 53-week years), and `Tempo.from_iso8601("2021-W01-1")` resolves to `2020-12-28` instead of `2021-01-04` (week 01 of the year after a 53-week year starts four days late). Test coverage for both edge cases lives in `test/tempo/week_date_rollover_test.exs`, tagged `:skip` until the validation path is routed through `Calendrical.ISOWeek` for week-valued inputs regardless of the caller's explicit calendar. Workaround for now: pass `Calendrical.ISOWeek` explicitly as the second argument to `Tempo.from_iso8601/2`.
 
 ### Bug Fixes
 

@@ -1,6 +1,6 @@
 defmodule Tempo.Iso8601.RoundingTest do
   use ExUnit.Case, async: true
-  import Tempo.Sigil
+  import Tempo.Sigils
 
   test "Round to mounth" do
     assert Tempo.round(~o"2023Y8M01D", :month) == ~o"2023Y8M"

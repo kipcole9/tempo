@@ -99,17 +99,17 @@ The key promise: once an event is in Tempo, its metadata travels with any portio
 
 ```elixir
 # A design review meeting
-event = %Tempo.Interval{
+event = Tempo.Interval.new!(
   from: ~o"2026-04-21T10:30",
   to: ~o"2026-04-21T11:30",
   metadata: %{summary: "Design review", location: "Room 101"}
-}
+)
 
 # Clip to work hours
 {:ok, clipped} = Tempo.intersection(event, ~o"2026-04-21T09/2026-04-21T17")
 [iv] = Tempo.IntervalSet.to_list(clipped)
 
-iv.metadata.summary
+Tempo.Interval.metadata(iv).summary
 # "Design review"  — preserved through the intersection
 ```
 

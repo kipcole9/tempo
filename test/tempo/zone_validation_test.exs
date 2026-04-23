@@ -21,7 +21,7 @@ defmodule Tempo.ZoneValidationTest do
     # jumped over them) are omitted from the enumerated sequence.
 
     test "enumerating a day that enters DST skips the non-existent hour" do
-      import Tempo.Sigil
+      import Tempo.Sigils
 
       # Sydney spring-forward: clocks jump 2026-10-04 02:00 → 03:00.
       # The wall clock never reads 02:00 on this date.
@@ -34,7 +34,7 @@ defmodule Tempo.ZoneValidationTest do
     end
 
     test "enumerating a day that enters DST in New York skips the non-existent hour" do
-      import Tempo.Sigil
+      import Tempo.Sigils
 
       # 2024-03-10 America/New_York: clocks jump 02:00 → 03:00.
       hours =
@@ -46,7 +46,7 @@ defmodule Tempo.ZoneValidationTest do
     end
 
     test "enumerating a normal day is unaffected" do
-      import Tempo.Sigil
+      import Tempo.Sigils
 
       hours =
         ~o"2026-06-15[Australia/Sydney]"
@@ -57,7 +57,7 @@ defmodule Tempo.ZoneValidationTest do
     end
 
     test "enumerating a day without a zone is unaffected" do
-      import Tempo.Sigil
+      import Tempo.Sigils
 
       # No zone attached → no gap information available, enumerate
       # the abstract wall-clock units.
@@ -78,7 +78,7 @@ defmodule Tempo.ZoneValidationTest do
     # distinct values and project to distinct UTC instants.
 
     test "enumerating a day that exits DST emits 02:00 twice with distinct shifts" do
-      import Tempo.Sigil
+      import Tempo.Sigils
 
       # Sydney fall-back: clocks go 2026-04-05 03:00 AEDT → 02:00 AEST.
       # The 02:00 hour happens twice — first in AEDT (+11), then AEST (+10).
@@ -95,7 +95,7 @@ defmodule Tempo.ZoneValidationTest do
     end
 
     test "the two fold occurrences project to distinct UTC instants" do
-      import Tempo.Sigil
+      import Tempo.Sigils
 
       [two_a, two_b] =
         ~o"2026-04-05[Australia/Sydney]"
@@ -109,7 +109,7 @@ defmodule Tempo.ZoneValidationTest do
     end
 
     test "the fold occurrences round-trip through the sigil/parser" do
-      import Tempo.Sigil
+      import Tempo.Sigils
 
       [two_a, two_b] =
         ~o"2026-04-05[Australia/Sydney]"
@@ -125,7 +125,7 @@ defmodule Tempo.ZoneValidationTest do
     end
 
     test "a day without fold transitions is unaffected" do
-      import Tempo.Sigil
+      import Tempo.Sigils
 
       hours =
         ~o"2026-06-15[Australia/Sydney]"

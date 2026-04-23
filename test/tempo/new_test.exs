@@ -1,6 +1,6 @@
 defmodule Tempo.NewTest do
   use ExUnit.Case, async: true
-  import Tempo.Sigil
+  import Tempo.Sigils
 
   # `Tempo.new/1` is the developer-facing constructor for
   # `%Tempo{}`. Unlike the `~o` sigil (compile-time literal) and

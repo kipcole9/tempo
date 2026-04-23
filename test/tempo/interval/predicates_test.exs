@@ -1,6 +1,6 @@
 defmodule Tempo.Interval.PredicatesTest do
   use ExUnit.Case, async: true
-  import Tempo.Sigil
+  import Tempo.Sigils
 
   alias Tempo.Interval
 

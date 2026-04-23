@@ -178,7 +178,7 @@ defmodule Schedule do
   end
 
   def occurrences_in(%{rule: ast}, from, to) do
-    bound = %Tempo.Interval{from: from, to: to}
+    bound = Tempo.Interval.new!(from: from, to: to)
     {:ok, set} = Tempo.to_interval(ast, bound: bound)
     Tempo.IntervalSet.to_list(set)
   end

@@ -1,6 +1,6 @@
 defmodule TempoTest do
   use ExUnit.Case, async: true
-  import Tempo.Sigil
+  import Tempo.Sigils
 
   doctest Tempo
 

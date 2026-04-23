@@ -8,7 +8,7 @@ Tempo values are **bounded intervals on the time line**, not instants. That info
 
 * **Implicit enumeration — "drill into this span."** A single `%Tempo{}` at some resolution yields its sub-units. `Enum.take(~o"2022Y", 3)` yields `[2022Y1M, 2022Y2M, 2022Y3M]` — the year span is walked one month at a time. Implicit enumeration is the default when the value is a single resolved point at a coarser-than-finest resolution.
 
-* **Forward-stepping — "walk across this interval."** A `%Tempo.Interval{}` yields each resolution-unit along the span. `Enum.take(%Tempo.Interval{from: ~o"1985Y", to: :undefined}, 3)` yields `[1985Y, 1986Y, 1987Y]` — successive years at the endpoint's own resolution.
+* **Forward-stepping — "walk across this interval."** A `%Tempo.Interval{}` yields each resolution-unit along the span. `Enum.take(Tempo.Interval.new!(from: ~o"1985Y", to: :undefined), 3)` yields `[1985Y, 1986Y, 1987Y]` — successive years at the endpoint's own resolution.
 
 Iteration always honours the **half-open `[from, to)` convention**: the lower bound is inclusive, the upper bound is exclusive. This makes adjacent intervals concatenate cleanly without overlap or gap.
 

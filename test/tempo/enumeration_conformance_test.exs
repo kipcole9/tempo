@@ -1,6 +1,6 @@
 defmodule Tempo.EnumerationConformance.Test do
   use ExUnit.Case, async: true
-  import Tempo.Sigil
+  import Tempo.Sigils
 
   # Step 1 of the Enumerable review plan: a gap detector.
   #

@@ -20,10 +20,10 @@ DateTime.add(datetime, 86_400, :second)
 **Tempo — the duration is computed correctly:**
 
 ```elixir
-iex> iv = %Tempo.Interval{
+iex> iv = Tempo.Interval.new!(
 ...>   from: Tempo.from_iso8601!("2024-03-09T12:00:00[America/New_York]"),
 ...>   to:   Tempo.from_iso8601!("2024-03-10T12:00:00[America/New_York]")
-...> }
+...> )
 iex> Tempo.Interval.duration(iv)
 ~o"PT82800S"
 ```
@@ -97,10 +97,7 @@ Occasionally it has 61. The IERS has inserted 27 positive leap seconds since 197
 **Tempo — leap seconds are first-class interval metadata:**
 
 ```elixir
-iex> iv = %Tempo.Interval{
-...>   from: ~o"2016-12-31T23:59:00Z",
-...>   to:   ~o"2017-01-01T00:01:00Z"
-...> }
+iex> iv = ~o"2016-12-31T23:59:00Z/2017-01-01T00:01:00Z"
 iex> Tempo.Interval.spans_leap_second?(iv)
 true
 iex> Tempo.Interval.duration(iv)

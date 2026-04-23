@@ -39,10 +39,11 @@ Full ISO 8601-2 / EDTF / IXDTF support, calendar-aware arithmetic, cross-zone se
 iex> ~o"2026-06-15"
 ~o"2026Y6M15D"
 
-# Its bounds are real — Tempo.Interval construction, not a helper
-iex> {:ok, %Tempo.Interval{from: from, to: to}} = Tempo.to_interval(~o"2026-06-15")
-iex> {from.time, to.time}
-{[year: 2026, month: 6, day: 15, hour: 0], [year: 2026, month: 6, day: 16, hour: 0]}
+# Its bounds are real — Tempo.to_interval materialises the span
+iex> {:ok, iv} = Tempo.to_interval(~o"2026-06-15")
+iex> {from, to} = Tempo.Interval.endpoints(iv)
+iex> {Tempo.year(from), Tempo.month(from), Tempo.day(from), Tempo.hour(from), Tempo.year(to), Tempo.month(to), Tempo.day(to), Tempo.hour(to)}
+{2026, 6, 15, 0, 2026, 6, 16, 0}
 
 # Cross-zone set operations compare by UTC, preserve the first operand's zone
 iex> paris = Tempo.from_elixir(DateTime.new!(~D[2026-06-15], ~T[10:00:00], "Europe/Paris"))

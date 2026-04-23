@@ -1,6 +1,6 @@
 defmodule Tempo.IntervalSet.Test do
   use ExUnit.Case, async: true
-  import Tempo.Sigil
+  import Tempo.Sigils
 
   # `%Tempo.IntervalSet{}` is the multi-interval value. The tests
   # below cover the constructor invariants (sort + coalesce),

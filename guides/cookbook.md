@@ -105,9 +105,10 @@ Materialise as an interval with `Tempo.to_interval/1`.
 ### How do I see the concrete bounds of an implicit interval?
 
 ```elixir
-iex> {:ok, %Tempo.Interval{from: from, to: to}} = Tempo.to_interval(~o"2026-06")
-iex> {from.time, to.time}
-{[year: 2026, month: 6, day: 1], [year: 2026, month: 7, day: 1]}
+iex> {:ok, iv} = Tempo.to_interval(~o"2026-06")
+iex> {from, to} = Tempo.Interval.endpoints(iv)
+iex> {Tempo.year(from), Tempo.month(from), Tempo.day(from), Tempo.year(to), Tempo.month(to), Tempo.day(to)}
+{2026, 6, 1, 2026, 7, 1}
 ```
 
 Every Tempo value *is* an interval. `to_interval/1` materialises the implicit span into explicit `from`/`to` endpoints.
@@ -186,8 +187,8 @@ true
 Tempo implements Allen's interval algebra — every pair of bounded intervals stands in exactly one of 13 relations. `Tempo.relation/2` returns the atom:
 
 ```elixir
-iex> a = %Tempo.Interval{from: ~o"2026-06-01", to: ~o"2026-06-10"}
-iex> b = %Tempo.Interval{from: ~o"2026-06-05", to: ~o"2026-06-15"}
+iex> a = ~o"2026-06-01/2026-06-10"
+iex> b = ~o"2026-06-05/2026-06-15"
 iex> Tempo.relation(a, b)
 :overlaps
 
@@ -209,8 +210,8 @@ Named predicates cover the common one-shot checks:
 `Tempo.within?/2` is the canonical "does this fit inside that window?" predicate:
 
 ```elixir
-iex> candidate = %Tempo.Interval{from: ~o"2026-06-15T10", to: ~o"2026-06-15T11"}
-iex> window = %Tempo.Interval{from: ~o"2026-06-15T09", to: ~o"2026-06-15T17"}
+iex> candidate = ~o"2026-06-15T10/2026-06-15T11"
+iex> window = ~o"2026-06-15T09/2026-06-15T17"
 iex> Tempo.within?(candidate, window)
 true
 ```
@@ -220,7 +221,7 @@ For set-level questions across two multi-member `IntervalSet`s, use `Tempo.Inter
 ### How long is an interval?
 
 ```elixir
-iex> iv = %Tempo.Interval{from: ~o"2026-06-15T09", to: ~o"2026-06-15T11"}
+iex> iv = ~o"2026-06-15T09/2026-06-15T11"
 iex> Tempo.duration(iv)
 ~o"PT7200S"
 ```
@@ -232,7 +233,7 @@ Returns `:infinity` when one or both endpoints are `:undefined`.
 Five predicates cover the comparison lattice:
 
 ```elixir
-iv = %Tempo.Interval{from: ~o"2026-06-15T09", to: ~o"2026-06-15T10"}
+iv = ~o"2026-06-15T09/2026-06-15T10"
 
 Tempo.at_least?(iv, ~o"PT1H")      # true — length ≥ 1h
 Tempo.exactly?(iv, ~o"PT1H")       # true — length == 1h
@@ -567,7 +568,7 @@ Metadata rides through any downstream set operation — after `intersection/diff
 ### How do I compare a Hebrew date to a Gregorian one?
 
 ```elixir
-hebrew    = %Tempo{time: [year: 5786, month: 10, day: 30], calendar: Calendrical.Hebrew}
+hebrew    = Tempo.new!(year: 5786, month: 10, day: 30, calendar: Calendrical.Hebrew)
 gregorian = ~o"2026-06-15"
 
 Tempo.overlaps?(hebrew, gregorian)
@@ -796,7 +797,7 @@ iex> Enum.to_list(decade) |> Enum.map(&Tempo.year/1)
 ### A leap second — detected, never represented as a value
 
 ```elixir
-iex> iv = %Tempo.Interval{from: ~o"2016-12-31T23:59:00Z", to: ~o"2017-01-01T00:01:00Z"}
+iex> iv = ~o"2016-12-31T23:59:00Z/2017-01-01T00:01:00Z"
 iex> Tempo.Interval.spans_leap_second?(iv)
 true
 

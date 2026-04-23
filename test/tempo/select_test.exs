@@ -1,6 +1,6 @@
 defmodule Tempo.Select.Test do
   use ExUnit.Case, async: false
-  import Tempo.Sigil
+  import Tempo.Sigils
 
   doctest Tempo.Select
 

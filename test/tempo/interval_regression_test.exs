@@ -1,6 +1,6 @@
 defmodule Tempo.IntervalRegressionTest do
   use ExUnit.Case, async: true
-  import Tempo.Sigil
+  import Tempo.Sigils
 
   # Regressions for two bugs surfaced by the RRule AST-validation
   # spike (see docs/rrule-ast-validation.md).

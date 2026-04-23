@@ -1,6 +1,6 @@
 defmodule Tempo.Iso8601.Parser.Test do
   use ExUnit.Case, async: true
-  import Tempo.Sigil
+  import Tempo.Sigils
 
   test "Parsing centuries and decades resolves to a year group" do
     # The tokenizer emits group/range values as the component value;
@@ -454,7 +454,7 @@ defmodule Tempo.Iso8601.Parser.Test do
   end
 
   test "Negative seconds, minutes, hours, days and months" do
-    import Tempo.Sigil
+    import Tempo.Sigils
 
     assert ~o"1985Y-10M" ==
              %Tempo{

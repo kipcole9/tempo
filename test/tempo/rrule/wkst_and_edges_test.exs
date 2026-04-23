@@ -1,6 +1,6 @@
 defmodule Tempo.RRule.WkstAndEdgesTest do
   use ExUnit.Case, async: true
-  import Tempo.Sigil
+  import Tempo.Sigils
 
   alias Tempo.RRule.Expander
   alias Tempo.RRule.Rule

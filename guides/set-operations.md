@@ -57,7 +57,7 @@ A Paris 12:00 CEST interval compares equal to a UTC 10:00 interval because they 
 If the operands are in different calendars (Gregorian vs Hebrew, say), the second is converted to the first's calendar before math runs. Each endpoint of the second operand is extended to day precision, then year/month/day are converted via `Date.convert!/2`; hour/minute/second pass through unchanged (those units are calendar-independent). The result's calendar is the first operand's.
 
 ```elixir
-hebrew_day = %Tempo{time: [year: 5782, month: 10, day: 16], calendar: Calendrical.Hebrew}
+hebrew_day = Tempo.new!(year: 5782, month: 10, day: 16, calendar: Calendrical.Hebrew)
 # Hebrew 5782-10-16 corresponds to Gregorian 2022-06-15.
 
 Tempo.overlaps?(hebrew_day, ~o"2022-06-15")
@@ -135,7 +135,7 @@ Members of `a` that overlap any member of `b`, kept whole.
 ```elixir
 iex> {:ok, r} = Tempo.intersection(~o"2022Y", ~o"2022-06-15")
 iex> [iv] = Tempo.IntervalSet.to_list(r)
-iex> iv.from.time[:year]
+iex> Tempo.year(iv)
 2022                                 # the year member is kept whole
 ```
 
@@ -146,7 +146,7 @@ For the trimmed instant-level form:
 ```elixir
 iex> {:ok, r} = Tempo.overlap_trim(~o"2022Y", ~o"2022-06-15")
 iex> [iv] = Tempo.IntervalSet.to_list(r)
-iex> iv.from.time[:day]
+iex> Tempo.day(iv)
 15                                   # trimmed to the day-shaped overlap
 ```
 

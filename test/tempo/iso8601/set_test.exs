@@ -1,6 +1,6 @@
 defmodule Tempo.Parser.Set.Test do
   use ExUnit.Case, async: true
-  import Tempo.Sigil
+  import Tempo.Sigils
 
   alias Tempo.Iso8601.Tokenizer
 

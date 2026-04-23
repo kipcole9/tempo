@@ -1,7 +1,7 @@
 defmodule Tempo.CalendarAccessorsTest do
   use ExUnit.Case, async: true
 
-  import Tempo.Sigil
+  import Tempo.Sigils
 
   describe "Tempo.day_of_week/1,2" do
     test "2026-06-15 is a Monday (default ordering)" do

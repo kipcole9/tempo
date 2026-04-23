@@ -764,6 +764,44 @@ defmodule Tempo.Interval do
   def endpoints(%__MODULE__{from: from, to: to}), do: {from, to}
 
   @doc """
+  Return the metadata map attached to the interval.
+
+  A named helper so callers never have to reach into the struct
+  fields in user-facing code. Metadata is free-form and is
+  preserved across set operations — intervals that survive a
+  union, intersection, or difference inherit the surviving
+  operand's metadata, so this accessor is the intended way to
+  read iCal `SUMMARY`, `LOCATION`, event UIDs, and any other
+  application-attached per-interval data.
+
+  ### Arguments
+
+  * `interval` is a `t:t/0`.
+
+  ### Returns
+
+  * The metadata map. An interval constructed without metadata
+    returns `%{}`.
+
+  ### Examples
+
+      iex> iv = Tempo.Interval.new!(
+      ...>   from: ~o"2026-06-15T09",
+      ...>   to:   ~o"2026-06-15T10",
+      ...>   metadata: %{summary: "Stand-up"}
+      ...> )
+      iex> Tempo.Interval.metadata(iv)
+      %{summary: "Stand-up"}
+
+      iex> iv = Tempo.Interval.new!(from: ~o"2026-06-15", to: ~o"2026-06-20")
+      iex> Tempo.Interval.metadata(iv)
+      %{}
+
+  """
+  @spec metadata(t()) :: map()
+  def metadata(%__MODULE__{metadata: metadata}), do: metadata
+
+  @doc """
   Return the interval's span resolution — the coarsest unit at
   which `from` and `to` differ.
 

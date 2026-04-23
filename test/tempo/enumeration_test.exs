@@ -1,6 +1,6 @@
 defmodule Tempo.Enumeration.Test do
   use ExUnit.Case, async: true
-  import Tempo.Sigil
+  import Tempo.Sigils
 
   test "Enumeration of basic double" do
     assert Enum.map(~o"2022Y{1,2}M{1..2}D", & &1) == [

@@ -37,7 +37,7 @@ holidays
 |> Tempo.IntervalSet.to_list()
 |> Enum.take(3)
 |> Enum.each(fn iv ->
-  IO.puts "#{iv.from.time[:month]}/#{iv.from.time[:day]}: #{iv.metadata.summary}"
+  IO.puts "#{Tempo.month(iv)}/#{Tempo.day(iv)}: #{Tempo.Interval.metadata(iv).summary}"
 end)
 #=> 1/1: New Year's Day
 #=> 1/19: Martin Luther King Jr. Day
@@ -55,7 +55,7 @@ Assume the calendar has been fetched and parsed into `holidays`.
 Pure set algebra: workdays minus holidays.
 
 ```elixir
-q3 = %Tempo.Interval{from: ~o"2026-07-01", to: ~o"2026-10-01"}
+q3 = ~o"2026-07-01/2026-10-01"
 
 {:ok, workdays}     = Tempo.select(q3, Tempo.workdays(:US))
 {:ok, net_workdays} = Tempo.difference(workdays, holidays)
@@ -70,7 +70,7 @@ Read aloud: *"Workdays in Q3 are the Monday-through-Friday days inside July-Sept
 
 #### Expressing the Q3 window
 
-The `%Tempo.Interval{from:, to:}` form above is the most explicit. Three more concise alternatives all compose equally well with `Tempo.select/2` and the set operations:
+The `~o"from/to"` range sigil above is the most literal form. Three more concise alternatives all compose equally well with `Tempo.select/2` and the set operations:
 
 ```elixir
 # ISO 8601 interval range:
@@ -98,7 +98,7 @@ q3 = ~o"2026-07/2026-10"
 q3_holidays
 |> Tempo.IntervalSet.to_list()
 |> Enum.each(fn iv ->
-  IO.puts "#{iv.from.time[:month]}/#{iv.from.time[:day]}: #{iv.metadata.summary}"
+  IO.puts "#{Tempo.month(iv)}/#{Tempo.day(iv)}: #{Tempo.Interval.metadata(iv).summary}"
 end)
 #=> 7/3: Independence Day (in lieu)
 #=> 7/4: Independence Day
@@ -115,7 +115,7 @@ Four composed set operations. The whole pipeline is set-algebra; no list-level f
 
 ```elixir
 today  = ~o"2026-06-30"
-window = %Tempo.Interval{from: today, to: Tempo.shift(today, week: 3)}
+window = Tempo.Interval.new!(from: today, to: Tempo.shift(today, week: 3))
 
 {:ok, workdays}  = Tempo.select(window, Tempo.workdays(:US))
 {:ok, open_days} = Tempo.difference(workdays, holidays)

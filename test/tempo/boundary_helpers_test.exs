@@ -1,7 +1,7 @@
 defmodule Tempo.BoundaryHelpersTest do
   use ExUnit.Case, async: true
 
-  import Tempo.Sigil
+  import Tempo.Sigils
 
   describe "Tempo.beginning_of_day/1" do
     test "pulls a datetime back to 00:00:00 on the same day" do

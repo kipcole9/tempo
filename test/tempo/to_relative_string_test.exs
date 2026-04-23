@@ -1,7 +1,7 @@
 defmodule Tempo.ToRelativeStringTest do
   use ExUnit.Case, async: true
 
-  import Tempo.Sigil
+  import Tempo.Sigils
 
   # Install Tempo.Clock.Test for this test process only. Using
   # `Process.put` (not `Application.put_env`) keeps the swap

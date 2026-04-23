@@ -1,6 +1,6 @@
 defmodule Tempo.Operations.Test do
   use ExUnit.Case, async: true
-  import Tempo.Sigil
+  import Tempo.Sigils
 
   # Tests for `Tempo.Operations` — the set-operations module.
   # Organised by concern:

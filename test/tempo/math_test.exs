@@ -1,6 +1,6 @@
 defmodule Tempo.Math.Test do
   use ExUnit.Case, async: true
-  import Tempo.Sigil
+  import Tempo.Sigils
 
   # Tests for `Tempo.Math.add/2`, `subtract/2`, and the low-level
   # `subtract_unit/3` mirror of `add_unit/3`. Covers clamping,

@@ -1,7 +1,7 @@
 defmodule Tempo.ShiftTest do
   use ExUnit.Case, async: true
 
-  import Tempo.Sigil
+  import Tempo.Sigils
 
   describe "Tempo.shift/2" do
     test "mixed units apply largest-to-smallest" do

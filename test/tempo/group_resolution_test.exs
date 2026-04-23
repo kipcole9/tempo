@@ -1,6 +1,6 @@
 defmodule Tempo.GroupResolution.Test do
   use ExUnit.Case, async: true
-  import Tempo.Sigil
+  import Tempo.Sigils
 
   test "Group resolution days to hours" do
     assert ~o"2022Y1M1G3DUT26H" == ~o"2022Y1M2DT2H"

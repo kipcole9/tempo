@@ -1,6 +1,6 @@
 defmodule Tempo.Components.Test do
   use ExUnit.Case, async: true
-  import Tempo.Sigil
+  import Tempo.Sigils
 
   # `Tempo.year/1`, `month/1`, `day/1`, `hour/1`, `minute/1`,
   # `second/1` are commodity component accessors — they return the

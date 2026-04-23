@@ -1,6 +1,6 @@
 defmodule Tempo.FromElixir.Test do
   use ExUnit.Case, async: true
-  import Tempo.Sigil
+  import Tempo.Sigils
 
   # `Tempo.from_elixir/2` unifies Date, Time, NaiveDateTime, and
   # DateTime into `%Tempo{}`. The intended resolution is inferred
