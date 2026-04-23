@@ -4,14 +4,17 @@ defmodule Tempo.VisualizerTest do
   alias Tempo.Visualizer
 
   describe "Plug router" do
-    test "root with no input returns 200 and the empty card" do
+    test "root with no input returns 200 and the editable input + examples" do
       conn =
         :get
         |> Plug.Test.conn("/")
         |> Visualizer.call(Visualizer.init([]))
 
       assert conn.status == 200
-      assert conn.resp_body =~ "Try an example"
+      # Single-page layout: the input card is always present and
+      # the examples card is always visible below.
+      assert conn.resp_body =~ "vz-input-card"
+      assert conn.resp_body =~ ~s|<h2>Examples</h2>|
       assert Plug.Conn.get_resp_header(conn, "content-type") |> hd() =~ "text/html"
     end
 
@@ -22,9 +25,12 @@ defmodule Tempo.VisualizerTest do
         |> Visualizer.call(Visualizer.init([]))
 
       assert conn.status == 200
-      assert conn.resp_body =~ ~s|<div class="vz-glyph">2022</div>|
-      assert conn.resp_body =~ ~s|<div class="vz-glyph">-06</div>|
-      assert conn.resp_body =~ ~s|<div class="vz-glyph">-15</div>|
+      # Glyphs are split into per-character token spans (Molokai-
+      # palette colouring). Numbers carry `vz-token--number`,
+      # separators carry `vz-token--bracket`.
+      assert conn.resp_body =~ ~s|<span class="vz-token vz-token--number">2022</span>|
+      assert conn.resp_body =~ ~s|<span class="vz-token vz-token--number">06</span>|
+      assert conn.resp_body =~ ~s|<span class="vz-token vz-token--number">15</span>|
       assert conn.resp_body =~ "June (month 6)"
     end
 
@@ -70,8 +76,8 @@ defmodule Tempo.VisualizerTest do
       assert conn.status == 200
       # Two year segments
       assert Regex.scan(~r/"vz-label">Year</, conn.resp_body) |> length() == 2
-      # Separator between them
-      assert conn.resp_body =~ ~s|<div class="vz-glyph">/</div>|
+      # Separator between them — `/` renders as a bracket-class token.
+      assert conn.resp_body =~ ~s|<span class="vz-token vz-token--bracket">/</span>|
     end
 
     test "style.css is served with caching headers" do
@@ -119,7 +125,9 @@ defmodule Tempo.VisualizerTest do
         |> Tempo.Visualizer.ParseView.render("")
         |> IO.iodata_to_binary()
 
-      assert html =~ ~s|<div class="vz-glyph">156X</div>|
+      # `156X` splits into a number run (`156`) and a literal `X`.
+      assert html =~ ~s|<span class="vz-token vz-token--number">156</span>|
+      assert html =~ ~s|<span class="vz-token vz-token--literal">X</span>|
       assert html =~ "unspecified digits"
     end
 

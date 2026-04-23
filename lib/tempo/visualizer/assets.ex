@@ -8,22 +8,39 @@ defmodule Tempo.Visualizer.Assets do
   @css """
   /* -------------------------------------------------------------
      Colour tokens. One declaration block; everything else derives.
+
+     The token-palette colours (numbers, literals, qualifiers,
+     syntax, brackets) use the Molokai palette — the colouring
+     the visualizer uses to separate character classes inside each
+     ISO 8601 glyph.
      ------------------------------------------------------------- */
   :root {
-    --vz-bg: #0b0d10;
-    --vz-surface: #15181d;
-    --vz-surface-2: #1d2127;
-    --vz-border: #2a2f37;
-    --vz-rule: #3a4050;
-    --vz-text: #e5e7eb;
-    --vz-text-dim: #9ca3af;
-    --vz-text-faint: #6b7280;
-    --vz-accent: #60a5fa;
-    --vz-ok: #22c55e;
-    --vz-warn: #f59e0b;
-    --vz-fail: #ef4444;
-    --vz-uncertain: #c4b5fd;
-    --vz-approximate: #fcd34d;
+    /* Backgrounds stay neutral/black — the Molokai-green background
+       gave the whole page an olive cast. Surfaces lift via a
+       subtle tint, not hue. */
+    --vz-bg: #000000;
+    --vz-surface: #141414;
+    --vz-surface-2: #1d1d1d;
+    --vz-border: #2a2a2a;
+    --vz-rule: #4a4a4a;
+    --vz-text: #f8f8f2;           /* Molokai default foreground */
+    --vz-text-dim: #a6a69c;
+    --vz-text-faint: #75715e;     /* Molokai comment colour */
+    --vz-accent: #66d9ef;          /* Molokai cyan */
+    --vz-ok: #a6e22e;              /* Molokai green */
+    --vz-warn: #fd971f;            /* Molokai orange */
+    --vz-fail: #f92672;            /* Molokai magenta */
+    --vz-uncertain: #ae81ff;       /* Molokai purple */
+    --vz-approximate: #e6db74;     /* Molokai yellow */
+
+    /* Token classes inside a glyph. Numbers stay neutral (so they
+       read as data, not syntax); literals pop; qualifiers warm;
+       syntax markers cool; brackets/separators dim. */
+    --vz-tok-number:    #f8f8f2;   /* neutral cream */
+    --vz-tok-literal:   #66d9ef;   /* cyan — designators Y M D W H S T Z … */
+    --vz-tok-qualifier: #fd971f;   /* orange — ? ~ % */
+    --vz-tok-syntax:    #a6e22e;   /* green  — L N G U */
+    --vz-tok-bracket:   #ae81ff;   /* purple — { } [ ] .. , / : - + */
 
     --vz-radius: 10px;
     --vz-gap: clamp(12px, 2vw, 20px);
@@ -104,14 +121,8 @@ defmodule Tempo.Visualizer.Assets do
     align-self: center;
   }
 
-  form.vz-form {
-    display: flex;
-    flex: 1 1 400px;
-    gap: 10px;
-    align-items: center;
-    min-inline-size: 0;
-  }
-
+  /* The old header form is gone — the input lives inline in the
+     first card on the page, styled as the primary echo text. */
   .vz-input-label {
     position: absolute;
     inline-size: 1px;
@@ -124,45 +135,81 @@ defmodule Tempo.Visualizer.Assets do
     border: 0;
   }
 
-  .vz-input {
-    flex: 1 1 auto;
+  form.vz-form {
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
     min-inline-size: 0;
-    background: var(--vz-bg);
-    color: var(--vz-text);
-    border: 1px solid var(--vz-border);
-    border-radius: var(--vz-radius);
-    padding: 10px 14px;
-    font-family: var(--vz-mono);
-    font-size: 16px;
-  }
-  .vz-input:focus {
-    outline: 2px solid var(--vz-accent);
-    outline-offset: 1px;
-    border-color: var(--vz-accent);
   }
 
-  form.vz-form button {
+  /* The input is styled like the old echo display — large, bold
+     monospace — but it's editable and the Enter key submits. A
+     secondary submit button is present for accessibility / mouse
+     users but styled so it doesn't dominate the card. */
+  .vz-input-card .vz-input {
+    flex: 1 1 auto;
+    min-inline-size: 0;
+    background: transparent;
+    color: var(--vz-text);
+    border: 0;
+    border-block-end: 2px solid var(--vz-border);
+    border-radius: 0;
+    padding: 6px 2px;
+    font-family: var(--vz-mono);
+    font-size: clamp(28px, 5vw, 48px);
+    font-weight: 600;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+  }
+  .vz-input-card .vz-input:focus {
+    outline: 0;
+    border-block-end-color: var(--vz-accent);
+  }
+  .vz-input-card .vz-input::placeholder {
+    color: var(--vz-text-faint);
+    font-weight: 500;
+  }
+
+  .vz-input-submit {
+    flex-shrink: 0;
+    align-self: flex-end;
     background: var(--vz-accent);
-    color: #0b1220;
+    color: #1a1b16;
     border: 0;
     border-radius: var(--vz-radius);
     padding: 10px 18px;
     font-family: var(--vz-sans);
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 600;
     cursor: pointer;
+    margin-block-end: 6px;
   }
-  form.vz-form button:hover { filter: brightness(1.08); }
+  .vz-input-submit:hover { filter: brightness(1.08); }
 
   /* -------------------------------------------------------------
-     Main layout. Max-width keeps reading comfortable on wide
-     monitors; padding at small screens uses clamp to breathe
-     without stealing from mobile.
+     Main layout. Two columns on wide viewports (main content +
+     permanent syntax reference); stack on narrow. Grid gives the
+     reference a fixed right-hand width and lets the main column
+     take the rest. Clamps keep everything breathing.
      ------------------------------------------------------------- */
+  .vz-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
+    gap: 0;
+    align-items: start;
+    max-inline-size: 1600px;
+    margin-inline: auto;
+  }
+
+  @media (max-width: 1100px) {
+    .vz-layout {
+      grid-template-columns: 1fr;
+    }
+  }
+
   main.vz-main {
     padding: var(--vz-gap-lg) clamp(16px, 3vw, 28px);
-    max-inline-size: 1200px;
-    margin-inline: auto;
+    min-inline-size: 0;
   }
 
   /* The "card" box pattern per every-layout: surface colour,
@@ -186,20 +233,10 @@ defmodule Tempo.Visualizer.Assets do
     color: var(--vz-text-dim);
   }
 
-  /* -------------------------------------------------------------
-     Echo of the parsed input in extra-large monospace. Shows the
-     user exactly what was parsed, in case whitespace or quotes
-     made something weird happen.
-     ------------------------------------------------------------- */
-  .vz-echo {
-    font-family: var(--vz-mono);
-    font-size: clamp(28px, 5vw, 48px);
-    font-weight: 600;
-    line-height: 1.15;
-    color: var(--vz-text);
-    word-break: break-all;
-    letter-spacing: -0.01em;
-  }
+  /* The former standalone echo card is gone — the editable input
+     inside `.vz-input-card` now carries that role. The `.vz-echo`
+     class is kept as a namespace-friendly hook on the input in
+     case users want to restyle from userland. */
 
   /* -------------------------------------------------------------
      The segment breakdown.
@@ -232,6 +269,23 @@ defmodule Tempo.Visualizer.Assets do
     min-inline-size: 0;
   }
 
+  /* Months have the longest detail text (e.g. "September (month 9)"
+     or "Meteorological season 24 — Winter") and benefit from a
+     wider floor so the descriptor doesn't line-wrap. Applied via
+     the `--month` kind modifier emitted by the view for :month
+     time-unit segments. */
+  .vz-segment--month {
+    min-inline-size: 20ch;
+  }
+
+  /* Qualifier detail strings ("Uncertain (?)", "Approximate (~)",
+     "Uncertain & approximate (%)") are long relative to their
+     single-character glyph — give them a generous floor so they
+     don't cramp the whole row. */
+  .vz-segment--qualification {
+    min-inline-size: 22ch;
+  }
+
   .vz-segment .vz-glyph {
     font-size: clamp(22px, 3.5vw, 36px);
     font-weight: 600;
@@ -240,6 +294,24 @@ defmodule Tempo.Visualizer.Assets do
     padding-block-end: 8px;
     white-space: pre;
   }
+
+  /* Per-character token classes inside a glyph. Numbers stay
+     neutral (the value itself, not syntax); the four other
+     classes use distinct Molokai hues so the character roles
+     read at a glance. */
+  .vz-token { color: inherit; }
+  .vz-token--number    { color: var(--vz-tok-number); }
+  .vz-token--literal   { color: var(--vz-tok-literal); }
+  .vz-token--qualifier { color: var(--vz-tok-qualifier); }
+  .vz-token--syntax    { color: var(--vz-tok-syntax); }
+  .vz-token--bracket   { color: var(--vz-tok-bracket); }
+
+  /* Bracket-class tokens (`-` `:` `/` `+` ...) are visually
+     separated from adjacent numeric/literal tokens so a leading
+     `-` never reads as a negative-number sign when it's actually
+     a date separator. A visible gap on both sides plus the
+     distinct bracket colour makes the separator role unambiguous. */
+  .vz-token--bracket { margin-inline: 0.6ch; }
 
   /* The underline and end-tick.
 
@@ -338,33 +410,58 @@ defmodule Tempo.Visualizer.Assets do
   }
 
   /* -------------------------------------------------------------
-     Empty state: shown when there's no input yet. A list of
-     clickable example strings that populate the input.
+     Examples table. Grouped by family (dates, intervals, seasons,
+     grouping, selections, sets, EDTF/IXDTF). Description first,
+     click-to-load ISO string second.
      ------------------------------------------------------------- */
-  .vz-examples {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-  .vz-examples a {
-    background: var(--vz-surface-2);
-    border: 1px solid var(--vz-border);
-    border-radius: 8px;
-    padding: 8px 12px;
-    color: var(--vz-text);
-    font-family: var(--vz-mono);
+  table.vz-examples {
+    inline-size: 100%;
+    border-collapse: collapse;
     font-size: 13px;
   }
-  .vz-examples a:hover {
-    background: var(--vz-border);
-    text-decoration: none;
-  }
-  .vz-examples a span {
-    color: var(--vz-text-dim);
+
+  .vz-examples tr.vz-example-group > th {
+    text-align: start;
+    padding: 18px 0 6px 0;
     font-family: var(--vz-sans);
     font-size: 11px;
-    margin-inline-start: 8px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--vz-text-dim);
+    border-block-end: 1px solid var(--vz-border);
   }
+
+  .vz-examples tr.vz-example-group:first-child > th {
+    padding-block-start: 0;
+  }
+
+  .vz-examples tbody > tr:not(.vz-example-group):hover {
+    background: var(--vz-surface-2);
+  }
+
+  .vz-examples td {
+    padding: 6px 10px;
+    vertical-align: top;
+  }
+
+  .vz-examples .vz-example-label {
+    color: var(--vz-text);
+    font-family: var(--vz-sans);
+    inline-size: 45%;
+  }
+
+  .vz-examples .vz-example-iso {
+    font-family: var(--vz-mono);
+    color: var(--vz-text-dim);
+  }
+
+  .vz-examples .vz-example-iso a {
+    color: var(--vz-accent);
+    text-decoration: none;
+    word-break: break-all;
+  }
+  .vz-examples .vz-example-iso a:hover { text-decoration: underline; }
 
   /* -------------------------------------------------------------
      Footer. Tiny, unobtrusive attribution.
@@ -376,6 +473,103 @@ defmodule Tempo.Visualizer.Assets do
     color: var(--vz-text-faint);
     font-size: 12px;
     text-align: center;
+  }
+
+  /* -------------------------------------------------------------
+     Permanent syntax reference — right column of the main grid
+     on wide viewports, stacked below on narrow. Sticky within
+     its track so it stays visible while the main column scrolls.
+     ------------------------------------------------------------- */
+  aside.vz-syntax-panel {
+    position: sticky;
+    /* The sticky anchor and the initial top offset both match
+       `main.vz-main`'s top padding so the panel's top edge aligns
+       with the input card inside the main column, both at rest
+       and once the user scrolls and sticky kicks in. */
+    inset-block-start: var(--vz-gap-lg);
+    margin-block-start: var(--vz-gap-lg);
+    align-self: start;
+    block-size: calc(100vh - var(--vz-gap-lg));
+    background: var(--vz-surface);
+    border-inline-start: 1px solid var(--vz-border);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  @media (max-width: 1100px) {
+    aside.vz-syntax-panel {
+      position: static;
+      block-size: auto;
+      margin-block-start: 0;
+      border-inline-start: 0;
+      border-block-start: 1px solid var(--vz-border);
+    }
+  }
+
+  .vz-syntax-panel__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: clamp(14px, 2vw, 20px) clamp(16px, 2.5vw, 22px);
+    border-block-end: 1px solid var(--vz-border);
+    position: sticky;
+    inset-block-start: 0;
+    background: var(--vz-surface);
+    z-index: 1;
+  }
+  .vz-syntax-panel__header h2 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--vz-text);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .vz-syntax-panel__body {
+    padding: clamp(14px, 2vw, 20px) clamp(16px, 2.5vw, 22px) clamp(28px, 4vw, 40px);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .vz-syntax-intro,
+  .vz-syntax-outro {
+    color: var(--vz-text-dim);
+    margin-block: 0 16px;
+  }
+  .vz-syntax-outro { margin-block: 24px 0; }
+
+  .vz-syntax-panel h3 {
+    margin: 22px 0 6px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--vz-accent);
+  }
+  .vz-syntax-panel h3:first-of-type { margin-block-start: 8px; }
+
+  table.vz-syntax-table {
+    inline-size: 100%;
+    border-collapse: collapse;
+  }
+  .vz-syntax-table td {
+    padding: 4px 8px 4px 0;
+    vertical-align: top;
+  }
+  .vz-syntax-label {
+    color: var(--vz-text);
+    font-family: var(--vz-sans);
+    inline-size: 45%;
+  }
+  .vz-syntax-iso code {
+    font-family: var(--vz-mono);
+    color: var(--vz-tok-literal);
+    background: var(--vz-bg);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12px;
   }
   """
 

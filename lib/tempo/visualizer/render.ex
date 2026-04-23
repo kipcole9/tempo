@@ -54,14 +54,18 @@ defmodule Tempo.Visualizer.Render do
       "/assets/style.css\">",
       "</head><body>",
       header(base, input),
+      "<div class=\"vz-layout\">",
       "<main class=\"vz-main\">",
       body,
       footer(),
-      "</main></body></html>"
+      "</main>",
+      syntax_panel(),
+      "</div>",
+      "</body></html>"
     ]
   end
 
-  defp header(base, input) do
+  defp header(base, _input) do
     [
       "<header class=\"vz-header\">",
       "<a class=\"vz-brand\" href=\"",
@@ -71,20 +75,105 @@ defmodule Tempo.Visualizer.Render do
       "<h1>Tempo</h1>",
       "<span class=\"vz-subtitle\">ISO 8601 Visualizer</span>",
       "</a>",
-      "<form class=\"vz-form\" method=\"get\" action=\"",
-      escape(base),
-      "/\">",
-      "<label class=\"vz-input-label\" for=\"vz-iso-input\">",
-      "Enter an ISO 8601 or EDTF string",
-      "</label>",
-      "<input id=\"vz-iso-input\" class=\"vz-input\" type=\"text\" name=\"iso\" ",
-      "value=\"",
-      escape(input),
-      "\" placeholder=\"2022-06-15 or 1984?/2004~ or 2022-11-20T10:30:00Z[Europe/Paris]\" ",
-      "autocomplete=\"off\" spellcheck=\"false\" autofocus>",
-      "<button type=\"submit\">Parse</button>",
-      "</form>",
       "</header>"
+    ]
+  end
+
+  # Permanent right-column syntax reference. Appears beside the
+  # main content on wide viewports and stacks below on narrow
+  # ones. Purely presentational — no toggle, always visible.
+  defp syntax_panel do
+    [
+      "<aside class=\"vz-syntax-panel\" aria-labelledby=\"vz-syntax-title\">",
+      "<div class=\"vz-syntax-panel__header\">",
+      "<h2 id=\"vz-syntax-title\">ISO 8601 syntax reference</h2>",
+      "</div>",
+      "<div class=\"vz-syntax-panel__body\">",
+      syntax_panel_body(),
+      "</div>",
+      "</aside>"
+    ]
+  end
+
+  defp syntax_panel_body do
+    [
+      "<p class=\"vz-syntax-intro\">",
+      "ISO 8601 specifies three representation styles. Each is ",
+      "supported by Tempo and round-trips through the parser.",
+      "</p>",
+      syntax_section("Implicit (compact, no separators)", [
+        {"YYYYMMDD", "20220615"},
+        {"YYYYMMDDTHHMMSS", "20220615T103000"},
+        {"YYYYMMDDTHHMMSSZ", "20220615T103000Z"},
+        {"YYYY-Www-D (week date, hyphenated)", "2022-W24-3"},
+        {"YYYY-DDD (ordinal)", "2022-166"}
+      ]),
+      syntax_section("Extended (human-readable, hyphenated)", [
+        {"YYYY-MM-DD", "2022-06-15"},
+        {"YYYY-MM-DDTHH:MM:SS", "2022-06-15T10:30:00"},
+        {"YYYY-MM-DDTHH:MM:SS±HH:MM", "2022-06-15T10:30:00+05:30"},
+        {"YYYY-MM-DD/YYYY-MM-DD", "2022-01-01/2022-06-30"},
+        {"YYYY-MM-DD/PnYnMnD", "2022-01-01/P3M"}
+      ]),
+      syntax_section("Explicit (ISO 8601-2 §4.3 — designator-per-unit)", [
+        {"YEARY", "2022Y"},
+        {"YEARY MONTHM", "2022Y6M"},
+        {"YEARY MONTHM DAYD", "2022Y6M15D"},
+        {"Quarter: YEARY nQ", "2022Y3Q"},
+        {"Half (semester): YEARY nH", "2022Y1H"},
+        {"Century / decade", "20C · 202J"},
+        {"Slot / range", "2022Y{1..3}M · 2022Y{5,7,9}M"}
+      ]),
+      syntax_section("EDTF qualifications (ISO 8601-2 §8)", [
+        {"Uncertain", "2022?"},
+        {"Approximate", "2022~"},
+        {"Uncertain & approximate", "2022%"},
+        {"Component-level", "2022-?06-15"}
+      ]),
+      syntax_section("IXDTF extensions (RFC 9557)", [
+        {"Zone", "2022-06-15T10:30:00Z[Europe/Paris]"},
+        {"Calendar", "2022-06-15[u-ca=hebrew]"},
+        {"Both", "2022-06-15T10:30:00Z[Europe/Paris][u-ca=hebrew]"}
+      ]),
+      syntax_section("Selection and grouping (ISO 8601-2 §5, §12)", [
+        {"Selection: L <rule> N", "2022YL1KN"},
+        {"Grouping: nG <unit> U", "2018Y4G60DU6D"},
+        {"Unspecified digits (mask)", "156X · 1985-XX-15"}
+      ]),
+      syntax_section("Duration and recurrence (ISO 8601-1 §5.5, §5.6)", [
+        {"Duration", "P1Y6M3DT4H"},
+        {"Recurring", "R5/2022-01-01/P1M"},
+        {"Infinite recurrence", "R/2022-01-01/P1M"}
+      ]),
+      "<p class=\"vz-syntax-outro\">",
+      "See Tempo's ",
+      "<a href=\"https://hexdocs.pm/ex_tempo/iso8601-conformance.html\">",
+      "ISO 8601 conformance guide",
+      "</a>",
+      " for the full table.",
+      "</p>"
+    ]
+  end
+
+  defp syntax_section(title, rows) do
+    [
+      "<h3>",
+      escape(title),
+      "</h3>",
+      "<table class=\"vz-syntax-table\"><tbody>",
+      Enum.map(rows, fn {label, iso} ->
+        [
+          "<tr>",
+          "<td class=\"vz-syntax-label\">",
+          escape(label),
+          "</td>",
+          "<td class=\"vz-syntax-iso\"><code>",
+          escape(iso),
+          "</code></td>",
+          "</tr>"
+        ]
+      end),
+      "</tbody></table>"
     ]
   end
 

@@ -21,20 +21,25 @@ defmodule Tempo.Visualizer.ParseView do
   def render(params, base) do
     input = Map.get(params, :input, "") || ""
 
-    body =
+    parsed_body =
       cond do
         input == "" ->
-          [empty_card(base)]
+          []
 
         true ->
           case Tempo.from_iso8601(input) do
             {:ok, value} ->
-              [echo_card(input), segments_card(value), details_card(value)]
+              [segments_card(value), details_card(value)]
 
             {:error, reason} ->
-              [echo_card(input), error_card(reason)]
+              [error_card(reason)]
           end
       end
+
+    body =
+      [input_card(input, base)] ++
+        parsed_body ++
+        [examples_card(base)]
 
     Render.page(
       title: "Parse",
@@ -44,58 +49,127 @@ defmodule Tempo.Visualizer.ParseView do
     )
   end
 
-  ## Empty / landing card
+  ## Editable input card — replaces both the old header input and
+  ## the old echo-of-input card. One box: the user's source of
+  ## truth, large enough to read, submits on Enter.
 
-  @examples [
-    {"2022-06-15", "Calendar date"},
-    {"2022-W24-3", "ISO week date"},
-    {"2022-166", "Ordinal date"},
-    {"2022-06-15T10:30:00Z", "Datetime with UTC"},
-    {"2022-06-15T10:30:00+05:30", "Datetime with offset"},
-    {"2022-25", "Season (N spring, astronomical)"},
-    {"2022-?06-15", "Uncertain month (EDTF L2)"},
-    {"1984?/2004~", "Interval with per-endpoint qualification"},
-    {"156X-12-25", "Unspecified decade"},
-    {"-1XXX-XX", "Negative year, unspecified digits"},
-    {"1985/..", "Open-ended interval"},
-    {"{1960,1961,1962}", "Set of dates"},
-    {"2022-11-20T10:30:00Z[Europe/Paris][u-ca=hebrew]", "IXDTF with zone and calendar"},
-    {"R5/2022-01-01/P1M", "Recurring interval"},
-    {"Y17E8", "Long year with exponent"}
-  ]
-
-  defp empty_card(base) do
+  defp input_card(input, base) do
     [
-      "<div class=\"vz-card\">",
-      "<h2>Try an example</h2>",
-      "<div class=\"vz-examples\">",
-      Enum.map(@examples, fn {iso, label} ->
-        [
-          "<a href=\"",
-          Render.escape(base),
-          "/?iso=",
-          URI.encode_www_form(iso),
-          "\">",
-          Render.escape(iso),
-          "<span>",
-          Render.escape(label),
-          "</span></a>"
-        ]
-      end),
-      "</div>",
+      "<div class=\"vz-card vz-input-card\">",
+      "<form class=\"vz-form\" method=\"get\" action=\"",
+      Render.escape(base),
+      "/\">",
+      "<label class=\"vz-input-label\" for=\"vz-iso-input\">",
+      "ISO 8601 or EDTF input",
+      "</label>",
+      "<input id=\"vz-iso-input\" class=\"vz-input vz-echo\" type=\"text\" name=\"iso\" ",
+      "value=\"",
+      Render.escape(input),
+      "\" placeholder=\"2022-06-15 · 1984?/2004~ · 2022-11-20T10:30:00Z[Europe/Paris]\" ",
+      "dir=\"ltr\" autocomplete=\"off\" spellcheck=\"false\" autofocus>",
+      "<button type=\"submit\" class=\"vz-input-submit\" aria-label=\"Parse\">Parse</button>",
+      "</form>",
       "</div>"
     ]
   end
 
-  ## Echo the raw input
+  ## Examples card — always visible below the parsed info.
+  ##
+  ## Organised by family so a reader can scan from the familiar
+  ## (plain calendar dates, datetimes) out to the rare / exotic
+  ## shapes Tempo uniquely supports (selections, grouping, masks,
+  ## long-year exponents). Each row is description first, example
+  ## second — the reader sees the intent before the syntax.
 
-  defp echo_card(input) do
+  @example_groups [
+    {"Dates and datetimes",
+     [
+       {"Calendar date", "2022-06-15"},
+       {"ISO week date", "2022-W24-3"},
+       {"Ordinal date (day-of-year)", "2022-166"},
+       {"Datetime with UTC", "2022-06-15T10:30:00Z"},
+       {"Datetime with offset", "2022-06-15T10:30:00+05:30"},
+       {"Long year with exponent", "Y17E8"}
+     ]},
+    {"Intervals, durations, recurrence",
+     [
+       {"Closed interval", "2022-01-01/2022-06-30"},
+       {"Open-ended interval", "1985/.."},
+       {"Duration from start", "2022-01-01/P3M"},
+       {"Recurring interval", "R5/2022-01-01/P1M"},
+       {"Interval with per-endpoint qualification", "1984?/2004~"}
+     ]},
+    {"Seasons and quarters",
+     [
+       {"Northern spring (astronomical)", "2022-25"},
+       {"Northern summer (astronomical)", "2022-26"},
+       {"Southern spring (astronomical)", "2022-29"},
+       {"First quarter", "2022Y1Q"},
+       {"Third quarter", "2022Y3Q"},
+       {"First half (semestral)", "2022Y1H"}
+     ]},
+    {"Grouping (ISO 8601-2 §5)",
+     [
+       {"Fifth ten-day group of the year", "5G10DU"},
+       {"Four 60-day groups, day 6 of group 4", "2018Y4G60DU6D"}
+     ]},
+    {"Selection of days, weeks, months",
+     [
+       {"Every Monday in 2022", "2022YL1KN"},
+       {"Every last day-of-week (Sunday)", "2022YL-1KN"},
+       {"Last day of year (Dec 31)", "2022YL-1DN"},
+       {"First month (January)", "2022YL1MN"}
+     ]},
+    {"Slots, sets, masks",
+     [
+       {"Month range as a slot", "2022Y{1..3}M"},
+       {"Set of specific months", "2022Y{5,6,7}M"},
+       {"Set of three years", "{1960,1961,1962}"},
+       {"Unspecified decade", "156X-12-25"},
+       {"Negative year, unspecified digits", "-1XXX-XX"}
+     ]},
+    {"EDTF and IXDTF",
+     [
+       {"Uncertain month (EDTF L2)", "2022-?06-15"},
+       {"IXDTF with zone and calendar", "2022-11-20T10:30:00Z[Europe/Paris][u-ca=hebrew]"}
+     ]}
+  ]
+
+  defp examples_card(base) do
     [
       "<div class=\"vz-card\">",
-      "<h2>Input</h2>",
-      "<div class=\"vz-echo\" dir=\"ltr\">",
-      Render.escape(input),
-      "</div>",
+      "<h2>Examples</h2>",
+      "<table class=\"vz-examples\">",
+      "<tbody>",
+      Enum.map(@example_groups, fn {group_name, rows} ->
+        [
+          "<tr class=\"vz-example-group\">",
+          "<th colspan=\"2\">",
+          Render.escape(group_name),
+          "</th>",
+          "</tr>",
+          Enum.map(rows, fn {label, iso} ->
+            [
+              "<tr>",
+              "<td class=\"vz-example-label\">",
+              Render.escape(label),
+              "</td>",
+              "<td class=\"vz-example-iso\">",
+              "<a href=\"",
+              Render.escape(base),
+              "/?iso=",
+              URI.encode_www_form(iso),
+              "\">",
+              Render.escape(iso),
+              "</a>",
+              "</td>",
+              "</tr>"
+            ]
+          end)
+        ]
+      end),
+      "</tbody>",
+      "</table>",
       "</div>"
     ]
   end
@@ -137,7 +211,7 @@ defmodule Tempo.Visualizer.ParseView do
       class,
       "\">",
       "<div class=\"vz-glyph\">",
-      Render.escape(glyph),
+      colored_glyph(glyph),
       "</div>",
       "<div class=\"vz-descriptor\">",
       "<div class=\"vz-label\">",
@@ -150,6 +224,77 @@ defmodule Tempo.Visualizer.ParseView do
       "</div>"
     ]
   end
+
+  ## Syntax colouring for the glyph text.
+  ##
+  ## Each character is classified into one of five token classes
+  ## (Molokai palette — see CSS):
+  ##
+  ##   * number    — `0-9`, decimal points, signs attached to numbers
+  ##   * literal   — ISO designators (Y M D W H S T Z P R C J O K X)
+  ##                  and zone/calendar string bodies
+  ##   * qualifier — EDTF qualifiers `? ~ %`
+  ##   * syntax    — selection/group markers `L N G U`
+  ##   * bracket   — structural punctuation `{ } [ ] / .. , : -` etc.
+  ##
+  ## Adjacent same-class characters are merged into a single span so
+  ## the rendered HTML stays compact.
+
+  @literal_chars ~c"YMDWHSTZPRCJOKX"
+  @qualifier_chars ~c"?~%"
+  @syntax_chars ~c"LNGU"
+  @bracket_chars ~c"{}[]()/,:-+.·="
+
+  defp colored_glyph(text) when is_binary(text) do
+    text
+    |> classify_chars()
+    |> Enum.map(fn {class, chunk} ->
+      [
+        "<span class=\"vz-token vz-token--",
+        class,
+        "\">",
+        Render.escape(chunk),
+        "</span>"
+      ]
+    end)
+  end
+
+  defp colored_glyph(other), do: Render.escape(to_string(other))
+
+  # Walk the string, classifying each character, and merge runs of
+  # the same class into a single chunk. Returns a list of
+  # {class :: String.t(), chunk :: String.t()} pairs in order.
+  defp classify_chars(text) do
+    text
+    |> String.graphemes()
+    |> Enum.reduce([], fn g, acc ->
+      class = char_class(g)
+
+      case acc do
+        [{^class, chunk} | rest] -> [{class, chunk <> g} | rest]
+        _ -> [{class, g} | acc]
+      end
+    end)
+    |> Enum.reverse()
+  end
+
+  defp char_class(<<c>>) when c in ?0..?9, do: "number"
+
+  defp char_class(g) when is_binary(g) do
+    cond do
+      single_char_in?(g, @literal_chars) -> "literal"
+      single_char_in?(g, @qualifier_chars) -> "qualifier"
+      single_char_in?(g, @syntax_chars) -> "syntax"
+      single_char_in?(g, @bracket_chars) -> "bracket"
+      # Anything else (spaces, letters inside zone ids, etc.) falls
+      # through as a literal — we don't want neutral-white non-digit
+      # blobs inside the coloured token stream.
+      true -> "literal"
+    end
+  end
+
+  defp single_char_in?(<<c>>, list), do: c in list
+  defp single_char_in?(_, _), do: false
 
   ## Produces the ordered list of segments from a parsed value.
   ## Each segment is a map: %{glyph, label, detail, kind}.
@@ -234,15 +379,19 @@ defmodule Tempo.Visualizer.ParseView do
   defp segment_or_undefined(other),
     do: [%{glyph: inspect(other), label: "", detail: "", kind: "separator"}]
 
-  # Build segments for a single `%Tempo{}`. When `is_endpoint?` is true
-  # the year is rendered without a leading `-` separator, since it's
-  # the first glyph of a sub-expression.
-  defp tempo_segments(%Tempo{time: time} = tempo, is_endpoint?) when is_list(time) do
+  # Build segments for a single `%Tempo{}`. Each time-unit value
+  # becomes one "primary" segment carrying the label; every leading
+  # separator (`-`, `T`, `:`, `W`) that precedes a unit in the ISO
+  # 8601 serialisation becomes its own tiny "separator" segment
+  # with no label. Splitting them this way means each label ends
+  # up under the unit's numeric value rather than under the
+  # preceding separator character.
+  defp tempo_segments(%Tempo{time: time} = tempo, _is_endpoint?) when is_list(time) do
     time_segments =
       time
       |> Enum.with_index()
-      |> Enum.map(fn {{unit, value}, i} ->
-        time_unit_segment(unit, value, i == 0 or is_endpoint?)
+      |> Enum.flat_map(fn {{unit, value}, i} ->
+        prefix_segments(unit, i == 0) ++ [time_unit_segment(unit, value, i == 0)]
       end)
 
     time_segments ++
@@ -254,6 +403,26 @@ defmodule Tempo.Visualizer.ParseView do
   defp tempo_segments(%Tempo{time: nil} = _tempo, _is_endpoint?) do
     []
   end
+
+  ## Leading separators / designators that precede a unit in its
+  ## ISO 8601 serialisation. Rendered as their own zero-label
+  ## segments so the following unit's label aligns under its value.
+  ##
+  ## No prefix when the unit is the first component of the time
+  ## keyword list — a bare `~o"6M"` renders as `6M` with no leading
+  ## hyphen.
+
+  defp prefix_segments(_unit, true = _first?), do: []
+  defp prefix_segments(:year, _), do: []
+  defp prefix_segments(:month, _), do: [separator("-")]
+  defp prefix_segments(:day, _), do: [separator("-")]
+  defp prefix_segments(:day_of_year, _), do: [separator("-")]
+  defp prefix_segments(:day_of_week, _), do: [separator("-")]
+  defp prefix_segments(:week, _), do: [separator("-"), separator("W")]
+  defp prefix_segments(:hour, _), do: [separator("T")]
+  defp prefix_segments(:minute, _), do: [separator(":")]
+  defp prefix_segments(:second, _), do: [separator(":")]
+  defp prefix_segments(_, _), do: []
 
   defp endpoint_segments(:undefined),
     do: [%{glyph: "..", label: "Open", detail: "Undefined endpoint", kind: "extended"}]
@@ -277,51 +446,47 @@ defmodule Tempo.Visualizer.ParseView do
 
   ## Time-unit segments
 
-  defp time_unit_segment(:year, value, first?) do
-    prefix = if first?, do: "", else: ""
+  defp time_unit_segment(:year, value, _first?) do
     {glyph, detail} = year_display(value)
-
-    %{
-      glyph: prefix <> glyph,
-      label: "Year",
-      detail: detail,
-      kind: "primary"
-    }
+    %{glyph: glyph, label: "Year", detail: detail, kind: "primary"}
   end
 
   defp time_unit_segment(:month, value, _first?) do
     {glyph, detail} = month_display(value)
-    %{glyph: "-" <> glyph, label: "Month", detail: detail, kind: "primary"}
+    # `kind: "month"` triggers the widened descriptor floor in CSS —
+    # month detail strings ("September (month 9)", meteorological
+    # season names) are the longest and would otherwise wrap.
+    %{glyph: glyph, label: "Month", detail: detail, kind: "month"}
   end
 
   defp time_unit_segment(:day, value, _first?) do
     {glyph, detail} = day_display(value)
-    %{glyph: "-" <> glyph, label: "Day", detail: detail, kind: "primary"}
+    %{glyph: glyph, label: "Day", detail: detail, kind: "primary"}
   end
 
   defp time_unit_segment(:week, value, _first?) do
     {glyph, detail} = integer_display(value, "W")
-    %{glyph: "-W" <> glyph, label: "Week", detail: detail, kind: "primary"}
+    %{glyph: glyph, label: "Week", detail: detail, kind: "primary"}
   end
 
   defp time_unit_segment(:day_of_week, value, _first?) do
     {glyph, detail} = integer_display(value, "")
-    %{glyph: "-" <> glyph, label: "Day of week", detail: detail, kind: "primary"}
+    %{glyph: glyph, label: "Day of week", detail: detail, kind: "primary"}
   end
 
   defp time_unit_segment(:hour, value, _first?) do
     {glyph, detail} = integer_display(value, "")
-    %{glyph: "T" <> glyph, label: "Hour", detail: detail, kind: "primary"}
+    %{glyph: glyph, label: "Hour", detail: detail, kind: "primary"}
   end
 
   defp time_unit_segment(:minute, value, _first?) do
     {glyph, detail} = integer_display(value, "")
-    %{glyph: ":" <> glyph, label: "Minute", detail: detail, kind: "primary"}
+    %{glyph: glyph, label: "Minute", detail: detail, kind: "primary"}
   end
 
   defp time_unit_segment(:second, value, _first?) do
     {glyph, detail} = integer_display(value, "")
-    %{glyph: ":" <> glyph, label: "Second", detail: detail, kind: "primary"}
+    %{glyph: glyph, label: "Second", detail: detail, kind: "primary"}
   end
 
   defp time_unit_segment(:century, value, _first?) do
