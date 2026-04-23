@@ -132,6 +132,8 @@
 
 ### Bug Fixes
 
+* Enumeration of zoned values now honours DST transitions. On the day a zone enters DST, the iterator skips the "missing" wall-clock hour (e.g. `Enum.take(~o"2026-10-04[Australia/Sydney]", 5)` yields hours `[0, 1, 3, 4, 5]` — 02:00 never appears on a Sydney clock face that day). On the day a zone exits DST, the duplicated hour is emitted twice, distinguished by the `:shift` field: the first occurrence with the pre-transition offset, the second with the post-transition offset (per RFC 9557 IXDTF's explicit-offset fold disambiguator). The two emitted Tempos round-trip through the parser and project to distinct UTC instants 3600 seconds apart. Unzoned values and values outside DST transitions are unaffected.
+
 * Fix parser interpretation of bare `~o"-1M"`. The `M` designator was resolving to `:minute` inside a time-zone shift (`[minute: -1]`) instead of `:month` (`time: [month: -1]`). Tightened `explicit_time_shift` to require `Z` alone or `Z`-prefixed explicit components; the ambiguous sign-plus-single-unit form now parses as a signed calendar component per ISO 8601-2 §4.4.1.
 
 * Fix `Tempo.select` with negative components and week-of-month context. `~o"-1M"` on a year base now correctly resolves to December; `~o"-1D"` on a year base to Dec 31 (leap-aware); `~o"-1W"` on a year base to the last ISO week; `~o"1W"` on a month base to week-of-month. Week-of-year and week-of-month axes are now kept coherent through the `project_merge` pipeline.

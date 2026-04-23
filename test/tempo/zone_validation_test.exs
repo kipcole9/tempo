@@ -15,6 +15,127 @@ defmodule Tempo.ZoneValidationTest do
   #   * Fall back: first Sunday of November at 02:00 → 01:00.
   #     2024-11-03 01:00..02:00 local exists twice (ambiguous).
 
+  describe "zone-aware enumeration (DST gap is skipped)" do
+    # A zoned Tempo's enumeration honours its zone: wall-clock
+    # hours that don't exist on the date (because the clock
+    # jumped over them) are omitted from the enumerated sequence.
+
+    test "enumerating a day that enters DST skips the non-existent hour" do
+      import Tempo.Sigil
+
+      # Sydney spring-forward: clocks jump 2026-10-04 02:00 → 03:00.
+      # The wall clock never reads 02:00 on this date.
+      hours =
+        ~o"2026-10-04[Australia/Sydney]"
+        |> Enum.take(5)
+        |> Enum.map(& &1.time[:hour])
+
+      assert hours == [0, 1, 3, 4, 5]
+    end
+
+    test "enumerating a day that enters DST in New York skips the non-existent hour" do
+      import Tempo.Sigil
+
+      # 2024-03-10 America/New_York: clocks jump 02:00 → 03:00.
+      hours =
+        ~o"2024-03-10[America/New_York]"
+        |> Enum.take(5)
+        |> Enum.map(& &1.time[:hour])
+
+      assert hours == [0, 1, 3, 4, 5]
+    end
+
+    test "enumerating a normal day is unaffected" do
+      import Tempo.Sigil
+
+      hours =
+        ~o"2026-06-15[Australia/Sydney]"
+        |> Enum.take(5)
+        |> Enum.map(& &1.time[:hour])
+
+      assert hours == [0, 1, 2, 3, 4]
+    end
+
+    test "enumerating a day without a zone is unaffected" do
+      import Tempo.Sigil
+
+      # No zone attached → no gap information available, enumerate
+      # the abstract wall-clock units.
+      hours =
+        ~o"2026-10-04"
+        |> Enum.take(5)
+        |> Enum.map(& &1.time[:hour])
+
+      assert hours == [0, 1, 2, 3, 4]
+    end
+  end
+
+  describe "zone-aware enumeration (DST fold is doubled)" do
+    # A wall-clock hour that occurs twice (DST fall-back) is emitted
+    # twice — first with the pre-transition offset, then with the
+    # post-transition offset. RFC 9557 IXDTF uses the explicit numeric
+    # offset to disambiguate folds; the two Tempos round-trip as
+    # distinct values and project to distinct UTC instants.
+
+    test "enumerating a day that exits DST emits 02:00 twice with distinct shifts" do
+      import Tempo.Sigil
+
+      # Sydney fall-back: clocks go 2026-04-05 03:00 AEDT → 02:00 AEST.
+      # The 02:00 hour happens twice — first in AEDT (+11), then AEST (+10).
+      values =
+        ~o"2026-04-05[Australia/Sydney]"
+        |> Enum.take(6)
+
+      hours = Enum.map(values, & &1.time[:hour])
+      assert hours == [0, 1, 2, 2, 3, 4]
+
+      [two_a, two_b] = Enum.filter(values, &(&1.time[:hour] == 2))
+      assert two_a.shift == [hour: 11]
+      assert two_b.shift == [hour: 10]
+    end
+
+    test "the two fold occurrences project to distinct UTC instants" do
+      import Tempo.Sigil
+
+      [two_a, two_b] =
+        ~o"2026-04-05[Australia/Sydney]"
+        |> Enum.take(6)
+        |> Enum.filter(&(&1.time[:hour] == 2))
+
+      # AEDT (+11) 02:00 ≡ 15:00 UTC; AEST (+10) 02:00 ≡ 16:00 UTC.
+      # The second occurrence is exactly 3600 seconds after the first.
+      assert Tempo.Compare.to_utc_seconds(two_b) -
+               Tempo.Compare.to_utc_seconds(two_a) == 3600
+    end
+
+    test "the fold occurrences round-trip through the sigil/parser" do
+      import Tempo.Sigil
+
+      [two_a, two_b] =
+        ~o"2026-04-05[Australia/Sydney]"
+        |> Enum.take(6)
+        |> Enum.filter(&(&1.time[:hour] == 2))
+
+      # Inspect form encodes the disambiguating shift; re-parsing
+      # yields a Tempo with the same shift.
+      round_a = Tempo.from_iso8601!(Tempo.to_iso8601(two_a))
+      round_b = Tempo.from_iso8601!(Tempo.to_iso8601(two_b))
+      assert round_a.shift == two_a.shift
+      assert round_b.shift == two_b.shift
+    end
+
+    test "a day without fold transitions is unaffected" do
+      import Tempo.Sigil
+
+      hours =
+        ~o"2026-06-15[Australia/Sydney]"
+        |> Enum.take(6)
+        |> Enum.map(& &1.time[:hour])
+
+      assert hours == [0, 1, 2, 3, 4, 5]
+    end
+  end
+
   describe "zone-gap rejection (DST spring-forward)" do
     test "2024-03-10 02:30 America/New_York is rejected" do
       assert {:error, message} =
