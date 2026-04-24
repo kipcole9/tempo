@@ -1,6 +1,6 @@
 # Changelog 
 
-## Tempo v0.3.0 - Unreleased
+## Tempo v0.3.0 - April 24th, 2026
 
 ### Added
 
@@ -16,7 +16,7 @@
 
 ### Bug Fixes
 
-* ISO week-date resolution now uses `Calendrical.ISOWeek` semantics throughout the validation path, regardless of the caller's declared calendar. Previously `lib/validation.ex` called `calendar.weeks_in_year/1` on the caller's calendar — and `Calendrical.Gregorian.weeks_in_year/1` always returns `{52, 7}` because Gregorian doesn't define week numbering (that's ISO 8601's job). Two user-visible consequences were fixed: `~o"2020-W53-7"` and every other week 53 in a true 53-week year (2004, 2009, 2015, 2020, 2026, …) is no longer rejected as "53 is not valid"; and `Tempo.from_iso8601("2021-W01-1")` now resolves to `2021-01-04` instead of `2020-12-28` — week 01 of the year following a 53-week year correctly starts four days into the calendar year. `Calendrical.ISOWeek` was already spec-compliant; the fix routes the week → date lookup through it and converts the result into the caller's calendar via `Date.convert/2`.
+* ISO week-date resolution now uses `Calendrical.ISOWeek` semantics throughout the validation path, regardless of the caller's declared calendar. There is room to be more selective than this (there can be multiple ways to construct a week-based calendar). However there isn't yet a clear way to influence that decision other than through a `-u-ca` qualifier and that only allows ISO Week calendars.
 
 * `Tempo.to_date/1` now handles ordinal dates (`[year, day]` — produced by the `O` designator, the extended `YYYY-DDD` form, or by enumerating a year-only Tempo as days) and ISO week dates (`[year, week, day_of_week]`). Previously both shapes returned a `Tempo.ConversionError` even though the components unambiguously identify a single calendar day. Examples: `Tempo.to_date(~o"2020-166")` now returns `{:ok, ~D[2020-06-14]}`; `Tempo.to_date(~o"2020-W24-3")` returns `{:ok, ~D[2020-06-10]}`; and `~o"2020Y{1..-1}D" |> Enum.to_list() |> hd() |> Tempo.to_date()` returns `{:ok, ~D[2020-01-01]}`.
 
