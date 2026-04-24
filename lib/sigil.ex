@@ -1,10 +1,12 @@
 defmodule Tempo.Sigils do
   @moduledoc """
-  Sigils for constructing `%Tempo{}` values at compile time.
+  Sigils for constructing and pattern-matching `%Tempo{}` values at
+  compile time.
 
   Provides `~o` (and its verbose alias `~TEMPO`) to turn an ISO 8601
-  / ISO 8601-2 / IXDTF / EDTF string into a `%Tempo{}`, `%Tempo.Interval{}`,
-  `%Tempo.Duration{}`, or `%Tempo.Set{}` struct.
+  / ISO 8601-2 / IXDTF / EDTF string into a `%Tempo{}`,
+  `%Tempo.Interval{}`, `%Tempo.Duration{}`, `%Tempo.Range{}`, or
+  `%Tempo.Set{}` struct — or into a pattern that matches one.
 
   ```elixir
   import Tempo.Sigils
@@ -23,13 +25,219 @@ defmodule Tempo.Sigils do
   namespace. Any expansion-time helpers live in a private sibling
   module that isn't part of the public API.
 
-  ### Modifiers
+  ### Modifiers in value context
+
+  When `~o"…"` appears as an expression that produces a value (the
+  default context), a single modifier letter selects the calendar
+  the string is parsed against:
 
   * No modifier — Gregorian calendar (the common case).
 
   * `w` — ISO Week calendar (`Calendrical.ISOWeek`). Use when the
     input is in a week-based form you want parsed under ISO week
     semantics explicitly.
+
+  ## Match context
+
+  When `~o"…"` is used on the left-hand side of a match —
+  `match?/2`, `case` clauses, `=`, or function-head patterns —
+  the sigil expands to a **structural pattern** rather than a
+  literal value. The generated pattern is deliberately permissive:
+  it constrains only what the sigil string actually names.
+
+  ### 1. Prefix matching on `%Tempo{}` and `%Tempo.Duration{}`
+
+  The sigil string is parsed as usual; the resulting `:time`
+  keyword list becomes a cons-pattern terminated by a wildcard,
+  so the sigil matches any value whose `:time` *starts with* the
+  listed `{unit, value}` pairs. Other struct fields
+  (`:calendar`, `:shift`, `:extended`, `:qualification`, …) are
+  left unconstrained — a Gregorian-looking sigil matches a
+  Hebrew-calendar value just as happily, because the intent of
+  the sigil is purely temporal.
+
+  ```elixir
+  import Tempo.Sigils
+
+  today = Tempo.new!(year: 2026, month: 4, day: 24)
+
+  match?(~o[2026Y], today)          #=> true  — year prefix
+  match?(~o[2026Y4M], today)        #=> true  — year+month prefix
+  match?(~o[2026Y4M24D], today)     #=> true  — full prefix
+  match?(~o[2026Y1M], today)        #=> false — month disagrees
+  match?(~o[2025Y], today)          #=> false — year disagrees
+
+  hebrew = Tempo.new!(year: 2026, month: 4, day: 24,
+                      calendar: Calendrical.Hebrew)
+  match?(~o[2026Y], hebrew)         #=> true  — :calendar is free
+
+  duration = Tempo.Duration.new!(year: 1, month: 6)
+  match?(~o[P1Y6M], duration)       #=> true
+  match?(~o[P2Y6M], duration)       #=> false
+  match?(~o[1Y6M], duration)        #=> false  — %Tempo{} sigil
+                                    #            vs %Duration{}
+  ```
+
+  ### 2. Modifier-driven bindings
+
+  Modifier letters after the closing delimiter bind the matched
+  value's unit to a same-named variable in the caller's scope.
+  Bindings are only meaningful on `%Tempo{}` and
+  `%Tempo.Duration{}` values — the only shapes with a
+  `:time` keyword list to destructure.
+
+  Letter → unit mapping (deliberately avoids overloading `M`,
+  which ISO 8601 uses for both month and minute):
+
+  * `Y` — year
+  * `O` — month (`mOnth`)
+  * `W` — week
+  * `D` — day
+  * `I` — day of year
+  * `K` — day of week
+  * `H` — hour
+  * `N` — minute (`miNute`)
+  * `S` — second
+
+  The pattern builder lays out the canonical calendar-axis slice
+  between the earliest and latest unit requested (either by the
+  sigil literal or by a modifier), filling positions not named
+  with wildcards. Axis choice — Gregorian, ISO week, or ordinal
+  — is inferred from the union of sigil and modifier units.
+
+  ```elixir
+  import Tempo.Sigils
+
+  today = Tempo.new!(year: 2026, month: 4, day: 24)
+
+  case today do
+    ~o[2026Y]D -> day                 #=> 24
+  end
+
+  case today do
+    ~o[2026Y]OD -> {month, day}       #=> {4, 24}
+  end
+
+  point = Tempo.new!(year: 2026, month: 6, day: 15,
+                     hour: 14, minute: 30, second: 45)
+
+  case point do
+    ~o[2026Y6M]DN -> {day, minute}    #=> {15, 30}
+  end
+
+  case point do
+    ~o[2026Y6M15DT14H30M]S -> second  #=> 45
+  end
+
+  duration = Tempo.Duration.new!(year: 1, month: 6, day: 15)
+
+  case duration do
+    ~o[P1Y]D -> day                   #=> 15
+  end
+  ```
+
+  A modifier that targets a unit the matched value doesn't carry
+  simply fails to match; the `case` falls through to the next
+  clause. Modifier order inside the sigil is irrelevant —
+  `~o[2026Y]DN` and `~o[2026Y]ND` expand to the same pattern.
+
+  #### Expansion-time errors
+
+  * Unknown modifier letter → `ArgumentError`.
+  * Modifier targets a unit already fixed by the sigil (e.g.
+    `~o[2026Y]Y`) → `ArgumentError`.
+  * Mixing calendar axes (e.g. `~o[2026Y4M]W` — Gregorian
+    month plus ISO week) → `ArgumentError`.
+
+  ### 3. Matching containers
+
+  The sigil also expands to a structural pattern when the parsed
+  value is a container: `%Tempo.Interval{}`, `%Tempo.Range{}`,
+  or `%Tempo.Set{}`. Each endpoint is itself prefix-matched
+  using the phase-1 rules, so an endpoint sigil like `~o"2022Y"`
+  inside an interval matches any Tempo whose `:time` starts with
+  year 2022.
+
+  Container patterns only constrain fields the sigil string
+  actually names. For intervals, that means `from` and `to` are
+  always constrained, while `duration`, `recurrence`,
+  `direction`, and `repeat_rule` are only constrained when they
+  differ from their struct defaults — so
+  `~o[1984Y/2004Y]` doesn't accidentally require
+  `metadata: %{}`.
+
+  ```elixir
+  import Tempo.Sigils
+
+  {:ok, closed}   = Tempo.from_iso8601("1984Y/2004Y")
+  {:ok, open_up}  = Tempo.from_iso8601("1984/..")
+  {:ok, dur_iv}   = Tempo.from_iso8601("P1D/2022-01-01")
+
+  match?(~o[1984Y/2004Y], closed)    #=> true
+  match?(~o[1984Y/..], closed)       #=> false — closed vs open
+  match?(~o[1984Y/..], open_up)      #=> true
+  match?(~o[../..], open_up)         #=> false
+  match?(~o[P1D/2022-01-01], dur_iv) #=> true
+
+  {:ok, one_of}   = Tempo.from_iso8601("[1984,1986,1988]")
+  {:ok, all_of}   = Tempo.from_iso8601("{1960,1961-12}")
+
+  match?(~o"[1984Y,1986Y,1988Y]", one_of)  #=> true
+  match?(~o"{1960Y,1961Y12M}", all_of)     #=> true
+  match?(~o"{1984Y,1986Y,1988Y}", one_of)  #=> false — :one ≠ :all
+  ```
+
+  Sets whose literal text begins with `[` or `{` collide with
+  the `~o[…]` and `~o{…}` delimiters, so use the string-delim
+  form `~o"…"` for them.
+
+  Set members are matched in order and by count — a sigil set
+  with three members never matches a value with two or four.
+  Ranges (`%Tempo.Range{first: …, last: …}`) are matched
+  structurally whether they appear at the top level or nested
+  inside a `%Tempo.Set{}`.
+
+  #### Modifiers on containers
+
+  Modifier bindings are **not** accepted on `%Tempo.Interval{}`,
+  `%Tempo.Range{}`, `%Tempo.Set{}`, or `%Tempo.IntervalSet{}`
+  sigils — there is no single keyword-list `:time` to
+  destructure. Using one raises `ArgumentError` at expansion
+  time. Reach into an interval's endpoint manually:
+
+  ```elixir
+  case interval do
+    ~o[1984Y/..] ->
+      %Tempo.Interval{from: ~o[1984Y]D = from} = interval
+      from.time[:day]
+  end
+  ```
+
+  ### 4. Guards
+
+  Patterns from `~o"…"` cannot appear in a `when` clause. The
+  sigil detects the `:guard` context and raises
+  `ArgumentError` with a clear message — use a preceding match
+  + `==` comparison instead.
+
+  ### 5. What match context does **not** do
+
+  * **No calendar modifier.** `W` in value context selects the
+    ISO Week calendar; in match context it always means "bind
+    `:week`". Sigils in match context always parse their
+    string as Gregorian and leave the matched value's
+    `:calendar` field unconstrained.
+
+  * **No stdlib types.** `~o"…"` produces a `%Tempo{}`-family
+    pattern, so it cannot match `%Date{}`, `%Time{}`,
+    `%NaiveDateTime{}`, or `%DateTime{}`. For those, use
+    `~D`/`~T`/`~N`/`~U` directly, or convert the value with
+    `Tempo.from_elixir/1` before matching.
+
+  * **No complex time elements.** Groups, selections, ranges,
+    margin-of-error tuples, and continuations aren't expressible
+    as static Elixir patterns — attempting to use a sigil that
+    contains them in match context raises `ArgumentError`.
 
   """
 
