@@ -244,12 +244,57 @@ defmodule Tempo.Sigils do
   alias Tempo.Sigils.Options
 
   @doc """
-  Parse an ISO 8601 / EDTF / IXDTF string at compile time.
+  Parse an ISO 8601 / EDTF / IXDTF string at compile time, or expand
+  it to a structural pattern in match context.
 
-  The value is fully resolved to its `%Tempo{}` / `%Tempo.Interval{}` /
-  `%Tempo.Duration{}` / `%Tempo.Set{}` form by the parser and escaped
-  as a compile-time literal, so there is no runtime parse cost at the
-  call site.
+  The sigil's behaviour depends on where it appears in the source:
+
+  ## Value context (the default)
+
+  When `~o"…"` is used as an expression that produces a value, the
+  parser fully resolves the string to its `%Tempo{}` /
+  `%Tempo.Interval{}` / `%Tempo.Duration{}` / `%Tempo.Set{}` form
+  and escapes it as a compile-time literal — no runtime parse cost
+  at the call site.
+
+      ~o"2026-06-15"            #=> %Tempo{…}
+      ~o"2026-06-15T10:30:00Z"  #=> zoned datetime
+      ~o"1984?/2004~"           #=> qualified interval
+
+  The single modifier letter `w` selects the ISO Week calendar;
+  otherwise the string is parsed against the Gregorian calendar.
+
+  ## Match context
+
+  When `~o"…"` appears on the left-hand side of a match —
+  `match?/2`, `case` clauses, `=`, or function-head patterns — the
+  sigil expands to a structural pattern that matches by `:time`
+  prefix.
+
+      today = Tempo.new!(year: 2026, month: 4, day: 24)
+
+      match?(~o[2026Y], today)       #=> true  (year prefix)
+      match?(~o[2026Y4M], today)     #=> true  (year+month prefix)
+      match?(~o[2025Y], today)       #=> false (year disagrees)
+
+  Modifier letters after the closing delimiter bind matched units
+  to same-named variables in scope. The letters are `Y O W D I K
+  H N S` — see `Tempo.Sigils` for the full mapping.
+
+      case today do
+        ~o[2026Y]OD -> {month, day}  #=> {4, 24}
+      end
+
+  Match context also matches `%Tempo.Duration{}`,
+  `%Tempo.Interval{}`, `%Tempo.Range{}`, and `%Tempo.Set{}`
+  values structurally.
+
+  Using the sigil inside a `when` guard is rejected at expansion
+  time — use a preceding match or an `==` comparison instead.
+
+  See the module documentation for the full specification of
+  match context, including container patterns, modifier-binding
+  rules, and expansion-time errors.
 
   """
   defmacro sigil_o({:<<>>, _meta, [_string]} = sigil, opts) do
@@ -260,6 +305,11 @@ defmodule Tempo.Sigils do
   Verbose alias for `sigil_o`. Use when `~o` might be confused with
   another sigil in scope, or when you want the three-letter form
   for readability in dense code.
+
+  Behaves identically to `sigil_o/2` in both value and match
+  contexts — see that function's documentation for the full
+  specification.
+
   """
   defmacro sigil_TEMPO({:<<>>, _meta, [_string]} = sigil, opts) do
     do_sigil(__CALLER__.context, sigil, opts)
@@ -376,12 +426,8 @@ defmodule Tempo.Sigils do
 
   # `%Tempo.IntervalSet{}` is produced by `Tempo.to_interval/1`,
   # not by `Tempo.from_iso8601/2` — so a sigil string can't
-  # materialise to one in practice. Kept here for exhaustiveness
-  # in case future grammar extensions produce one.
-  defp build_match_pattern(%Tempo.IntervalSet{} = interval_set, bindings) do
-    reject_container_bindings!(bindings, Tempo.IntervalSet)
-    interval_set_pattern(interval_set)
-  end
+  # materialise to one in practice. The catch-all below raises
+  # a clear error if a future grammar extension ever does.
 
   defp build_match_pattern(other, _bindings) do
     raise ArgumentError,
@@ -618,14 +664,6 @@ defmodule Tempo.Sigils do
     raise ArgumentError,
           "~o sigil in a match context does not support set members of type " <>
             "#{inspect(other.__struct__)}"
-  end
-
-  defp interval_set_pattern(%Tempo.IntervalSet{intervals: intervals}) do
-    interval_asts = Enum.map(intervals, &interval_pattern/1)
-
-    quote do
-      %Tempo.IntervalSet{intervals: unquote(interval_asts)}
-    end
   end
 
   # Append `{field, transform.(value)}` to `fields` when `value`

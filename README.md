@@ -133,6 +133,24 @@ To:   2004-01-01 (exclusive — half-open `[from, to)`).
 
 `Tempo.Explain.explain/1` returns a structured form with semantic part tags (`:headline`, `:span`, `:qualification`, `:metadata`, …); `to_string/1`, `to_ansi/1`, and `to_iodata/1` format it for terminal, coloured terminal, and HTML/visualizer surfaces respectively.
 
+The `~o` sigil also does **pattern matching**. In `match?/2`, `case` clauses, `=`, and function heads, the same sigil expands to a structural pattern against a value's `:time` keyword list — prefix-matching the units you name and leaving everything else unconstrained:
+
+```elixir
+today = Tempo.new!(year: 2026, month: 4, day: 24)
+
+iex> match?(~o[2026Y], today)       #=> true   — year prefix
+iex> match?(~o[2026Y4M], today)     #=> true   — year + month prefix
+iex> match?(~o[2025Y], today)       #=> false  — year disagrees
+
+# Modifier letters after the delimiter bind matched units to variables
+iex> case today do
+...>   ~o[2026Y]OD -> {month, day}
+...> end
+{4, 24}
+```
+
+Full specification including modifier-binding, container patterns, and calendar-axis inference in the [Pattern matching with sigils](https://hexdocs.pm/ex_tempo/pattern-matching-with-sigils.html) guide.
+
 ## Objectives
 
 * **A single type for every temporal value.** No more `Date` for days, `Time` for hours, `DateTime` for both, `NaiveDateTime` for "I don't know what I have." One `%Tempo{}` representing any interval at any resolution. Conversion from native Elixir types is `Tempo.from_elixir/2`.

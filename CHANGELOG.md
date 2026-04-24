@@ -1,5 +1,11 @@
 # Changelog 
 
+## Tempo v0.4.0 - April 25th, 2026
+
+### Added
+
+* `~o` in match context. On the left-hand side of `match?/2`, `case` clauses, `=`, or a function head, the sigil now expands to a structural pattern — prefix-matching the value's `:time` keyword list while leaving `:calendar`, `:shift`, `:extended`, and `:qualification` unconstrained. Thanks to @am-kantox for the PR.
+
 ## Tempo v0.3.0 - April 24th, 2026
 
 ### Added

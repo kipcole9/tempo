@@ -1,7 +1,7 @@
 defmodule Tempo.MixProject do
   use Mix.Project
 
-  @version "0.3.0"
+  @version "0.4.0"
 
   def project do
     [
@@ -114,6 +114,7 @@ defmodule Tempo.MixProject do
         "guides/when-to-use-tempo.md",
         "guides/set-operations.md",
         "guides/enumeration-semantics.md",
+        "guides/pattern-matching-with-sigils.md",
         "guides/ical-integration.md",
         "guides/falsehoods.md"
       ],
