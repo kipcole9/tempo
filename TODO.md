@@ -72,25 +72,3 @@
      "every S starting from N with wrap-around". No AST change needed — a
      design call only.
 
-* **tempo_sql round 2 — metadata-preserving storage variant.**
-
-  The initial `ex_tempo_sql` release (v0.1.0) stores Tempo intervals as
-  PostgreSQL `tstzrange` / `tstzmultirange` values. Round-trip is lossy by
-  design: `Tempo.Interval.metadata`, `Tempo.IntervalSet.metadata`, Tempo
-  `:extended` metadata (zone_id, IXDTF tags), and the implicit-vs-explicit-
-  span distinction (`~o"2026Y"` vs `2026-01-01..2027-01-01`) are all
-  dropped on write because PostgreSQL range types cannot carry them.
-
-  Round 2 should add a text-based storage variant that preserves the full
-  Tempo shape byte-for-byte — likely a composite type `(range tstzrange,
-  iso8601 text)` where the range remains queryable via Postgres range
-  operators and the text column carries the original ISO 8601 / IXDTF
-  string for perfect round-trip. Alternative shapes to consider: a bare
-  `text` column (no range queries but full fidelity); a `jsonb` column
-  with both the range and the extended metadata; or a Postgres composite
-  type.
-
-  The `ideas_for_the_future.md` entry on Ecto integration already names
-  this as a `:text` variant option. The implementation decision is mostly
-  about whether to sacrifice range-query performance for fidelity.
-
