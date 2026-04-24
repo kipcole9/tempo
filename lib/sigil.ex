@@ -378,10 +378,11 @@ defmodule Tempo.Sigils do
   # not by `Tempo.from_iso8601/2` — so a sigil string can't
   # materialise to one in practice. Kept here for exhaustiveness
   # in case future grammar extensions produce one.
-  defp build_match_pattern(%Tempo.IntervalSet{} = interval_set, bindings) do
-    reject_container_bindings!(bindings, Tempo.IntervalSet)
-    interval_set_pattern(interval_set)
-  end
+  #
+  # defp build_match_pattern(%Tempo.IntervalSet{} = interval_set, bindings) do
+  #   reject_container_bindings!(bindings, Tempo.IntervalSet)
+  #   interval_set_pattern(interval_set)
+  # end
 
   defp build_match_pattern(other, _bindings) do
     raise ArgumentError,
@@ -620,13 +621,16 @@ defmodule Tempo.Sigils do
             "#{inspect(other.__struct__)}"
   end
 
-  defp interval_set_pattern(%Tempo.IntervalSet{intervals: intervals}) do
-    interval_asts = Enum.map(intervals, &interval_pattern/1)
+  # If matching against `Tempo.IntervalSet` is ever needed, uncomment the below
+  # alongside with:
+  # defp build_match_pattern(%Tempo.IntervalSet{} = interval_set, bindings) do
+  # defp interval_set_pattern(%Tempo.IntervalSet{intervals: intervals}) do
+  #   interval_asts = Enum.map(intervals, &interval_pattern/1)
 
-    quote do
-      %Tempo.IntervalSet{intervals: unquote(interval_asts)}
-    end
-  end
+  #   quote do
+  #     %Tempo.IntervalSet{intervals: unquote(interval_asts)}
+  #   end
+  # end
 
   # Append `{field, transform.(value)}` to `fields` when `value`
   # differs from its default (as reported by `default?`). Keeps
