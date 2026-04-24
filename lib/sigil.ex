@@ -101,20 +101,8 @@ defmodule Tempo.Sigils do
     bindings = bindings_from_modifiers(opts)
 
     case Tempo.from_iso8601(string, Calendrical.Gregorian) do
-      {:ok, %Tempo{time: time}} ->
-        time_pattern = build_time_match_pattern(time, bindings)
-
-        quote do
-          %Tempo{time: unquote(time_pattern)}
-        end
-
-      {:ok, other} ->
-        raise ArgumentError,
-              "~o sigil in a match context only supports simple %Tempo{} values; " <>
-                "got #{inspect(other.__struct__)}"
-
-      {:error, exception} ->
-        raise exception
+      {:ok, parsed} -> build_match_pattern(parsed, bindings)
+      {:error, exception} -> raise exception
     end
   end
 
@@ -141,6 +129,65 @@ defmodule Tempo.Sigils do
                   "K (day-of-week), H (hour), N (minute), S (second)"
       end
     end)
+  end
+
+  # Dispatch on the struct that the parser produced. `%Tempo{}`
+  # and `%Tempo.Duration{}` share a keyword-list `time` field, so
+  # modifier bindings work for both; containers (intervals,
+  # ranges, sets) match structurally and refuse modifiers.
+  defp build_match_pattern(%Tempo{time: time}, bindings) do
+    time_pattern = build_time_match_pattern(time, bindings)
+
+    quote do
+      %Tempo{time: unquote(time_pattern)}
+    end
+  end
+
+  defp build_match_pattern(%Tempo.Duration{time: time}, bindings) do
+    time_pattern = build_time_match_pattern(time, bindings)
+
+    quote do
+      %Tempo.Duration{time: unquote(time_pattern)}
+    end
+  end
+
+  defp build_match_pattern(%Tempo.Interval{} = interval, bindings) do
+    reject_container_bindings!(bindings, Tempo.Interval)
+    interval_pattern(interval)
+  end
+
+  defp build_match_pattern(%Tempo.Range{} = range, bindings) do
+    reject_container_bindings!(bindings, Tempo.Range)
+    range_pattern(range)
+  end
+
+  defp build_match_pattern(%Tempo.Set{} = set, bindings) do
+    reject_container_bindings!(bindings, Tempo.Set)
+    set_pattern(set)
+  end
+
+  # `%Tempo.IntervalSet{}` is produced by `Tempo.to_interval/1`,
+  # not by `Tempo.from_iso8601/2` — so a sigil string can't
+  # materialise to one in practice. Kept here for exhaustiveness
+  # in case future grammar extensions produce one.
+  defp build_match_pattern(%Tempo.IntervalSet{} = interval_set, bindings) do
+    reject_container_bindings!(bindings, Tempo.IntervalSet)
+    interval_set_pattern(interval_set)
+  end
+
+  defp build_match_pattern(other, _bindings) do
+    raise ArgumentError,
+          "~o sigil in a match context does not support matching on " <>
+            "#{inspect(other.__struct__)} values"
+  end
+
+  defp reject_container_bindings!([], _module), do: :ok
+
+  defp reject_container_bindings!(bindings, module) do
+    raise ArgumentError,
+          "~o sigil modifier bindings #{inspect(bindings)} are only " <>
+            "supported on %Tempo{} and %Tempo.Duration{} values; " <>
+            "#{inspect(module)} values match structurally only"
   end
 
   # Build a cons-pattern AST ending in `| _` for the `time` field
@@ -276,6 +323,112 @@ defmodule Tempo.Sigils do
 
       idx ->
         idx
+    end
+  end
+
+  # ---- Container patterns -----------------------------------
+
+  # Pattern for a value that appears as an endpoint on an
+  # `Interval`, `Range`, or `Set`. `:undefined` is used by the
+  # parser for open endpoints; `nil` can appear on intervals
+  # constructed without a `from` or `to` (e.g. a bare RRULE).
+  # Concrete `%Tempo{}` / `%Tempo.Duration{}` endpoints reuse the
+  # prefix-match semantics of phase ①/② so that an endpoint like
+  # `~o"2022Y"` matches any Tempo whose `time` starts with year
+  # 2022.
+  defp endpoint_pattern(:undefined), do: :undefined
+  defp endpoint_pattern(nil), do: nil
+
+  defp endpoint_pattern(%Tempo{time: time}) do
+    time_pattern = build_time_match_pattern(time, [])
+
+    quote do
+      %Tempo{time: unquote(time_pattern)}
+    end
+  end
+
+  defp endpoint_pattern(%Tempo.Duration{time: time}) do
+    time_pattern = build_time_match_pattern(time, [])
+
+    quote do
+      %Tempo.Duration{time: unquote(time_pattern)}
+    end
+  end
+
+  # Intervals carry 7 fields but most are optional metadata. The
+  # pattern only constrains fields that differ from their struct
+  # defaults (so an interval built from `1984/2004` doesn't
+  # accidentally require `metadata: %{}`, `direction: 1`, etc.).
+  defp interval_pattern(%Tempo.Interval{
+         from: from,
+         to: to,
+         duration: duration,
+         recurrence: recurrence,
+         direction: direction,
+         repeat_rule: repeat_rule
+       }) do
+    fields =
+      [from: endpoint_pattern(from), to: endpoint_pattern(to)]
+      |> maybe_put_field(:duration, duration, &endpoint_pattern/1, &is_nil/1)
+      |> maybe_put_field(:recurrence, recurrence, & &1, &(&1 == 1))
+      |> maybe_put_field(:direction, direction, & &1, &(&1 == 1))
+      |> maybe_put_field(:repeat_rule, repeat_rule, &endpoint_pattern/1, &is_nil/1)
+
+    {:%, [],
+     [
+       {:__aliases__, [alias: false], [:Tempo, :Interval]},
+       {:%{}, [], fields}
+     ]}
+  end
+
+  defp range_pattern(%Tempo.Range{first: first, last: last}) do
+    first_ast = endpoint_pattern(first)
+    last_ast = endpoint_pattern(last)
+
+    quote do
+      %Tempo.Range{first: unquote(first_ast), last: unquote(last_ast)}
+    end
+  end
+
+  # Sets either enumerate explicit members (`%Tempo.Set{}` with
+  # `:all`/`:one`) or hold ranges. Member order and length are
+  # constrained by the pattern — a sigil set only matches a Set
+  # whose `:set` list has the same members in the same order.
+  defp set_pattern(%Tempo.Set{type: type, set: members}) do
+    member_asts = Enum.map(members, &set_member_pattern/1)
+
+    quote do
+      %Tempo.Set{type: unquote(type), set: unquote(member_asts)}
+    end
+  end
+
+  defp set_member_pattern(%Tempo.Range{} = range), do: range_pattern(range)
+  defp set_member_pattern(%Tempo{} = tempo), do: endpoint_pattern(tempo)
+  defp set_member_pattern(%Tempo.Duration{} = duration), do: endpoint_pattern(duration)
+
+  defp set_member_pattern(other) do
+    raise ArgumentError,
+          "~o sigil in a match context does not support set members of type " <>
+            "#{inspect(other.__struct__)}"
+  end
+
+  defp interval_set_pattern(%Tempo.IntervalSet{intervals: intervals}) do
+    interval_asts = Enum.map(intervals, &interval_pattern/1)
+
+    quote do
+      %Tempo.IntervalSet{intervals: unquote(interval_asts)}
+    end
+  end
+
+  # Append `{field, transform.(value)}` to `fields` when `value`
+  # differs from its default (as reported by `default?`). Keeps
+  # container patterns free of spurious constraints on fields the
+  # sigil string didn't actually mention.
+  defp maybe_put_field(fields, field, value, transform, default?) do
+    if default?.(value) do
+      fields
+    else
+      fields ++ [{field, transform.(value)}]
     end
   end
 end

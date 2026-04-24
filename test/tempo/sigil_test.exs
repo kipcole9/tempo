@@ -280,4 +280,152 @@ defmodule Tempo.SigilMatchTest do
       end
     end
   end
+
+  # Phase ③ — matching on the non-`%Tempo{}` structs that the ISO
+  # parser can produce: Duration, Interval, Range (embedded), and
+  # Set.
+
+  describe "matching %Tempo.Duration{}" do
+    test "prefix match on the duration's time list" do
+      duration = Tempo.Duration.new!(year: 1, month: 6)
+      assert match?(~o[P1Y6M], duration)
+    end
+
+    test "prefix allows extra finer components" do
+      duration = Tempo.Duration.new!(year: 1, month: 6, day: 15)
+      assert match?(~o[P1Y6M], duration)
+    end
+
+    test "fails when values disagree" do
+      duration = Tempo.Duration.new!(year: 1, month: 6)
+      refute match?(~o[P2Y6M], duration)
+    end
+
+    test "does not cross-match a Tempo against a Duration sigil" do
+      tempo = Tempo.new!(year: 1, month: 6)
+      refute match?(~o[P1Y6M], tempo)
+    end
+
+    test "does not cross-match a Duration against a Tempo sigil" do
+      duration = Tempo.Duration.new!(year: 1, month: 6)
+      refute match?(~o[1Y6M], duration)
+    end
+
+    test "modifier bindings work on Duration (same `time` shape as Tempo)" do
+      duration = Tempo.Duration.new!(year: 1, month: 6, day: 15)
+
+      assert (case duration do
+                ~o[P1Y]D -> day
+              end) == 15
+    end
+  end
+
+  describe "matching %Tempo.Interval{}" do
+    test "closed interval with two Tempo endpoints" do
+      {:ok, interval} = Tempo.from_iso8601("1984Y/2004Y")
+      assert match?(~o[1984Y/2004Y], interval)
+    end
+
+    test "sigil endpoints are prefix-matched against the interval's endpoints" do
+      {:ok, interval} = Tempo.from_iso8601("1984Y6M/2004Y6M")
+      assert match?(~o[1984Y/2004Y], interval)
+    end
+
+    test "open upper endpoint" do
+      {:ok, interval} = Tempo.from_iso8601("1984/..")
+      assert match?(~o[1984Y/..], interval)
+    end
+
+    test "open lower endpoint" do
+      {:ok, interval} = Tempo.from_iso8601("../2004")
+      assert match?(~o[../2004Y], interval)
+    end
+
+    test "both endpoints open" do
+      {:ok, interval} = Tempo.from_iso8601("../..")
+      assert match?(~o[../..], interval)
+    end
+
+    test "interval with a duration" do
+      {:ok, interval} = Tempo.from_iso8601("P1D/2022-01-01")
+      assert match?(~o[P1D/2022-01-01], interval)
+    end
+
+    test "a closed interval does not match an open-upper sigil" do
+      {:ok, interval} = Tempo.from_iso8601("1984Y/2004Y")
+      refute match?(~o[1984Y/..], interval)
+    end
+
+    test "an open-upper sigil does not match a closed interval" do
+      {:ok, interval} = Tempo.from_iso8601("1984Y/..")
+      refute match?(~o[1984Y/2004Y], interval)
+    end
+  end
+
+  describe "matching %Tempo.Set{}" do
+    # Set sigils whose literal text starts with `[` or `{`
+    # collide with the `~o[…]` and `~o{…}` delimiters, so use
+    # the string-delimiter form `~o"…"` instead.
+
+    test "one-of set" do
+      {:ok, set} = Tempo.from_iso8601("[1984,1986,1988]")
+      assert match?(~o"[1984Y,1986Y,1988Y]", set)
+    end
+
+    test "all-of set" do
+      {:ok, set} = Tempo.from_iso8601("{1960,1961-12}")
+      assert match?(~o"{1960Y,1961Y12M}", set)
+    end
+
+    test "set types do not cross" do
+      {:ok, one_of} = Tempo.from_iso8601("[1984,1986,1988]")
+      refute match?(~o"{1984Y,1986Y,1988Y}", one_of)
+    end
+
+    test "set with an embedded Range member" do
+      {:ok, set} = Tempo.from_iso8601("[1760-01,1760-12..]")
+      assert match?(~o"[1760Y1M,1760Y12M..]", set)
+    end
+
+    test "member count must match" do
+      {:ok, set} = Tempo.from_iso8601("[1984,1986,1988]")
+      refute match?(~o"[1984Y,1986Y]", set)
+    end
+  end
+
+  describe "container expansion-time errors" do
+    test "modifier bindings on an Interval sigil raise" do
+      assert_raise ArgumentError, ~r/only supported on %Tempo\{\}/, fn ->
+        Code.eval_string(
+          """
+          import Tempo.Sigils
+
+          fn t ->
+            case t do
+              ~o[1984Y/2004Y]D -> :ok
+            end
+          end
+          """,
+          []
+        )
+      end
+    end
+
+    test "modifier bindings on a Set sigil raise" do
+      assert_raise ArgumentError, ~r/only supported on %Tempo\{\}/, fn ->
+        Code.eval_string(
+          """
+          import Tempo.Sigils
+
+          fn t ->
+            case t do
+              ~o"[1984Y,1986Y]"Y -> :ok
+            end
+          end
+          """,
+          []
+        )
+      end
+    end
+  end
 end
