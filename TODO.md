@@ -72,3 +72,38 @@
      "every S starting from N with wrap-around". No AST change needed — a
      design call only.
 
+* **IXDTF strict mode — flag offset/zone disagreement.**
+
+  When an IXDTF string carries both a numeric offset and a zone identifier
+  (e.g. `2022-11-20T10:37:00+05:00[Europe/Paris]`), the two can disagree —
+  Paris is UTC+01 in November, not +05. Tempo currently accepts both at
+  parse time and stores them separately on the struct (`shift` for the
+  offset, `extended.zone_id` for the zone). At conversion time
+  (`Tempo.Compare.resolve_offset_seconds/3`), the IANA zone wins and the
+  offset is consulted only for DST fall-back disambiguation — so a
+  typo'd offset is silently discarded rather than flagged. See
+  [lib/compare.ex:238](lib/compare.ex:238) for the current resolution
+  precedence.
+
+  RFC 9557 §4.2 identifies this as one of the conditions consumers MAY
+  treat as an error (the standard intentionally leaves the strictness
+  choice to the consumer). We should offer an opt-in strict mode:
+
+  - Either a parse-time option (e.g. `from_iso8601(str, strict: true)`)
+    that errors when the offset and the zone disagree at the given wall
+    instant.
+
+  - Or a post-parse validator (e.g. `Tempo.validate_zone_consistency/1`)
+    that returns `:ok | {:error, reason}` so callers can choose to enforce
+    at schema-validation time without coupling it to parsing.
+
+  The check itself is cheap — compute the zone's offset at the wall instant
+  via Tzdata and compare to the stated offset. Details to work out: what
+  counts as "critical" (should `[!Europe/Paris]` tighten the check?), and
+  how to surface the mismatch (new exception type vs. `ParseError`).
+
+  Related: the critical flag on IXDTF suffixes currently only governs
+  unknown-zone handling, not consistency. Strict mode could honour the
+  `!` flag to mean "this zone is authoritative — any disagreeing offset
+  is an error".
+

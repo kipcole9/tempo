@@ -44,16 +44,23 @@ defmodule Tempo.VisualizerTest do
       assert conn.resp_body =~ "vz-segment--qualification"
     end
 
-    test "root with an IXDTF suffix emits extended segments" do
+    test "root with an IXDTF suffix reproduces the suffix verbatim in the segments" do
+      # The segments grid renders the input character-for-character —
+      # the IXDTF suffix content flows through as token spans, not
+      # rebuilt from the AST. Zone and calendar details live in the
+      # Details card below the grid.
       conn =
         :get
         |> Plug.Test.conn("/?iso=2022-06-15%5BEurope%2FParis%5D%5Bu-ca%3Dhebrew%5D")
         |> Visualizer.call(Visualizer.init([]))
 
       assert conn.status == 200
-      assert conn.resp_body =~ "[Europe/Paris]"
-      assert conn.resp_body =~ "[u-ca=hebrew]"
-      assert conn.resp_body =~ "vz-segment--extended"
+      # The literal IXDTF text appears as highlighted tokens inside the grid.
+      assert conn.resp_body =~ ~s|<span class="vz-token vz-token--literal">Europe</span>|
+      assert conn.resp_body =~ ~s|<span class="vz-token vz-token--literal">Paris</span>|
+      assert conn.resp_body =~ ~s|<span class="vz-token vz-token--literal">hebrew</span>|
+      # Zone and calendar details appear in the parsed-value card.
+      assert conn.resp_body =~ "Europe/Paris"
     end
 
     test "root with an invalid iso shows the error card" do
@@ -140,13 +147,19 @@ defmodule Tempo.VisualizerTest do
       assert html =~ "-1XXX"
     end
 
-    test "renders open-ended interval segment" do
+    test "renders open-ended interval with the input's own `/..` syntax preserved" do
+      # The open-end marker `..` flows through as bracket-class
+      # tokens in the segments grid (it is input text). The "To: :undefined"
+      # fact shows up in the parsed-value card below the grid.
       html =
         %{input: "1985/.."}
         |> Tempo.Visualizer.ParseView.render("")
         |> IO.iodata_to_binary()
 
-      assert html =~ "Undefined endpoint"
+      assert html =~ ~s|<span class="vz-token vz-token--number">1985</span>|
+      assert html =~ ~s|<span class="vz-token vz-token--bracket">/..</span>|
+      # The details card still exposes the undefined endpoint.
+      assert html =~ ":undefined"
     end
   end
 end

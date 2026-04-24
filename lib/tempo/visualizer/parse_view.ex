@@ -29,7 +29,7 @@ defmodule Tempo.Visualizer.ParseView do
         true ->
           case Tempo.from_iso8601(input) do
             {:ok, value} ->
-              [segments_card(value), details_card(value)]
+              [segments_card(input, value), details_card(value)]
 
             {:error, reason} ->
               [error_card(reason)]
@@ -191,16 +191,105 @@ defmodule Tempo.Visualizer.ParseView do
   defp error_message(reason), do: inspect(reason)
 
   ## Segment breakdown
+  ##
+  ## The segments together reproduce the input string character-for-
+  ## character — no canonicalisation, no hyphen-vs-designator
+  ## rewrite. Each segment is a substring of the input, classified
+  ## for syntax colouring and (where the AST has a matching slot)
+  ## annotated with a human-readable label and detail.
+  ##
+  ## Strategy: tokenise the input into runs of same-class characters
+  ## (reusing `classify_chars/1`), walk the AST to produce an ordered
+  ## list of semantic slots (year, month, day, hour, shift, qualifier,
+  ## zone, …), then pair them: the N-th *number* run in the input
+  ## consumes the N-th numeric slot; qualifier characters consume
+  ## qualifier slots; designator characters (Y, M, D, T, Z, …) stay
+  ## unlabelled because their role is already obvious from the class
+  ## colour.
 
-  defp segments_card(value) do
+  defp segments_card(input, value) do
+    segments = annotate_input(input, value)
+
     [
       "<div class=\"vz-card\">",
       "<h2>Components</h2>",
       "<div class=\"vz-segments\">",
-      segments_for(value) |> Enum.map(&render_segment/1),
+      Enum.map(segments, &render_segment/1),
       "</div>",
       "</div>"
     ]
+  end
+
+  # Walks the input string to produce segment maps whose `glyph`
+  # fields taken together reconstitute the input verbatim, with
+  # labels/details pulled from the parsed AST.
+  defp annotate_input(input, value) do
+    tokens = classify_chars(input)
+    slots = semantic_slots(value)
+
+    {segments, _remaining_slots} =
+      Enum.reduce(tokens, {[], slots}, fn {class, text}, {acc, slots} ->
+        {segment, slots} = attach_slot({class, text}, slots)
+        {[segment | acc], slots}
+      end)
+
+    Enum.reverse(segments)
+  end
+
+  # Attach a slot to the current token if the token type expects
+  # one. Number runs consume the next `:numeric` slot; qualifier
+  # characters (`? ~ %`) consume the next `:qualifier` slot; a
+  # lone `Z` consumes a `:shift` slot; everything else renders
+  # unlabelled.
+  defp attach_slot({"number", text}, slots) do
+    case pop_slot(slots, :numeric) do
+      {%{label: label, detail: detail, kind: kind}, rest} ->
+        {%{glyph: text, label: label, detail: detail, kind: kind}, rest}
+
+      {nil, slots} ->
+        {%{glyph: text, label: "", detail: "", kind: "primary"}, slots}
+    end
+  end
+
+  defp attach_slot({"qualifier", text}, slots) do
+    case pop_slot(slots, :qualifier) do
+      {%{label: label, detail: detail, kind: kind}, rest} ->
+        {%{glyph: text, label: label, detail: detail, kind: kind}, rest}
+
+      {nil, slots} ->
+        {%{glyph: text, label: "", detail: "", kind: "qualification"}, slots}
+    end
+  end
+
+  defp attach_slot({"literal", "Z"}, slots) do
+    case pop_slot(slots, :shift) do
+      {%{label: label, detail: detail, kind: kind}, rest} ->
+        {%{glyph: "Z", label: label, detail: detail, kind: kind}, rest}
+
+      {nil, slots} ->
+        {%{glyph: "Z", label: "", detail: "", kind: "separator"}, slots}
+    end
+  end
+
+  defp attach_slot({class, text}, slots) do
+    {%{glyph: text, label: "", detail: "", kind: class_to_kind(class)}, slots}
+  end
+
+  defp class_to_kind("number"), do: "primary"
+  defp class_to_kind("literal"), do: "separator"
+  defp class_to_kind("qualifier"), do: "qualification"
+  defp class_to_kind("syntax"), do: "extended"
+  defp class_to_kind("bracket"), do: "separator"
+  defp class_to_kind(_), do: "separator"
+
+  # Pop the first slot tagged with the given `kind_tag`, returning
+  # `{slot_map, remaining_slots}` or `{nil, slots}` if none match.
+  # Non-matching slots at the head are preserved in order.
+  defp pop_slot(slots, kind_tag) do
+    case Enum.split_while(slots, fn {tag, _} -> tag != kind_tag end) do
+      {before, [{^kind_tag, slot} | after_]} -> {slot, before ++ after_}
+      {_, []} -> {nil, slots}
+    end
   end
 
   defp render_segment(%{glyph: glyph, label: label, detail: detail, kind: kind}) do
@@ -296,242 +385,164 @@ defmodule Tempo.Visualizer.ParseView do
   defp single_char_in?(<<c>>, list), do: c in list
   defp single_char_in?(_, _), do: false
 
-  ## Produces the ordered list of segments from a parsed value.
-  ## Each segment is a map: %{glyph, label, detail, kind}.
+  ## Semantic slot extraction
+  ##
+  ## Walks the parsed AST and produces a flat ordered list of
+  ## `{kind_tag, slot}` pairs. `kind_tag` is one of `:numeric`,
+  ## `:qualifier`, `:shift` — the token aligner uses it to decide
+  ## which input token each slot attaches to. `slot` is a map with
+  ## `:label`, `:detail`, and `:kind` (the *rendering* kind, for
+  ## the CSS class).
+  ##
+  ## Order matters. Slots are produced in the order their
+  ## character positions appear in an ISO 8601 serialisation —
+  ## recurrence first, then from-endpoint time fields, then
+  ## from-endpoint shift/qualification, then the interval
+  ## separator's trailing side, and so on.
 
-  defp segments_for(%Tempo{} = tempo) do
-    tempo_segments(tempo, _is_endpoint = false)
+  defp semantic_slots(%Tempo{} = tempo), do: tempo_slots(tempo)
+
+  defp semantic_slots(%Tempo.Interval{from: from, to: to, duration: duration}) do
+    endpoint_slots(from) ++ endpoint_slots(to || duration)
   end
 
-  defp segments_for(%Tempo.Interval{from: from, to: to, duration: duration, recurrence: r}) do
-    List.flatten([
-      recurrence_segment(r),
-      endpoint_segments(from),
-      separator("/"),
-      endpoint_segments(to || duration)
-    ])
-    |> Enum.reject(&is_nil/1)
+  defp semantic_slots(%Tempo.Duration{time: time}) do
+    Enum.flat_map(time, fn {_unit, _value} = item -> duration_unit_slots(item) end)
   end
 
-  defp segments_for(%Tempo.Duration{time: time}) do
-    [%{glyph: "P", label: "Duration", detail: "marker", kind: "separator"}] ++
-      Enum.map(time, &duration_unit_segment/1)
+  defp semantic_slots(%Tempo.Set{set: members}) do
+    Enum.flat_map(members, fn
+      %Tempo{} = t -> tempo_slots(t)
+      {:range, [a, b]} -> endpoint_slots(a) ++ endpoint_slots(b)
+      _ -> []
+    end)
   end
 
-  defp segments_for(%Tempo.Set{set: set, type: type}) do
-    # `Tempo.Set.type` is `:all | :one` per its struct spec —
-    # no catch-all fallback needed.
-    {open, close} =
-      case type do
-        :all -> {"{", "}"}
-        :one -> {"[", "]"}
-      end
+  defp semantic_slots(_), do: []
 
-    set_type_detail =
-      case type do
-        :all -> "All of"
-        :one -> "One of"
-      end
+  defp endpoint_slots(:undefined), do: []
+  defp endpoint_slots(nil), do: []
+  defp endpoint_slots(%Tempo{} = t), do: tempo_slots(t)
+  defp endpoint_slots(%Tempo.Duration{} = d), do: semantic_slots(d)
+  defp endpoint_slots(_), do: []
 
-    opener = %{glyph: open, label: "Set", detail: set_type_detail, kind: "extended"}
-    closer = %{glyph: close, label: "Set end", detail: "", kind: "separator"}
+  defp tempo_slots(%Tempo{time: nil}), do: []
 
-    members =
-      set
-      |> Enum.with_index()
-      |> Enum.flat_map(fn {member, i} ->
-        prefix = if i == 0, do: [], else: [separator(",")]
-        prefix ++ List.wrap(segment_for_set_member(member))
-      end)
+  defp tempo_slots(%Tempo{time: time} = tempo) when is_list(time) do
+    time_slots =
+      Enum.map(time, fn {unit, value} -> time_unit_slot(unit, value) end)
 
-    [opener] ++ members ++ [closer]
+    time_slots ++
+      shift_slots(tempo.shift) ++
+      qualification_slots(tempo.qualification)
   end
 
-  defp segments_for(other) do
+  defp time_unit_slot(:year, value) do
+    {_glyph, detail} = year_display(value)
+    {:numeric, %{label: "Year", detail: detail, kind: "primary"}}
+  end
+
+  defp time_unit_slot(:month, value) do
+    {_glyph, detail} = month_display(value)
+    # `kind: "month"` widens the descriptor floor — month detail
+    # strings ("September (month 9)", meteorological season names)
+    # are the longest and would otherwise wrap.
+    {:numeric, %{label: "Month", detail: detail, kind: "month"}}
+  end
+
+  defp time_unit_slot(:day, value) do
+    {_glyph, detail} = day_display(value)
+    {:numeric, %{label: "Day", detail: detail, kind: "primary"}}
+  end
+
+  defp time_unit_slot(:week, value) do
+    {_glyph, detail} = integer_display(value, "W")
+    {:numeric, %{label: "Week", detail: detail, kind: "primary"}}
+  end
+
+  defp time_unit_slot(:day_of_year, value) do
+    {_glyph, detail} = integer_display(value, "")
+    {:numeric, %{label: "Day of year", detail: detail, kind: "primary"}}
+  end
+
+  defp time_unit_slot(:day_of_week, value) do
+    {_glyph, detail} = integer_display(value, "")
+    {:numeric, %{label: "Day of week", detail: detail, kind: "primary"}}
+  end
+
+  defp time_unit_slot(:hour, value) do
+    {_glyph, detail} = integer_display(value, "")
+    {:numeric, %{label: "Hour", detail: detail, kind: "primary"}}
+  end
+
+  defp time_unit_slot(:minute, value) do
+    {_glyph, detail} = integer_display(value, "")
+    {:numeric, %{label: "Minute", detail: detail, kind: "primary"}}
+  end
+
+  defp time_unit_slot(:second, value) do
+    {_glyph, detail} = integer_display(value, "")
+    {:numeric, %{label: "Second", detail: detail, kind: "primary"}}
+  end
+
+  defp time_unit_slot(:century, value) do
+    {_glyph, detail} = integer_display(value, "")
+    {:numeric, %{label: "Century", detail: detail, kind: "primary"}}
+  end
+
+  defp time_unit_slot(:decade, value) do
+    {_glyph, detail} = integer_display(value, "")
+    {:numeric, %{label: "Decade", detail: detail, kind: "primary"}}
+  end
+
+  defp time_unit_slot(unit, value) do
+    label = unit |> Atom.to_string() |> String.replace("_", " ") |> String.capitalize()
+    {:numeric, %{label: label, detail: inspect(value), kind: "primary"}}
+  end
+
+  defp shift_slots(nil), do: []
+
+  defp shift_slots(shift) when is_list(shift) do
+    hour = Keyword.get(shift, :hour, 0)
+    minute = Keyword.get(shift, :minute, 0)
+
+    cond do
+      hour == 0 and minute == 0 ->
+        [{:shift, %{label: "Time shift", detail: "UTC", kind: "extended"}}]
+
+      true ->
+        sign = if hour >= 0, do: "+", else: "-"
+        detail = "#{sign}#{abs(hour)}h#{if minute != 0, do: " #{minute}m", else: ""} from UTC"
+
+        # Two numeric slots (hour, minute) because the input
+        # writes them as two digit groups separated by `:`.
+        [
+          {:numeric, %{label: "Shift hour", detail: detail, kind: "extended"}},
+          {:numeric, %{label: "Shift minute", detail: detail, kind: "extended"}}
+        ]
+    end
+  end
+
+  defp shift_slots(_), do: []
+
+  defp qualification_slots(nil), do: []
+
+  defp qualification_slots(qualification) do
     [
-      %{
-        glyph: inspect(other),
-        label: "Unrecognised",
-        detail: "no visualisation available",
-        kind: "separator"
-      }
+      {:qualifier,
+       %{
+         label: "Qualification",
+         detail: qualifier_name(qualification),
+         kind: "qualification"
+       }}
     ]
   end
 
-  defp segment_for_set_member(%Tempo{} = t), do: tempo_segments(t, true)
-  defp segment_for_set_member({:range, [a, b]}), do: range_segments(a, b)
+  defp duration_unit_slots({:direction, :negative}), do: []
 
-  defp segment_for_set_member(other),
-    do: [%{glyph: inspect(other), label: "Member", detail: "", kind: "separator"}]
-
-  defp range_segments(a, b) do
-    a_segs = segment_or_undefined(a)
-    b_segs = segment_or_undefined(b)
-    a_segs ++ [separator("..")] ++ b_segs
-  end
-
-  defp segment_or_undefined(:undefined),
-    do: [%{glyph: "..", label: "Open", detail: "Undefined endpoint", kind: "extended"}]
-
-  defp segment_or_undefined(%Tempo{} = t), do: tempo_segments(t, true)
-  defp segment_or_undefined(list) when is_list(list), do: tempo_segments(%Tempo{time: list}, true)
-
-  defp segment_or_undefined(other),
-    do: [%{glyph: inspect(other), label: "", detail: "", kind: "separator"}]
-
-  # Build segments for a single `%Tempo{}`. Each time-unit value
-  # becomes one "primary" segment carrying the label; every leading
-  # separator (`-`, `T`, `:`, `W`) that precedes a unit in the ISO
-  # 8601 serialisation becomes its own tiny "separator" segment
-  # with no label. Splitting them this way means each label ends
-  # up under the unit's numeric value rather than under the
-  # preceding separator character.
-  defp tempo_segments(%Tempo{time: time} = tempo, _is_endpoint?) when is_list(time) do
-    time_segments =
-      time
-      |> Enum.with_index()
-      |> Enum.flat_map(fn {{unit, value}, i} ->
-        prefix_segments(unit, i == 0) ++ [time_unit_segment(unit, value, i == 0)]
-      end)
-
-    time_segments ++
-      shift_segments(tempo.shift) ++
-      qualification_segments(tempo.qualification, tempo.qualifications) ++
-      extended_segments(tempo.extended)
-  end
-
-  defp tempo_segments(%Tempo{time: nil} = _tempo, _is_endpoint?) do
-    []
-  end
-
-  ## Leading separators / designators that precede a unit in its
-  ## ISO 8601 serialisation. Rendered as their own zero-label
-  ## segments so the following unit's label aligns under its value.
-  ##
-  ## No prefix when the unit is the first component of the time
-  ## keyword list — a bare `~o"6M"` renders as `6M` with no leading
-  ## hyphen.
-
-  defp prefix_segments(_unit, true = _first?), do: []
-  defp prefix_segments(:year, _), do: []
-  defp prefix_segments(:month, _), do: [separator("-")]
-  defp prefix_segments(:day, _), do: [separator("-")]
-  defp prefix_segments(:day_of_year, _), do: [separator("-")]
-  defp prefix_segments(:day_of_week, _), do: [separator("-")]
-  defp prefix_segments(:week, _), do: [separator("-"), separator("W")]
-  defp prefix_segments(:hour, _), do: [separator("T")]
-  defp prefix_segments(:minute, _), do: [separator(":")]
-  defp prefix_segments(:second, _), do: [separator(":")]
-  defp prefix_segments(_, _), do: []
-
-  defp endpoint_segments(:undefined),
-    do: [%{glyph: "..", label: "Open", detail: "Undefined endpoint", kind: "extended"}]
-
-  defp endpoint_segments(nil), do: []
-  defp endpoint_segments(%Tempo{} = t), do: tempo_segments(t, true)
-  defp endpoint_segments(%Tempo.Duration{} = d), do: segments_for(d)
-
-  # `recurrence` on `%Tempo.Interval{}` is constrained by the
-  # struct's type to `pos_integer() | :infinity` — the four
-  # clauses above cover every reachable value; no fallback.
-  defp recurrence_segment(1), do: nil
-
-  defp recurrence_segment(:infinity) do
-    %{glyph: "R/", label: "Recurrence", detail: "Infinite", kind: "extended"}
-  end
-
-  defp recurrence_segment(n) when is_integer(n) do
-    %{glyph: "R#{n}/", label: "Recurrence", detail: "#{n} repeats", kind: "extended"}
-  end
-
-  ## Time-unit segments
-
-  defp time_unit_segment(:year, value, _first?) do
-    {glyph, detail} = year_display(value)
-    %{glyph: glyph, label: "Year", detail: detail, kind: "primary"}
-  end
-
-  defp time_unit_segment(:month, value, _first?) do
-    {glyph, detail} = month_display(value)
-    # `kind: "month"` triggers the widened descriptor floor in CSS —
-    # month detail strings ("September (month 9)", meteorological
-    # season names) are the longest and would otherwise wrap.
-    %{glyph: glyph, label: "Month", detail: detail, kind: "month"}
-  end
-
-  defp time_unit_segment(:day, value, _first?) do
-    {glyph, detail} = day_display(value)
-    %{glyph: glyph, label: "Day", detail: detail, kind: "primary"}
-  end
-
-  defp time_unit_segment(:week, value, _first?) do
-    {glyph, detail} = integer_display(value, "W")
-    %{glyph: glyph, label: "Week", detail: detail, kind: "primary"}
-  end
-
-  defp time_unit_segment(:day_of_week, value, _first?) do
-    {glyph, detail} = integer_display(value, "")
-    %{glyph: glyph, label: "Day of week", detail: detail, kind: "primary"}
-  end
-
-  defp time_unit_segment(:hour, value, _first?) do
-    {glyph, detail} = integer_display(value, "")
-    %{glyph: glyph, label: "Hour", detail: detail, kind: "primary"}
-  end
-
-  defp time_unit_segment(:minute, value, _first?) do
-    {glyph, detail} = integer_display(value, "")
-    %{glyph: glyph, label: "Minute", detail: detail, kind: "primary"}
-  end
-
-  defp time_unit_segment(:second, value, _first?) do
-    {glyph, detail} = integer_display(value, "")
-    %{glyph: glyph, label: "Second", detail: detail, kind: "primary"}
-  end
-
-  defp time_unit_segment(:century, value, _first?) do
-    {glyph, detail} = integer_display(value, "")
-    %{glyph: glyph <> "C", label: "Century", detail: detail, kind: "primary"}
-  end
-
-  defp time_unit_segment(:decade, value, _first?) do
-    {glyph, detail} = integer_display(value, "")
-    %{glyph: glyph <> "J", label: "Decade", detail: detail, kind: "primary"}
-  end
-
-  defp time_unit_segment(unit, value, _first?) do
-    %{
-      glyph: inspect(value),
-      label: unit |> Atom.to_string() |> String.replace("_", " ") |> String.capitalize(),
-      detail: inspect(value),
-      kind: "primary"
-    }
-  end
-
-  defp duration_unit_segment({:direction, :negative}),
-    do: %{glyph: "-", label: "Direction", detail: "Negative", kind: "extended"}
-
-  defp duration_unit_segment({unit, value}) do
-    suffix =
-      case unit do
-        :century -> "C"
-        :decade -> "J"
-        :year -> "Y"
-        :month -> "M"
-        :week -> "W"
-        :day -> "D"
-        :hour -> "H"
-        :minute -> "M"
-        :second -> "S"
-        _ -> ""
-      end
-
-    %{
-      glyph: "#{value}#{suffix}",
-      label: unit |> Atom.to_string() |> String.capitalize(),
-      detail: "#{value}",
-      kind: "primary"
-    }
+  defp duration_unit_slots({unit, _value}) do
+    label = unit |> Atom.to_string() |> String.capitalize()
+    [{:numeric, %{label: label, detail: label, kind: "primary"}}]
   end
 
   ## Display helpers for individual unit values
@@ -650,171 +661,13 @@ defmodule Tempo.Visualizer.ParseView do
 
   defp season_name(code), do: Map.get(@seasons, code, "")
 
-  ## Time shift
-
-  defp shift_segments(nil), do: []
-
-  defp shift_segments(shift) when is_list(shift) do
-    hour = Keyword.get(shift, :hour, 0)
-    minute = Keyword.get(shift, :minute, 0)
-
-    cond do
-      hour == 0 and minute == 0 ->
-        [%{glyph: "Z", label: "Time shift", detail: "UTC", kind: "extended"}]
-
-      true ->
-        sign = if hour >= 0, do: "+", else: "-"
-        glyph = "#{sign}#{pad(abs(hour), 2)}:#{pad(minute, 2)}"
-        detail = "#{sign}#{abs(hour)}h#{if minute != 0, do: " #{minute}m", else: ""} from UTC"
-        [%{glyph: glyph, label: "Time shift", detail: detail, kind: "extended"}]
-    end
-  end
-
-  defp shift_segments(_), do: []
-
-  ## Qualification
-
-  defp qualification_segments(nil, nil), do: []
-
-  defp qualification_segments(expression_q, component_qs) do
-    expr =
-      case expression_q do
-        nil ->
-          []
-
-        q ->
-          [
-            %{
-              glyph: qualifier_glyph(q),
-              label: "Qualification",
-              detail: qualifier_name(q),
-              kind: "qualification"
-            }
-          ]
-      end
-
-    comp =
-      case component_qs do
-        nil ->
-          []
-
-        map when map_size(map) == 0 ->
-          []
-
-        map ->
-          [
-            %{
-              glyph: "?~%",
-              label: "Component qualifiers",
-              detail: component_qualifier_detail(map),
-              kind: "qualification"
-            }
-          ]
-      end
-
-    expr ++ comp
-  end
-
-  defp qualifier_glyph(:uncertain), do: "?"
-  defp qualifier_glyph(:approximate), do: "~"
-  defp qualifier_glyph(:uncertain_and_approximate), do: "%"
-  defp qualifier_glyph(_), do: "?"
+  ## Qualification names (still used by the shift/qualifier slot
+  ## builders and the Details card).
 
   defp qualifier_name(:uncertain), do: "Uncertain (?)"
   defp qualifier_name(:approximate), do: "Approximate (~)"
   defp qualifier_name(:uncertain_and_approximate), do: "Uncertain & approximate (%)"
   defp qualifier_name(other), do: to_string(other)
-
-  defp component_qualifier_detail(map) do
-    map
-    |> Enum.map(fn {unit, qual} -> "#{unit}: #{qualifier_name(qual)}" end)
-    |> Enum.join(", ")
-  end
-
-  ## Extended (IXDTF)
-
-  defp extended_segments(nil), do: []
-
-  defp extended_segments(%{zone_id: nil, zone_offset: nil, calendar: nil, tags: tags})
-       when tags == %{},
-       do: []
-
-  defp extended_segments(%{} = extended) do
-    []
-    |> zone_segment(extended)
-    |> calendar_segment(extended)
-    |> tags_segment(extended)
-  end
-
-  defp zone_segment(acc, %{zone_id: nil, zone_offset: nil}), do: acc
-
-  defp zone_segment(acc, %{zone_id: zone_id}) when is_binary(zone_id) do
-    acc ++
-      [
-        %{
-          glyph: "[#{zone_id}]",
-          label: "Time zone",
-          detail: "IANA zone: #{zone_id}",
-          kind: "extended"
-        }
-      ]
-  end
-
-  defp zone_segment(acc, %{zone_offset: offset}) when is_integer(offset) do
-    sign = if offset >= 0, do: "+", else: "-"
-    abs_offset = abs(offset)
-    hh = div(abs_offset, 60)
-    mm = rem(abs_offset, 60)
-    glyph = "[#{sign}#{pad(hh, 2)}:#{pad(mm, 2)}]"
-
-    acc ++
-      [
-        %{
-          glyph: glyph,
-          label: "Offset",
-          detail: "#{sign}#{hh}h #{mm}m from UTC",
-          kind: "extended"
-        }
-      ]
-  end
-
-  defp zone_segment(acc, _), do: acc
-
-  defp calendar_segment(acc, %{calendar: nil}), do: acc
-
-  defp calendar_segment(acc, %{calendar: calendar}) do
-    acc ++
-      [
-        %{
-          glyph: "[u-ca=#{calendar}]",
-          label: "Calendar",
-          detail: "u-ca = #{calendar}",
-          kind: "extended"
-        }
-      ]
-  end
-
-  defp tags_segment(acc, %{tags: tags}) when map_size(tags) == 0, do: acc
-
-  defp tags_segment(acc, %{tags: tags}) do
-    segments =
-      Enum.map(tags, fn {key, values} ->
-        joined = Enum.join(values, "-")
-
-        %{
-          glyph: "[#{key}=#{joined}]",
-          label: "IXDTF tag",
-          detail: "#{key} = #{joined}",
-          kind: "extended"
-        }
-      end)
-
-    acc ++ segments
-  end
-
-  defp separator(text) do
-    %{glyph: text, label: "", detail: "", kind: "separator"}
-  end
 
   ## Details card — a full dump of the parsed struct fields
 
