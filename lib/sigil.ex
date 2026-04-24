@@ -67,10 +67,60 @@ defmodule Tempo.Sigils do
   end
 
   defp do_sigil(:match, {:<<>>, _meta, [string]}, opts) do
+    calendar = Options.calendar_from(opts)
+
+    case Tempo.from_iso8601(string, calendar) do
+      {:ok, %Tempo{time: time}} ->
+        time_pattern = build_time_match_pattern(time)
+
+        quote do
+          %Tempo{time: unquote(time_pattern)}
+        end
+
+      {:ok, other} ->
+        raise ArgumentError,
+              "~o sigil in a match context only supports simple %Tempo{} values; " <>
+                "got #{inspect(other.__struct__)}"
+
+      {:error, exception} ->
+        raise exception
+    end
   end
 
   defp do_sigil(:guard, {:<<>>, _meta, [_string]}, _opts) do
     raise ArgumentError, "invalid expression in guard"
+  end
+
+  # Build a cons-pattern AST ending in `| _` from a time keyword
+  # list. The resulting quoted expression, when spliced into a
+  # `%Tempo{time: ...}` pattern, matches any Tempo whose canonical
+  # `time` list starts with the given `{unit, value}` pairs.
+  #
+  # Only simple integer-valued components are supported. Complex
+  # AST shapes (groups, selections, ranges, margin-of-error
+  # tuples, continuations) raise at macro-expansion time.
+  defp build_time_match_pattern([]) do
+    quote do: _
+  end
+
+  defp build_time_match_pattern([{unit, value} | rest]) do
+    assert_matchable!(unit, value)
+    tail = build_time_match_pattern(rest)
+
+    quote do
+      [{unquote(unit), unquote(value)} | unquote(tail)]
+    end
+  end
+
+  # Integers (including negatives) are valid literal patterns.
+  # Anything else indicates a non-simple Tempo component that we
+  # don't yet know how to express as a static Elixir pattern.
+  defp assert_matchable!(_unit, value) when is_integer(value), do: :ok
+
+  defp assert_matchable!(unit, value) do
+    raise ArgumentError,
+          "~o sigil in a match context only supports simple integer components; " <>
+            "got #{inspect(unit)}: #{inspect(value)}"
   end
 end
 
