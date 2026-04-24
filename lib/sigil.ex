@@ -44,7 +44,20 @@ defmodule Tempo.Sigils do
   call site.
 
   """
-  defmacro sigil_o({:<<>>, _meta, [string]}, opts) do
+  defmacro sigil_o({:<<>>, _meta, [_string]} = sigil, opts) do
+    do_sigil(__CALLER__.context, sigil, opts)
+  end
+
+  @doc """
+  Verbose alias for `sigil_o`. Use when `~o` might be confused with
+  another sigil in scope, or when you want the three-letter form
+  for readability in dense code.
+  """
+  defmacro sigil_TEMPO({:<<>>, _meta, [_string]} = sigil, opts) do
+    do_sigil(__CALLER__.context, sigil, opts)
+  end
+
+  defp do_sigil(nil, {:<<>>, _meta, [string]}, opts) do
     calendar = Options.calendar_from(opts)
 
     case Tempo.from_iso8601(string, calendar) do
@@ -53,18 +66,11 @@ defmodule Tempo.Sigils do
     end
   end
 
-  @doc """
-  Verbose alias for `sigil_o`. Use when `~o` might be confused with
-  another sigil in scope, or when you want the three-letter form
-  for readability in dense code.
-  """
-  defmacro sigil_TEMPO({:<<>>, _meta, [string]}, opts) do
-    calendar = Options.calendar_from(opts)
+  defp do_sigil(:match, {:<<>>, _meta, [string]}, opts) do
+  end
 
-    case Tempo.from_iso8601(string, calendar) do
-      {:ok, tempo} -> Macro.escape(tempo)
-      {:error, exception} -> raise exception
-    end
+  defp do_sigil(:guard, {:<<>>, _meta, [_string]}, _opts) do
+    raise ArgumentError, "invalid expression in guard"
   end
 end
 
