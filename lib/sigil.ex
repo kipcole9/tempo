@@ -66,12 +66,43 @@ defmodule Tempo.Sigils do
     end
   end
 
-  defp do_sigil(:match, {:<<>>, _meta, [string]}, opts) do
-    calendar = Options.calendar_from(opts)
+  # Modifier letters accepted in match context and the unit they
+  # bind. `M` is deliberately absent — ISO 8601 overloads it for
+  # both month and minute, so match-context modifiers use `O` for
+  # month and `N` for minute to keep the binding unambiguous.
+  @modifier_to_unit %{
+    ?Y => :year,
+    ?O => :month,
+    ?W => :week,
+    ?D => :day,
+    ?I => :day_of_year,
+    ?K => :day_of_week,
+    ?H => :hour,
+    ?N => :minute,
+    ?S => :second
+  }
 
-    case Tempo.from_iso8601(string, calendar) do
+  # Canonical unit sequences per calendar axis. A `~o[…]`-bound
+  # pattern picks the axis that covers every unit named (sigil or
+  # modifier) and lays elements out in that axis's order, with
+  # wildcards filling positions not explicitly requested.
+  @gregorian_axis [:year, :month, :day, :hour, :minute, :second]
+  @iso_week_axis [:year, :week, :day_of_week, :hour, :minute, :second]
+  @ordinal_axis [:year, :day_of_year, :hour, :minute, :second]
+
+  defp do_sigil(:match, {:<<>>, _meta, [string]}, opts) do
+    # Match-context modifiers are always binding letters — a
+    # departure from value context, where `W` selects the ISO
+    # week calendar. The sigil string is therefore always parsed
+    # with `Calendrical.Gregorian`; the generated pattern does
+    # not constrain the target's `:calendar` field either, so a
+    # Gregorian-looking sigil still matches e.g. a Hebrew value
+    # at the same `time` prefix.
+    bindings = bindings_from_modifiers(opts)
+
+    case Tempo.from_iso8601(string, Calendrical.Gregorian) do
       {:ok, %Tempo{time: time}} ->
-        time_pattern = build_time_match_pattern(time)
+        time_pattern = build_time_match_pattern(time, bindings)
 
         quote do
           %Tempo{time: unquote(time_pattern)}
@@ -91,25 +122,106 @@ defmodule Tempo.Sigils do
     raise ArgumentError, "invalid expression in guard"
   end
 
-  # Build a cons-pattern AST ending in `| _` from a time keyword
-  # list. The resulting quoted expression, when spliced into a
-  # `%Tempo{time: ...}` pattern, matches any Tempo whose canonical
-  # `time` list starts with the given `{unit, value}` pairs.
+  # Resolve the modifier char list to a list of unit atoms to
+  # bind. Order in the sigil is irrelevant — the pattern builder
+  # re-sorts by axis position.
+  defp bindings_from_modifiers([]), do: []
+
+  defp bindings_from_modifiers(letters) when is_list(letters) do
+    Enum.map(letters, fn letter ->
+      case Map.fetch(@modifier_to_unit, letter) do
+        {:ok, unit} ->
+          unit
+
+        :error ->
+          raise ArgumentError,
+                "~o sigil in a match context does not recognise modifier " <>
+                  "#{inspect(<<letter::utf8>>)}; valid modifiers are " <>
+                  "Y (year), O (month), W (week), D (day), I (day-of-year), " <>
+                  "K (day-of-week), H (hour), N (minute), S (second)"
+      end
+    end)
+  end
+
+  # Build a cons-pattern AST ending in `| _` for the `time` field
+  # of the generated `%Tempo{}` pattern. The pattern lays out the
+  # canonical axis slice between the earliest and latest unit
+  # requested (whether via the sigil literal or a binding
+  # modifier), filling each position with either the literal
+  # value, the binding variable, or a wildcard.
   #
-  # Only simple integer-valued components are supported. Complex
-  # AST shapes (groups, selections, ranges, margin-of-error
-  # tuples, continuations) raise at macro-expansion time.
-  defp build_time_match_pattern([]) do
+  # Only simple integer-valued components from the parsed sigil
+  # are supported. Complex AST shapes (groups, selections,
+  # ranges, margin-of-error tuples, continuations) raise at
+  # macro-expansion time.
+  defp build_time_match_pattern([], []) do
     quote do: _
   end
 
-  defp build_time_match_pattern([{unit, value} | rest]) do
-    assert_matchable!(unit, value)
-    tail = build_time_match_pattern(rest)
+  defp build_time_match_pattern(time, bindings) do
+    sigil_units = Keyword.keys(time)
+    assert_no_modifier_duplicates!(sigil_units, bindings)
+
+    all_units = sigil_units ++ bindings
+    axis = axis_for(all_units)
+
+    indexes = Enum.map(all_units, &index_in_axis!(&1, axis))
+    first_index = Enum.min(indexes)
+    last_index = Enum.max(indexes)
+
+    axis
+    |> Enum.slice(first_index..last_index)
+    |> Enum.map(&element_for_unit(&1, time, bindings))
+    |> build_cons_pattern()
+  end
+
+  # Pick the appropriate element shape for a canonical-axis
+  # position: the sigil's literal value wins, a modifier binding
+  # comes next, and unrequested positions become `_` wildcards.
+  defp element_for_unit(unit, time, bindings) do
+    cond do
+      Keyword.has_key?(time, unit) ->
+        value = Keyword.fetch!(time, unit)
+        assert_matchable!(unit, value)
+        {:fixed, unit, value}
+
+      unit in bindings ->
+        {:bind, unit}
+
+      true ->
+        :wildcard
+    end
+  end
+
+  defp build_cons_pattern([]) do
+    quote do: _
+  end
+
+  defp build_cons_pattern([elem | rest]) do
+    head = element_to_ast(elem)
+    tail = build_cons_pattern(rest)
 
     quote do
-      [{unquote(unit), unquote(value)} | unquote(tail)]
+      [unquote(head) | unquote(tail)]
     end
+  end
+
+  defp element_to_ast({:fixed, unit, value}) do
+    quote do: {unquote(unit), unquote(value)}
+  end
+
+  # Bind the unit's value to a same-named variable in the
+  # caller's context — `D` binds `day`, `N` binds `minute`, etc.
+  # `Macro.var(unit, nil)` uses hygienic context `nil`, matching
+  # how the standard library's pattern-producing sigils (e.g.
+  # `~D`) expose bindings.
+  defp element_to_ast({:bind, unit}) do
+    var = Macro.var(unit, nil)
+    quote do: {unquote(unit), unquote(var)}
+  end
+
+  defp element_to_ast(:wildcard) do
+    quote do: _
   end
 
   # Integers (including negatives) are valid literal patterns.
@@ -121,6 +233,50 @@ defmodule Tempo.Sigils do
     raise ArgumentError,
           "~o sigil in a match context only supports simple integer components; " <>
             "got #{inspect(unit)}: #{inspect(value)}"
+  end
+
+  defp assert_no_modifier_duplicates!(sigil_units, bindings) do
+    dupes = for u <- bindings, u in sigil_units, do: u
+
+    if dupes != [] do
+      raise ArgumentError,
+            "~o sigil modifier binds a unit already present in the sigil literal: " <>
+              "#{inspect(dupes)}"
+    end
+  end
+
+  # Derive the calendar axis (Gregorian / ISO week / ordinal)
+  # that every requested unit has to belong to. Axis mixing is
+  # an expansion-time error — a user can't meaningfully match
+  # `:month` and `:week` on the same value.
+  defp axis_for(units) do
+    week? = Enum.any?(units, &(&1 in [:week, :day_of_week]))
+    ordinal? = Enum.any?(units, &(&1 == :day_of_year))
+    gregorian? = Enum.any?(units, &(&1 in [:month, :day]))
+
+    if Enum.count([week?, ordinal?, gregorian?], & &1) > 1 do
+      raise ArgumentError,
+            "~o sigil in a match context cannot mix calendar axes: " <>
+              "#{inspect(units)}"
+    end
+
+    cond do
+      week? -> @iso_week_axis
+      ordinal? -> @ordinal_axis
+      true -> @gregorian_axis
+    end
+  end
+
+  defp index_in_axis!(unit, axis) do
+    case Enum.find_index(axis, &(&1 == unit)) do
+      nil ->
+        raise ArgumentError,
+              "~o sigil in a match context cannot place unit #{inspect(unit)} " <>
+                "on the inferred calendar axis #{inspect(axis)}"
+
+      idx ->
+        idx
+    end
   end
 end
 

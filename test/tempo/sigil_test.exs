@@ -109,4 +109,175 @@ defmodule Tempo.SigilMatchTest do
       end
     end
   end
+
+  # Phase ② — modifier letters bind the matched value's unit to a
+  # same-named variable. Wildcards fill canonical positions
+  # between the sigil's last explicit unit and the modifier's
+  # target.
+
+  describe "modifier bindings — single binding" do
+    test "D binds day even when month sits between year and day" do
+      today = Tempo.new!(year: 2026, month: 4, day: 24)
+
+      assert (case today do
+                ~o[2026Y]D -> day
+              end) == 24
+    end
+
+    test "D binds day when month is also fixed in the sigil" do
+      today = Tempo.new!(year: 2026, month: 4, day: 24)
+
+      assert (case today do
+                ~o[2026Y4M]D -> day
+              end) == 24
+    end
+
+    test "O binds month" do
+      today = Tempo.new!(year: 2026, month: 4, day: 24)
+
+      assert (case today do
+                ~o[2026Y]O -> month
+              end) == 4
+    end
+
+    test "H binds hour on a full datetime" do
+      point = Tempo.new!(year: 2026, month: 6, day: 15, hour: 14, minute: 30)
+
+      assert (case point do
+                ~o[2026Y6M15D]H -> hour
+              end) == 14
+    end
+
+    test "N binds minute on a full datetime" do
+      point = Tempo.new!(year: 2026, month: 6, day: 15, hour: 14, minute: 30)
+
+      assert (case point do
+                ~o[2026Y6M15DT14H]N -> minute
+              end) == 30
+    end
+
+    test "S binds second" do
+      point = Tempo.new!(year: 2026, month: 6, day: 15, hour: 14, minute: 30, second: 45)
+
+      assert (case point do
+                ~o[2026Y6M15DT14H30M]S -> second
+              end) == 45
+    end
+
+    test "binding on a time-of-day value does not require date components" do
+      tod = Tempo.new!(hour: 10, minute: 30)
+
+      assert (case tod do
+                ~o[T10H]N -> minute
+              end) == 30
+    end
+  end
+
+  describe "modifier bindings — multiple" do
+    test "DN binds both day and minute" do
+      point = Tempo.new!(year: 2026, month: 6, day: 15, hour: 14, minute: 30)
+
+      assert (case point do
+                ~o[2026Y6M]DN -> {day, minute}
+              end) == {15, 30}
+    end
+
+    test "modifier order within the sigil does not matter" do
+      point = Tempo.new!(year: 2026, month: 6, day: 15, hour: 14, minute: 30)
+
+      assert (case point do
+                ~o[2026Y6M]ND -> {day, minute}
+              end) == {15, 30}
+    end
+
+    test "O and D compose with a fixed year" do
+      today = Tempo.new!(year: 2026, month: 4, day: 24)
+
+      assert (case today do
+                ~o[2026Y]OD -> {month, day}
+              end) == {4, 24}
+    end
+  end
+
+  describe "modifier bindings — match failures" do
+    test "fails when the bound unit is absent from the target" do
+      bare_year = Tempo.new!(year: 2026)
+
+      # Use `case` + fall-through rather than `refute match?/2` so
+      # the unused binding variable doesn't provoke a compile
+      # warning.
+      result =
+        case bare_year do
+          ~o[2026Y]D -> {:matched, day}
+          _ -> :no_match
+        end
+
+      assert result == :no_match
+    end
+
+    test "fails when the sigil's fixed unit disagrees, even with bindings" do
+      today = Tempo.new!(year: 2026, month: 4, day: 24)
+
+      result =
+        case today do
+          ~o[2026Y01M]D -> {:matched, day}
+          _ -> :no_match
+        end
+
+      assert result == :no_match
+    end
+  end
+
+  describe "modifier bindings — expansion-time errors" do
+    test "unknown modifier letter raises ArgumentError" do
+      assert_raise ArgumentError, ~r/does not recognise modifier/, fn ->
+        Code.eval_string(
+          """
+          import Tempo.Sigils
+
+          fn t ->
+            case t do
+              ~o[2026Y]X -> :ok
+            end
+          end
+          """,
+          []
+        )
+      end
+    end
+
+    test "duplicate unit between sigil and modifier raises ArgumentError" do
+      assert_raise ArgumentError, ~r/already present in the sigil/, fn ->
+        Code.eval_string(
+          """
+          import Tempo.Sigils
+
+          fn t ->
+            case t do
+              ~o[2026Y]Y -> :ok
+            end
+          end
+          """,
+          []
+        )
+      end
+    end
+
+    test "mixing Gregorian axis with ISO week axis raises ArgumentError" do
+      assert_raise ArgumentError, ~r/cannot mix calendar axes/, fn ->
+        Code.eval_string(
+          """
+          import Tempo.Sigils
+
+          fn t ->
+            case t do
+              ~o[2026Y4M]W -> :ok
+            end
+          end
+          """,
+          []
+        )
+      end
+    end
+  end
 end
