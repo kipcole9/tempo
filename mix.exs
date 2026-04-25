@@ -13,7 +13,7 @@ defmodule Tempo.MixProject do
       deps: deps(),
       description: description(),
       package: package(),
-      elixir: "~> 1.13",
+      elixir: "~> 1.17",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       dialyzer: [
