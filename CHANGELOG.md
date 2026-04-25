@@ -1,4 +1,10 @@
-# Changelog 
+# Changelog
+
+## Tempo v0.4.1 - April 25th, 2026
+
+### Bug Fixes
+
+* Update `ex_doc` dependency config to remove possible conflict with calendrical's configuration.
 
 ## Tempo v0.4.0 - April 25th, 2026
 
@@ -30,7 +36,7 @@
 
 ### Adds
 
-* `Tempo.new/1`, `Tempo.new!/1`, `Tempo.Interval.new/1`, `Tempo.Interval.new!/1`, `Tempo.Duration.new/1`, `Tempo.Duration.new!/1`. 
+* `Tempo.new/1`, `Tempo.new!/1`, `Tempo.Interval.new/1`, `Tempo.Interval.new!/1`, `Tempo.Duration.new/1`, `Tempo.Duration.new!/1`.
 
 * `Tempo.Interval.spans_leap_second?/1`, `leap_seconds_spanned/1`, and `Tempo.Interval.duration(iv, leap_seconds: true)`. Interval-level leap-second detection and an opt-in duration that counts them. Lets scientific pipelines account for exact elapsed time without Tempo accepting `23:59:60` as a value.
 
