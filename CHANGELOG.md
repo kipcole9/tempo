@@ -1,5 +1,11 @@
 # Changelog
 
+## Tempo v0.5.0 - [Unreleased]
+
+### Changes
+
+* Removed `Tempo.Sigil` shim (was renamed to `Tempo.Sigils`)
+
 ## Tempo v0.4.1 - April 25th, 2026
 
 ### Bug Fixes
