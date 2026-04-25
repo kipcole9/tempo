@@ -678,5 +678,3 @@ defmodule Tempo.Sigils do
     end
   end
 end
-
-
