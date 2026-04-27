@@ -1,10 +1,10 @@
 # Changelog
 
-## Tempo v0.5.0 - [Unreleased]
+## Tempo v0.5.0 - Apri 28th, 2026
 
 ### Breaking — set operations now match textbook semantics
 
-The named set operations now behave the way the symbols in `A ∩ B`, `A ∖ B`, and `A △ B` read in a textbook: each returns the **trimmed instant-level result** (covered time). Member-preserving filters — the "give me the whole events that survive" form — moved to explicitly named `members_*` companions. `union/2` is unchanged (the only member-preserving default — coalesce explicitly with `IntervalSet.coalesce/1` for the merged-span form).
+The named set operations now behave the way the symbols in `A ∩ B`, `A ∖ B`, and `A △ B` read in a textbook: each returns the *trimmed instant-level result* (covered time). Member-preserving filters — the "give me the whole events that survive" form — moved to explicitly named `members_*` companions. `union/2` is unchanged (the only member-preserving default — coalesce explicitly with `IntervalSet.coalesce/1` for the merged-span form).
 
 * `Tempo.intersection/2` now returns the trimmed overlap. Previous member-preserving form is `Tempo.members_overlapping/2`. Previous `Tempo.overlap_trim/2` is removed — `intersection/2` does its job.
 
