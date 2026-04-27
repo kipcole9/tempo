@@ -491,7 +491,36 @@ defmodule Tempo.Operations do
   end
 
   @doc """
-  Intersection of two operands — the **members of `a`** that
+  Intersection of two operands — every instant present in both
+  operands, returned as one or more trimmed intervals.
+
+  Each result interval is the portion of an `a` member trimmed
+  to its overlap with some `b` member. Members of `a` can be
+  split into multiple fragments if `b` covers only part of them.
+  Each emitted fragment carries the source `a` member's metadata.
+
+  This is the canonical set-theoretic intersection: `A ∩ B`.
+  Use it when the question is about *covered time* — "the parts
+  of my meetings that fall inside business hours", "the overlap
+  between two date ranges".
+
+  For the member-preserving filter (return whole `a` members
+  that overlap any `b` member, untrimmed), use
+  `members_overlapping/3`.
+
+  """
+  @spec intersection(any(), any(), keyword()) ::
+          {:ok, IntervalSet.t()} | {:error, term()}
+  def intersection(a, b, opts \\ []) do
+    with {:ok, {a_set, b_set}} <- align(a, b, opts) do
+      IntervalSet.new(sweep_intersection(a_set.intervals, b_set.intervals),
+        metadata: a_set.metadata
+      )
+    end
+  end
+
+  @doc """
+  Member-preserving overlap filter — the **members of `a`** that
   overlap any member of `b`, kept as distinct intervals with
   their original metadata.
 
@@ -499,13 +528,13 @@ defmodule Tempo.Operations do
   query. Each surviving member is an entire member of `a` — not
   a trimmed portion.
 
-  For the instant-level overlap form (each survivor trimmed to
-  its overlap with `b`), use `overlap_trim/3`.
+  For the canonical instant-level intersection (each survivor
+  trimmed to its overlap with `b`), use `intersection/3`.
 
   """
-  @spec intersection(any(), any(), keyword()) ::
+  @spec members_overlapping(any(), any(), keyword()) ::
           {:ok, IntervalSet.t()} | {:error, term()}
-  def intersection(a, b, opts \\ []) do
+  def members_overlapping(a, b, opts \\ []) do
     with {:ok, {a_set, b_set}} <- align(a, b, opts) do
       result =
         Enum.filter(a_set.intervals, fn a_int ->
@@ -513,28 +542,6 @@ defmodule Tempo.Operations do
         end)
 
       IntervalSet.new(result, metadata: a_set.metadata)
-    end
-  end
-
-  @doc """
-  Instant-level intersection — each result interval is the
-  portion of an `a` member that overlaps some `b` member.
-  Members of `a` can be split into multiple fragments if `b`
-  covers only part of them.
-
-  Each emitted fragment carries the source `a` member's
-  metadata. Use this when you need the overlapping **time range**
-  rather than the overlapping **members** — e.g. "the parts of
-  my meetings that fall inside business hours".
-
-  """
-  @spec overlap_trim(any(), any(), keyword()) ::
-          {:ok, IntervalSet.t()} | {:error, term()}
-  def overlap_trim(a, b, opts \\ []) do
-    with {:ok, {a_set, b_set}} <- align(a, b, opts) do
-      IntervalSet.new(sweep_intersection(a_set.intervals, b_set.intervals),
-        metadata: a_set.metadata
-      )
     end
   end
 
@@ -550,7 +557,7 @@ defmodule Tempo.Operations do
   # Sweep-line instant-level intersection. Each step finds the
   # overlap between the current A and current B interval; if
   # non-empty, emit; advance whichever ends first. Used by
-  # `overlap_trim/3` and by `complement/2`'s internal pipeline.
+  # `intersection/3` and by `complement/2`'s internal pipeline.
 
   defp sweep_intersection([], _b), do: []
   defp sweep_intersection(_a, []), do: []
@@ -636,21 +643,51 @@ defmodule Tempo.Operations do
   end
 
   @doc """
-  Difference `a \\ b` — the **members of `a`** that do NOT
-  overlap any member of `b`.
+  Difference `a \\ b` — every instant in `a` that is NOT in `b`,
+  returned as one or more trimmed intervals.
 
-  Member-preserving: each surviving member is kept whole, with
-  its original metadata. A member of `a` is dropped entirely if
-  any member of `b` overlaps it, even partially.
+  Each member of `a` is trimmed to its portions that don't
+  overlap any member of `b`. A single `a` member can split into
+  multiple fragments if `b` covers only its middle. Each emitted
+  fragment carries the source `a` member's metadata.
 
-  For the instant-level form (trim each member of `a` to its
-  non-overlapping portion of `b`, splitting if necessary), use
-  `split_difference/3`.
+  This is the canonical set-theoretic difference: `A ∖ B`. Use
+  it when the question is about *covered time* — "the parts of
+  the workday that aren't lunch", "free time around a busy
+  schedule".
+
+  For the member-preserving filter (keep whole `a` members that
+  don't overlap any `b` member, drop the rest), use
+  `members_outside/3`.
 
   """
   @spec difference(any(), any(), keyword()) ::
           {:ok, IntervalSet.t()} | {:error, term()}
   def difference(a, b, opts \\ []) do
+    with {:ok, {a_set, b_set}} <- align(a, b, opts) do
+      IntervalSet.new(sweep_difference(a_set.intervals, b_set.intervals),
+        metadata: a_set.metadata
+      )
+    end
+  end
+
+  @doc """
+  Member-preserving anti-overlap filter — the **members of `a`**
+  that do NOT overlap any member of `b`, kept whole with their
+  original metadata.
+
+  This is the "which workdays aren't holidays?" query. A member
+  of `a` is dropped entirely if any member of `b` overlaps it,
+  even partially.
+
+  For the canonical instant-level difference (trim each member
+  of `a` to its non-overlapping portion of `b`, splitting if
+  necessary), use `difference/3`.
+
+  """
+  @spec members_outside(any(), any(), keyword()) ::
+          {:ok, IntervalSet.t()} | {:error, term()}
+  def members_outside(a, b, opts \\ []) do
     with {:ok, {a_set, b_set}} <- align(a, b, opts) do
       result =
         Enum.reject(a_set.intervals, fn a_int ->
@@ -658,27 +695,6 @@ defmodule Tempo.Operations do
         end)
 
       IntervalSet.new(result, metadata: a_set.metadata)
-    end
-  end
-
-  @doc """
-  Instant-level difference — each member of `a` is trimmed to
-  its portions that don't overlap any member of `b`. A member
-  can be split into multiple fragments if `b` covers only the
-  middle.
-
-  Use this when you need the surviving **time range** rather
-  than the surviving **members** — e.g. "the parts of my meetings
-  that aren't in overlap with another booking".
-
-  """
-  @spec split_difference(any(), any(), keyword()) ::
-          {:ok, IntervalSet.t()} | {:error, term()}
-  def split_difference(a, b, opts \\ []) do
-    with {:ok, {a_set, b_set}} <- align(a, b, opts) do
-      IntervalSet.new(sweep_difference(a_set.intervals, b_set.intervals),
-        metadata: a_set.metadata
-      )
     end
   end
 
@@ -711,9 +727,11 @@ defmodule Tempo.Operations do
       not after_or_eq?(b.to, a_from) ->
         subtract_from(a, b_rest)
 
-      # B is entirely after A — no more overlaps; emit current A.
+      # B is entirely after A — no more overlaps; emit current A
+      # (only if it has positive width — a tail residue from a
+      # previous full-cover step can be zero-width).
       not after_or_eq?(a_to, b.from) ->
-        {[%Interval{from: a_from, to: a_to, metadata: a_meta}], [b | b_rest]}
+        {maybe_emit(a_from, a_to, a_meta), [b | b_rest]}
 
       # B starts inside A (or at its edge).
       true ->
@@ -748,15 +766,42 @@ defmodule Tempo.Operations do
   end
 
   @doc """
-  Symmetric difference `a △ b` — members of either operand that
-  don't overlap any member of the other. Derived as
-  `(a \\ b) ∪ (b \\ a)` using the member-preserving difference.
+  Symmetric difference `a △ b` — every instant in exactly one
+  of the operands, returned as trimmed intervals. Derived as
+  `(a \\ b) ∪ (b \\ a)` using the instant-level `difference/3`.
+
+  Use this when the question is about *covered time* — "the
+  hours that one of us has free but the other doesn't". For
+  the member-preserving filter (whole members of either
+  operand that don't overlap any member of the other), use
+  `members_in_exactly_one/3`.
   """
   @spec symmetric_difference(any(), any(), keyword()) ::
           {:ok, IntervalSet.t()} | {:error, term()}
   def symmetric_difference(a, b, opts \\ []) do
     with {:ok, a_minus_b} <- difference(a, b, opts),
          {:ok, b_minus_a} <- difference(b, a, opts) do
+      IntervalSet.new(a_minus_b.intervals ++ b_minus_a.intervals,
+        metadata: a_minus_b.metadata
+      )
+    end
+  end
+
+  @doc """
+  Member-preserving symmetric-difference filter — the members
+  of either operand that do NOT overlap any member of the
+  other, kept whole with their original metadata. Derived as
+  `members_outside(a, b) ∪ members_outside(b, a)`.
+
+  This is the "which events appear on exactly one calendar?"
+  query. For the canonical instant-level form, use
+  `symmetric_difference/3`.
+  """
+  @spec members_in_exactly_one(any(), any(), keyword()) ::
+          {:ok, IntervalSet.t()} | {:error, term()}
+  def members_in_exactly_one(a, b, opts \\ []) do
+    with {:ok, a_minus_b} <- members_outside(a, b, opts),
+         {:ok, b_minus_a} <- members_outside(b, a, opts) do
       IntervalSet.new(a_minus_b.intervals ++ b_minus_a.intervals,
         metadata: a_minus_b.metadata
       )
@@ -796,7 +841,7 @@ defmodule Tempo.Operations do
   @spec subset?(operand, operand, keyword()) :: boolean()
         when operand: Tempo.t() | Interval.t() | IntervalSet.t() | Tempo.Set.t()
   def subset?(a, b, opts \\ []) do
-    case split_difference(a, b, opts) do
+    case difference(a, b, opts) do
       {:ok, %IntervalSet{intervals: []}} -> true
       {:ok, _} -> false
       {:error, exception} -> raise exception

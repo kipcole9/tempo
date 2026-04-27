@@ -28,7 +28,7 @@ ics = File.read!("~/my-schedule.ics")
 
 # What's on the schedule today?
 today = ~o"2026-04-21"
-{:ok, today_events} = Tempo.intersection(schedule, today)
+{:ok, today_events} = Tempo.members_overlapping(schedule, today)
 
 # What time am I actually busy? (the covered-instant form)
 busy = Tempo.IntervalSet.coalesce(schedule)
@@ -36,7 +36,7 @@ busy = Tempo.IntervalSet.coalesce(schedule)
 
 # When am I free during work hours?
 work_hours = ~o"2026-04-21T09/2026-04-21T17"
-{:ok, free} = Tempo.split_difference(work_hours, schedule)
+{:ok, free} = Tempo.difference(work_hours, schedule)
 ```
 
 Every result is a standard `%Tempo.IntervalSet{}`. Event metadata from the source schedule is preserved on whichever intervals came from those events.
@@ -123,11 +123,11 @@ Tempo.Interval.metadata(iv).summary
 # "Design review"  — preserved through the intersection
 ```
 
-The rule: **result intervals inherit the A-operand's per-interval metadata**. For `intersection/2`, every result fragment stays tagged with the source event's metadata. For `difference/2`, the uncovered portions of A keep A's metadata. Set-level metadata (calendar `PRODID` etc.) follows the first operand through all operations.
+The rule: **result intervals inherit the A-operand's per-interval metadata**. For `intersection/2` and `difference/2` (both trimmed/instant-level), every result fragment stays tagged with the source event's metadata. For `members_overlapping/2` and `members_outside/2`, surviving members are kept whole and untouched. Set-level metadata (calendar `PRODID` etc.) follows the first operand through all operations.
 
 ## 5. Overlapping events are preserved
 
-Real schedules routinely have overlapping events — a travel event on top of a lunch meeting, an all-day conference covering several one-hour talks. `Tempo.ICal.from_ical/2` returns **an IntervalSet with overlaps preserved** — the default member-preserving semantics of `Tempo.IntervalSet` keep each event as a distinct member so identity and metadata survive every subsequent set operation.
+Real schedules routinely have overlapping events — a travel event on top of a lunch meeting, an all-day conference covering several one-hour talks. `Tempo.ICal.from_ical/2` returns **an IntervalSet with overlaps preserved** — each VEVENT is a distinct member with its own metadata, and `Tempo.union/2` (the only member-preserving default in the set algebra) keeps it that way through compositions like merging multiple calendars.
 
 ```elixir
 {:ok, set} = Tempo.ICal.from_ical(ics)
@@ -141,7 +141,7 @@ When you want free/busy spans (canonical covered-instant form), coalesce explici
 busy = Tempo.IntervalSet.coalesce(set)
 ```
 
-`Tempo.IntervalSet.coalesce/1` merges touching and overlapping members under the half-open convention and drops the dropped members' metadata. Use it only when you need the covered-instant shape; the default member-preserving form is what downstream set operations on schedules expect.
+`Tempo.IntervalSet.coalesce/1` merges touching and overlapping members under the half-open convention and drops the dropped members' metadata. Use it when you want the covered-instant shape (free/busy block lists). For event-list questions on the schedule (which meeting, which event), reach for the `members_*` companions instead — they keep each VEVENT and its metadata intact.
 
 ## 6. Free/busy patterns
 

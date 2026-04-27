@@ -3296,7 +3296,9 @@ defmodule Tempo do
 
   @doc """
   Intersection of two Tempo values — every instant in both
-  operands. See `Tempo.Operations.intersection/3`.
+  operands. Each result interval is the trimmed overlap; `a`
+  members can split into multiple fragments. See
+  `Tempo.Operations.intersection/3`.
   """
   defdelegate intersection(a, b, opts \\ []), to: Tempo.Operations
 
@@ -3308,29 +3310,43 @@ defmodule Tempo do
 
   @doc """
   Difference `a \\ b` — every instant in `a` that is not in
-  `b`. See `Tempo.Operations.difference/3`.
+  `b`. Each result interval is the trimmed remainder; `a`
+  members can split into multiple fragments. See
+  `Tempo.Operations.difference/3`.
   """
   defdelegate difference(a, b, opts \\ []), to: Tempo.Operations
 
   @doc """
   Symmetric difference `a △ b` — instants in exactly one of
-  the two operands. See `Tempo.Operations.symmetric_difference/3`.
+  the two operands. Trimmed/instant-level. See
+  `Tempo.Operations.symmetric_difference/3`.
   """
   defdelegate symmetric_difference(a, b, opts \\ []), to: Tempo.Operations
 
   @doc """
-  Instant-level intersection — each result interval is the portion
-  of an `a` member trimmed to the overlap with `b`. See
-  `Tempo.Operations.overlap_trim/3`.
+  Member-preserving overlap filter — returns the whole members of
+  `a` that overlap any member of `b`, with their original
+  metadata. Use this when the question is about *which events*
+  hit the query window. See `Tempo.Operations.members_overlapping/3`.
   """
-  defdelegate overlap_trim(a, b, opts \\ []), to: Tempo.Operations
+  defdelegate members_overlapping(a, b, opts \\ []), to: Tempo.Operations
 
   @doc """
-  Instant-level difference — each `a` member is trimmed to its
-  non-overlapping portions of `b` (can split one member into
-  multiple). See `Tempo.Operations.split_difference/3`.
+  Member-preserving anti-overlap filter — returns the whole
+  members of `a` that do NOT overlap any member of `b`, kept
+  whole with their original metadata. Use this when the
+  question is about *which events* survive the filter (e.g.
+  "which workdays aren't holidays?"). See
+  `Tempo.Operations.members_outside/3`.
   """
-  defdelegate split_difference(a, b, opts \\ []), to: Tempo.Operations
+  defdelegate members_outside(a, b, opts \\ []), to: Tempo.Operations
+
+  @doc """
+  Member-preserving symmetric-difference filter — members of
+  either operand that don't overlap any member of the other,
+  kept whole. See `Tempo.Operations.members_in_exactly_one/3`.
+  """
+  defdelegate members_in_exactly_one(a, b, opts \\ []), to: Tempo.Operations
 
   @doc """
   `true` when `a` and `b` share no instants.

@@ -103,14 +103,24 @@ b = ~o"2026-06-10/2026-06-20"
 
 Once every value is a bounded interval, the set-theoretic operations follow naturally.
 
-### Union — merge two overlapping windows into one
+### Union — both windows kept distinct (member-preserving)
 
 ```elixir
-{:ok, merged} = Tempo.union(a, b)
-Tempo.IntervalSet.to_list(merged)
+{:ok, both} = Tempo.union(a, b)
+Tempo.IntervalSet.to_list(both)
 ```
 
-> The **union** of `a` and `b` is one continuous window — June 1 through June 20.
+> The **union** of `a` and `b` keeps both intervals as distinct members — `union/2` is member-preserving so identity and metadata survive.
+
+For the merged "one continuous window" form, coalesce explicitly:
+
+```elixir
+both
+|> Tempo.IntervalSet.coalesce()
+|> Tempo.IntervalSet.to_list()
+```
+
+> One continuous window — June 1 through June 20 — after coalescing.
 
 ### Intersection — the overlap between two windows
 

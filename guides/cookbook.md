@@ -268,11 +268,15 @@ The IXDTF `[u-ca=NAME]` suffix swaps the value's calendar to the corresponding `
 ```elixir
 iex> a = ~o"2026-06-01/2026-06-15"
 iex> b = ~o"2026-06-10/2026-06-20"
-iex> {:ok, merged} = Tempo.union(a, b)
+iex> {:ok, both} = Tempo.union(a, b)
+iex> Tempo.IntervalSet.count(both)
+2                                    # union is member-preserving — both intervals survive
+iex> merged = Tempo.IntervalSet.coalesce(both)
 iex> Tempo.IntervalSet.count(merged)
-1
-# The merged span is June 1 .. June 20.
+1                                    # June 1 .. June 20 after coalescing
 ```
+
+`Tempo.union/2` keeps both members so each event's identity and metadata survive. When you want the merged-span shape, call `Tempo.IntervalSet.coalesce/1` explicitly.
 
 ### How do I find the overlap between two intervals?
 
@@ -306,7 +310,7 @@ work = ~o"2026-06-15T09/2026-06-15T17"
 
 > **Work** minus **my schedule** gives me **free** time that day.
 
-Result intervals carry the event metadata from the subtracted schedule where relevant, so you can trace each "busy" segment back to the meeting that caused it.
+Each free-time fragment carries the workday's metadata (the A-operand). To trace which meeting caused each gap, query the schedule directly with `Tempo.members_overlapping/2`.
 
 ### How do I get the symmetric difference (everything in A or B but not both)?
 

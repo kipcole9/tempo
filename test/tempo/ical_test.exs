@@ -388,7 +388,7 @@ defmodule Tempo.ICal.Test do
       assert iv.metadata.location == "Room 101"
     end
 
-    test "split_difference preserves A-side per-interval metadata across splits" do
+    test "difference preserves A-side per-interval metadata across splits" do
       import Tempo.Sigils
 
       ics = """
@@ -411,7 +411,7 @@ defmodule Tempo.ICal.Test do
       # Instant-level difference: the event member is trimmed into
       # the pre-break and post-break portions. Both carry the
       # source event's metadata.
-      {:ok, remaining} = Tempo.split_difference(events, break_time)
+      {:ok, remaining} = Tempo.difference(events, break_time)
       assert length(remaining.intervals) == 2
 
       assert Enum.all?(remaining.intervals, fn iv ->

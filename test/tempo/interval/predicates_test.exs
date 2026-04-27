@@ -211,15 +211,14 @@ defmodule Tempo.Interval.PredicatesTest do
         ]
       }
 
-      # "Free time" is an instant-level query — the uncovered
-      # portions of the workday — so we use `split_difference/2`
-      # (trim) rather than `difference/2` (member-filter).
-      # Likewise `overlap_trim/2` for the instant-level
-      # intersection of the two free-time spans.
+      # "Free time" is the instant-level remainder of the workday
+      # after busy periods, so we use `difference/2` (trimmed)
+      # and `intersection/2` (trimmed) — both produce the
+      # covered-time fragments.
       work = ~o"2026-06-15T09/2026-06-15T17"
-      {:ok, alice_free} = Tempo.split_difference(work, alice_busy)
-      {:ok, bob_free} = Tempo.split_difference(work, bob_busy)
-      {:ok, mutual} = Tempo.overlap_trim(alice_free, bob_free)
+      {:ok, alice_free} = Tempo.difference(work, alice_busy)
+      {:ok, bob_free} = Tempo.difference(work, bob_busy)
+      {:ok, mutual} = Tempo.intersection(alice_free, bob_free)
 
       one_hour_slots =
         mutual

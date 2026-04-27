@@ -2,6 +2,31 @@
 
 ## Tempo v0.5.0 - [Unreleased]
 
+### Breaking — set operations now match textbook semantics
+
+The named set operations now behave the way the symbols in `A ∩ B`, `A ∖ B`, and `A △ B` read in a textbook: each returns the **trimmed instant-level result** (covered time). Member-preserving filters — the "give me the whole events that survive" form — moved to explicitly named `members_*` companions. `union/2` is unchanged (the only member-preserving default — coalesce explicitly with `IntervalSet.coalesce/1` for the merged-span form).
+
+* `Tempo.intersection/2` now returns the trimmed overlap. Previous member-preserving form is `Tempo.members_overlapping/2`. Previous `Tempo.overlap_trim/2` is removed — `intersection/2` does its job.
+
+* `Tempo.difference/2` now returns the trimmed remainder (`A` with `B`-shaped holes punched out — possibly splitting an `A` member into multiple fragments). Previous member-preserving form is `Tempo.members_outside/2`. Previous `Tempo.split_difference/2` is removed — `difference/2` does its job.
+
+* `Tempo.symmetric_difference/2` now returns the trimmed non-shared edges of both operands. Previous member-preserving form is `Tempo.members_in_exactly_one/2`.
+
+Migration:
+
+* "What's the overlap?" / "What time is in both?" → `intersection/2` (no change in name; behaviour now trimmed).
+* "Which of these meetings hit the query window?" → `members_overlapping/2` (was `intersection/2`).
+* "Workday minus lunch as free-time blocks" / "Free time around busy" → `difference/2` (no change in name; behaviour now trimmed). This fixes the previously broken `Tempo.difference(workday, lunch)` pattern, which used to drop the whole workday.
+* "Which workdays aren't holidays?" → `members_outside/2` (was `difference/2`). The numeric result is the same when each `A` member is either fully covered or fully outside any `B` member (workdays/holidays case), but `members_outside` is the right name for an event-list question.
+* Callers of `Tempo.overlap_trim/2` → `Tempo.intersection/2`.
+* Callers of `Tempo.split_difference/2` → `Tempo.difference/2`.
+
+The motivation: when a user reads `Tempo.intersection(japan_trip, enrolled)` or `Tempo.difference(workday, lunch)` aloud, they're describing a covered-time question. The library should return that, not surprise them by collapsing whole members. The member-preserving forms remain available — and clearly named — for the event-list questions where they're the right shape.
+
+### Bug Fixes
+
+* `Tempo.difference/2` (formerly `split_difference/2`) no longer emits a zero-width residue interval when an `A` member is fully consumed by a `B` member and additional `B` members remain. Surfaced when applying the new instant-level `difference` to multi-day workday/holiday set operations; previously masked because the trimmed form was rarely composed against multi-member B sets.
+
 ### Changes
 
 * Removed `Tempo.Sigil` shim (was renamed to `Tempo.Sigils`)
