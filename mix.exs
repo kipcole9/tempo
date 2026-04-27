@@ -1,7 +1,7 @@
 defmodule Tempo.MixProject do
   use Mix.Project
 
-  @version "0.5.0-dev"
+  @version "0.5.0"
 
   def project do
     [
