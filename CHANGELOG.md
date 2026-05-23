@@ -1,6 +1,14 @@
 # Changelog
 
-## Tempo v0.5.0 - Apri 28th, 2026
+## [v0.6.0] — 2026-05-23
+
+### Added
+
+* `Tempo.parse/2` and `Tempo.parse!/2`. Parse a locale-formatted date, time, datetime, or interval string into a `Tempo` (or `Tempo.Interval` for ranges) by delegating to `Calendrical.parse/2`. Forwards `:locale`, `:calendar`, and `:reference_date` to Calendrical and normalises the resulting field map for `Tempo.new/1`.
+
+* `Tempo.new/1` and `Tempo.new!/1` now also accept a map. `Calendar.ISO` is silently normalised to `Calendrical.Gregorian`, so an Elixir `Date`, `Time`, or `NaiveDateTime` can be passed via `Map.from_struct/1` directly.
+
+## [v0.5.0] — 2026-04-28
 
 ### Breaking — set operations now match textbook semantics
 
@@ -31,19 +39,19 @@ The motivation: when a user reads `Tempo.intersection(japan_trip, enrolled)` or 
 
 * Removed `Tempo.Sigil` shim (was renamed to `Tempo.Sigils`)
 
-## Tempo v0.4.1 - April 25th, 2026
+## [v4.1.0] — 2026-04-25
 
 ### Bug Fixes
 
 * Update `ex_doc` dependency config to remove possible conflict with calendrical's configuration.
 
-## Tempo v0.4.0 - April 25th, 2026
+## [v0.4.0] — 2026-04-25
 
 ### Added
 
 * `~o` in match context. On the left-hand side of `match?/2`, `case` clauses, `=`, or a function head, the sigil now expands to a structural pattern — prefix-matching the value's `:time` keyword list while leaving `:calendar`, `:shift`, `:extended`, and `:qualification` unconstrained. Thanks to @am-kantox for the PR.
 
-## Tempo v0.3.0 - April 24th, 2026
+## [v0.3.0] — 2026-04-23
 
 ### Added
 
@@ -63,7 +71,7 @@ The motivation: when a user reads `Tempo.intersection(japan_trip, enrolled)` or 
 
 * `Tempo.to_date/1` now handles ordinal dates (`[year, day]` — produced by the `O` designator, the extended `YYYY-DDD` form, or by enumerating a year-only Tempo as days) and ISO week dates (`[year, week, day_of_week]`). Previously both shapes returned a `Tempo.ConversionError` even though the components unambiguously identify a single calendar day. Examples: `Tempo.to_date(~o"2020-166")` now returns `{:ok, ~D[2020-06-14]}`; `Tempo.to_date(~o"2020-W24-3")` returns `{:ok, ~D[2020-06-10]}`; and `~o"2020Y{1..-1}D" |> Enum.to_list() |> hd() |> Tempo.to_date()` returns `{:ok, ~D[2020-01-01]}`.
 
-## Tempo v0.2.0 - April 23rd, 2026
+## [v0.2.0] — 2026-04-23
 
 ### Adds
 
@@ -247,7 +255,7 @@ The motivation: when a user reads `Tempo.intersection(japan_trip, enrolled)` or 
 
 * Extend `Enumerable.Tempo.Interval` increment rules to cover `:week`, `:day_of_year`, and `:day_of_week` resolutions. Week-resolution intervals (`2022-W05/2022-W08`) now advance week-by-week, carrying into the next year at `calendar.weeks_in_year/1`.
 
-## Tempo v0.1.0
+## [v0.1.0] 
 
 This is the changelog for Tempo v0.1.0 released which was never released.
 
