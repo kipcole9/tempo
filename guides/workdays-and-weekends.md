@@ -159,17 +159,17 @@ Because the result is an `IntervalSet`, set operations compose naturally and pre
 ```elixir
 # Workdays minus holidays — survivors keep their original member
 # identity, each day distinct:
-{:ok, net_workdays} = Tempo.difference(workdays, holidays)
+{:ok, net_workdays} = Tempo.members_outside(workdays, holidays)
 
 # Workdays that overlap a specific window (filter, not trim):
-{:ok, q2_workdays} = Tempo.intersection(workdays, ~o"2026-Q2")
+{:ok, q2_workdays} = Tempo.members_overlapping(workdays, ~o"2026-04/2026-07")
 
 # All workdays across territories — union preserves both sides'
 # members so per-territory metadata survives:
 {:ok, global}   = Tempo.union(us_workdays, de_workdays)
 ```
 
-See the [set operations guide](./set-operations.md) for the distinction between **member-preserving** operations (`intersection`, `difference`, `union`) and their **instant-level** counterparts (`overlap_trim`, `split_difference`) — the former is what you want for event-list questions; the latter for covered-instant questions.
+See the [set operations guide](./set-operations.md) for the distinction between the **instant-level** defaults (`intersection`, `difference`, `symmetric_difference`, `complement`) and the **member-preserving** companions (`union`, `members_overlapping`, `members_outside`, `members_in_exactly_one`) — the former for covered-time questions, the latter for event-list questions.
 
 ## Writing your own helper
 

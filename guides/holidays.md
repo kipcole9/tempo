@@ -68,15 +68,15 @@ Pure set algebra: workdays minus holidays.
 q3 = ~o"2026-07-01/2026-10-01"
 
 {:ok, workdays}     = Tempo.select(q3, Tempo.workdays(:US))
-{:ok, net_workdays} = Tempo.difference(workdays, holidays)
+{:ok, net_workdays} = Tempo.members_outside(workdays, holidays)
 
 Tempo.IntervalSet.count(net_workdays)
 #=> 64    (66 workdays − 2 federal holidays in Q3)
 ```
 
-Read aloud: *"Workdays in Q3 are the Monday-through-Friday days inside July-September. Net working days are those workdays that aren't federal holidays."*
+Read aloud: *"Workdays in Q3 are the Monday-through-Friday days inside July-September. Net working days are those workday members that don't overlap any holiday."*
 
-`Tempo.difference/2` is **member-preserving**: each workday that survives the filter is kept as a distinct member, with its own day-level endpoints. This is the natural shape for "count the days" and "list the days" queries — no interval coalescing silently collapses the result into weekly spans.
+`Tempo.members_outside/2` is the **member-preserving** companion to `Tempo.difference/2`: each workday that survives the filter is kept as a distinct member, with its own day-level endpoints. This is the natural shape for "count the days" and "list the days" queries — no trimming, no fragmentation. (`Tempo.difference/2` would produce the same numeric result here, since each workday is either fully a holiday or fully not, but `members_outside` is the right name for an event-list question.)
 
 #### Expressing the Q3 window
 
@@ -99,11 +99,11 @@ The same composition works for **seasons** (ISO 8601-2 codes 25–32, astronomic
 
 ### 2. Which holidays will hit my project?
 
-`Tempo.intersection/2` returns the holiday members that fall inside the query window — with their iCal metadata intact:
+`Tempo.members_overlapping/2` returns the holiday members that fall inside the query window — with their iCal metadata intact:
 
 ```elixir
 q3 = ~o"2026-07/2026-10"
-{:ok, q3_holidays} = Tempo.intersection(holidays, q3)
+{:ok, q3_holidays} = Tempo.members_overlapping(holidays, q3)
 
 q3_holidays
 |> Tempo.IntervalSet.to_list()
@@ -117,7 +117,7 @@ end)
 
 Read aloud: *"The Q3 holidays are the holiday-set members that overlap the Q3 window. Each one carries its name from the iCal feed."*
 
-Because `Tempo.intersection/2` keeps surviving members whole — with their original metadata — you can compose further: intersect with a team's availability, difference out someone's PTO, union multiple territories' holidays for an international team. The names travel through.
+Because `Tempo.members_overlapping/2` keeps surviving members whole — with their original metadata — you can compose further: filter to a team's availability, difference out someone's PTO, union multiple territories' holidays for an international team. The names travel through.
 
 ### 3. What's five business days from today, skipping holidays?
 
@@ -128,7 +128,7 @@ today  = ~o"2026-06-30"
 window = Tempo.Interval.new!(from: today, to: Tempo.shift(today, week: 3))
 
 {:ok, workdays}  = Tempo.select(window, Tempo.workdays(:US))
-{:ok, open_days} = Tempo.difference(workdays, holidays)
+{:ok, open_days} = Tempo.members_outside(workdays, holidays)
 
 target =
   open_days
@@ -178,7 +178,7 @@ For teams across multiple territories, **union the holiday sets before differenc
 {:ok, all_closed} = Tempo.union(all_closed, de_holidays)
 ```
 
-Then compute "working days for the global team" as `Tempo.difference(workdays, all_closed)`. Each member interval still carries the territory/name metadata — so the July 3 entry stays labelled as US in the global union, and you can render conflicts with full attribution.
+Then compute "working days for the global team" as `Tempo.members_outside(workdays, all_closed)`. Each member interval still carries the territory/name metadata — so the July 3 entry stays labelled as US in the global union, and you can render conflicts with full attribution.
 
 ## Scheduling a training week
 
@@ -188,7 +188,7 @@ A concrete example that ties it together: pick the first five-day work week in Q
 q3 = ~o"2026-07/2026-10"
 
 {:ok, workdays}  = Tempo.select(q3, Tempo.workdays(:US))
-{:ok, open_days} = Tempo.difference(workdays, holidays)
+{:ok, open_days} = Tempo.members_outside(workdays, holidays)
 
 candidate_weeks =
   open_days
@@ -206,7 +206,7 @@ Read aloud: *"Take the open workdays of Q3, group them by week, keep only the we
 
 * [Working with workdays and weekends](./workdays-and-weekends.md) — `Tempo.workdays/1`, `Tempo.weekend/1`, territory-aware weekend conventions, and the primitive patterns this guide builds on.
 
-* [Set operations](./set-operations.md) — union, intersection, difference, the member-preserving semantics, and the instant-level `overlap_trim`/`split_difference` variants.
+* [Set operations](./set-operations.md) — union, intersection, difference, the instant-level vs member-preserving distinction, and companions like `members_overlapping`/`members_outside`.
 
 * [iCalendar integration](./ical-integration.md) — full detail on `Tempo.ICal.from_ical/1`, metadata preservation, and round-tripping `.ics` files.
 

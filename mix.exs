@@ -1,7 +1,7 @@
 defmodule Tempo.MixProject do
   use Mix.Project
 
-  @version "0.4.0"
+  @version "0.5.0"
 
   def project do
     [
@@ -13,7 +13,7 @@ defmodule Tempo.MixProject do
       deps: deps(),
       description: description(),
       package: package(),
-      elixir: "~> 1.13",
+      elixir: "~> 1.17",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       dialyzer: [
@@ -142,7 +142,7 @@ defmodule Tempo.MixProject do
       {:ical, "~> 2.0", optional: true},
       {:plug, "~> 1.15", optional: true},
       {:bandit, "~> 1.5", optional: true},
-      {:ex_doc, "~> 0.21", runtime: false},
+      {:ex_doc, "~> 0.38", only: [:dev, :test, :release], optional: true, runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       # `tz` provides a `Calendar.TimeZoneDatabase` implementation used
       # only in dev/test so iCal 2.0 can resolve `DTSTART;TZID=...`
