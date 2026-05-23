@@ -240,8 +240,16 @@ defmodule Tempo do
 
   ### Arguments
 
-  * `components` is a keyword list mixing time-scale components
-    and options. At least one time-scale component must be present.
+  * `components` is a keyword list — or a map with the same atom
+    keys — mixing time-scale components and options. At least one
+    time-scale component must be present.
+
+    Maps are convenient for interop with Elixir's standard date
+    and time types: a `t:Date.t/0`, `t:Time.t/0`, `t:NaiveDateTime.t/0`,
+    or a bare `Calendrical.parse/2` `:map` result can be passed
+    directly. `Calendar.ISO` (Elixir's default) is silently
+    normalised to `Calendrical.Gregorian` so calendar-aware
+    validation works.
 
   ### Time-scale components
 
@@ -314,8 +322,16 @@ defmodule Tempo do
 
       iex> {:error, _} = Tempo.new(year: 2026, month: 6, week: 24)
 
+      iex> {:ok, tempo} = Tempo.new(%{year: 2026, month: 6, day: 15})
+      iex> tempo.time
+      [year: 2026, month: 6, day: 15]
+
+      iex> {:ok, tempo} = Tempo.new(Map.from_struct(~D[2026-06-15]))
+      iex> tempo.time
+      [year: 2026, month: 6, day: 15]
+
   """
-  @spec new(keyword()) :: {:ok, t()} | {:error, error_reason()}
+  @spec new(keyword() | map()) :: {:ok, t()} | {:error, error_reason()}
   def new(components) when is_list(components) do
     with :ok <- ensure_keyword(components),
          {components, options} <- split_components_and_options(components),
@@ -328,6 +344,21 @@ defmodule Tempo do
     end
   end
 
+  def new(components) when is_map(components) do
+    components
+    |> Map.to_list()
+    |> Enum.map(&normalize_map_entry/1)
+    |> new()
+  end
+
+  # Translate keys that appear in Elixir's standard date/time
+  # structs and `Calendrical.parse/2`'s `:map` results into the
+  # shape `new/1`'s keyword clause expects. `Calendar.ISO` is
+  # Elixir's default calendar module; Tempo's validation requires
+  # the equivalent Calendrical module.
+  defp normalize_map_entry({:calendar, Calendar.ISO}), do: {:calendar, Calendrical.Gregorian}
+  defp normalize_map_entry(other), do: other
+
   @doc """
   Bang variant of `new/1` — raises on invalid input.
 
@@ -337,8 +368,8 @@ defmodule Tempo do
       [year: 2026, month: 6, day: 15]
 
   """
-  @spec new!(keyword()) :: t()
-  def new!(components) when is_list(components) do
+  @spec new!(keyword() | map()) :: t()
+  def new!(components) when is_list(components) or is_map(components) do
     case new(components) do
       {:ok, tempo} -> tempo
       {:error, exception} when is_exception(exception) -> raise exception
@@ -693,6 +724,127 @@ defmodule Tempo do
     case from_iso8601(string, calendar) do
       {:ok, tempo} -> tempo
       {:error, exception} -> raise exception
+    end
+  end
+
+  @doc """
+  Parse a locale-formatted date, time, datetime, or interval
+  string into a Tempo value.
+
+  Delegates to `Calendrical.parse/2` with `as: :map`, then routes
+  the resulting field map (or `{from_map, to_map}` interval pair)
+  through `Tempo.new/1`. Useful when the input shape is not known
+  up-front — a single text field that may carry any of
+  `"2026-05-16"`, `"14:30"`, `"May 16, 2026 2:30 PM"`, or
+  `"May 5 – May 10, 2026"`.
+
+  For ISO 8601 / IXDTF input prefer `from_iso8601/1`, which
+  preserves EDTF qualification and IXDTF extended suffixes that
+  the locale-style parser does not understand.
+
+  ### Arguments
+
+  * `input` is the raw user input string.
+
+  * `options` is a keyword list forwarded to `Calendrical.parse/2`.
+
+  ### Options
+
+  Notable keys forwarded to `Calendrical.parse/2`:
+
+  * `:locale` is the locale used to interpret month names, AM/PM
+    markers, and similar locale-dependent tokens. Defaults to
+    `Localize.get_locale/0`.
+
+  * `:calendar` is the CLDR calendar key or calendar module to
+    parse against. Defaults to `:gregorian`.
+
+  * `:reference_date` is the "today" anchor used for two-digit-year
+    pivoting and partial-date inheritance.
+
+  The `:as` option is set to `:map` regardless of any caller-supplied
+  value — Tempo always asks Calendrical for the field-map form so it
+  can rebuild a Tempo value from the parsed fields.
+
+  ### Returns
+
+  * `{:ok, t()}` for a single-value input.
+
+  * `{:ok, Tempo.Interval.t()}` when the input names a range.
+
+  * `{:error, exception}` when Calendrical cannot parse the string,
+    or when `Tempo.new/1` rejects the resulting field map.
+
+  ### Examples
+
+      iex> {:ok, tempo} = Tempo.parse("2026-05-16", locale: :en)
+      iex> tempo.time
+      [year: 2026, month: 5, day: 16]
+
+      iex> {:ok, tempo} = Tempo.parse("May 16, 2026", locale: :en)
+      iex> tempo.time
+      [year: 2026, month: 5, day: 16]
+
+      iex> {:ok, tempo} = Tempo.parse("14:30", locale: :en)
+      iex> tempo.time
+      [hour: 14, minute: 30]
+
+      iex> {:ok, %Tempo.Interval{}} = Tempo.parse("2026-05-05 – 2026-05-10", locale: :en)
+
+  """
+  @spec parse(String.t(), Keyword.t()) ::
+          {:ok, t() | Tempo.Interval.t()} | {:error, Exception.t()}
+  def parse(input, options \\ []) when is_binary(input) do
+    options = Keyword.put(options, :as, :map)
+
+    with {:ok, value} <- Calendrical.parse(input, options) do
+      parsed_to_tempo(value)
+    end
+  end
+
+  @doc """
+  Bang variant of `parse/2`. Raises on parse failure or invalid
+  component combination.
+
+  ### Examples
+
+      iex> Tempo.parse!("2026-05-16", locale: :en).time
+      [year: 2026, month: 5, day: 16]
+
+  """
+  @spec parse!(String.t(), Keyword.t()) :: t() | Tempo.Interval.t()
+  def parse!(input, options \\ []) when is_binary(input) do
+    case parse(input, options) do
+      {:ok, value} -> value
+      {:error, exception} when is_exception(exception) -> raise exception
+      {:error, reason} -> raise ArgumentError, "Tempo.parse!/2 failed: #{inspect(reason)}"
+    end
+  end
+
+  defp parsed_to_tempo(%{} = map), do: new(sanitise_parsed_map(map))
+
+  defp parsed_to_tempo({%{} = from_map, %{} = to_map}) do
+    with {:ok, from} <- new(sanitise_parsed_map(from_map)),
+         {:ok, to} <- new(sanitise_parsed_map(to_map)) do
+      Tempo.Interval.new(from: from, to: to)
+    end
+  end
+
+  # Strip Calendrical-specific extras that don't fit `Tempo.new/1`'s
+  # component/option schema. `:microsecond` is dropped because Tempo
+  # is second-resolution; `:utc_offset`, `:std_offset`, and
+  # `:zone_abbr` are derivable from the IANA zone. `:time_zone` is
+  # renamed to Tempo's `:zone` option.
+  defp sanitise_parsed_map(map) do
+    map
+    |> Map.drop([:microsecond, :utc_offset, :std_offset, :zone_abbr])
+    |> rename_key(:time_zone, :zone)
+  end
+
+  defp rename_key(map, from, to) do
+    case Map.pop(map, from) do
+      {nil, map} -> map
+      {value, map} -> Map.put(map, to, value)
     end
   end
 

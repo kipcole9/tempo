@@ -122,14 +122,26 @@ defmodule Tempo.FormatTest do
       assert string =~ "5"
     end
 
-    test "month :long uses the day-of-week-and-month format" do
+    test "month :long uses the locale's long date format on each endpoint" do
       {:ok, iv} = Tempo.to_interval(~o"2026-06")
       string = Tempo.to_string(iv, format: :long)
-      # CLDR :long for date-style intervals includes the abbreviated
-      # weekday + abbreviated month, e.g. "Mon, Jun 1 – Tue, Jun 30, 2026".
-      assert string =~ "Mon"
-      assert string =~ "Tue"
-      assert string =~ "Jun"
+      # Localize's :long for the :date style resolves to the locale's
+      # :long date skeleton (yMMMMd for en) on each endpoint, joined
+      # via the locale's interval-fallback separator. The result is
+      # "June 1, 2026 – June 30, 2026" — full month name, no weekday.
+      assert string =~ "June 1, 2026"
+      assert string =~ "June 30, 2026"
+    end
+
+    test "month :full uses the day-of-week-and-month format" do
+      {:ok, iv} = Tempo.to_interval(~o"2026-06")
+      string = Tempo.to_string(iv, format: :full)
+      # Localize's :full for the :date style resolves to the locale's
+      # :full date skeleton (yMMMMEEEEd for en), which includes the
+      # full weekday name, e.g. "Monday, June 1, 2026 – Tuesday, June 30, 2026".
+      assert string =~ "Monday"
+      assert string =~ "Tuesday"
+      assert string =~ "June"
       assert string =~ "30, 2026"
     end
   end
