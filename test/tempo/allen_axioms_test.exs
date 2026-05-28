@@ -55,21 +55,25 @@ defmodule Tempo.AllenAxiomsTest do
 
   describe "Allen-Hayes / T_bounded_meeting axioms" do
     property "relation/2 always returns one of the 13 named relations" do
-      check all a <- interval_gen(),
-                b <- interval_gen() do
+      check all(
+              a <- interval_gen(),
+              b <- interval_gen()
+            ) do
         assert Interval.relation(a, b) in @relations
       end
     end
 
     property "self-relation is :equals" do
-      check all a <- interval_gen() do
+      check all(a <- interval_gen()) do
         assert Interval.relation(a, a) == :equals
       end
     end
 
     property "inverse_relation(relation(a, b)) == relation(b, a)" do
-      check all a <- interval_gen(),
-                b <- interval_gen() do
+      check all(
+              a <- interval_gen(),
+              b <- interval_gen()
+            ) do
         forward = Interval.relation(a, b)
         backward = Interval.relation(b, a)
         assert Interval.inverse_relation(forward) == backward
@@ -77,8 +81,10 @@ defmodule Tempo.AllenAxiomsTest do
     end
 
     property "meets is asymmetric (Grüninger & Li axiom 14)" do
-      check all a <- interval_gen(),
-                b <- interval_gen() do
+      check all(
+              a <- interval_gen(),
+              b <- interval_gen()
+            ) do
         if Interval.relation(a, b) == :meets do
           # Asymmetry: if A meets B then B does not meet A.
           # Under the inverse correspondence, B's relation to A is :met_by.
@@ -89,7 +95,7 @@ defmodule Tempo.AllenAxiomsTest do
     end
 
     property "Sum Axiom: chain-meeting intervals coalesce to one (axiom 15)" do
-      check all offsets <- ordered_offsets(5) do
+      check all(offsets <- ordered_offsets(5)) do
         [t0, t1, t2, t3, t4] = Enum.map(offsets, &point/1)
 
         # Three chain-meeting intervals: meets(a, b), meets(b, c), meets(c, d).
@@ -118,37 +124,45 @@ defmodule Tempo.AllenAxiomsTest do
 
   describe "named predicates ↔ Allen relations" do
     property "before?(a, b) iff relation(a, b) == :precedes" do
-      check all a <- interval_gen(),
-                b <- interval_gen() do
+      check all(
+              a <- interval_gen(),
+              b <- interval_gen()
+            ) do
         assert Interval.before?(a, b) == (Interval.relation(a, b) == :precedes)
       end
     end
 
     property "adjacent?(a, b) iff relation(a, b) in [:meets, :met_by]" do
-      check all a <- interval_gen(),
-                b <- interval_gen() do
+      check all(
+              a <- interval_gen(),
+              b <- interval_gen()
+            ) do
         assert Interval.adjacent?(a, b) ==
-                 (Interval.relation(a, b) in [:meets, :met_by])
+                 Interval.relation(a, b) in [:meets, :met_by]
       end
     end
 
     property "during?(a, b) iff relation(a, b) == :during" do
-      check all a <- interval_gen(),
-                b <- interval_gen() do
+      check all(
+              a <- interval_gen(),
+              b <- interval_gen()
+            ) do
         assert Interval.during?(a, b) == (Interval.relation(a, b) == :during)
       end
     end
 
     property "within?(a, b) iff relation(a, b) in [:equals, :starts, :during, :finishes]" do
-      check all a <- interval_gen(),
-                b <- interval_gen() do
+      check all(
+              a <- interval_gen(),
+              b <- interval_gen()
+            ) do
         assert Interval.within?(a, b) ==
-                 (Interval.relation(a, b) in [:equals, :starts, :during, :finishes])
+                 Interval.relation(a, b) in [:equals, :starts, :during, :finishes]
       end
     end
 
     property "within?(a, a) is always true (reflexive: :equals ∈ within set)" do
-      check all a <- interval_gen() do
+      check all(a <- interval_gen()) do
         assert Interval.within?(a, a)
       end
     end
@@ -162,8 +176,10 @@ defmodule Tempo.AllenAxiomsTest do
   # holds regardless of resolution, so day-level intervals are a
   # sufficient witness.
   defp interval_gen do
-    gen all start_offset <- StreamData.integer(0..3650),
-            length <- StreamData.integer(1..3650) do
+    gen all(
+          start_offset <- StreamData.integer(0..3650),
+          length <- StreamData.integer(1..3650)
+        ) do
       Interval.new!(from: point(start_offset), to: point(start_offset + length))
     end
   end
@@ -172,11 +188,13 @@ defmodule Tempo.AllenAxiomsTest do
   # of meeting intervals where each subsequent interval's :from
   # equals the previous interval's :to.
   defp ordered_offsets(n) do
-    gen all offsets <-
-              StreamData.list_of(StreamData.integer(0..10_000), length: n)
-              |> StreamData.map(&Enum.uniq/1)
-              |> StreamData.filter(&(length(&1) == n))
-              |> StreamData.map(&Enum.sort/1) do
+    gen all(
+          offsets <-
+            StreamData.list_of(StreamData.integer(0..10_000), length: n)
+            |> StreamData.map(&Enum.uniq/1)
+            |> StreamData.filter(&(length(&1) == n))
+            |> StreamData.map(&Enum.sort/1)
+        ) do
       offsets
     end
   end

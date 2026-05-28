@@ -1,5 +1,21 @@
 # Changelog
 
+## [v0.7.0] — 2026-05-28
+
+### Added
+
+* `Tempo.Interval.equivalent?/2` — temporal-extent equality that ignores metadata, calendar, and zone-display labels by projecting endpoints to UTC and comparing only the temporal positions. Matches the equivalence notion of Grüninger and Li's `T_bounded_meeting` ontology (TIME 2017).
+
+* Property tests verifying Allen's interval-algebra axioms and the Sum Axiom of `T_bounded_meeting`. Checks joint exhaustiveness, self-equality, inverse consistency, `meets` asymmetry, and predicate-relation consistency across 1000+ randomly generated interval pairs per property.
+
+### Changed
+
+* `Tempo.Interval.new/1` now rejects empty intervals (`from == to`) with `Tempo.IntervalEndpointsError`. Internal set operations already filtered these out; this change closes the public-API hole and matches the ontology's exclusion of degenerate intervals from the domain.
+
+* `Tempo.Operations` set-producing functions (`union/3`, `intersection/3`, `difference/3`, `complement/2`, `symmetric_difference/3`, `members_overlapping/3`, `members_outside/3`, `members_in_exactly_one/3`) now have proper `@spec` operand types (`Tempo.t() | Tempo.Interval.t() | Tempo.IntervalSet.t() | Tempo.Set.t()`) instead of `any()`. Brings them into line with the predicate functions and the `align/3` contract.
+
+* `Tempo.Interval` `@moduledoc` documents the discrete-style interval boundary semantics (exclusive upper bound, `meets` at the seam) against the continuous underlying time line. Clarifies that Tempo's half-open convention matches Rust's `allen-intervals` discrete-domain choice and Hayes' open-interval model cited by Grüninger and Li.
+
 ## [v0.6.0] — 2026-05-23
 
 ### Added
