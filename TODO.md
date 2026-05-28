@@ -107,3 +107,56 @@
   `!` flag to mean "this zone is authoritative — any disagreeing offset
   is an error".
 
+* Define a `Tempo.Intervallic` protocol so user-defined types can
+  participate in Allen-algebra comparisons and set operations without
+  being copied into `%Tempo.Interval{}`.
+
+  Currently `Tempo.Interval` is the only first-class interval type;
+  a user with `%Booking{check_in, check_out}` (or similar) has to
+  build `Tempo.Interval.new!(from: ..., to: ...)` and lose their
+  struct's identity, or attach metadata via the `:metadata` map.
+
+  Haskell's `interval-algebra` solves this with an `Intervallic`
+  typeclass; Rust's `allen-intervals` exposes an `IntervalBounds`
+  trait. The Elixir-idiomatic equivalent is a protocol:
+
+  ```elixir
+  defprotocol Tempo.Intervallic do
+    @spec from(t) :: Tempo.t() | :undefined
+    def from(value)
+
+    @spec to(t) :: Tempo.t() | :undefined
+    def to(value)
+  end
+  ```
+
+  Then `Tempo.relation/2`, `overlaps?/2`, set operations etc. would
+  accept any value implementing the protocol, dispatching through
+  `Tempo.Intervallic.from/1` and `to/1`. The library would ship
+  default implementations for `Tempo.Interval`, `Tempo`, and
+  `Tempo.IntervalSet` (single-member case).
+
+  Reward: third-party data types participate in set operations
+  without copying. Reduces friction for adoption in larger apps.
+
+  Reference: [Tempo vs. other interval-algebra libraries](papers/library-comparisons.md#what-tempo-could-learn).
+
+* Investigate an interval-tree backing store for `IntervalSet` to
+  accelerate stabbing and overlap queries on large sets.
+
+  Current `IntervalSet` is a sorted, coalesced list — O(n log n)
+  construction, O(n) for some traversal operations. Users with
+  multi-year iCalendar feeds (tens of thousands of events) would
+  benefit from an interval-tree internal representation.
+
+  Rust's `interavl` crate demonstrates that AVL-backed interval
+  trees give millions-to-billions of stabbing queries per second
+  with subtree-pruning optimisations. The change is purely internal:
+  the `Tempo.IntervalSet` API stays identical; the change is the
+  shape of `:intervals` (or an additional cached tree).
+
+  Effort: significant. Worth doing only when a real user reports
+  the need — premature without a benchmark target.
+
+  Reference: [Tempo vs. other interval-algebra libraries](papers/library-comparisons.md#what-tempo-could-learn).
+

@@ -19,6 +19,35 @@ defmodule Tempo.Interval do
   algebra, returning one of 13 mutually-exclusive relations.
   See the function docs for the full table.
 
+  ## Domain semantics: continuous time, discrete-style intervals
+
+  Tempo's underlying time line is **continuous**: endpoints project
+  to gregorian seconds (a real number, via Erlang's
+  `:calendar.datetime_to_gregorian_seconds/1`) and cross-zone
+  comparison uses real-number ordering. The set of representable
+  endpoint positions is dense within Tempo's resolution range
+  (currently down to one-second granularity).
+
+  Interval **boundary semantics** are nonetheless treated in the
+  discrete style — the `:to` endpoint is *exclusive*, so two
+  intervals `[a, b)` and `[b, c)` *meet* at the shared boundary `b`
+  with empty geometric intersection. This is the same convention
+  Rust's `allen-intervals` crate uses for its discrete integer
+  domain, and matches Hayes' open-connected-subsets model that
+  Grüninger and Li cite (TIME 2017, §2.2). It contrasts with the
+  closed-interval / continuous-domain convention (e.g., Allen's
+  original 1983 paper, which treats intervals as closed and lets
+  `meets` happen at a single shared point of inclusion); Tempo's
+  half-open choice keeps adjacency unambiguous and lets coalescing
+  be a pure operation on endpoints without a "do these touch?"
+  predicate.
+
+  In practical terms: if you need to model an event that includes
+  both endpoint moments (a true closed interval), encode it as
+  `[a, b + ε)` where `ε` is one unit at the value's resolution.
+  Library code never imposes this — the half-open convention is the
+  contract.
+
   """
 
   alias Tempo.Compare

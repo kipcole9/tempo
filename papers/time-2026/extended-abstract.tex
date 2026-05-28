@@ -18,7 +18,7 @@
 
 \documentclass[a4paper,USenglish,cleveref,autoref,thm-restate]{oasics-v2021}
 
-\title{Time as Intervals, Not Instants: \\
+\title{Time as Intervals, Not Instants: \texorpdfstring{\\}{ }%
   A Practical Implementation of Allen's Interval Algebra Over ISO~8601}
 \titlerunning{Time as Intervals, Not Instants}
 
@@ -36,6 +36,13 @@
   domain-specific languages}
 
 \relatedversion{Source repository: \url{https://github.com/kipcole9/tempo}}
+
+% The inline thebibliography below uses \doi{...} the way bibtex's
+% `plainurl` style would emit it. The OASIcs class defines \doi for
+% the article's own header but not for bibitem entries, so provide
+% it here. Switch to BibTeX (plainurl) before final submission and
+% this can be removed.
+\providecommand{\doi}[1]{\href{https://doi.org/#1}{doi:\texttt{#1}}}
 
 \begin{document}
 
