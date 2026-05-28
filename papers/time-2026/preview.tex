@@ -1,0 +1,57 @@
+% Preview build of the TIME 2026 extended abstract.
+%
+% This file exists ONLY to render a readable PDF for draft review on
+% systems where the oasics-v2021 class doesn't compile (tectonic 0.16.9
+% silently SIGABRTs on the OASIcs class, with no diagnostic output).
+%
+% This is NOT the submission file. The submission file is
+% extended-abstract.tex, which uses the OASIcs class as TIME 2026
+% requires. Compile that one on Overleaf or with pdflatex from a full
+% TeX Live / MacTeX install for the actual submission.
+%
+% Build (with tectonic or pdflatex):
+%   tectonic preview.tex
+
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amssymb}  % needed for \mathfrak
+\usepackage{hyperref}
+\usepackage{xcolor}
+\hypersetup{colorlinks=true,linkcolor=blue!50!black,urlcolor=blue!50!black,citecolor=blue!50!black}
+
+% Shim the OASIcs metadata macros to article-class equivalents.
+\makeatletter
+\renewcommand{\title}[1]{\gdef\@title{#1}}
+\newcommand{\titlerunning}[1]{}
+\renewcommand{\author}[5]{\gdef\@author{#1\\\textit{#2}\\\texttt{#3}}}
+\newcommand{\authorrunning}[1]{}
+\newcommand{\Copyright}[1]{}
+\newcommand{\ccsdesc}[2][]{}
+\newcommand{\keywords}[1]{\par\noindent\textbf{Keywords:} #1\par}
+\newcommand{\relatedversion}[1]{\par\noindent\textbf{#1}\par}
+\newcommand{\doi}[1]{doi:\texttt{#1}}
+\makeatother
+
+% Make both \paragraph and \paragraph* behave like a runs-in heading,
+% as in OASIcs. Article's default \paragraph doesn't accept a star and
+% the body uses \paragraph*, which would otherwise print a literal `*'.
+\makeatletter
+\renewcommand{\paragraph}{\@ifstar\@oasicspar\@oasicspar}
+\newcommand{\@oasicspar}[1]{\par\medskip\noindent\textbf{#1}\ }
+\makeatother
+
+% Metadata mirrors extended-abstract.tex's preamble.
+\title{Time as Intervals, Not Instants: \\
+  A Practical Implementation of Allen's Interval Algebra Over ISO~8601}
+\author{Kip Cole}{Independent}{kipcole9@gmail.com}{}{}
+\date{}
+
+\begin{document}
+
+\input{extended-abstract-body}
+
+\end{document}
