@@ -482,8 +482,9 @@ defmodule Tempo.Operations do
   on the result.
 
   """
-  @spec union(operand :: any(), operand :: any(), keyword()) ::
+  @spec union(operand, operand, keyword()) ::
           {:ok, IntervalSet.t()} | {:error, term()}
+        when operand: Tempo.t() | Interval.t() | IntervalSet.t() | Tempo.Set.t()
   def union(a, b, opts \\ []) do
     with {:ok, {a_set, b_set}} <- align(a, b, opts) do
       IntervalSet.new(a_set.intervals ++ b_set.intervals, metadata: a_set.metadata)
@@ -509,8 +510,9 @@ defmodule Tempo.Operations do
   `members_overlapping/3`.
 
   """
-  @spec intersection(any(), any(), keyword()) ::
+  @spec intersection(operand, operand, keyword()) ::
           {:ok, IntervalSet.t()} | {:error, term()}
+        when operand: Tempo.t() | Interval.t() | IntervalSet.t() | Tempo.Set.t()
   def intersection(a, b, opts \\ []) do
     with {:ok, {a_set, b_set}} <- align(a, b, opts) do
       IntervalSet.new(sweep_intersection(a_set.intervals, b_set.intervals),
@@ -532,8 +534,9 @@ defmodule Tempo.Operations do
   trimmed to its overlap with `b`), use `intersection/3`.
 
   """
-  @spec members_overlapping(any(), any(), keyword()) ::
+  @spec members_overlapping(operand, operand, keyword()) ::
           {:ok, IntervalSet.t()} | {:error, term()}
+        when operand: Tempo.t() | Interval.t() | IntervalSet.t() | Tempo.Set.t()
   def members_overlapping(a, b, opts \\ []) do
     with {:ok, {a_set, b_set}} <- align(a, b, opts) do
       result =
@@ -615,7 +618,8 @@ defmodule Tempo.Operations do
     value. Required.
 
   """
-  @spec complement(any(), keyword()) :: {:ok, IntervalSet.t()} | {:error, term()}
+  @spec complement(operand, keyword()) :: {:ok, IntervalSet.t()} | {:error, term()}
+        when operand: Tempo.t() | Interval.t() | IntervalSet.t() | Tempo.Set.t()
   def complement(set, opts) do
     case Keyword.get(opts, :bound) do
       nil ->
@@ -661,8 +665,9 @@ defmodule Tempo.Operations do
   `members_outside/3`.
 
   """
-  @spec difference(any(), any(), keyword()) ::
+  @spec difference(operand, operand, keyword()) ::
           {:ok, IntervalSet.t()} | {:error, term()}
+        when operand: Tempo.t() | Interval.t() | IntervalSet.t() | Tempo.Set.t()
   def difference(a, b, opts \\ []) do
     with {:ok, {a_set, b_set}} <- align(a, b, opts) do
       IntervalSet.new(sweep_difference(a_set.intervals, b_set.intervals),
@@ -685,8 +690,9 @@ defmodule Tempo.Operations do
   necessary), use `difference/3`.
 
   """
-  @spec members_outside(any(), any(), keyword()) ::
+  @spec members_outside(operand, operand, keyword()) ::
           {:ok, IntervalSet.t()} | {:error, term()}
+        when operand: Tempo.t() | Interval.t() | IntervalSet.t() | Tempo.Set.t()
   def members_outside(a, b, opts \\ []) do
     with {:ok, {a_set, b_set}} <- align(a, b, opts) do
       result =
@@ -776,8 +782,9 @@ defmodule Tempo.Operations do
   operand that don't overlap any member of the other), use
   `members_in_exactly_one/3`.
   """
-  @spec symmetric_difference(any(), any(), keyword()) ::
+  @spec symmetric_difference(operand, operand, keyword()) ::
           {:ok, IntervalSet.t()} | {:error, term()}
+        when operand: Tempo.t() | Interval.t() | IntervalSet.t() | Tempo.Set.t()
   def symmetric_difference(a, b, opts \\ []) do
     with {:ok, a_minus_b} <- difference(a, b, opts),
          {:ok, b_minus_a} <- difference(b, a, opts) do
@@ -797,8 +804,9 @@ defmodule Tempo.Operations do
   query. For the canonical instant-level form, use
   `symmetric_difference/3`.
   """
-  @spec members_in_exactly_one(any(), any(), keyword()) ::
+  @spec members_in_exactly_one(operand, operand, keyword()) ::
           {:ok, IntervalSet.t()} | {:error, term()}
+        when operand: Tempo.t() | Interval.t() | IntervalSet.t() | Tempo.Set.t()
   def members_in_exactly_one(a, b, opts \\ []) do
     with {:ok, a_minus_b} <- members_outside(a, b, opts),
          {:ok, b_minus_a} <- members_outside(b, a, opts) do

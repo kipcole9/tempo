@@ -107,8 +107,11 @@ defmodule Tempo.Interval do
 
   * `{:ok, t()}` on success.
 
-  * `{:error, reason}` when endpoints are invalid, `:from` is greater
-    than `:to`, or required fields are missing.
+  * `{:error, reason}` when endpoints are invalid, `:from` is not
+    strictly earlier than `:to` (a zero-extent interval is not a
+    valid interval under the half-open convention; see
+    `Tempo.Interval.empty?/1` for the predicate that detects
+    malformed struct literals), or required fields are missing.
 
   ### Examples
 
@@ -218,6 +221,21 @@ defmodule Tempo.Interval do
 
   defp validate_from_to_order(%Tempo{} = from, %Tempo{} = to) do
     case Compare.compare_endpoints(from, to) do
+      :earlier ->
+        :ok
+
+      :same ->
+        {:error,
+         Tempo.IntervalEndpointsError.exception(
+           interval: %__MODULE__{from: from, to: to},
+           operation: :new,
+           reason:
+             ":from and :to endpoints are equal — a zero-extent interval " <>
+               "is not a valid interval under the half-open [from, to) convention. " <>
+               "If the operation that produced these endpoints is set-theoretic, " <>
+               "return an empty IntervalSet instead."
+         )}
+
       :later ->
         {:error,
          Tempo.IntervalEndpointsError.exception(
@@ -225,9 +243,6 @@ defmodule Tempo.Interval do
            operation: :new,
            reason: ":from endpoint is later than :to endpoint"
          )}
-
-      _ ->
-        :ok
     end
   end
 
@@ -681,6 +696,66 @@ defmodule Tempo.Interval do
   end
 
   def empty?(%__MODULE__{}), do: false
+
+  @doc """
+  `true` when two intervals describe the same temporal extent,
+  regardless of calendar, zone display, or attached metadata.
+
+  Standard `==` compares all struct fields, including `:metadata`,
+  `:calendar`, and the zone-display details on the endpoints, so the
+  same span shown in two different zones compares unequal.
+  `equivalent?/2` projects endpoints to UTC and compares only the
+  temporal positions — matching the equivalence notion of the
+  T_bounded_meeting ontology of Grüninger and Li (TIME 2017), under
+  which intervals are individuated by their position in the structure
+  of `meets`, not by labels.
+
+  Recurrence-related fields (`:recurrence`, `:direction`,
+  `:repeat_rule`, `:duration`) must match structurally: two recurring
+  intervals with different rules describe different extents.
+
+  ### Arguments
+
+  * `a` and `b` are `t:t/0` values.
+
+  ### Returns
+
+  * `true` if both intervals occupy the same temporal extent under UTC projection.
+
+  * `false` otherwise.
+
+  ### Examples
+
+      iex> a = %Tempo.Interval{from: ~o"2026-06-15", to: ~o"2026-06-16"}
+      iex> b = %Tempo.Interval{from: ~o"2026-06-15", to: ~o"2026-06-16"}
+      iex> Tempo.Interval.equivalent?(a, b)
+      true
+
+      iex> a = %Tempo.Interval{from: ~o"2026-06-15", to: ~o"2026-06-16"}
+      iex> b = %Tempo.Interval{from: ~o"2026-06-15", to: ~o"2026-06-17"}
+      iex> Tempo.Interval.equivalent?(a, b)
+      false
+
+  """
+  @spec equivalent?(t(), t()) :: boolean()
+  def equivalent?(%__MODULE__{} = a, %__MODULE__{} = b) do
+    endpoints_equivalent?(a.from, b.from) and
+      endpoints_equivalent?(a.to, b.to) and
+      a.recurrence == b.recurrence and
+      a.direction == b.direction and
+      a.repeat_rule == b.repeat_rule and
+      a.duration == b.duration
+  end
+
+  defp endpoints_equivalent?(%Tempo{} = a, %Tempo{} = b) do
+    Compare.compare_endpoints(a, b) == :same
+  end
+
+  defp endpoints_equivalent?(:undefined, :undefined), do: true
+  defp endpoints_equivalent?(nil, nil), do: true
+  defp endpoints_equivalent?(nil, :undefined), do: true
+  defp endpoints_equivalent?(:undefined, nil), do: true
+  defp endpoints_equivalent?(_, _), do: false
 
   ## ----------------------------------------------------------
   ## Duration query + duration predicates
