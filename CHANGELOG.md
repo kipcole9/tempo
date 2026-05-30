@@ -4,11 +4,15 @@
 
 ### Added
 
+* Sub-second (fractional-second) resolution via a `:microsecond {value, precision}` component matching Elixir's `Time`/`DateTime` shape (precision capped at 6 digits). Parsing, materialisation (`[v, v+1ulp)`), Allen comparison, durations (`PT0.5S`) and arithmetic, ISO 8601 / inspect round-trip, `from_elixir`/`to_naive_date_time`, and explicit-interval enumeration are all sub-second aware. Trailing zeros are significant — `.120` (millisecond) and `.12` (centisecond) are distinct resolutions.
+
 * `Tempo.Interval.equivalent?/2` — temporal-extent equality that ignores metadata, calendar, and zone-display labels by projecting endpoints to UTC and comparing only the temporal positions. Matches the equivalence notion of Grüninger and Li's `T_bounded_meeting` ontology (TIME 2017).
 
 * Property tests verifying Allen's interval-algebra axioms and the Sum Axiom of `T_bounded_meeting`. Checks joint exhaustiveness, self-equality, inverse consistency, `meets` asymmetry, and predicate-relation consistency across 1000+ randomly generated interval pairs per property.
 
 ### Changed
+
+* Fractional-second input is now preserved rather than truncated. `~o"...45.123"`, `PT1.250S`, and `Tempo.from_elixir(datetime_with_microseconds)` previously dropped the sub-second part; they now retain it as a `:microsecond` component. `Tempo.utc_now/0` and `now/1` remain second-resolution by contract (use `from_elixir(DateTime.utc_now())` for a sub-second reading).
 
 * `Tempo.Interval.new/1` now rejects empty intervals (`from == to`) with `Tempo.IntervalEndpointsError`. Internal set operations already filtered these out; this change closes the public-API hole and matches the ontology's exclusion of degenerate intervals from the domain.
 

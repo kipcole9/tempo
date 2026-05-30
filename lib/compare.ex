@@ -62,6 +62,33 @@ defmodule Tempo.Compare do
   @spec compare_time(keyword(), keyword()) :: :lt | :eq | :gt
   def compare_time([], []), do: :eq
 
+  # Microseconds compare by VALUE only. Precision (digit count) sets
+  # the interval width, not the instant ordering: `{120000, 2}` (.12)
+  # and `{120000, 3}` (.120) denote the same start moment, so they
+  # compare equal here. Generic tuple comparison would (wrongly) order
+  # them by precision, so these clauses precede the generic ones.
+  def compare_time([{:microsecond, {v1, _p1}} | t1], [{:microsecond, {v2, _p2}} | t2]) do
+    cond do
+      v1 < v2 -> :lt
+      v1 > v2 -> :gt
+      true -> compare_time(t1, t2)
+    end
+  end
+
+  def compare_time([{:microsecond, {v, _p}} | rest], []) do
+    cond do
+      v > 0 -> :gt
+      true -> compare_time(rest, [])
+    end
+  end
+
+  def compare_time([], [{:microsecond, {v, _p}} | rest]) do
+    cond do
+      v > 0 -> :lt
+      true -> compare_time([], rest)
+    end
+  end
+
   def compare_time([{unit, v} | rest], []) do
     min = unit_minimum(unit)
 
@@ -164,7 +191,25 @@ defmodule Tempo.Compare do
     cond do
       a_secs < b_secs -> :earlier
       a_secs > b_secs -> :later
-      true -> :same
+      # Whole UTC seconds tie — break on the sub-second value. Zone
+      # offsets are whole-minute, so the microsecond value is the same
+      # in wall-clock and UTC frames; comparing the raw values is exact.
+      true -> compare_microsecond_values(a, b)
+    end
+  end
+
+  defp compare_microsecond_values(a, b) do
+    case {microsecond_value(a), microsecond_value(b)} do
+      {x, y} when x < y -> :earlier
+      {x, y} when x > y -> :later
+      _ -> :same
+    end
+  end
+
+  defp microsecond_value(%Tempo{time: time}) do
+    case Keyword.get(time, :microsecond) do
+      {value, _precision} -> value
+      nil -> 0
     end
   end
 

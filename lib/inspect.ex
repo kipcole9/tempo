@@ -314,7 +314,7 @@ defmodule Tempo.Inspect do
     %Tempo{time: time, shift: shift, qualification: qualification} = tempo
 
     [
-      inspect_value(time),
+      inspect_value(fold_microsecond(time)),
       inspect_shift(shift),
       inspect_qualification(qualification),
       extended_trailer(tempo)
@@ -524,7 +524,7 @@ defmodule Tempo.Inspect do
   end
 
   defp inspect_value(%Tempo.Duration{time: time}) do
-    [?P, inspect_value(time)]
+    [?P, inspect_value(fold_microsecond(time))]
   end
 
   defp inspect_value(%Tempo.Range{first: first, last: :undefined}) do
@@ -545,6 +545,10 @@ defmodule Tempo.Inspect do
   defp inspect_value({:day_of_year, day}), do: [inspect_list(day), ?O]
   defp inspect_value({:hour, hour}), do: [inspect_list(hour), ?H]
   defp inspect_value({:minute, minute}), do: [inspect_list(minute), ?M]
+
+  defp inspect_value({:second, {:micro, second, microsecond}}),
+    do: [inspect_list(second), ?., Tempo.Microsecond.to_digits_string(microsecond), ?S]
+
   defp inspect_value({:second, second}), do: [inspect_list(second), ?S]
   defp inspect_value({:day_of_week, day}), do: [inspect_list(day), ?K]
   defp inspect_value({:week, week}), do: [inspect_list(week), ?W]
@@ -575,6 +579,18 @@ defmodule Tempo.Inspect do
   defp inspect_qualification(:uncertain), do: "?"
   defp inspect_qualification(:approximate), do: "~"
   defp inspect_qualification(:uncertain_and_approximate), do: "%"
+
+  # Fold a trailing `:microsecond` component into the preceding
+  # `:second` so the per-unit renderer and the T-marker arity logic
+  # (which counts up to three time units and assumes one 2-tuple per
+  # unit) see a single second token that renders as "45.123S".
+  defp fold_microsecond([{:second, second}, {:microsecond, microsecond} | rest]) do
+    [{:second, {:micro, second, microsecond}} | fold_microsecond(rest)]
+  end
+
+  defp fold_microsecond([head | rest]), do: [head | fold_microsecond(rest)]
+  defp fold_microsecond([]), do: []
+  defp fold_microsecond(other), do: other
 
   defp inspect_list(list) when is_list(list) do
     elements = Enum.map_join(list, ",", &inspect_value/1)

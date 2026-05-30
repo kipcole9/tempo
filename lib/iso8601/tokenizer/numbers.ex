@@ -177,6 +177,33 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
     |> unwrap_and_tag(tag)
   end
 
+  # Seconds-only variants that keep a fractional second as a *sibling*
+  # `{:fraction, {digits, count}}` token rather than folding it into a
+  # float (as `positive_number`/`maybe_negative_number` would). The
+  # second has no finer integer unit to absorb the fraction, so
+  # `Tempo.Validation.resolve/2` lifts the sibling fraction into a
+  # `:microsecond {value, precision}` component, preserving the digit
+  # count (and therefore the resolution / interval width). Folding to a
+  # float would discard significant trailing zeros (`.120` vs `.12`).
+  def implicit_second_or_integer_set(opts) do
+    choice([
+      parsec(:integer_set_all),
+      positive_integer(opts)
+    ])
+    |> unwrap_and_tag(:second)
+    |> optional(fraction())
+  end
+
+  def explicit_second_or_integer_set(indicator, opts) do
+    choice([
+      parsec(:integer_set_all),
+      maybe_negative_integer(opts)
+    ])
+    |> unwrap_and_tag(:second)
+    |> optional(fraction())
+    |> ignore(string(indicator))
+  end
+
   def positive_integer_or_integer_set(tag, opts) do
     choice([
       parsec(:integer_set_all),
@@ -219,8 +246,16 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
     ignore(decimal_separator())
     |> times(ascii_char([?0..?9]), min: 1)
     |> lookahead_not(number_separator())
-    |> reduce({List, :to_integer, []})
+    |> reduce(:reduce_fraction)
     |> unwrap_and_tag(:fraction)
+  end
+
+  # Capture both the fractional digits as an integer and the count of
+  # digits as written. The digit count (not the integer) determines
+  # precision, because leading zeros are significant: `.0123` and
+  # `.123` differ in resolution even though both reduce to 123.
+  def reduce_fraction(digit_chars) do
+    {List.to_integer(digit_chars), length(digit_chars)}
   end
 
   def number_separator do
@@ -258,10 +293,9 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
     number
   end
 
-  def form_number([?-, integer, {:fraction, fraction} | rest])
+  def form_number([?-, integer, {:fraction, {fraction, digit_count}} | rest])
       when is_integer(integer) and is_integer(fraction) do
-    digits = Localize.Utils.Digits.number_of_integer_digits(fraction)
-    number = integer + fraction / :math.pow(10, digits)
+    number = integer + fraction / :math.pow(10, digit_count)
     form_number([-number | rest])
   end
 
@@ -282,10 +316,9 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
     form_number([{:mask, [:negative | list]} | rest])
   end
 
-  def form_number([integer, {:fraction, fraction} | rest])
+  def form_number([integer, {:fraction, {fraction, digit_count}} | rest])
       when is_integer(integer) and is_integer(fraction) do
-    digits = Localize.Utils.Digits.number_of_integer_digits(fraction)
-    number = integer + fraction / :math.pow(10, digits)
+    number = integer + fraction / :math.pow(10, digit_count)
     form_number([number | rest])
   end
 
@@ -311,6 +344,17 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
 
   def form_number(other) do
     other
+  end
+
+  # A fraction on the second is preserved as a `:microsecond`
+  # `{value, precision}` component rather than collapsed into a float
+  # second. The second has no finer integer unit to absorb the
+  # fraction into, so sub-second resolution lives here. `precision`
+  # comes from the digit count (leading zeros significant).
+  def apply_fraction([{:second, value}, {:fraction, {fraction, digit_count}} | rest])
+      when is_integer(value) do
+    microsecond = Tempo.Microsecond.from_fraction(fraction, digit_count)
+    [{:second, value}, {:microsecond, microsecond} | apply_fraction(rest)]
   end
 
   def apply_fraction([{unit, value}, {:fraction, fraction} | rest]) do

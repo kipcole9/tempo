@@ -65,12 +65,11 @@ defmodule Tempo.FromElixir.Test do
       assert Tempo.from_elixir(~T[00:00:00]).time == [hour: 0]
     end
 
-    test "microsecond is discarded (Tempo has no sub-second unit)" do
-      # `~T[10:30:45.123]` has microsecond != 0 but we truncate to
-      # second for inference. Existing `from_time/1` already drops
-      # microsecond silently.
+    test "microsecond is preserved as a :microsecond component" do
+      # `~T[10:30:45.123]` carries microsecond precision 3; it is
+      # threaded into a `:microsecond {value, precision}` component.
       assert Tempo.from_elixir(~T[10:30:45.123]).time ==
-               [hour: 10, minute: 30, second: 45]
+               [hour: 10, minute: 30, second: 45, microsecond: {123_000, 3}]
     end
   end
 
@@ -96,9 +95,17 @@ defmodule Tempo.FromElixir.Test do
                [year: 2022, month: 6, day: 15, hour: 10, minute: 30, second: 45]
     end
 
-    test "microsecond is discarded" do
+    test "microsecond is preserved as a :microsecond component" do
       assert Tempo.from_elixir(~N[2022-06-15 10:30:45.123]).time ==
-               [year: 2022, month: 6, day: 15, hour: 10, minute: 30, second: 45]
+               [
+                 year: 2022,
+                 month: 6,
+                 day: 15,
+                 hour: 10,
+                 minute: 30,
+                 second: 45,
+                 microsecond: {123_000, 3}
+               ]
     end
 
     test "explicit :resolution overrides inference" do

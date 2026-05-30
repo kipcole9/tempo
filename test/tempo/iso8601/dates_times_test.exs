@@ -97,13 +97,13 @@ defmodule Tempo.Parser.DatesTimes.Test do
 
   test "Time with fractions" do
     assert Tokenizer.tokenize("T232030,5") ==
-             {:ok, {[time_of_day: [hour: 23, minute: 20, second: 30.5]], nil}}
+             {:ok, {[time_of_day: [hour: 23, minute: 20, second: 30, fraction: {5, 1}]], nil}}
 
     assert Tokenizer.tokenize("T232030.5") ==
-             {:ok, {[time_of_day: [hour: 23, minute: 20, second: 30.5]], nil}}
+             {:ok, {[time_of_day: [hour: 23, minute: 20, second: 30, fraction: {5, 1}]], nil}}
 
     assert Tokenizer.tokenize("23:20:30.5") ==
-             {:ok, {[time_of_day: [hour: 23, minute: 20, second: 30.5]], nil}}
+             {:ok, {[time_of_day: [hour: 23, minute: 20, second: 30, fraction: {5, 1}]], nil}}
 
     assert Tokenizer.tokenize("T2320,8") == {:ok, {[time_of_day: [hour: 23, minute: 20.8]], nil}}
     assert Tokenizer.tokenize("T2320.8") == {:ok, {[time_of_day: [hour: 23, minute: 20.8]], nil}}

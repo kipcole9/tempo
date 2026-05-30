@@ -306,7 +306,15 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
     choice([
       maybe_negative_number(min: 1) |> ignore(string("H")) |> unwrap_and_tag(:hour),
       maybe_negative_number(min: 1) |> ignore(string("M")) |> unwrap_and_tag(:minute),
-      maybe_negative_number(min: 1) |> ignore(string("S")) |> unwrap_and_tag(:second)
+      # Keep a fractional duration-second as a sibling `{:fraction,
+      # {digits, count}}` token (as the clock second does) so
+      # `Tempo.Duration.build/1` can lift it into a `:microsecond`
+      # component, preserving the digit count. Folding to a float would
+      # lose significant trailing zeros (`PT1.250S` vs `PT1.25S`).
+      maybe_negative_integer(min: 1)
+      |> unwrap_and_tag(:second)
+      |> optional(fraction())
+      |> ignore(string("S"))
     ])
   end
 
@@ -578,7 +586,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
   def implicit_second do
     choice([
       parsec(:time_group),
-      positive_number_or_integer_set(:second, 2)
+      implicit_second_or_integer_set(2)
     ])
   end
 
@@ -586,7 +594,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
     choice([
       parsec(:time_group),
       parsec(:selection),
-      maybe_negative_number_or_integer_set("S", :second, min: 1)
+      explicit_second_or_integer_set("S", min: 1)
     ])
   end
 

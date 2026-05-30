@@ -168,6 +168,32 @@ defmodule Tempo.AllenAxiomsTest do
     end
   end
 
+  describe "axioms hold at microsecond resolution" do
+    property "relation/2 returns one of the 13 relations" do
+      check all(
+              a <- microsecond_interval_gen(),
+              b <- microsecond_interval_gen()
+            ) do
+        assert Interval.relation(a, b) in @relations
+      end
+    end
+
+    property "inverse_relation(relation(a, b)) == relation(b, a)" do
+      check all(
+              a <- microsecond_interval_gen(),
+              b <- microsecond_interval_gen()
+            ) do
+        assert Interval.inverse_relation(Interval.relation(a, b)) == Interval.relation(b, a)
+      end
+    end
+
+    property "self-relation is :equals" do
+      check all(a <- microsecond_interval_gen()) do
+        assert Interval.relation(a, a) == :equals
+      end
+    end
+  end
+
   ## Generators
 
   # Generate a non-empty bounded interval over a 10-year span at
@@ -204,5 +230,28 @@ defmodule Tempo.AllenAxiomsTest do
     ~D[2020-01-01]
     |> Date.add(day_offset)
     |> Tempo.from_elixir()
+  end
+
+  # Generate a non-empty bounded interval at microsecond resolution,
+  # spanning a window within a single minute. Verifies the algebra
+  # holds at the finest resolution, not only at day resolution.
+  defp microsecond_interval_gen do
+    gen all(
+          a <- StreamData.integer(0..59_999_999),
+          b <- StreamData.integer(0..59_999_999),
+          a != b
+        ) do
+      [lo, hi] = Enum.sort([a, b])
+      Interval.new!(from: microsecond_point(lo), to: microsecond_point(hi))
+    end
+  end
+
+  # Convert a microseconds-within-a-minute offset into a Tempo value
+  # at microsecond resolution.
+  defp microsecond_point(total_microseconds) do
+    second = div(total_microseconds, 1_000_000)
+    microsecond = rem(total_microseconds, 1_000_000)
+    {:ok, naive} = NaiveDateTime.new(2026, 6, 15, 10, 30, second, {microsecond, 6})
+    Tempo.from_elixir(naive)
   end
 end

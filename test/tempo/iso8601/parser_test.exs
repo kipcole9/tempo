@@ -393,12 +393,22 @@ defmodule Tempo.Iso8601.Parser.Test do
                 time: [year: 2018, month: 8, day: 8, hour: 10, minute: 30, second: 30]
               }}
 
-    # Section 7.12 Example 3
+    # Section 7.12 Example 3 — a fractional second is preserved as a
+    # `:microsecond {value, precision}` component (Elixir-aligned),
+    # not folded into a float, so the digit count (resolution) survives.
     assert Tempo.from_iso8601("2018Y8M8DT10H30M15,3S") ==
              {:ok,
               %Tempo{
                 calendar: Calendrical.Gregorian,
-                time: [year: 2018, month: 8, day: 8, hour: 10, minute: 30, second: 15.3]
+                time: [
+                  year: 2018,
+                  month: 8,
+                  day: 8,
+                  hour: 10,
+                  minute: 30,
+                  second: 15,
+                  microsecond: {300_000, 1}
+                ]
               }}
   end
 

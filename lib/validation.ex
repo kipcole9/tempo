@@ -486,6 +486,17 @@ defmodule Tempo.Validation do
     end
   end
 
+  # A fractional second arrives as a sibling `{:fraction, {digits,
+  # count}}` token — the seconds parser keeps it separate rather than
+  # folding it into a float. Lift it into a `:microsecond {value,
+  # precision}` component so the digit count (and therefore the
+  # resolution / interval width) is preserved; `.120` and `.12` differ.
+  def resolve([{:second, second}, {:fraction, {digits, digit_count}} | rest], calendar)
+      when is_integer(second) and is_integer(digits) do
+    microsecond = Tempo.Microsecond.from_fraction(digits, digit_count)
+    resolve([{:second, second}, {:microsecond, microsecond} | rest], calendar)
+  end
+
   # Negative seconds wrap using a 0..59 range (the end-of-minute
   # reference is 59, not 60 — `-1` means "one before the end",
   # which is 59, not the leap-second 60).
@@ -508,6 +519,21 @@ defmodule Tempo.Validation do
         {:error, reason} -> {:error, reason}
         resolved -> [{:second, part} | resolved]
       end
+    end
+  end
+
+  # Sub-second component: a `{value, precision}` microsecond tuple that
+  # rides immediately after the second. Range-validate it and pass it
+  # through unchanged.
+  def resolve([{:microsecond, microsecond} | rest], calendar) do
+    if Tempo.Microsecond.valid?(microsecond) do
+      case resolve(rest, calendar) do
+        {:error, reason} -> {:error, reason}
+        resolved -> [{:microsecond, microsecond} | resolved]
+      end
+    else
+      {:error,
+       Tempo.ParseError.exception(reason: "Invalid microsecond component #{inspect(microsecond)}")}
     end
   end
 

@@ -126,6 +126,7 @@ defmodule Tempo do
           | {:hour, token}
           | {:minute, token}
           | {:second, token}
+          | {:microsecond, Tempo.Microsecond.t()}
         ]
 
   @type time_shift :: [{:hour, integer()} | {:minute, integer()}] | nil
@@ -1033,8 +1034,10 @@ defmodule Tempo do
 
   """
   @spec from_time(time :: Time.t()) :: t()
-  def from_time(%{hour: hour, minute: minute, second: second}) do
-    Tempo.Iso8601.AST.build(hour: hour, minute: minute, second: second)
+  def from_time(%{hour: hour, minute: minute, second: second} = time) do
+    Tempo.Iso8601.AST.build(
+      [hour: hour, minute: minute, second: second] ++ microsecond_component(time)
+    )
   end
 
   @doc """
@@ -1057,55 +1060,54 @@ defmodule Tempo do
 
   """
   @spec from_naive_date_time(naive_date_time :: NaiveDateTime.t()) :: t()
-  def from_naive_date_time(%{
-        year: year,
-        month: month,
-        day: day,
-        hour: hour,
-        minute: minute,
-        second: second,
-        calendar: Calendar.ISO
-      }) do
+  def from_naive_date_time(
+        %{
+          year: year,
+          month: month,
+          day: day,
+          hour: hour,
+          minute: minute,
+          second: second,
+          calendar: Calendar.ISO
+        } = naive
+      ) do
     Tempo.Iso8601.AST.build(
-      year: year,
-      month: month,
-      day: day,
-      hour: hour,
-      minute: minute,
-      second: second
+      [year: year, month: month, day: day, hour: hour, minute: minute, second: second] ++
+        microsecond_component(naive)
     )
   end
 
-  def from_naive_date_time(%{
-        year: year,
-        month: month,
-        day: day,
-        hour: hour,
-        minute: minute,
-        second: second,
-        calendar: Calendrical.Gregorian
-      }) do
+  def from_naive_date_time(
+        %{
+          year: year,
+          month: month,
+          day: day,
+          hour: hour,
+          minute: minute,
+          second: second,
+          calendar: Calendrical.Gregorian
+        } = naive
+      ) do
     Tempo.Iso8601.AST.build(
-      year: year,
-      month: month,
-      day: day,
-      hour: hour,
-      minute: minute,
-      second: second
+      [year: year, month: month, day: day, hour: hour, minute: minute, second: second] ++
+        microsecond_component(naive)
     )
   end
 
-  def from_naive_date_time(%{
-        year: year,
-        month: month,
-        day: day,
-        hour: hour,
-        minute: minute,
-        second: second,
-        calendar: calendar
-      }) do
+  def from_naive_date_time(
+        %{
+          year: year,
+          month: month,
+          day: day,
+          hour: hour,
+          minute: minute,
+          second: second,
+          calendar: calendar
+        } = naive
+      ) do
     Tempo.Iso8601.AST.build(
-      [year: year, month: month, day: day, hour: hour, minute: minute, second: second],
+      [year: year, month: month, day: day, hour: hour, minute: minute, second: second] ++
+        microsecond_component(naive),
       calendar
     )
   end
@@ -1140,25 +1142,30 @@ defmodule Tempo do
 
   """
   @spec from_date_time(DateTime.t()) :: t()
-  def from_date_time(%DateTime{
-        year: year,
-        month: month,
-        day: day,
-        hour: hour,
-        minute: minute,
-        second: second,
-        time_zone: time_zone,
-        utc_offset: utc_offset,
-        std_offset: std_offset,
-        calendar: calendar
-      }) do
+  def from_date_time(
+        %DateTime{
+          year: year,
+          month: month,
+          day: day,
+          hour: hour,
+          minute: minute,
+          second: second,
+          time_zone: time_zone,
+          utc_offset: utc_offset,
+          std_offset: std_offset,
+          calendar: calendar
+        } = dt
+      ) do
     tempo_calendar =
       case calendar do
         Calendar.ISO -> Calendrical.Gregorian
         other -> other
       end
 
-    time = [year: year, month: month, day: day, hour: hour, minute: minute, second: second]
+    time =
+      [year: year, month: month, day: day, hour: hour, minute: minute, second: second] ++
+        microsecond_component(dt)
+
     total_offset = utc_offset + std_offset
 
     %__MODULE__{
@@ -1178,6 +1185,18 @@ defmodule Tempo do
   # keyword list used by `%Tempo{}.shift`. Sign is carried on the
   # hour component (matching the `resolve_shift/1` tokenizer output
   # for negative offsets).
+  # Elixir's `Time`/`NaiveDateTime`/`DateTime` carry sub-second data in
+  # a `microsecond: {value, precision}` field with the same shape as
+  # Tempo's `:microsecond` component. Thread it through verbatim when
+  # `precision > 0`; `{0, 0}` (no sub-second) adds nothing, keeping the
+  # value at second resolution.
+  defp microsecond_component(%{microsecond: {_value, 0}}), do: []
+
+  defp microsecond_component(%{microsecond: {value, precision}}),
+    do: [microsecond: {value, precision}]
+
+  defp microsecond_component(_), do: []
+
   defp offset_to_shift(0), do: [hour: 0]
 
   defp offset_to_shift(seconds) do
@@ -1266,6 +1285,10 @@ defmodule Tempo do
       {:selection, selection} -> unit_min_max(selection)
       {unit, {:group, first..last//_}} -> {unit, last - first + 1}
       {unit, %Range{last: last}} -> {unit, last}
+      # A microsecond component is `{value, precision}`; the precision
+      # (digit count) is its resolution scale — `{:microsecond, 3}` is
+      # millisecond resolution.
+      {:microsecond, {_value, precision}} when is_integer(precision) -> {:microsecond, precision}
       {unit, {_value, meta}} when is_list(meta) -> {unit, Keyword.get(meta, :margin_of_error, 1)}
       {unit, {_value, continuation}} when is_function(continuation) -> {unit, 1}
       {unit, _value} -> {unit, 1}
@@ -1710,6 +1733,8 @@ defmodule Tempo do
   # finest Tempo-supported component that is non-zero. Microsecond
   # is discarded (Tempo has no sub-second unit). All-zero falls
   # back to `:hour`.
+  defp infer_time_resolution(%Time{microsecond: {_v, p}}) when p > 0, do: :microsecond
+
   defp infer_time_resolution(%Time{hour: _h, minute: m, second: s}) do
     cond do
       s != 0 -> :second
@@ -1720,7 +1745,10 @@ defmodule Tempo do
 
   # Datetime types have date components always non-zero, so the
   # fallback when all time components are zero is `:day` (not
-  # `:hour` as for a bare Time).
+  # `:hour` as for a bare Time). A non-zero microsecond precision
+  # takes priority — the value carries sub-second resolution.
+  defp infer_datetime_resolution(%{microsecond: {_v, p}}) when p > 0, do: :microsecond
+
   defp infer_datetime_resolution(%{hour: h, minute: m, second: s}) do
     cond do
       s != 0 -> :second
@@ -1969,6 +1997,21 @@ defmodule Tempo do
 
   """
   def to_naive_date_time(%Tempo{
+        time: [
+          year: year,
+          month: month,
+          day: day,
+          hour: hour,
+          minute: minute,
+          second: second,
+          microsecond: microsecond
+        ],
+        shift: nil
+      }) do
+    NaiveDateTime.new(year, month, day, hour, minute, second, microsecond)
+  end
+
+  def to_naive_date_time(%Tempo{
         time: [year: year, month: month, day: day, hour: hour, minute: minute, second: second],
         shift: nil
       }) do
@@ -2019,7 +2062,10 @@ defmodule Tempo do
   """
   @spec utc_now() :: t()
   def utc_now do
-    Tempo.Clock.utc_now() |> from_date_time()
+    # Truncate the clock's microsecond so the result honours the
+    # documented second resolution. For a sub-second reading, use
+    # `Tempo.from_elixir(DateTime.utc_now())`.
+    Tempo.Clock.utc_now() |> DateTime.truncate(:second) |> from_date_time()
   end
 
   @doc """
@@ -2052,7 +2098,8 @@ defmodule Tempo do
   """
   @spec now(String.t()) :: t()
   def now(zone \\ "Etc/UTC") when is_binary(zone) do
-    utc = Tempo.Clock.utc_now()
+    # Second resolution per the contract — see `utc_now/0`.
+    utc = Tempo.Clock.utc_now() |> DateTime.truncate(:second)
 
     case zone do
       "Etc/UTC" ->

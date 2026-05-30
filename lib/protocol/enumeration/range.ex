@@ -145,6 +145,24 @@ defimpl Enumerable, for: Tempo.Interval do
 
   defp compare_time([], []), do: :eq
 
+  # Microseconds compare by value only — precision sets interval width,
+  # not instant ordering (`.12` and `.120` are the same moment).
+  defp compare_time([{:microsecond, {v1, _p1}} | t1], [{:microsecond, {v2, _p2}} | t2]) do
+    cond do
+      v1 < v2 -> :lt
+      v1 > v2 -> :gt
+      true -> compare_time(t1, t2)
+    end
+  end
+
+  defp compare_time([{:microsecond, {v, _p}} | rest], []) do
+    if v > 0, do: :gt, else: compare_time(rest, [])
+  end
+
+  defp compare_time([], [{:microsecond, {v, _p}} | rest]) do
+    if v > 0, do: :lt, else: compare_time([], rest)
+  end
+
   defp compare_time([{unit, v} | rest], []) do
     min = unit_minimum(unit)
 

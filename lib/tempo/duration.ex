@@ -14,16 +14,28 @@ defmodule Tempo.Duration do
           | :hour
           | :minute
           | :second
+          | :microsecond
           | :day_of_year
           | :day_of_week
 
   @type t :: %__MODULE__{
-          time: [{unit(), integer()}]
+          time: [{unit(), integer() | Tempo.Microsecond.t()}]
         }
 
   defstruct [:time]
 
-  @valid_units [:year, :month, :week, :day, :hour, :minute, :second, :day_of_year, :day_of_week]
+  @valid_units [
+    :year,
+    :month,
+    :week,
+    :day,
+    :hour,
+    :minute,
+    :second,
+    :microsecond,
+    :day_of_year,
+    :day_of_week
+  ]
   @canonical_unit_order [
     :year,
     :month,
@@ -33,7 +45,8 @@ defmodule Tempo.Duration do
     :day_of_week,
     :hour,
     :minute,
-    :second
+    :second,
+    :microsecond
   ]
 
   @doc """
@@ -118,8 +131,23 @@ defmodule Tempo.Duration do
   # parser without validation. Use `new/1` for developer-facing
   # construction.
   def build(tokens) do
-    %__MODULE__{time: tokens}
+    %__MODULE__{time: lift_microsecond(tokens)}
   end
+
+  # A fractional duration-second is parsed as a sibling `{:fraction,
+  # {digits, count}}` token; lift it into a `:microsecond {value,
+  # precision}` component (same shape as the clock second) so it
+  # round-trips with its digit count and participates in arithmetic.
+  defp lift_microsecond([{:second, second}, {:fraction, {digits, count}} | rest]) do
+    [
+      {:second, second},
+      {:microsecond, Tempo.Microsecond.from_fraction(digits, count)}
+      | lift_microsecond(rest)
+    ]
+  end
+
+  defp lift_microsecond([head | rest]), do: [head | lift_microsecond(rest)]
+  defp lift_microsecond([]), do: []
 
   defp ensure_keyword(components) do
     if Keyword.keyword?(components) do
@@ -147,7 +175,14 @@ defmodule Tempo.Duration do
                 "Valid components: #{inspect(@valid_units)}"
             )}}
 
-        not is_integer(value) ->
+        unit == :microsecond and not Tempo.Microsecond.valid?(value) ->
+          {:halt,
+           {:error,
+            ArgumentError.exception(
+              "Tempo.Duration :microsecond must be a {value, precision} tuple, got #{inspect(value)}"
+            )}}
+
+        unit != :microsecond and not is_integer(value) ->
           {:halt,
            {:error,
             ArgumentError.exception(

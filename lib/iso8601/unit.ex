@@ -20,6 +20,10 @@ defmodule Tempo.Iso8601.Unit do
     hour: 15,
     minute: 10,
     second: 5,
+    # Sub-second fraction; finer than second, coarser than the
+    # `:instance` selector index. No entry in `@unit_after` — it is
+    # the finest clock unit, so it has no implicit enumerator.
+    microsecond: 4,
     instance: 3
   }
 

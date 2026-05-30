@@ -38,6 +38,8 @@ A single `Tempo.from_iso8601/1` call therefore always returns a bounded value, n
 
 * **Truncated representations** (`--06-15`, `85-06-15` — 2-digit year) were deprecated in the 2019 edition and are not accepted. Modernise your input.
 
+* **Fractional seconds** are preserved as a `:microsecond {value, precision}` component (not truncated to whole seconds). The digit count is significant — `T10:30:00.120` is millisecond resolution and `T10:30:00.12` is centisecond resolution, two distinct interval widths. ISO 8601 permits an unbounded number of fractional digits; Tempo caps precision at 6 (microsecond), matching Elixir's `Time`/`DateTime`. Input with more than 6 fractional digits is truncated to microsecond. Fractional minutes and hours (`T10:30,5`, `T10,5`) still cascade to a coarser-unit remainder as before.
+
 ### Not supported
 
 * Nothing known to be missing from Part 1 as of v0.2.0.

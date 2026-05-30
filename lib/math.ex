@@ -150,6 +150,23 @@ defmodule Tempo.Math do
     end
   end
 
+  # Step one unit-in-the-last-place at the microsecond's precision:
+  # 10^(6 - precision) microseconds (1 ms for precision 3, 1 µs for
+  # precision 6), carrying into the second at 1_000_000.
+  def add_unit(time, :microsecond, calendar) when is_list(time) do
+    {value, precision} = Keyword.fetch!(time, :microsecond)
+    incremented = value + Integer.pow(10, 6 - precision)
+
+    if incremented >= 1_000_000 do
+      time
+      |> Keyword.delete(:microsecond)
+      |> add_unit(:second, calendar)
+      |> Kernel.++([{:microsecond, {incremented - 1_000_000, precision}}])
+    else
+      Keyword.replace(time, :microsecond, {incremented, precision})
+    end
+  end
+
   def add_unit(time, :week, calendar) when is_list(time) do
     year = Keyword.fetch!(time, :year)
     week = Keyword.fetch!(time, :week)
@@ -451,7 +468,13 @@ defmodule Tempo.Math do
   @spec subtract(Tempo.t(), Tempo.Duration.t()) :: Tempo.t()
   def subtract(%Tempo{} = tempo, %Tempo.Duration{time: duration_time}) do
     negated =
-      Enum.map(duration_time, fn {unit, amount} -> {unit, -amount} end)
+      Enum.map(duration_time, fn
+        # Negate the microsecond amount by sign of the value; the
+        # `{value, precision}` shape is preserved (a transient negative
+        # value drives the borrow in `shift_microseconds/3`).
+        {:microsecond, {value, precision}} -> {:microsecond, {-value, precision}}
+        {unit, amount} -> {unit, -amount}
+      end)
 
     add(tempo, %Tempo.Duration{time: negated})
   end
@@ -474,7 +497,14 @@ defmodule Tempo.Math do
   # current resolution, extend the tempo with minimums so the
   # add/subtract_unit calls have a slot to operate on.
   defp ensure_resolution_for_duration(%Tempo{} = tempo, duration_time) do
-    finest = finest_duration_unit(duration_time)
+    # A microsecond component needs a `:second` slot to carry into, so
+    # force at least second resolution when one is present.
+    finest =
+      if Keyword.has_key?(duration_time, :microsecond) do
+        :second
+      else
+        finest_duration_unit(duration_time)
+      end
 
     if finest == nil do
       tempo
@@ -509,9 +539,48 @@ defmodule Tempo.Math do
           n -> apply_n_units(acc, unit, n, calendar)
         end
       end)
+      |> apply_microsecond_duration(Keyword.get(duration_time, :microsecond), calendar)
       |> clamp_day_to_month(calendar)
 
     %{tempo | time: new_time}
+  end
+
+  # Sub-second durations are applied as a single signed shift of the
+  # microsecond value rather than iterated `add_unit` calls (which
+  # would be O(value)). A negative value (produced by `subtract/2`)
+  # borrows from the second.
+  defp apply_microsecond_duration(time, nil, _calendar), do: time
+  defp apply_microsecond_duration(time, {0, _precision}, _calendar), do: time
+
+  defp apply_microsecond_duration(time, {value, _precision}, calendar) do
+    shift_microseconds(time, value, calendar)
+  end
+
+  @microseconds_per_second 1_000_000
+  defp shift_microseconds(time, delta, calendar) do
+    {current, precision} =
+      case Keyword.get(time, :microsecond) do
+        {v, p} -> {v, p}
+        nil -> {0, 6}
+      end
+
+    total = current + delta
+    whole_seconds = Integer.floor_div(total, @microseconds_per_second)
+    remainder = Integer.mod(total, @microseconds_per_second)
+
+    time
+    |> put_microsecond(remainder, precision)
+    |> apply_n_units(:second, whole_seconds, calendar)
+  end
+
+  # Set the microsecond component, preserving position if present and
+  # appending (after the second) if absent.
+  defp put_microsecond(time, value, precision) do
+    if Keyword.has_key?(time, :microsecond) do
+      Keyword.replace(time, :microsecond, {value, precision})
+    else
+      time ++ [{:microsecond, {value, precision}}]
+    end
   end
 
   # Apply N steps of `add_unit` (or `subtract_unit` for negative N).

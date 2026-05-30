@@ -399,16 +399,29 @@ defmodule Tempo.Interval do
   # for the upper bound.
 
   defp concrete_boundary(%Tempo{time: time, calendar: calendar} = tempo, calendar) do
-    {unit, _span} = Tempo.resolution(tempo)
+    case List.last(time) do
+      # Sub-second resolution is the finest unit and cannot drill into a
+      # finer one, so the lower bound is the value as-is and the upper
+      # bound is one unit-in-the-last-place larger: `45.123` (precision
+      # 3) spans `[45.123, 45.124)`, i.e. +1000 µs; `45.123456`
+      # (precision 6) spans a single microsecond.
+      {:microsecond, {_value, _precision}} ->
+        upper_time = Math.add_unit(time, :microsecond, calendar)
+        {:ok, build_bounds(tempo, time, upper_time)}
 
-    case Unit.implicit_enumerator(unit, calendar) do
-      nil ->
-        {:error, Tempo.MaterialisationError.exception(value: tempo, reason: :finest_resolution)}
+      _ ->
+        {unit, _span} = Tempo.resolution(tempo)
 
-      {next_unit, range} ->
-        lower_time = time ++ [{next_unit, range_first(range)}]
-        upper_time = Math.add_unit(lower_time, unit, calendar)
-        {:ok, build_bounds(tempo, lower_time, upper_time)}
+        case Unit.implicit_enumerator(unit, calendar) do
+          nil ->
+            {:error,
+             Tempo.MaterialisationError.exception(value: tempo, reason: :finest_resolution)}
+
+          {next_unit, range} ->
+            lower_time = time ++ [{next_unit, range_first(range)}]
+            upper_time = Math.add_unit(lower_time, unit, calendar)
+            {:ok, build_bounds(tempo, lower_time, upper_time)}
+        end
     end
   end
 
