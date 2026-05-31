@@ -524,16 +524,37 @@ defmodule Tempo.Validation do
 
   # Sub-second component: a `{value, precision}` microsecond tuple that
   # rides immediately after the second. Range-validate it and pass it
-  # through unchanged.
-  def resolve([{:microsecond, microsecond} | rest], calendar) do
-    if Tempo.Microsecond.valid?(microsecond) do
+  # through unchanged. A *list* of microsecond tuples is the enumeration
+  # form produced by `Tempo.Enumeration.add_implicit_enumeration/1`
+  # when a sub-second value is iterated — validate each element.
+  def resolve([{:microsecond, list} | rest], calendar) when is_list(list) do
+    if Enum.all?(list, &Tempo.Microsecond.valid?/1) do
       case resolve(rest, calendar) do
         {:error, reason} -> {:error, reason}
-        resolved -> [{:microsecond, microsecond} | resolved]
+        resolved -> [{:microsecond, list} | resolved]
       end
     else
       {:error,
-       Tempo.ParseError.exception(reason: "Invalid microsecond component #{inspect(microsecond)}")}
+       Tempo.ParseError.exception(reason: "Invalid microsecond enumeration #{inspect(list)}")}
+    end
+  end
+
+  # Guard the value pattern as `{integer, integer}` so the
+  # continuation-wrapped form `{{value, precision}, function}` produced
+  # by `Enumeration.do_next/3` falls through to the generic clause and
+  # passes through unchanged.
+  def resolve([{:microsecond, {value, precision}} | rest], calendar)
+      when is_integer(value) and is_integer(precision) do
+    if Tempo.Microsecond.valid?({value, precision}) do
+      case resolve(rest, calendar) do
+        {:error, reason} -> {:error, reason}
+        resolved -> [{:microsecond, {value, precision}} | resolved]
+      end
+    else
+      {:error,
+       Tempo.ParseError.exception(
+         reason: "Invalid microsecond component #{inspect({value, precision})}"
+       )}
     end
   end
 

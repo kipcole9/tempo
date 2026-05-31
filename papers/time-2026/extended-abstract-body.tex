@@ -80,6 +80,20 @@ Li~\cite{gruninger2017allenontology}, in which intervals are the only
 entities in the domain and Allen's relations are derivable from a
 single primitive (\textit{meets}).
 
+\paragraph*{Empirical coverage.} Against the 151 Python bugs
+catalogued by Tiwari et al., the design choices described in the
+remainder of this paper address every in-scope bug class: 43 (28\%)
+are \emph{avoided by construction} (the na\"ive / aware datetime
+split has no Tempo analogue), 56 (37\%) are \emph{directly addressed}
+by explicit machinery (zone propagation through set operations, DST
+gap rejection at parse time and IXDTF-offset fold disambiguation per
+RFC~9557~\S 4.5, calendar-aware arithmetic, half-open materialisation,
+microsecond-precision durations), 28 (19\%) are partial, and 24
+(16\%) are out of scope (Python deprecations and third-party-library
+logic such as holiday tables). \emph{Zero} bugs are classified as
+architectural gaps. The per-bug classification is provided as
+supplementary material at the repository.
+
 \section{Intervals as the primitive}
 
 Every Tempo value is a bounded half-open interval $[\mathit{first},

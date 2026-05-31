@@ -205,11 +205,23 @@ defmodule Tempo.SubSecondTest do
              ]
     end
 
-    test "a sub-second point value cannot be enumerated (finest resolution)" do
-      # Consistent with second resolution before sub-second existed:
-      # the finest unit has no finer sub-unit to iterate into.
+    test "a sub-second point value enumerates at one finer digit of precision" do
+      # `.5` (precision 1, decisecond) → ten centisecond sub-points
+      # [.50, .51, …, .59]. Each step in resolution is +1 digit of
+      # precision, matching the year→month, day→hour pattern.
+      values = Enum.to_list(~o"2026Y6M15DT10H30M45.5S")
+      assert length(values) == 10
+      assert Tempo.to_iso8601(hd(values)) == "2026Y6M15DT10H30M45.50S"
+      assert Tempo.to_iso8601(List.last(values)) == "2026Y6M15DT10H30M45.59S"
+    end
+
+    test "a microsecond-precision-6 point value cannot be enumerated (finest ulp)" do
+      # Precision 6 is the finest representable ulp; there is no
+      # +1-digit resolution to subdivide into, so this still errors —
+      # the same shape as the second-resolution error before sub-second
+      # support was added.
       assert_raise ArgumentError, fn ->
-        Enum.take(~o"2026Y6M15DT10H30M45.123S", 1)
+        Enum.take(~o"2026Y6M15DT10H30M45.123456S", 1)
       end
     end
   end

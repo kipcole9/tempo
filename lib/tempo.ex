@@ -114,7 +114,7 @@ defmodule Tempo do
   @type token :: integer() | list() | tuple()
 
   @type time_unit ::
-          :year | :month | :week | :day | :hour | :minute | :second
+          :year | :month | :week | :day | :hour | :minute | :second | :microsecond
 
   @type token_list :: [
           {:year, token}

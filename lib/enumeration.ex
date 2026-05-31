@@ -334,19 +334,52 @@ defmodule Tempo.Enumeration do
   def add_implicit_enumeration(%Tempo{time: time, calendar: calendar} = tempo) do
     {unit, _span} = Tempo.resolution(tempo)
 
-    case Unit.implicit_enumerator(unit, calendar) do
-      nil ->
-        # No finer unit exists for implicit enumeration. A fully
-        # resolved value at `:second` resolution (or any other
-        # finest-grained unit) is a bounded one-unit interval with
-        # no sub-units to iterate over.
-        raise ArgumentError,
-              "Cannot enumerate a Tempo at #{inspect(unit)} resolution " <>
-                "— no finer unit is defined. Got: #{inspect(tempo)}"
+    cond do
+      # Sub-second value: subdivide its microsecond ulp into ten
+      # sub-points at +1 precision. `~o"...45.5"` (precision 1) →
+      # `[.50, .51, …, .59]` at precision 2. At microsecond precision
+      # 6 there is no finer ulp, so we raise.
+      unit == :microsecond ->
+        {parent_value, parent_precision} = Keyword.fetch!(time, :microsecond)
+        subdivide_microsecond(tempo, parent_value, parent_precision)
 
-      {enum_unit, range} ->
-        %{tempo | time: time ++ [{enum_unit, [range]}]}
+      # Second resolution now has a finer unit (microsecond at
+      # precision 1 — decisecond). `~o"...10:00:00"` → ten sub-points
+      # at decisecond resolution `[.0, .1, …, .9]`.
+      unit == :second ->
+        enum_values = sub_second_enumeration(0, 1)
+        %{tempo | time: time ++ [{:microsecond, enum_values}]}
+
+      true ->
+        case Unit.implicit_enumerator(unit, calendar) do
+          nil ->
+            raise ArgumentError,
+                  "Cannot enumerate a Tempo at #{inspect(unit)} resolution " <>
+                    "— no finer unit is defined. Got: #{inspect(tempo)}"
+
+          {enum_unit, range} ->
+            %{tempo | time: time ++ [{enum_unit, [range]}]}
+        end
     end
+  end
+
+  defp subdivide_microsecond(%Tempo{} = tempo, _parent_value, parent_precision)
+       when parent_precision >= 6 do
+    raise ArgumentError,
+          "Cannot enumerate a Tempo at microsecond precision 6 " <>
+            "— that is the finest representable ulp. Got: #{inspect(tempo)}"
+  end
+
+  defp subdivide_microsecond(%Tempo{time: time} = tempo, parent_value, parent_precision) do
+    enum_values = sub_second_enumeration(parent_value, parent_precision + 1)
+    %{tempo | time: Keyword.replace(time, :microsecond, enum_values)}
+  end
+
+  # Ten `{value, precision}` sub-points starting at `parent_value`,
+  # stepping by `10^(6 - precision)` microseconds.
+  defp sub_second_enumeration(parent_value, precision) do
+    step = Integer.pow(10, 6 - precision)
+    Enum.map(0..9, fn i -> {parent_value + i * step, precision} end)
   end
 
   def maybe_add_implicit_enumeration(%Tempo{} = tempo) do

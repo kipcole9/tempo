@@ -199,13 +199,21 @@ defmodule Tempo.EnumerationConformance.Test do
       assert {:ok, _list} = take("2022-06-15T10:30[+05:30][u-ca=hebrew]")
     end
 
-    test "second-resolution datetime raises ArgumentError (documented)" do
-      # A fully-specified datetime at second resolution has no
-      # finer unit to iterate over. `Tempo.Enumeration.add_implicit_enumeration/1`
-      # raises with a clear message.
+    test "second-resolution datetime enumerates at decisecond" do
+      # With sub-second resolution, a second has a finer unit
+      # (microsecond at precision 1 — decisecond), so a second-
+      # resolution value subdivides into ten decisecond sub-points
+      # `[.0, .1, …, .9]`.
       {:ok, value} = Tempo.from_iso8601("2022-06-15T10:30:00Z")
+      assert length(Enum.to_list(value)) == 10
+    end
 
-      assert_raise ArgumentError, ~r/second.*no finer unit/, fn ->
+    test "microsecond-precision-6 datetime raises (finest representable ulp)" do
+      # Precision 6 is the finest representable ulp; there is no
+      # +1-digit resolution to subdivide into.
+      {:ok, value} = Tempo.from_iso8601("2022-06-15T10:30:00.123456Z")
+
+      assert_raise ArgumentError, ~r/microsecond precision 6/, fn ->
         Enum.take(value, 1)
       end
     end
