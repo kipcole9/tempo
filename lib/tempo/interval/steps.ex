@@ -27,6 +27,12 @@ defmodule Tempo.Interval.Steps do
 
   alias Tempo.Iso8601.AST
 
+  @seconds_per_minute 60
+  @seconds_per_hour 3_600
+  @seconds_per_day 86_400
+  @microseconds_per_second 1_000_000
+  @max_precision 6
+
   @doc """
   Count the number of `unit`-wide steps in the half-open span
   `[from, to)`.
@@ -82,6 +88,24 @@ defmodule Tempo.Interval.Steps do
 
   def count_steps(%Tempo{time: from_time}, %Tempo{time: to_time}, :day, calendar) do
     to_days_since_epoch(to_time, calendar) - to_days_since_epoch(from_time, calendar)
+  end
+
+  def count_steps(%Tempo{time: from_time}, %Tempo{time: to_time}, :hour, calendar) do
+    div(wall_seconds(to_time, calendar) - wall_seconds(from_time, calendar), @seconds_per_hour)
+  end
+
+  def count_steps(%Tempo{time: from_time}, %Tempo{time: to_time}, :minute, calendar) do
+    div(wall_seconds(to_time, calendar) - wall_seconds(from_time, calendar), @seconds_per_minute)
+  end
+
+  def count_steps(%Tempo{time: from_time}, %Tempo{time: to_time}, :second, calendar) do
+    wall_seconds(to_time, calendar) - wall_seconds(from_time, calendar)
+  end
+
+  def count_steps(%Tempo{time: from_time}, %Tempo{time: to_time}, :microsecond, calendar) do
+    {_value, precision} = Keyword.fetch!(from_time, :microsecond)
+    step = Integer.pow(10, @max_precision - precision)
+    div(wall_microseconds(to_time, calendar) - wall_microseconds(from_time, calendar), step)
   end
 
   def count_steps(_from, _to, _unit, _calendar), do: :not_supported
@@ -149,6 +173,36 @@ defmodule Tempo.Interval.Steps do
           |> Keyword.replace(:month, m)
           |> Keyword.replace(:day, d)
     }
+  end
+
+  def nth_step(%Tempo{time: time, calendar: calendar} = tempo, n, :hour, calendar) do
+    new_seconds = wall_seconds(time, calendar) + n * @seconds_per_hour
+    %{tempo | time: replace_date_time(time, new_seconds, calendar)}
+  end
+
+  def nth_step(%Tempo{time: time, calendar: calendar} = tempo, n, :minute, calendar) do
+    new_seconds = wall_seconds(time, calendar) + n * @seconds_per_minute
+    %{tempo | time: replace_date_time(time, new_seconds, calendar)}
+  end
+
+  def nth_step(%Tempo{time: time, calendar: calendar} = tempo, n, :second, calendar) do
+    new_seconds = wall_seconds(time, calendar) + n
+    %{tempo | time: replace_date_time(time, new_seconds, calendar)}
+  end
+
+  def nth_step(%Tempo{time: time, calendar: calendar} = tempo, n, :microsecond, calendar) do
+    {_value, precision} = Keyword.fetch!(time, :microsecond)
+    step = Integer.pow(10, @max_precision - precision)
+    new_micros = wall_microseconds(time, calendar) + n * step
+    new_seconds = Integer.floor_div(new_micros, @microseconds_per_second)
+    new_us_value = Integer.mod(new_micros, @microseconds_per_second)
+
+    new_time =
+      time
+      |> replace_date_time(new_seconds, calendar)
+      |> Keyword.replace(:microsecond, {new_us_value, precision})
+
+    %{tempo | time: new_time}
   end
 
   def nth_step(_from, _n, _unit, _calendar), do: :not_supported
@@ -273,6 +327,54 @@ defmodule Tempo.Interval.Steps do
 
   defp from_days_since_epoch(days, calendar) do
     calendar.date_from_iso_days(days)
+  end
+
+  # Wall-clock seconds since the calendar's ISO-days epoch — purely
+  # arithmetic, ignoring time-zone offset. For two endpoints in the
+  # same zone (or both UTC, or both fixed-offset), the offset cancels
+  # in the difference, so step counts are correct *as long as no DST
+  # transition falls in the interval*. DST correction lives in Phase 3.
+  defp wall_seconds(time, calendar) do
+    day_seconds = to_days_since_epoch(time, calendar) * @seconds_per_day
+    hour = Keyword.get(time, :hour, 0)
+    minute = Keyword.get(time, :minute, 0)
+    second = Keyword.get(time, :second, 0)
+    day_seconds + hour * @seconds_per_hour + minute * @seconds_per_minute + second
+  end
+
+  defp wall_microseconds(time, calendar) do
+    base = wall_seconds(time, calendar) * @microseconds_per_second
+
+    case Keyword.get(time, :microsecond) do
+      {value, _precision} -> base + value
+      nil -> base
+    end
+  end
+
+  # Convert a total wall-clock second count back into the date / time-
+  # of-day components of `time`, preserving the original component
+  # set: an hour-resolution endpoint stays hour-resolution (no minute
+  # / second added), a minute-resolution endpoint stays minute-
+  # resolution, and so on.
+  defp replace_date_time(time, total_seconds, calendar) do
+    days = Integer.floor_div(total_seconds, @seconds_per_day)
+    time_of_day_seconds = Integer.mod(total_seconds, @seconds_per_day)
+    hour = div(time_of_day_seconds, @seconds_per_hour)
+    minute = div(rem(time_of_day_seconds, @seconds_per_hour), @seconds_per_minute)
+    second = rem(time_of_day_seconds, @seconds_per_minute)
+    {y, m, d} = from_days_since_epoch(days, calendar)
+
+    time
+    |> Keyword.replace(:year, y)
+    |> Keyword.replace(:month, m)
+    |> Keyword.replace(:day, d)
+    |> maybe_replace(:hour, hour)
+    |> maybe_replace(:minute, minute)
+    |> maybe_replace(:second, second)
+  end
+
+  defp maybe_replace(time, key, value) do
+    if Keyword.has_key?(time, key), do: Keyword.replace(time, key, value), else: time
   end
 
   # Suppress an unused-alias warning if `AST` ends up unreferenced in

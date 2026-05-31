@@ -47,10 +47,34 @@ defmodule Tempo.Interval.StepsTest do
       assert Steps.count_steps(from, to, :day, Calendrical.Gregorian) == 2192
     end
 
-    test "unsupported unit returns :not_supported" do
-      from = Tempo.from_iso8601!("2026-01-01T10:00:00")
-      to = Tempo.from_iso8601!("2026-01-01T11:00:00")
-      assert Steps.count_steps(from, to, :hour, Calendrical.Gregorian) == :not_supported
+    test "hour count" do
+      from = Tempo.from_iso8601!("2026-06-15T10")
+      to = Tempo.from_iso8601!("2026-06-16T10")
+      assert Steps.count_steps(from, to, :hour, Calendrical.Gregorian) == 24
+    end
+
+    test "minute count" do
+      from = Tempo.from_iso8601!("2026-06-15T10:00")
+      to = Tempo.from_iso8601!("2026-06-15T11:00")
+      assert Steps.count_steps(from, to, :minute, Calendrical.Gregorian) == 60
+    end
+
+    test "second count" do
+      from = Tempo.from_iso8601!("2026-06-15T10:00:00")
+      to = Tempo.from_iso8601!("2026-06-15T11:00:00")
+      assert Steps.count_steps(from, to, :second, Calendrical.Gregorian) == 3600
+    end
+
+    test "microsecond count uses the precision-aware ulp" do
+      # precision 3 (millisecond) — step is 1000 µs.
+      from = Tempo.from_iso8601!("2026-06-15T10:00:00.000")
+      to = Tempo.from_iso8601!("2026-06-15T10:00:00.010")
+      assert Steps.count_steps(from, to, :microsecond, Calendrical.Gregorian) == 10
+
+      # precision 6 (microsecond) — step is 1 µs.
+      from = Tempo.from_iso8601!("2026-06-15T10:00:00.000000")
+      to = Tempo.from_iso8601!("2026-06-15T10:00:00.000010")
+      assert Steps.count_steps(from, to, :microsecond, Calendrical.Gregorian) == 10
     end
   end
 
