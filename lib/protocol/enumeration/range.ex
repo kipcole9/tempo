@@ -25,19 +25,61 @@ defimpl Enumerable, for: Tempo.Interval do
   # is being developed alongside the set-operations milestone.
 
   @impl Enumerable
-  def count(_interval) do
-    {:error, __MODULE__}
+  def count(%Tempo.Interval{from: %Tempo{calendar: calendar} = from, to: %Tempo{} = to}) do
+    {unit, _span} = Tempo.resolution(from)
+
+    case Tempo.Interval.Steps.count_steps(from, to, unit, calendar) do
+      n when is_integer(n) -> {:ok, max(n, 0)}
+      :not_supported -> {:error, __MODULE__}
+    end
   end
 
-  @impl Enumerable
-  def member?(_interval, _element) do
-    {:error, __MODULE__}
-  end
+  def count(_interval), do: {:error, __MODULE__}
 
   @impl Enumerable
-  def slice(_interval) do
-    {:error, __MODULE__}
+  def member?(
+        %Tempo.Interval{from: %Tempo{calendar: calendar} = from, to: %Tempo{} = to},
+        %Tempo{} = element
+      ) do
+    {unit, _span} = Tempo.resolution(from)
+
+    cond do
+      Tempo.Compare.compare_endpoints(element, from) == :earlier ->
+        {:ok, false}
+
+      Tempo.Compare.compare_endpoints(element, to) in [:later, :same] ->
+        {:ok, false}
+
+      true ->
+        case Tempo.Interval.Steps.on_step?(element, from, unit, calendar) do
+          bool when is_boolean(bool) -> {:ok, bool}
+          :not_supported -> {:error, __MODULE__}
+        end
+    end
   end
+
+  def member?(_interval, _element), do: {:error, __MODULE__}
+
+  @impl Enumerable
+  def slice(%Tempo.Interval{from: %Tempo{calendar: calendar} = from, to: %Tempo{} = to}) do
+    {unit, _span} = Tempo.resolution(from)
+
+    case Tempo.Interval.Steps.count_steps(from, to, unit, calendar) do
+      n when is_integer(n) and n >= 0 ->
+        slicing =
+          fn start, length, step ->
+            for i <- start..(start + length - 1)//step,
+                do: Tempo.Interval.Steps.nth_step(from, i, unit, calendar)
+          end
+
+        {:ok, n, slicing}
+
+      _ ->
+        {:error, __MODULE__}
+    end
+  end
+
+  def slice(_interval), do: {:error, __MODULE__}
 
   @impl Enumerable
   def reduce(%Tempo.Interval{from: :undefined, to: :undefined}, _acc, _fun) do
