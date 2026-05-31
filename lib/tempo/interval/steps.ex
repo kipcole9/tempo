@@ -2,10 +2,11 @@ defmodule Tempo.Interval.Steps do
   @moduledoc """
   Closed-form step arithmetic for interval enumeration.
 
-  Backs `Enumerable.Tempo.Interval`'s `count/1`, `slice/1`, and
-  `member?/2` callbacks with O(1) (or near-O(1)) implementations
-  driven by the calendar's date algebra rather than walking the
-  interval one step at a time.
+  Backs the `Enumerable` protocol implementation for
+  `t:Tempo.Interval.t/0` — specifically its `count/1`, `slice/1`,
+  and `member?/2` callbacks — with O(1) (or near-O(1))
+  implementations driven by the calendar's date algebra rather than
+  walking the interval one step at a time.
 
   Each function takes the iteration unit and the calendar in addition
   to the endpoints:
@@ -75,14 +76,14 @@ defmodule Tempo.Interval.Steps do
   @spec count_steps(Tempo.t(), Tempo.t(), atom(), module()) ::
           non_neg_integer() | :not_supported
   def count_steps(%Tempo{time: from_time}, %Tempo{time: to_time}, :year, _calendar) do
-    Keyword.fetch!(to_time, :year) - Keyword.fetch!(from_time, :year)
+    fetch_integer!(to_time, :year) - fetch_integer!(from_time, :year)
   end
 
   def count_steps(%Tempo{time: from_time}, %Tempo{time: to_time}, :month, calendar) do
-    from_y = Keyword.fetch!(from_time, :year)
-    from_m = Keyword.fetch!(from_time, :month)
-    to_y = Keyword.fetch!(to_time, :year)
-    to_m = Keyword.fetch!(to_time, :month)
+    from_y = fetch_integer!(from_time, :year)
+    from_m = fetch_integer!(from_time, :month)
+    to_y = fetch_integer!(to_time, :year)
+    to_m = fetch_integer!(to_time, :month)
     months_between(from_y, from_m, to_y, to_m, calendar)
   end
 
@@ -90,22 +91,22 @@ defmodule Tempo.Interval.Steps do
     to_days_since_epoch(to_time, calendar) - to_days_since_epoch(from_time, calendar)
   end
 
-  def count_steps(%Tempo{time: from_time}, %Tempo{time: to_time}, :hour, calendar) do
-    div(wall_seconds(to_time, calendar) - wall_seconds(from_time, calendar), @seconds_per_hour)
+  def count_steps(%Tempo{} = from, %Tempo{} = to, :hour, calendar) do
+    div(elapsed_seconds(from, to, calendar), @seconds_per_hour)
   end
 
-  def count_steps(%Tempo{time: from_time}, %Tempo{time: to_time}, :minute, calendar) do
-    div(wall_seconds(to_time, calendar) - wall_seconds(from_time, calendar), @seconds_per_minute)
+  def count_steps(%Tempo{} = from, %Tempo{} = to, :minute, calendar) do
+    div(elapsed_seconds(from, to, calendar), @seconds_per_minute)
   end
 
-  def count_steps(%Tempo{time: from_time}, %Tempo{time: to_time}, :second, calendar) do
-    wall_seconds(to_time, calendar) - wall_seconds(from_time, calendar)
+  def count_steps(%Tempo{} = from, %Tempo{} = to, :second, calendar) do
+    elapsed_seconds(from, to, calendar)
   end
 
-  def count_steps(%Tempo{time: from_time}, %Tempo{time: to_time}, :microsecond, calendar) do
-    {_value, precision} = Keyword.fetch!(from_time, :microsecond)
+  def count_steps(%Tempo{time: from_time} = from, %Tempo{} = to, :microsecond, calendar) do
+    precision = microsecond_precision!(from_time)
     step = Integer.pow(10, @max_precision - precision)
-    div(wall_microseconds(to_time, calendar) - wall_microseconds(from_time, calendar), step)
+    div(elapsed_microseconds(from, to, calendar), step)
   end
 
   def count_steps(_from, _to, _unit, _calendar), do: :not_supported
@@ -175,34 +176,29 @@ defmodule Tempo.Interval.Steps do
     }
   end
 
-  def nth_step(%Tempo{time: time, calendar: calendar} = tempo, n, :hour, calendar) do
-    new_seconds = wall_seconds(time, calendar) + n * @seconds_per_hour
-    %{tempo | time: replace_date_time(time, new_seconds, calendar)}
+  def nth_step(%Tempo{calendar: calendar} = tempo, n, :hour, calendar) do
+    nth_subday_step(tempo, n * @seconds_per_hour, calendar)
   end
 
-  def nth_step(%Tempo{time: time, calendar: calendar} = tempo, n, :minute, calendar) do
-    new_seconds = wall_seconds(time, calendar) + n * @seconds_per_minute
-    %{tempo | time: replace_date_time(time, new_seconds, calendar)}
+  def nth_step(%Tempo{calendar: calendar} = tempo, n, :minute, calendar) do
+    nth_subday_step(tempo, n * @seconds_per_minute, calendar)
   end
 
-  def nth_step(%Tempo{time: time, calendar: calendar} = tempo, n, :second, calendar) do
-    new_seconds = wall_seconds(time, calendar) + n
-    %{tempo | time: replace_date_time(time, new_seconds, calendar)}
+  def nth_step(%Tempo{calendar: calendar} = tempo, n, :second, calendar) do
+    nth_subday_step(tempo, n, calendar)
   end
 
   def nth_step(%Tempo{time: time, calendar: calendar} = tempo, n, :microsecond, calendar) do
-    {_value, precision} = Keyword.fetch!(time, :microsecond)
+    {value, precision} = Keyword.fetch!(time, :microsecond)
     step = Integer.pow(10, @max_precision - precision)
-    new_micros = wall_microseconds(time, calendar) + n * step
-    new_seconds = Integer.floor_div(new_micros, @microseconds_per_second)
-    new_us_value = Integer.mod(new_micros, @microseconds_per_second)
+    delta_micros = value + n * step
+    delta_seconds = Integer.floor_div(delta_micros, @microseconds_per_second)
+    new_us_value = Integer.mod(delta_micros, @microseconds_per_second)
 
-    new_time =
-      time
-      |> replace_date_time(new_seconds, calendar)
-      |> Keyword.replace(:microsecond, {new_us_value, precision})
+    base = %{tempo | time: Keyword.replace(time, :microsecond, {0, precision})}
+    shifted = nth_subday_step(base, delta_seconds, calendar)
 
-    %{tempo | time: new_time}
+    %{shifted | time: Keyword.replace(shifted.time, :microsecond, {new_us_value, precision})}
   end
 
   def nth_step(_from, _n, _unit, _calendar), do: :not_supported
@@ -259,11 +255,25 @@ defmodule Tempo.Interval.Steps do
   ## Helpers
   ## ----------------------------------------------------------
 
+  # `Keyword.fetch!/2` is typed as returning `any()`, so arithmetic on
+  # its result widens to `number()` and bubbles a stray `float()` into
+  # the inferred return type of `count_steps/4`. Narrowing through a
+  # guard-clause helper pins the type to `integer()` for Dialyzer.
+  # No `@spec` — the success typing inferred from call sites is
+  # tighter than any spec we'd write (`:month | :year` today), and
+  # adding a wider spec triggers a supertype-contract warning.
+  defp fetch_integer!(keyword, key) do
+    case Keyword.fetch!(keyword, key) do
+      value when is_integer(value) -> value
+    end
+  end
+
   # Calendar-aware month difference. For calendars with constant 12
   # months per year (Gregorian, Julian, Coptic, Ethiopic, Persian),
   # this is the pure modular formula. For varying-month calendars
   # (Hebrew/Metonic), we sum across the spanned years — bounded by
   # the 19-year Metonic cycle in practice.
+  @spec months_between(integer(), integer(), integer(), integer(), module()) :: integer()
   defp months_between(from_y, from_m, to_y, to_m, calendar) do
     if constant_twelve_months?(calendar, from_y, to_y) do
       (to_y - from_y) * 12 + (to_m - from_m)
@@ -276,11 +286,18 @@ defmodule Tempo.Interval.Steps do
     calendar.months_in_year(from_y) == 12 and calendar.months_in_year(to_y) == 12
   end
 
+  @spec months_in_years_between(integer(), integer(), module()) :: non_neg_integer()
   defp months_in_years_between(from_y, to_y, _calendar) when from_y == to_y, do: 0
 
   defp months_in_years_between(from_y, to_y, calendar) when from_y < to_y do
+    # `calendar.months_in_year/1` is a dynamic dispatch, so Dialyzer
+    # types its result as `any()`. The accumulator addition would
+    # then widen to `number()` and bubble `float()` into the spec
+    # of `count_steps/4`. The case-guard narrows back to integer.
     Enum.reduce(from_y..(to_y - 1)//1, 0, fn y, acc ->
-      acc + calendar.months_in_year(y)
+      case calendar.months_in_year(y) do
+        months when is_integer(months) -> acc + months
+      end
     end)
   end
 
@@ -318,36 +335,123 @@ defmodule Tempo.Interval.Steps do
     end
   end
 
+  @spec to_days_since_epoch(keyword(), module()) :: integer()
   defp to_days_since_epoch(time, calendar) do
-    year = Keyword.fetch!(time, :year)
-    month = Keyword.fetch!(time, :month)
-    day = Keyword.fetch!(time, :day)
-    calendar.date_to_iso_days(year, month, day)
+    year = fetch_integer!(time, :year)
+    month = fetch_integer!(time, :month)
+    day = fetch_integer!(time, :day)
+    # Calendrical's `date_to_iso_days/3` has no `@spec`, so Dialyzer
+    # widens its inferred return to `number()`. Narrow at the call
+    # site so the day-arithmetic chain stays in `integer()`.
+    case calendar.date_to_iso_days(year, month, day) do
+      days when is_integer(days) -> days
+    end
   end
 
   defp from_days_since_epoch(days, calendar) do
     calendar.date_from_iso_days(days)
   end
 
-  # Wall-clock seconds since the calendar's ISO-days epoch — purely
-  # arithmetic, ignoring time-zone offset. For two endpoints in the
-  # same zone (or both UTC, or both fixed-offset), the offset cancels
-  # in the difference, so step counts are correct *as long as no DST
-  # transition falls in the interval*. DST correction lives in Phase 3.
+  # Elapsed seconds between two endpoints, DST-aware when both share
+  # the same named time zone on Gregorian (where Tzdata applies).
+  # For UTC, fixed-offset, unzoned, or non-Gregorian-calendar values,
+  # the offset cancels in the wall-clock difference and the simpler
+  # `wall_seconds` arithmetic is correct.
+  #
+  # `Tempo.Compare.to_utc_seconds/1` is typed as `integer() | float()`
+  # because upstream Tzdata field specs leak `number()` into its
+  # success typing. We narrow at this call site via `trunc/1` so the
+  # `count_steps/4` return type stays `non_neg_integer()`.
+  @spec elapsed_seconds(Tempo.t(), Tempo.t(), module()) :: integer()
+  defp elapsed_seconds(from, to, calendar) do
+    if dst_correct?(from, to, calendar) do
+      trunc(Tempo.Compare.to_utc_seconds(to)) - trunc(Tempo.Compare.to_utc_seconds(from))
+    else
+      wall_seconds(to.time, calendar) - wall_seconds(from.time, calendar)
+    end
+  end
+
+  @spec elapsed_microseconds(Tempo.t(), Tempo.t(), module()) :: integer()
+  defp elapsed_microseconds(from, to, calendar) do
+    base = elapsed_seconds(from, to, calendar) * @microseconds_per_second
+    base + microsecond_value(to.time) - microsecond_value(from.time)
+  end
+
+  @spec microsecond_value(keyword()) :: integer()
+  defp microsecond_value(time) do
+    case Keyword.get(time, :microsecond) do
+      {value, _precision} when is_integer(value) -> value
+      _ -> 0
+    end
+  end
+
+  # Pull the precision (digit count) out of a microsecond keyword
+  # entry as a narrowed integer — the value comes from `Keyword.fetch!`
+  # whose `any()` return widens any arithmetic to `number()`.
+  defp microsecond_precision!(time) do
+    case Keyword.fetch!(time, :microsecond) do
+      {_value, precision} when is_integer(precision) -> precision
+    end
+  end
+
+  # Advance `from` by `delta_seconds` *elapsed* seconds. When `from`
+  # is zoned on a Gregorian named zone, the resulting wall-clock time
+  # is recomputed by adding the post-shift zone offset (handling DST
+  # gaps and folds correctly). Otherwise wall-clock arithmetic.
+  defp nth_subday_step(%Tempo{time: time, calendar: calendar} = tempo, delta_seconds, calendar) do
+    cond do
+      delta_seconds == 0 ->
+        tempo
+
+      zoned_gregorian?(tempo, calendar) ->
+        new_utc = trunc(Tempo.Compare.to_utc_seconds(tempo)) + delta_seconds
+        new_offset = zone_offset_at_utc(tempo.extended.zone_id, new_utc)
+        new_wall = new_utc + new_offset
+        %{tempo | time: replace_date_time(time, new_wall, calendar)}
+
+      true ->
+        new_wall = wall_seconds(time, calendar) + delta_seconds
+        %{tempo | time: replace_date_time(time, new_wall, calendar)}
+    end
+  end
+
+  @spec wall_seconds(keyword(), module()) :: integer()
   defp wall_seconds(time, calendar) do
     day_seconds = to_days_since_epoch(time, calendar) * @seconds_per_day
-    hour = Keyword.get(time, :hour, 0)
-    minute = Keyword.get(time, :minute, 0)
-    second = Keyword.get(time, :second, 0)
+    hour = get_integer(time, :hour, 0)
+    minute = get_integer(time, :minute, 0)
+    second = get_integer(time, :second, 0)
     day_seconds + hour * @seconds_per_hour + minute * @seconds_per_minute + second
   end
 
-  defp wall_microseconds(time, calendar) do
-    base = wall_seconds(time, calendar) * @microseconds_per_second
+  # Sibling of `fetch_integer!/2` with a default. Same Dialyzer
+  # rationale — `Keyword.get/3` returns `any()` and any arithmetic
+  # on the result would widen to `number()`.
+  defp get_integer(keyword, key, default) do
+    case Keyword.get(keyword, key, default) do
+      value when is_integer(value) -> value
+    end
+  end
 
-    case Keyword.get(time, :microsecond) do
-      {value, _precision} -> base + value
-      nil -> base
+  # DST correction needed when both endpoints carry the same named
+  # IANA zone and the calendar is Gregorian (the universe where
+  # Tzdata applies).
+  defp dst_correct?(%Tempo{} = from, %Tempo{} = to, Calendrical.Gregorian) do
+    zone_id(from) != nil and zone_id(from) == zone_id(to)
+  end
+
+  defp dst_correct?(_from, _to, _calendar), do: false
+
+  defp zoned_gregorian?(%Tempo{} = tempo, Calendrical.Gregorian), do: zone_id(tempo) != nil
+  defp zoned_gregorian?(_tempo, _calendar), do: false
+
+  defp zone_id(%Tempo{extended: %{zone_id: zone}}) when is_binary(zone) and zone != "", do: zone
+  defp zone_id(_), do: nil
+
+  defp zone_offset_at_utc(zone, utc_seconds) do
+    case Tzdata.periods_for_time(zone, utc_seconds, :utc) do
+      [period | _] -> period.utc_off + period.std_off
+      _ -> 0
     end
   end
 

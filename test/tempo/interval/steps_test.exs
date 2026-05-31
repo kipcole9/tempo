@@ -113,6 +113,42 @@ defmodule Tempo.Interval.StepsTest do
     end
   end
 
+  describe "DST-aware sub-day counts (zoned, same named zone, Gregorian)" do
+    test "spring-forward day at hour resolution skips the non-existent hour" do
+      iv =
+        Tempo.from_iso8601!("2025-03-09T00[America/New_York]/2025-03-09T06[America/New_York]")
+
+      # NY spring-forward: 02:00 → 03:00. Wall-clock 6h, elapsed 5h.
+      assert Enum.count(iv) == 5
+    end
+
+    test "fall-back day at hour resolution emits the doubled hour" do
+      iv =
+        Tempo.from_iso8601!("2025-11-02T00[America/New_York]/2025-11-02T06[America/New_York]")
+
+      # NY fall-back: 02:00 → 01:00. Wall-clock 6h, elapsed 7h.
+      assert Enum.count(iv) == 7
+    end
+
+    test "UTC values on a NY-DST day are unaffected" do
+      iv = Tempo.from_iso8601!("2025-03-09T00Z/2025-03-09T06Z")
+      assert Enum.count(iv) == 6
+    end
+
+    test "slice across spring-forward yields the elapsed-time elements" do
+      iv =
+        Tempo.from_iso8601!("2025-03-09T00[America/New_York]/2025-03-09T06[America/New_York]")
+
+      hours =
+        iv
+        |> Enum.slice(0, 5)
+        |> Enum.map(&Tempo.hour/1)
+
+      # 00, 01, 03, 04, 05 — 02 is the gap.
+      assert hours == [0, 1, 3, 4, 5]
+    end
+  end
+
   describe "Enumerable.Tempo.Interval integration" do
     test "Enum.count on a day interval is O(1) (returns the day count)" do
       iv = Tempo.from_iso8601!("2026-01-01/2026-02-01")

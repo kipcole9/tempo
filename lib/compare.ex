@@ -330,9 +330,22 @@ defmodule Tempo.Compare do
   defp explicit_offset_seconds(_extended, _shift), do: nil
 
   defp shift_to_seconds(shift) do
-    hour = Keyword.get(shift, :hour, 0)
-    minute = Keyword.get(shift, :minute, 0)
-    second = Keyword.get(shift, :second, 0)
+    hour = shift_component(shift, :hour)
+    minute = shift_component(shift, :minute)
+    second = shift_component(shift, :second)
     hour * 3600 + minute * 60 + second
+  end
+
+  # `Keyword.get/3` returns `any()`, so any arithmetic on its result
+  # widens to `number()` and propagates a stray `float()` into the
+  # spec of `to_utc_seconds/1`. Narrowing through a guarded helper
+  # pins the result to `integer()` for Dialyzer. No `@spec` — the
+  # success typing inferred from call sites (`:hour | :minute |
+  # :second`) is tighter than any spec we'd write, and a broader
+  # spec triggers a supertype-contract warning.
+  defp shift_component(shift, key) do
+    case Keyword.get(shift, key, 0) do
+      value when is_integer(value) -> value
+    end
   end
 end
