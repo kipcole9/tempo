@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [v0.7.0] — 2026-06-27
 
 ### Fixed
 
@@ -281,7 +281,7 @@ The motivation: when a user reads `Tempo.intersection(japan_trip, enrolled)` or 
 
 * Extend `Enumerable.Tempo.Interval` increment rules to cover `:week`, `:day_of_year`, and `:day_of_week` resolutions. Week-resolution intervals (`2022-W05/2022-W08`) now advance week-by-week, carrying into the next year at `calendar.weeks_in_year/1`.
 
-## [v0.1.0] 
+## [v0.1.0]
 
 This is the changelog for Tempo v0.1.0 released which was never released.
 
