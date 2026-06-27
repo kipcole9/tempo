@@ -1,8 +1,8 @@
 # Changelog
 
-## [v0.7.0] — 2026-06-27
+## [v0.8.0] — 2026-06-27
 
-### Fixed
+### Bug Fixes
 
 * `Tempo.ICal.from_ical/2` now follows RFC 5545 §3.6.1 for events with no `DTEND`/`DURATION`: a `DATE`-valued `DTSTART` spans exactly one day and a `DATE-TIME` `DTSTART` becomes a zero-duration point (`to == from`) rather than being widened by one resolution unit. The all-day end boundary also stays at day resolution instead of drifting to an hour-resolution midnight.
 
