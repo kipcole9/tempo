@@ -160,3 +160,57 @@
 
   Reference: [Tempo vs. other interval-algebra libraries](papers/library-comparisons.md#what-tempo-could-learn).
 
+* **iCal import of zero-duration events vs. the no-degenerate-intervals
+  domain.**
+
+  The iCal importer now follows RFC 5545 §3.6.1 for events with no
+  `DTEND`/`DURATION`: a `DATE-TIME` `DTSTART` becomes a zero-duration
+  point (`to == from`), and a `DATE` `DTSTART` spans exactly one day.
+  See the `dtend_to_tempo/2` clauses at
+  [lib/ical.ex:465](lib/ical.ex:465). The zero-duration case constructs
+  a `%Tempo.Interval{}` struct directly, bypassing
+  `Tempo.Interval.new/1`'s rejection of empty intervals — so the point
+  event currently survives import and (empirically) a `union`.
+
+  This is in direct tension with a *deliberate* ontological commitment,
+  not an accident. Reviewing the TIME 2026 paper confirms the intent:
+  Tempo follows Grüninger & Li's $T_{bounded\_meeting}$, which **excludes
+  degenerate (zero-extent) intervals from the domain** — "intervals are
+  the only entities", points are deliberately avoided, and
+  "an interval is never returned with zero extent". See
+  [papers/time-2026/extended-abstract-body.tex](papers/time-2026/extended-abstract-body.tex)
+  §"Set operations on intervals and interval sets" (the
+  `T_bounded_meeting` exclusion at lines 242–247) and the
+  point-avoidance rationale at lines 276–280. The v0.7.0 changelog entry
+  ("`Tempo.Interval.new/1` now rejects empty intervals … the ontology's
+  exclusion of degenerate intervals from the domain") is the code-side
+  realisation of the same decision.
+
+  So the conflict is real: RFC 5545 wants a *point*; Tempo's domain
+  *has no points*. The current fix makes import RFC-faithful at the cost
+  of injecting a value the ontology says cannot exist, which set
+  operations may legitimately drop or mishandle once empty-interval
+  filtering is tightened (the paper says set ops never *return* zero
+  extent; they don't yet promise to *tolerate* a zero-extent input).
+
+  Options to decide between:
+
+  * **Skip on import** — treat a DTEND-less timed event as
+    non-representable in the interval domain and drop it, the way
+    `DTSTART`-less events are already skipped. Honest to the ontology;
+    loses the event.
+
+  * **Keep zero-extent (current)** — RFC-faithful, but the value is
+    outside the domain and is a latent landmine for set operations.
+
+  * **Materialise at finest resolution** — the pre-fix behaviour
+    (one resolution-unit wide). Keeps the event inside the domain but
+    contradicts RFC 5545 §3.6.1's "zero duration".
+
+  * **Model points outside the interval type** — carry instantaneous
+    events as a distinct annotation/marker rather than forcing them into
+    `%Tempo.Interval{}`. Largest change; cleanest ontologically.
+
+  Resolve which of these is correct before relying on imported
+  point-events in set-algebra pipelines.
+

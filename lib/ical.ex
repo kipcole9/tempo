@@ -462,16 +462,22 @@ if Code.ensure_loaded?(ICal) do
        )}
     end
 
+    defp dtend_to_tempo(%ICal.Event{dtstart: %Date{}, dtend: nil, duration: nil}, from) do
+      # All-day event (DATE-valued DTSTART) with neither DTEND nor
+      # DURATION. RFC 5545 §3.6.1: the event's duration is taken to
+      # be one day. Advance the `from` by one unit at its own
+      # resolution, which keeps the endpoint at day resolution so the
+      # half-open span is exactly `[from, from + 1 day)`.
+      {unit, _span} = Tempo.resolution(from)
+      {:ok, Tempo.Math.add_unit(from, unit, from.calendar)}
+    end
+
     defp dtend_to_tempo(%ICal.Event{dtend: nil, duration: nil}, from) do
-      # No DTEND and no DURATION — treat as a point event with
-      # zero-width span, advanced by one unit at the from's
-      # resolution so the interval is well-formed and
-      # half-open-consistent. This matches iCal semantics for an
-      # event with just DTSTART.
-      case Tempo.Interval.next_unit_boundary(from) do
-        {:ok, {_lower, upper}} -> {:ok, upper}
-        {:error, _} = err -> err
-      end
+      # Timed event (DATE-TIME DTSTART) with neither DTEND nor
+      # DURATION. RFC 5545 §3.6.1: the event ends on the same date
+      # and time of day as DTSTART — a zero-duration point. Under the
+      # half-open `[from, to)` convention that is `to == from`.
+      {:ok, from}
     end
 
     defp dtend_to_tempo(%ICal.Event{dtend: nil, duration: _duration}, _from) do

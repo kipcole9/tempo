@@ -111,6 +111,57 @@ defmodule Tempo.ICal.Test do
       assert iv.to.time[:day] == 16
     end
 
+    test "all-day event with no DTEND spans exactly one day (RFC 5545 §3.6.1)" do
+      import Tempo.Sigils
+
+      ics = """
+      BEGIN:VCALENDAR
+      VERSION:2.0
+      PRODID:-//Test//EN
+      BEGIN:VEVENT
+      UID:allday-no-dtend
+      DTSTAMP:20220101T000000Z
+      DTSTART;VALUE=DATE:20220704
+      SUMMARY:Independence Day
+      END:VEVENT
+      END:VCALENDAR
+      """
+
+      {:ok, set} = Tempo.ICal.from_ical(ics)
+      [iv] = set.intervals
+
+      # `to` advances by one day and stays at day resolution — no
+      # drift into a finer (hour) unit.
+      assert iv.from.time == [year: 2022, month: 7, day: 4]
+      assert iv.to.time == [year: 2022, month: 7, day: 5]
+      assert Tempo.Interval.duration(iv) == ~o"PT86400S"
+    end
+
+    test "timed event with no DTEND is a zero-duration point (RFC 5545 §3.6.1)" do
+      import Tempo.Sigils
+
+      ics = """
+      BEGIN:VCALENDAR
+      VERSION:2.0
+      PRODID:-//Test//EN
+      BEGIN:VEVENT
+      UID:timed-no-dtend
+      DTSTAMP:20220101T000000Z
+      DTSTART:20220704T090000Z
+      SUMMARY:Reminder
+      END:VEVENT
+      END:VCALENDAR
+      """
+
+      {:ok, set} = Tempo.ICal.from_ical(ics)
+      [iv] = set.intervals
+
+      # The event ends at the same instant it starts: `to == from`,
+      # a zero-width half-open span — not widened by one unit.
+      assert iv.to.time == iv.from.time
+      assert Tempo.Interval.duration(iv) == ~o"PT0S"
+    end
+
     test "overlapping events are preserved (no coalesce)" do
       # Two events at the same time with different summaries.
       # Without `coalesce: false` they would merge and lose one
