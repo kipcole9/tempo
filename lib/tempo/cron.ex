@@ -19,9 +19,9 @@ defmodule Tempo.Cron do
     schedulers.
 
   * **7-field (with year)**: `"second minute hour day-of-month month day-of-week year"`.
-    A single concrete year is converted into an `UNTIL` limit;
-    year lists or ranges are left as expansion-bound limits
-    (see the "not supported" section).
+    A single concrete year is converted into an `UNTIL` limit; a
+    year list or range (`2025,2027,2029`) becomes a `bymonthday`-style
+    `byyear` filter bounded one past the last listed year.
 
   ### Field grammar
 
@@ -70,18 +70,13 @@ defmodule Tempo.Cron do
   * `N#K` as day-of-week (e.g. `5#2`) — Kth weekday-N of the month →
     `byday: [{K, N}]`.
 
+  * `W` as day-of-month (e.g. `15W`, `LW`) — the nearest weekday to
+    that day, never crossing a month boundary → `bymonthday_nearest`.
+    A Saturday snaps back to Friday, a Sunday forward to Monday, and
+    `1W` on a weekend clamps forward into the same month. Only valid
+    on a single day, never a list or range.
+
   ### Not supported (AST gaps)
-
-  * **`W` (nearest weekday)** — e.g. `15W` meaning "nearest weekday
-    to the 15th". RFC 5545 has no equivalent and the
-    `Tempo.RRule.Rule` AST does not model this pattern. Parsing
-    `W` returns `{:error, %Tempo.CronError{reason: :unsupported_w}}`.
-
-  * **Year lists** — e.g. `"0 0 1 1 * 2025,2027,2029"`. A single
-    concrete year becomes `until`; multi-year lists have no direct
-    AST field (`byyear` does not exist) and the year constraint is
-    effectively dropped. The caller should use a `:bound` at the
-    materialisation site instead.
 
   * **POSIX day-of-month vs day-of-week OR semantics** — when both
     `dom` and `dow` are non-`*`, POSIX cron matches the union
@@ -395,6 +390,10 @@ defmodule Tempo.Cron do
   # tuples as-is). `nil` means "skip this BY rule".
   defp put_by_list(rule, :__year__, _), do: rule
   defp put_by_list(rule, _key, nil), do: rule
+
+  defp put_by_list(rule, :bymonthday, {:nearest, targets}),
+    do: %{rule | bymonthday_nearest: targets}
+
   defp put_by_list(rule, key, {:list, values}), do: Map.put(rule, key, values)
   defp put_by_list(rule, key, {:step, _n}), do: rule |> Map.put(key, step_expand(key, rule))
 
@@ -402,6 +401,7 @@ defmodule Tempo.Cron do
   # POSIX OR semantics would need more; see module docs.
   defp maybe_add_bymonthday(rule, nil), do: rule
   defp maybe_add_bymonthday(rule, {:list, list}), do: Map.put(rule, :bymonthday, list)
+  defp maybe_add_bymonthday(rule, {:nearest, targets}), do: %{rule | bymonthday_nearest: targets}
   defp maybe_add_bymonthday(rule, _), do: rule
 
   # Expand a `{:step, n}` into the relevant BY list. Rare case:
@@ -464,18 +464,33 @@ defmodule Tempo.Cron do
   defp normalise_monthday("*"), do: {:ok, nil}
   defp normalise_monthday("L"), do: {:ok, {:list, [-1]}}
 
+  # `LW` — the last weekday of the month.
+  defp normalise_monthday("LW"), do: {:ok, {:nearest, [:last]}}
+
   defp normalise_monthday(string) do
-    if String.contains?(string, "W") do
-      {:error,
-       Tempo.CronError.exception(
-         field: :day_of_month,
-         value: string,
-         reason: :unsupported_w
-       )}
-    else
-      normalise(string, :day_of_month, 1..31)
+    cond do
+      # `<N>W` — the nearest weekday to day N. `W` is only valid on a
+      # single day, never a list or range (per Quartz), so a prefix
+      # carrying `,`, `-`, or `/` is rejected rather than guessed at.
+      String.ends_with?(string, "W") and single_day?(String.trim_trailing(string, "W")) ->
+        with {:ok, day} <- parse_int(String.trim_trailing(string, "W"), :day_of_month, 1..31) do
+          {:ok, {:nearest, [day]}}
+        end
+
+      String.contains?(string, "W") ->
+        {:error,
+         Tempo.CronError.exception(
+           field: :day_of_month,
+           value: string,
+           reason: :unsupported_w
+         )}
+
+      true ->
+        normalise(string, :day_of_month, 1..31)
     end
   end
+
+  defp single_day?(string), do: not String.contains?(string, [",", "-", "/"])
 
   defp normalise_dow("*"), do: {:ok, nil}
 

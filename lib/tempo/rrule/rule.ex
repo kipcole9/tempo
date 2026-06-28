@@ -55,6 +55,13 @@ defmodule Tempo.RRule.Rule do
     materialises the cadence up to the last listed year and keeps
     only occurrences whose year is in the list.
 
+  * `:bymonthday_nearest` — list of `pos_integer()` days or the
+    atom `:last`. A non-standard extension carrying the cron `W`
+    (nearest-weekday) modifier: `15W` becomes `[15]`, `LW` becomes
+    `[:last]`. Each target snaps to the nearest weekday within the
+    same month (Saturday → Friday, Sunday → Monday), never crossing
+    a month boundary, so `1W` on a Saturday lands on the 3rd.
+
   """
 
   @type frequency :: :second | :minute | :hour | :day | :week | :month | :year
@@ -76,7 +83,8 @@ defmodule Tempo.RRule.Rule do
           byminute: [non_neg_integer()] | nil,
           bysecond: [non_neg_integer()] | nil,
           bysetpos: [integer()] | nil,
-          byyear: [integer()] | nil
+          byyear: [integer()] | nil,
+          bymonthday_nearest: [pos_integer() | :last] | nil
         }
 
   defstruct freq: nil,
@@ -93,7 +101,8 @@ defmodule Tempo.RRule.Rule do
             byminute: nil,
             bysecond: nil,
             bysetpos: nil,
-            byyear: nil
+            byyear: nil,
+            bymonthday_nearest: nil
 
   @doc """
   Does the rule include any `BY*` modifier?
@@ -122,7 +131,8 @@ defmodule Tempo.RRule.Rule do
         rule.byhour,
         rule.byminute,
         rule.bysecond,
-        rule.bysetpos
+        rule.bysetpos,
+        rule.bymonthday_nearest
       ],
       &(&1 != nil)
     )

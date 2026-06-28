@@ -194,6 +194,7 @@ defmodule Tempo.RRule.Expander do
         []
         |> push_by(rule.bymonth, :month)
         |> push_by(rule.bymonthday, :day)
+        |> push_by(rule.bymonthday_nearest, :nearest_weekday)
         |> push_by(rule.byyearday, :day_of_year)
         |> push_by(rule.byweekno, :week)
         |> push_by(rule.byhour, :hour)

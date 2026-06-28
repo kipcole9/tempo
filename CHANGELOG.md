@@ -12,6 +12,8 @@
 
 * Multi-year cron fields — a 7-field cron carrying a year list or range (`0 0 0 1 1 * 2025,2027,2029`) now expands to occurrences in exactly those years, via a new non-standard `:byyear` field on `Tempo.RRule.Rule`. Previously only a single concrete year was honoured and multi-year lists were silently dropped.
 
+* Cron `W` (nearest-weekday) day-of-month — `15W` and `LW` now resolve to the nearest weekday within the month (Saturday → Friday, Sunday → Monday, never crossing a month boundary), via a new non-standard `:bymonthday_nearest` field on `Tempo.RRule.Rule`. Previously `W` returned an `:unsupported_w` error.
+
 ### Changed
 
 * `Tempo.from_elixir/2` now infers resolution for `Time`, `NaiveDateTime`, and `DateTime` from the type's declared precision (`:second`, or `:microsecond`) rather than the magnitude of the components, so `~U[2022-07-04 09:00:00Z]` is a fully specified second (not an hour) and round-trips losslessly through `to_naive_date_time/1`. Pass an explicit `:resolution` to force a coarser span (e.g. `resolution: :day` for a midnight value).

@@ -123,6 +123,7 @@ defmodule Tempo.RRule.Selection do
     :week,
     :day_of_year,
     :day,
+    :nearest_weekday,
     :day_of_week,
     :byday,
     :hour,
@@ -169,6 +170,23 @@ defmodule Tempo.RRule.Selection do
   defp apply_entry({:day, days}, candidates, _freq, _selection, _wkst) do
     Enum.filter(candidates, fn candidate ->
       in_month_day_list?(candidate, List.wrap(days))
+    end)
+  end
+
+  # Nearest-weekday (`W`) — a non-standard cron modifier. EXPAND
+  # for MONTHLY/YEARLY (project each enclosing month onto its
+  # nearest-weekday date), LIMIT otherwise (keep candidates whose
+  # day is a nearest-weekday for their month).
+  defp apply_entry({:nearest_weekday, targets}, candidates, freq, _selection, _wkst)
+       when freq in [:month, :year] do
+    Enum.flat_map(candidates, fn candidate ->
+      expand_nearest_weekdays(candidate, List.wrap(targets))
+    end)
+  end
+
+  defp apply_entry({:nearest_weekday, targets}, candidates, _freq, _selection, _wkst) do
+    Enum.filter(candidates, fn candidate ->
+      day_of(candidate) in nearest_weekday_days(candidate, List.wrap(targets))
     end)
   end
 
@@ -686,6 +704,78 @@ defmodule Tempo.RRule.Selection do
       end
     end)
     |> Enum.reject(&is_nil/1)
+  end
+
+  ## ------------------------------------------------------------
+  ## Nearest-weekday (cron `W`)
+  ## ------------------------------------------------------------
+
+  # Project each target (`15`, `1`, `:last`) onto the nearest
+  # weekday within the candidate's own month, then emit one new
+  # candidate per resolved date.
+  defp expand_nearest_weekdays(%Interval{} = candidate, targets) do
+    candidate
+    |> nearest_weekday_days(targets)
+    |> Enum.map(fn day ->
+      swap_date(candidate, candidate.from.time[:year], candidate.from.time[:month], day)
+    end)
+  end
+
+  # The concrete day-of-month each target resolves to in the
+  # candidate's month (deduplicated; out-of-range targets dropped).
+  defp nearest_weekday_days(%Interval{from: %Tempo{calendar: calendar, time: time}}, targets) do
+    year = Keyword.get(time, :year)
+    month = Keyword.get(time, :month)
+
+    if is_integer(year) and is_integer(month) do
+      dim = calendar.days_in_month(year, month)
+
+      targets
+      |> Enum.map(&nearest_weekday(calendar, year, month, &1, dim))
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+    else
+      []
+    end
+  end
+
+  # `LW` — the last weekday of the month: start at the last day and
+  # step backwards over the weekend if need be.
+  defp nearest_weekday(calendar, year, month, :last, dim) do
+    snap_back_to_weekday(calendar, year, month, dim)
+  end
+
+  # `NW` — the nearest weekday to day N. Clamp N to the month length
+  # (so `31W` in February lands on the 28th/29th), then shift off a
+  # weekend without crossing into an adjacent month: a Saturday goes
+  # back to Friday unless that leaves the month (then forward to
+  # Monday), a Sunday goes forward to Monday unless that leaves the
+  # month (then back to Friday).
+  defp nearest_weekday(calendar, year, month, day, dim) when is_integer(day) and day >= 1 do
+    target = min(day, dim)
+
+    case weekday(calendar, year, month, target) do
+      weekday when weekday in 1..5 -> target
+      6 -> if target - 1 >= 1, do: target - 1, else: target + 2
+      7 -> if target + 1 <= dim, do: target + 1, else: target - 2
+      _ -> nil
+    end
+  end
+
+  defp nearest_weekday(_calendar, _year, _month, _target, _dim), do: nil
+
+  defp snap_back_to_weekday(calendar, year, month, day) do
+    case weekday(calendar, year, month, day) do
+      weekday when weekday in 1..5 -> day
+      6 -> day - 1
+      7 -> day - 2
+      _ -> nil
+    end
+  end
+
+  defp weekday(calendar, year, month, day) do
+    calendar.day_of_week(year, month, day, :monday)
+    |> normalise_day_of_week()
   end
 
   # BYYEARDAY with FREQ=YEARLY: one occurrence per listed

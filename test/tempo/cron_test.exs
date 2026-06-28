@@ -218,6 +218,61 @@ defmodule Tempo.CronTest do
     end
   end
 
+  describe "nearest-weekday (W) day-of-month" do
+    # Resolve the day-of-month each monthly occurrence of 2026 lands on.
+    defp w_days_2026(expression) do
+      {:ok, rule} = Cron.parse(expression)
+
+      {:ok, occurrences} =
+        Tempo.RRule.Expander.expand(rule, ~o"2026-01-01T09:00:00", bound: ~o"2027Y")
+
+      Enum.map(occurrences, fn occurrence ->
+        {occurrence.from.time[:month], occurrence.from.time[:day]}
+      end)
+    end
+
+    test "`15W` parses to a :bymonthday_nearest filter at MONTHLY freq" do
+      assert {:ok, rule} = Cron.parse("0 0 9 15W * *")
+      assert rule.freq == :month
+      assert rule.bymonthday_nearest == [15]
+    end
+
+    test "`LW` parses to a last-weekday filter" do
+      assert {:ok, rule} = Cron.parse("0 0 9 LW * *")
+      assert rule.bymonthday_nearest == [:last]
+    end
+
+    test "`15W` snaps a Saturday back to Friday and a Sunday forward to Monday" do
+      days = w_days_2026("0 0 9 15W * *")
+      # Feb 15 2026 is a Sunday → Mon 16; Aug 15 2026 is a Saturday → Fri 14.
+      assert {2, 16} in days
+      assert {8, 14} in days
+      # A weekday stays put: Jan 15 2026 is a Thursday.
+      assert {1, 15} in days
+    end
+
+    test "`1W` clamps forward without crossing into the previous month" do
+      days = w_days_2026("0 0 9 1W * *")
+      # Aug 1 2026 is a Saturday → Mon 3 (never Jul 31).
+      assert {8, 3} in days
+    end
+
+    test "`31W` clamps to the month length, then to the nearest weekday" do
+      days = w_days_2026("0 0 9 31W * *")
+      # Feb has no 31st → clamp to 28 (Sat 2026) → Fri 27.
+      assert {2, 27} in days
+      # May 31 2026 is a Sunday → Fri 29 (never Jun 1).
+      assert {5, 29} in days
+    end
+
+    test "`LW` lands on the last weekday of each month" do
+      days = w_days_2026("0 0 9 LW * *")
+      # Jan 31 2026 is a Saturday → Fri 30; Feb ends Sat 28 → Fri 27.
+      assert {1, 30} in days
+      assert {2, 27} in days
+    end
+  end
+
   describe "error reporting" do
     test "not enough fields" do
       assert {:error, %Tempo.CronError{} = e} = Cron.parse("wibble")
@@ -229,9 +284,12 @@ defmodule Tempo.CronTest do
       assert Exception.message(e) =~ "outside the valid range"
     end
 
-    test "unsupported W (nearest-weekday)" do
+    test "W (nearest-weekday) is rejected in a list or range" do
       assert {:error, %Tempo.CronError{field: :day_of_month, reason: :unsupported_w}} =
-               Cron.parse("0 0 15W * *")
+               Cron.parse("0 0 0 1-15W * *")
+
+      assert {:error, %Tempo.CronError{field: :day_of_month, reason: :unsupported_w}} =
+               Cron.parse("0 0 0 15W,20W * *")
     end
 
     test "invalid day-of-week name" do

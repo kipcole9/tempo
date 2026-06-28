@@ -44,12 +44,13 @@
   cron features do not map cleanly to the current AST. Each will require
   either an AST extension or a new operator to support faithfully.
 
-  1. **`W` (nearest-weekday) day-of-month** — e.g. `15W` meaning "the nearest
-     weekday to the 15th". RFC 5545 has no equivalent; `Tempo.RRule.Rule` has
-     no field for it. The parser rejects `W` with
-     `{:error, %Tempo.CronError{reason: :unsupported_w}}`. Adding this would
-     need a new `:bymonthday_nearest_weekday` field on `Rule` and a matching
-     clause in the expander.
+  1. ~~**`W` (nearest-weekday) day-of-month** — e.g. `15W` meaning "the nearest
+     weekday to the 15th".~~ **Done.** `Rule` has a non-standard
+     `:bymonthday_nearest` field (integer days or `:last` for `LW`). The
+     parser maps `15W`/`LW` onto it (rejecting `W` in lists or ranges, per
+     Quartz), and the selection resolver snaps each target to the nearest
+     weekday within the same month — Saturday → Friday, Sunday → Monday,
+     never crossing a month boundary (`1W` on a Saturday lands on the 3rd).
 
   2. ~~**Multi-year lists in 7-field cron** — e.g. `0 0 1 1 * 2025,2027,2029`.~~
      **Done.** `Rule` now has a non-standard `:byyear` field. `Tempo.Cron`
