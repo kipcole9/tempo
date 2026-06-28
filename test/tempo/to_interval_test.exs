@@ -73,13 +73,44 @@ defmodule Tempo.ToInterval.Test do
              ]
     end
 
-    test "second — no finer unit, refuses with a clear error" do
+    test "second — materialises to a one-second span" do
+      # Once sub-second (microsecond) resolution exists below it, a
+      # second is no longer the finest unit, so it materialises to
+      # `[t, t+1s)` rather than erroring.
       {:ok, tempo} = Tempo.from_iso8601("2026-01-15T10:30:00")
+      {:ok, interval} = Tempo.to_interval(tempo)
 
-      assert {:error, %Tempo.MaterialisationError{reason: :finest_resolution} = e} =
-               Tempo.to_interval(tempo)
+      assert interval.from.time == [
+               year: 2026,
+               month: 1,
+               day: 15,
+               hour: 10,
+               minute: 30,
+               second: 0
+             ]
 
-      assert Exception.message(e) =~ "finest resolution"
+      assert interval.to.time == [
+               year: 2026,
+               month: 1,
+               day: 15,
+               hour: 10,
+               minute: 30,
+               second: 1
+             ]
+    end
+
+    test "second carries into the next minute at :59" do
+      {:ok, tempo} = Tempo.from_iso8601("2026-01-15T10:30:59")
+      {:ok, interval} = Tempo.to_interval(tempo)
+
+      assert interval.to.time == [
+               year: 2026,
+               month: 1,
+               day: 15,
+               hour: 10,
+               minute: 31,
+               second: 0
+             ]
     end
   end
 
@@ -147,6 +178,89 @@ defmodule Tempo.ToInterval.Test do
     end
   end
 
+  describe "group values (century / decade / unit groups)" do
+    # A group (`{:group, first..last}`) is a contiguous span, so it
+    # materialises to the single enclosing interval `[first, last+1)`
+    # at the group's unit — not by drilling finer, and not as a set of
+    # members. Previously a year group crashed (`add_unit(:year)` did
+    # arithmetic on the `{:group, …}` tuple).
+    test "century `20C` → the 100-year span [2000, 2100)" do
+      {:ok, tempo} = Tempo.from_iso8601("20C")
+      {:ok, interval} = Tempo.to_interval(tempo)
+      assert interval.from.time == [year: 2000]
+      assert interval.to.time == [year: 2100]
+      # 100 years measured in seconds.
+      assert Tempo.Interval.duration(interval).time == [second: 3_155_760_000]
+    end
+
+    test "decade `201J` → the 10-year span [2010, 2020)" do
+      {:ok, tempo} = Tempo.from_iso8601("201J")
+      {:ok, interval} = Tempo.to_interval(tempo)
+      assert interval.from.time == [year: 2010]
+      assert interval.to.time == [year: 2020]
+    end
+
+    test "month group `2018Y1G6MU` → the six-month span [2018-01, 2018-07)" do
+      {:ok, tempo} = Tempo.from_iso8601("2018Y1G6MU")
+      {:ok, interval} = Tempo.to_interval(tempo)
+      assert interval.from.time == [year: 2018, month: 1]
+      assert interval.to.time == [year: 2018, month: 7]
+    end
+
+    test "group at the finest unit carries at the unit boundary" do
+      # Day group ending at the last day of February carries into March.
+      tempo = %Tempo{
+        calendar: Calendrical.Gregorian,
+        time: [year: 2018, month: 2, day: {:group, 15..28}]
+      }
+
+      {:ok, interval} = Tempo.to_interval(tempo)
+      assert interval.from.time == [year: 2018, month: 2, day: 15]
+      assert interval.to.time == [year: 2018, month: 3, day: 1]
+    end
+
+    test "non-anchored day group `5G10DU` returns a clean error (no crash)" do
+      # Days 41..50 of no particular year — the `:day` carry needs
+      # year/month context the fragment doesn't carry, so it has no
+      # concrete span. Must not raise.
+      {:ok, tempo} = Tempo.from_iso8601("5G10DU")
+
+      assert {:error, %Tempo.MaterialisationError{reason: :unanchored_group}} =
+               Tempo.to_interval(tempo)
+    end
+
+    test "ordinal day group (year but no month) returns a clean error" do
+      tempo = %Tempo{calendar: Calendrical.Gregorian, time: [year: 2022, day: {:group, 41..50}]}
+
+      assert {:error, %Tempo.MaterialisationError{reason: :unanchored_group}} =
+               Tempo.to_interval(tempo)
+    end
+  end
+
+  describe "week / ordinal date duration (UTC projection)" do
+    # `Compare.to_utc_seconds/1` must resolve week and ordinal dates to
+    # a real calendar date; otherwise both endpoints collapse to Jan 1
+    # and the interval reports a zero-second duration.
+    test "a week spans seven days" do
+      {:ok, tempo} = Tempo.from_iso8601("2022-W24")
+      {:ok, interval} = Tempo.to_interval(tempo)
+      assert Tempo.Interval.duration(interval).time == [second: 604_800]
+    end
+
+    test "adjacent weeks meet (not equal)" do
+      # Before the fix both projected to Jan 1, so they compared `:equals`.
+      {:ok, w24} = Tempo.from_iso8601("2022-W24")
+      {:ok, w25} = Tempo.from_iso8601("2022-W25")
+      assert Tempo.relation(w24, w25) == :meets
+    end
+
+    test "an ordinal date spans one day" do
+      {:ok, tempo} = Tempo.from_iso8601("2022-166")
+      {:ok, interval} = Tempo.to_interval(tempo)
+      assert Tempo.Interval.duration(interval).time == [second: 86_400]
+    end
+  end
+
   describe "passthroughs and errors" do
     test "existing %Tempo.Interval{} is idempotent" do
       {:ok, interval} = Tempo.from_iso8601("1985/1986")
@@ -178,12 +292,12 @@ defmodule Tempo.ToInterval.Test do
       end
     end
 
-    test "to_interval!/1 raises on second-resolution Tempo" do
+    test "to_interval!/1 materialises a second-resolution Tempo to a one-second span" do
       {:ok, tempo} = Tempo.from_iso8601("2026-01-15T10:30:00")
+      interval = Tempo.to_interval!(tempo)
 
-      assert_raise Tempo.MaterialisationError, ~r/finest resolution/, fn ->
-        Tempo.to_interval!(tempo)
-      end
+      assert interval.from.time[:second] == 0
+      assert interval.to.time[:second] == 1
     end
   end
 

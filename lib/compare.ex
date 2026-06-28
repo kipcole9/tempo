@@ -253,8 +253,7 @@ defmodule Tempo.Compare do
               "calling operation."
     end
 
-    month = Keyword.get(time, :month, 1)
-    day = Keyword.get(time, :day, 1)
+    {year, month, day} = resolve_ymd(time, year)
     hour = Keyword.get(time, :hour, 0)
     minute = Keyword.get(time, :minute, 0)
     second = Keyword.get(time, :second, 0)
@@ -264,6 +263,40 @@ defmodule Tempo.Compare do
 
     offset_seconds = resolve_offset_seconds(extended, shift, wall_seconds)
     wall_seconds - offset_seconds
+  end
+
+  # Resolve the calendar `{year, month, day}` from the time list,
+  # handling the three date representations Tempo stores:
+  #
+  #   * ISO week date — `[year, week, day_of_week]`. Week 01 is the
+  #     week containing Jan 4 (ISO 8601-1 §5.2.3).
+  #   * Ordinal date — `[year, day]` with `:day` holding the
+  #     day-of-year and no `:month` (the absence of `:month` is the
+  #     disambiguator, matching `Tempo.to_date/1`).
+  #   * Standard date — `[year, month, day]` (month/day default to 1).
+  #
+  # Without this, week and ordinal dates projected via the
+  # month/day defaults (1, 1) and collapsed to Jan 1 — making every
+  # week interval report a zero-second duration.
+  defp resolve_ymd(time, year) do
+    cond do
+      Keyword.has_key?(time, :week) ->
+        week = Keyword.get(time, :week)
+        dow = Keyword.get(time, :day_of_week, 1)
+        {:ok, jan_4} = Date.new(year, 1, 4)
+        jan_4_dow = Date.day_of_week(jan_4)
+        week_1_monday = Date.add(jan_4, -(jan_4_dow - 1))
+        date = Date.add(week_1_monday, (week - 1) * 7 + (dow - 1))
+        {date.year, date.month, date.day}
+
+      not Keyword.has_key?(time, :month) and Keyword.has_key?(time, :day) ->
+        {:ok, jan_1} = Date.new(year, 1, 1)
+        date = Date.add(jan_1, Keyword.get(time, :day) - 1)
+        {date.year, date.month, date.day}
+
+      true ->
+        {year, Keyword.get(time, :month, 1), Keyword.get(time, :day, 1)}
+    end
   end
 
   # The offset to subtract from wall-clock to get UTC. Priority:

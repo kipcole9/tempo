@@ -1,5 +1,25 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+* `Tempo.to_date_time/1` — convert a zoned Tempo back into a `DateTime`, preserving the named time zone and re-deriving the UTC offset from the time-zone database (the lossless inverse of `from_elixir/2` on a `DateTime`). DST fall-back ambiguity is resolved using the value's stored offset, and a spring-forward gap returns an error.
+
+### Changed
+
+* `Tempo.from_elixir/2` now infers resolution for `Time`, `NaiveDateTime`, and `DateTime` from the type's declared precision (`:second`, or `:microsecond` when a sub-second precision is present) rather than from the magnitude of the components. Previously `~U[2022-07-04 09:00:00Z]` was coarsened to hour resolution and midnight to day resolution; a zero second/minute is now treated as fully specified, which fixes lossy round-trips through `to_naive_date_time/1`. Pass an explicit `:resolution` to recover the old coarsening (e.g. `resolution: :day` for a midnight value).
+
+### Bug Fixes
+
+* `Tempo.Compare.to_utc_seconds/1` now resolves ISO week dates (`2022-W24`) and ordinal dates (`2022-166`) to their real calendar date before projecting. Previously they collapsed to January 1, so every week interval reported a zero-second duration and adjacent weeks compared `:equals` instead of `:meets`.
+
+* `Tempo.to_interval/1` now materialises group values — centuries (`20C`), decades (`201J`), and unit groups (`2018Y1G6MU`) — to the single contiguous span they denote (`20C` → `[2000, 2100)`). Year groups previously raised an `ArithmeticError`, other unit groups widened to the wrong bounds, and a non-anchored group (`5G10DU`) now returns a clean `:unanchored_group` error instead of crashing.
+
+* `Tempo.to_interval/1` now materialises second-resolution values to a one-second span `[t, t+1s)` instead of returning `{:error, :finest_resolution}`. Since sub-second resolution landed, a second is no longer the finest unit, so the common case of a plain `DateTime`/`NaiveDateTime` (which infers to second resolution) can now become an interval and participate in set operations.
+
+* `Tempo.to_naive_date_time/1` and `Tempo.to_time/1` no longer error on zoned values. They now drop the offset and return the wall-clock reading (matching `to_date/1` and the stdlib `DateTime.to_naive/1`); the numbers are not shifted to UTC. Use `to_date_time/1` to keep the zone, or `shift_zone(tempo, "Etc/UTC")` to normalise to UTC wall time first.
+
 ## [v0.8.0] — 2026-06-27
 
 ### Bug Fixes

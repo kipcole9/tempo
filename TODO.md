@@ -203,14 +203,78 @@
   * **Keep zero-extent (current)** — RFC-faithful, but the value is
     outside the domain and is a latent landmine for set operations.
 
-  * **Materialise at finest resolution** — the pre-fix behaviour
-    (one resolution-unit wide). Keeps the event inside the domain but
-    contradicts RFC 5545 §3.6.1's "zero duration".
+  * **Materialise at DTSTART's implicit span** — the event becomes the
+    one-unit span the DTSTART value denotes. Keeps the event inside the
+    domain and reframes RFC 5545 §3.6.1's "zero duration" (an
+    instant-model artifact) as the smallest span containing the moment.
+    Now that `Tempo.from_elixir/2` infers resolution from the type's
+    declared precision rather than component magnitude, this yields a
+    clean **one-second** span for `09:00:00` (not the old one-*hour*
+    span), so the option that previously looked bad is now the
+    natural one. Optionally tag `metadata: %{punctual: true}` to record
+    that the source was instantaneous.
 
   * **Model points outside the interval type** — carry instantaneous
     events as a distinct annotation/marker rather than forcing them into
-    `%Tempo.Interval{}`. Largest change; cleanest ontologically.
+    `%Tempo.Interval{}`. Largest change; reintroduces a point category
+    the ontology deliberately excludes, and explodes Allen's algebra
+    into a point-interval algebra. If ever needed, the right seam is the
+    proposed `Tempo.Intervallic` protocol (above), not a core type.
 
   Resolve which of these is correct before relying on imported
-  point-events in set-algebra pipelines.
+  point-events in set-algebra pipelines. Leaning toward "materialise at
+  DTSTART's implicit span + metadata tag" now that the `from_elixir`
+  precision blocker is fixed.
+
+* **Non-anchored time-of-day groups — error vs. materialise as a
+  relative span.**
+
+  `Tempo.to_interval/1` materialises a group (`{:group, first..last}`)
+  to its enclosing span only when the value carries the contiguous
+  coarser prefix `add_unit`'s carry needs (see `group_required_units/1`
+  in [lib/tempo/interval.ex](lib/tempo/interval.ex)). A *non-anchored*
+  time-of-day group — e.g. a bare minute group `[hour: 16, minute:
+  {:group, 1..15}]` with no year/month/day — therefore returns
+  `{:error, :unanchored_group}` rather than materialising to the
+  relative span `[16:01, 16:16)`.
+
+  This was a deliberate call when fixing the `5G10DU` crash. Revisit
+  whether non-anchored *time-of-day* groups (as opposed to date groups)
+  should instead materialise to a non-anchored interval.
+
+  **Pros of materialising them:**
+
+  * Tempo already supports non-anchored time-of-day values (a bare
+    `~T`-derived Tempo, `to_time/1`), so a non-anchored time-of-day
+    *interval* is a consistent extension of that axis.
+
+  * It's strictly more capable — relative spans like "minutes 1..15 of
+    some hour" become first-class, usable for templating/recurrence
+    patterns before anchoring.
+
+  * Before the group fix these produced *wrong* bounds silently;
+    materialising them correctly would close that gap rather than
+    trading one non-result (wrong) for another (error).
+
+  **Cons / why it currently errors:**
+
+  * A non-anchored interval can't project to UTC (`to_utc_seconds/1`
+    raises without `:year`), so `duration/1`, Allen comparison, and all
+    set operations would raise on it — a value that materialises but
+    can't be used in most pipelines is a footgun.
+
+  * The carry is only well-defined when the group doesn't hit the unit
+    max (minute 1..15 is fine; minute 45..59 must carry into an `:hour`
+    that may be absent), so "sometimes materialises, sometimes errors"
+    is murkier than a clean "anchor it first."
+
+  * Date groups (`:day`/`:month`) genuinely *can't* be materialised
+    without anchoring (variable month length); keeping one rule —
+    "groups need their anchoring prefix" — is simpler than splitting
+    date-group vs. time-group behaviour.
+
+  If we do allow them, the natural shape is: materialise time-of-day
+  groups to a non-anchored interval, leave date groups erroring, and
+  document that the result lives on the time-of-day axis until anchored
+  (see `guides/interop.md` for the anchored/non-anchored distinction).
 

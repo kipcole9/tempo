@@ -5,8 +5,9 @@ defmodule Tempo.MaterialisationError do
 
   Reasons include a bare `Tempo.Duration` (no time-line anchor),
   a one-of `Tempo.Set` (epistemic disjunction, not an interval
-  list), and a `Tempo` already at its finest resolution (no
-  finer unit to bound the implicit span).
+  list), a `Tempo` already at its finest resolution (no finer unit
+  to bound the implicit span), and an unanchored group (e.g.
+  `5G10DU` — days 41..50 with no year/month to bound the span).
 
   """
 
@@ -16,6 +17,7 @@ defmodule Tempo.MaterialisationError do
           :bare_duration
           | :one_of_set
           | :finest_resolution
+          | :unanchored_group
           | atom()
           | String.t()
 
@@ -48,6 +50,17 @@ defmodule Tempo.MaterialisationError do
 
   def message(%__MODULE__{reason: :finest_resolution}) do
     "Cannot materialise a Tempo at its finest resolution into an explicit interval"
+  end
+
+  def message(%__MODULE__{reason: :unanchored_group, value: value}) when not is_nil(value) do
+    "Cannot materialise the group #{inspect(value)} into an interval — its unit " <>
+      "needs coarser calendar context (year/month) to bound the span, which a " <>
+      "non-anchored or ordinal-day group does not supply."
+  end
+
+  def message(%__MODULE__{reason: :unanchored_group}) do
+    "Cannot materialise an unanchored group into an interval — no coarser " <>
+      "calendar context to bound the span."
   end
 
   def message(%__MODULE__{reason: reason}) when is_binary(reason), do: reason

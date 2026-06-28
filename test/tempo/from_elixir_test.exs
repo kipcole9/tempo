@@ -47,22 +47,23 @@ defmodule Tempo.FromElixir.Test do
   end
 
   describe "from_elixir/2 — Time.t (resolution inference)" do
-    test "~T[10:30:00] → :minute (second is zero)" do
-      assert Tempo.from_elixir(~T[10:30:00]).time == [hour: 10, minute: 30]
+    # A `Time` is second-granular by type; resolution follows the
+    # declared precision, not the magnitude of the components. A zero
+    # second/minute is a fully specified zero, not an absent unit.
+    test "~T[10:30:00] → :second (zero second is still specified)" do
+      assert Tempo.from_elixir(~T[10:30:00]).time == [hour: 10, minute: 30, second: 0]
     end
 
     test "~T[10:30:45] → :second (all non-zero to second)" do
       assert Tempo.from_elixir(~T[10:30:45]).time == [hour: 10, minute: 30, second: 45]
     end
 
-    test "~T[10:00:00] → :hour (minute and second both zero)" do
-      assert Tempo.from_elixir(~T[10:00:00]).time == [hour: 10]
+    test "~T[10:00:00] → :second (zero minute and second still specified)" do
+      assert Tempo.from_elixir(~T[10:00:00]).time == [hour: 10, minute: 0, second: 0]
     end
 
-    test "~T[00:00:00] → :hour fallback (all zero; no coarser unit for a bare Time)" do
-      # A bare Time has no date component to widen to, so we stop
-      # at `:hour` — the coarsest Time-only unit.
-      assert Tempo.from_elixir(~T[00:00:00]).time == [hour: 0]
+    test "~T[00:00:00] → :second (midnight is a fully specified second)" do
+      assert Tempo.from_elixir(~T[00:00:00]).time == [hour: 0, minute: 0, second: 0]
     end
 
     test "microsecond is preserved as a :microsecond component" do
@@ -74,20 +75,22 @@ defmodule Tempo.FromElixir.Test do
   end
 
   describe "from_elixir/2 — NaiveDateTime.t (resolution inference)" do
-    test "midnight falls back to :day" do
-      # `~N[2022-06-15 00:00:00]` — all time components zero. The
-      # semantically-correct resolution is day (the value IS a date).
-      assert Tempo.from_elixir(~N[2022-06-15 00:00:00]) == ~o"2022Y6M15D"
+    # A `NaiveDateTime` is second-granular by type, so even an all-zero
+    # time is second resolution — not coarsened to day/hour/minute by
+    # the magnitude of its components. Pass `:resolution` to widen.
+    test "midnight is second resolution (not coarsened to :day)" do
+      assert Tempo.from_elixir(~N[2022-06-15 00:00:00]).time ==
+               [year: 2022, month: 6, day: 15, hour: 0, minute: 0, second: 0]
     end
 
-    test "hour resolution" do
+    test "zero minute and second stay specified" do
       assert Tempo.from_elixir(~N[2022-06-15 10:00:00]).time ==
-               [year: 2022, month: 6, day: 15, hour: 10]
+               [year: 2022, month: 6, day: 15, hour: 10, minute: 0, second: 0]
     end
 
-    test "minute resolution" do
+    test "zero second stays specified" do
       assert Tempo.from_elixir(~N[2022-06-15 10:30:00]).time ==
-               [year: 2022, month: 6, day: 15, hour: 10, minute: 30]
+               [year: 2022, month: 6, day: 15, hour: 10, minute: 30, second: 0]
     end
 
     test "second resolution" do
@@ -116,9 +119,9 @@ defmodule Tempo.FromElixir.Test do
   end
 
   describe "from_elixir/2 — DateTime.t" do
-    test "UTC datetime at minute resolution" do
+    test "UTC datetime is second resolution" do
       tempo = Tempo.from_elixir(~U[2022-06-15 10:30:00Z])
-      assert tempo.time == [year: 2022, month: 6, day: 15, hour: 10, minute: 30]
+      assert tempo.time == [year: 2022, month: 6, day: 15, hour: 10, minute: 30, second: 0]
       assert tempo.shift == [hour: 0]
       assert tempo.extended.zone_id == "Etc/UTC"
     end
@@ -140,9 +143,9 @@ defmodule Tempo.FromElixir.Test do
       assert tempo.extended.zone_offset == -300
     end
 
-    test "midnight UTC falls back to :day" do
+    test "midnight UTC is second resolution (not coarsened to :day)" do
       tempo = Tempo.from_elixir(~U[2022-06-15 00:00:00Z])
-      assert tempo.time == [year: 2022, month: 6, day: 15]
+      assert tempo.time == [year: 2022, month: 6, day: 15, hour: 0, minute: 0, second: 0]
     end
   end
 
@@ -198,15 +201,34 @@ defmodule Tempo.FromElixir.Test do
       assert {:ok, ^date} = Tempo.to_date(tempo)
     end
 
-    test "NaiveDateTime round-trip at :second requires explicit resolution" do
-      # Source minute-resolution; `to_naive_date_time/1` needs second.
-      # NaiveDateTime's microsecond field defaults to `{0, 0}` for
-      # sigil literals and to `{0, 6}` for `to_naive_date_time/1`
-      # output, so compare component-wise rather than structurally.
+    test "NaiveDateTime round-trips at the default (second) resolution" do
+      # Previously this required an explicit `resolution: :second`
+      # because `from_elixir/1` coarsened `10:30:00` to minute
+      # resolution and `to_naive_date_time/1` then failed. The default
+      # is now second resolution, so the round-trip succeeds with no
+      # override. NaiveDateTime's microsecond field defaults to
+      # `{0, 0}` for sigil literals and to `{0, 6}` for
+      # `to_naive_date_time/1` output, so compare component-wise
+      # rather than structurally.
       naive = ~N[2022-06-15 10:30:00]
-      tempo = Tempo.from_elixir(naive, resolution: :second)
+      tempo = Tempo.from_elixir(naive)
       assert {:ok, round_tripped} = Tempo.to_naive_date_time(tempo)
       assert NaiveDateTime.compare(round_tripped, naive) == :eq
+    end
+
+    test "zoned DateTime → to_naive_date_time keeps wall-clock, drops zone" do
+      # Paris is UTC+2 in June; the wall reading is 10:30, not 08:30.
+      paris = DateTime.new!(~D[2022-06-15], ~T[10:30:00], "Europe/Paris")
+      tempo = Tempo.from_elixir(paris)
+      assert {:ok, ~N[2022-06-15 10:30:00.000000]} = Tempo.to_naive_date_time(tempo)
+    end
+
+    test "zoned DateTime → to_date_time preserves the zone and instant" do
+      paris = DateTime.new!(~D[2022-06-15], ~T[10:30:00], "Europe/Paris")
+      tempo = Tempo.from_elixir(paris)
+      assert {:ok, round_tripped} = Tempo.to_date_time(tempo)
+      assert round_tripped.time_zone == "Europe/Paris"
+      assert DateTime.compare(round_tripped, paris) == :eq
     end
   end
 end

@@ -112,6 +112,7 @@ defmodule Tempo.MixProject do
       ],
       Guides: [
         "guides/when-to-use-tempo.md",
+        "guides/interop.md",
         "guides/set-operations.md",
         "guides/enumeration-semantics.md",
         "guides/pattern-matching-with-sigils.md",

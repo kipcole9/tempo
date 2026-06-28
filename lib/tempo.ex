@@ -1634,19 +1634,23 @@ defmodule Tempo do
   Unifies `Date.t`, `Time.t`, `NaiveDateTime.t`, and `DateTime.t`
   into the single `Tempo.t` representation under the principle
   that every date/time value is a bounded interval on the time
-  line at some resolution.
+  line at some resolution. See the
+  [interop guide](interop.html) for what the resulting value
+  spans once materialised with `to_interval/1`.
 
   The intended resolution is either given explicitly via the
   `:resolution` option or inferred from the input:
 
   * `Date.t` → `:day` (Date has no time components).
 
-  * `Time.t`, `NaiveDateTime.t`, `DateTime.t` → the finest
-    Tempo-supported component that is non-zero. If all time
-    components are zero (e.g. midnight on a date), the resolution
-    falls back to `:day` for datetime types or `:hour` for a bare
-    `Time.t`. Microsecond is discarded (Tempo does not yet model
-    sub-second resolution).
+  * `Time.t`, `NaiveDateTime.t`, `DateTime.t` → `:second`, or
+    `:microsecond` when the value carries a declared sub-second
+    precision. These types are second-granular by construction, so
+    the resolution follows the type's declared precision rather than
+    the magnitude of the components — `09:00:00` is a fully
+    specified second, not an under-specified hour. Pass an explicit
+    `:resolution` to widen to a coarser span (e.g. `:day` for a
+    midnight value you want to treat as a whole day).
 
   When an explicit `:resolution` is given, the resulting Tempo is
   passed through `at_resolution/2` to either truncate or pad to
@@ -1676,13 +1680,13 @@ defmodule Tempo do
       ~o"2022Y6M15D"
 
       iex> Tempo.from_elixir(~T[10:30:00])
-      ~o"T10H30M"
+      ~o"T10H30M0S"
 
       iex> Tempo.from_elixir(~N[2022-06-15 10:30:00])
-      ~o"2022Y6M15DT10H30M"
+      ~o"2022Y6M15DT10H30M0S"
 
       iex> Tempo.from_elixir(~N[2022-06-15 00:00:00])
-      ~o"2022Y6M15D"
+      ~o"2022Y6M15DT0H0M0S"
 
       iex> Tempo.from_elixir(~D[2022-06-15], resolution: :hour)
       ~o"2022Y6M15DT0H"
@@ -1729,34 +1733,24 @@ defmodule Tempo do
     |> at_resolution(resolution)
   end
 
-  # Infer the intended resolution of a `Time.t` by finding the
-  # finest Tempo-supported component that is non-zero. Microsecond
-  # is discarded (Tempo has no sub-second unit). All-zero falls
-  # back to `:hour`.
+  # Elixir's `Time`, `NaiveDateTime`, and `DateTime` are
+  # second-granular by type: a component value of zero (`09:00:00`)
+  # is a fully specified second, not an under-specified hour. So
+  # resolution follows the type's *declared precision*, never the
+  # magnitude of the components — `:microsecond` when a sub-second
+  # precision is present, otherwise `:second`. Inferring a coarser
+  # resolution from a zero value would conflate "this component is
+  # zero" with "this unit was not specified", the very instant/span
+  # confusion Tempo exists to remove. It also silently broke
+  # round-tripping: `from_elixir(~N[2022-06-15 09:00:00])` used to
+  # coarsen to hour resolution, and `to_naive_date_time/1` then
+  # failed to reconstitute the second-granular value. Callers that
+  # genuinely want a coarser span pass `:resolution`.
   defp infer_time_resolution(%Time{microsecond: {_v, p}}) when p > 0, do: :microsecond
+  defp infer_time_resolution(%Time{}), do: :second
 
-  defp infer_time_resolution(%Time{hour: _h, minute: m, second: s}) do
-    cond do
-      s != 0 -> :second
-      m != 0 -> :minute
-      true -> :hour
-    end
-  end
-
-  # Datetime types have date components always non-zero, so the
-  # fallback when all time components are zero is `:day` (not
-  # `:hour` as for a bare Time). A non-zero microsecond precision
-  # takes priority — the value carries sub-second resolution.
   defp infer_datetime_resolution(%{microsecond: {_v, p}}) when p > 0, do: :microsecond
-
-  defp infer_datetime_resolution(%{hour: h, minute: m, second: s}) do
-    cond do
-      s != 0 -> :second
-      m != 0 -> :minute
-      h != 0 -> :hour
-      true -> :day
-    end
-  end
+  defp infer_datetime_resolution(%{microsecond: {_v, _p}}), do: :second
 
   @doc """
   Extend a Tempo's resolution by padding finer units with their
@@ -1984,7 +1978,11 @@ defmodule Tempo do
   Convert a Tempo struct into a Time.
 
   """
-  def to_time(%Tempo{time: [hour: hour, minute: minute, second: second], shift: nil}) do
+  # A zoned time-of-day projects to the wall-clock `Time`, dropping
+  # the offset — the same lossy projection `Time` itself is (it has
+  # no zone). Mirrors `to_date/1`, and `DateTime.to_time/1` in the
+  # stdlib. Callers who need the offset should keep the Tempo.
+  def to_time(%Tempo{time: [hour: hour, minute: minute, second: second]}) do
     Time.new(hour, minute, second, 0)
   end
 
@@ -1993,7 +1991,35 @@ defmodule Tempo do
   end
 
   @doc """
-  Convert a Tempo struct into a NaiveDateTime.
+  Convert a Tempo struct into a `NaiveDateTime`.
+
+  A `NaiveDateTime` is a zoneless wall-clock reading, so a zoned
+  Tempo projects to its wall-clock components with the offset
+  dropped — the same lossy projection `DateTime.to_naive/1`
+  performs in the stdlib, and consistent with `to_date/1` /
+  `to_time/1`. No time-zone math is involved: the wall-clock fields
+  are read verbatim. To keep the zone, use `to_date_time/1`; to
+  normalise to UTC wall time first, `shift_zone(tempo, "Etc/UTC")`.
+
+  ### Arguments
+
+  * `tempo` is a `t:t/0` resolved to at least second resolution
+    (year through second, optionally microsecond). Coarser values
+    cannot fill a `NaiveDateTime` and return an error.
+
+  ### Returns
+
+  * `{:ok, naive_date_time}`, or
+
+  * `{:error, reason}` when the value is not resolved to a full
+    datetime.
+
+  ### Examples
+
+      iex> Tempo.to_naive_date_time(~o"2022-11-19T01:02:03")
+      {:ok, ~N[2022-11-19 01:02:03.000000]}
+
+      iex> {:error, _} = Tempo.to_naive_date_time(~o"2022-11")
 
   """
   def to_naive_date_time(%Tempo{
@@ -2005,15 +2031,13 @@ defmodule Tempo do
           minute: minute,
           second: second,
           microsecond: microsecond
-        ],
-        shift: nil
+        ]
       }) do
     NaiveDateTime.new(year, month, day, hour, minute, second, microsecond)
   end
 
   def to_naive_date_time(%Tempo{
-        time: [year: year, month: month, day: day, hour: hour, minute: minute, second: second],
-        shift: nil
+        time: [year: year, month: month, day: day, hour: hour, minute: minute, second: second]
       }) do
     NaiveDateTime.new(year, month, day, hour, minute, second, 0)
   end
@@ -2021,6 +2045,95 @@ defmodule Tempo do
   def to_naive_date_time(%Tempo{} = value) do
     {:error, Tempo.ConversionError.exception(value: value, target: NaiveDateTime)}
   end
+
+  @doc """
+  Convert a zoned Tempo into a `DateTime`.
+
+  The lossless inverse of `from_elixir/2` on a `t:DateTime.t/0`:
+  it preserves the named time zone, re-deriving the UTC offset from
+  the time-zone database so the result is DST-correct. This is the
+  conversion to reach for when the zone matters — unlike
+  `to_naive_date_time/1`, which deliberately drops it.
+
+  ### Arguments
+
+  * `tempo` is a `t:t/0` resolved to at least second resolution and
+    carrying a named IANA zone on `extended.zone_id` (every value
+    built from a `DateTime` via `from_elixir/2` does). Offset-only
+    values (a numeric shift with no named zone) and floating values
+    cannot name a `DateTime` zone and return an error — attach a
+    zone with `shift_zone/2` first, or use `to_naive_date_time/1`.
+
+  ### Returns
+
+  * `{:ok, date_time}`, or
+
+  * `{:error, reason}` when the value lacks a full datetime or a
+    named zone, or when the wall-clock time falls in a
+    spring-forward gap that does not exist in the zone.
+
+  ### Examples
+
+      iex> Tempo.to_date_time(~o"2022-11-19T01:02:03Z[Etc/UTC]")
+      {:ok, ~U[2022-11-19 01:02:03.000000Z]}
+
+      iex> {:error, _} = Tempo.to_date_time(~o"2022-11-19T01:02:03")
+
+  """
+  @spec to_date_time(t()) :: {:ok, DateTime.t()} | {:error, error_reason()}
+  def to_date_time(%Tempo{extended: %{zone_id: zone_id}} = tempo)
+      when is_binary(zone_id) and zone_id != "" do
+    with {:ok, naive} <- to_naive_date_time(tempo) do
+      naive_to_zoned_date_time(naive, zone_id, tempo)
+    end
+  end
+
+  def to_date_time(%Tempo{} = value) do
+    {:error, Tempo.ConversionError.exception(value: value, target: DateTime)}
+  end
+
+  # Rebuild a `DateTime` from a wall-clock `NaiveDateTime` and a
+  # named zone. `DateTime.new/4` re-derives the offset from Tzdata.
+  # A DST fall-back (`:ambiguous`) is disambiguated by the offset
+  # the Tempo already carries; a spring-forward `:gap` names a
+  # wall-clock time that does not exist, so it is an error.
+  defp naive_to_zoned_date_time(naive, zone_id, %Tempo{} = tempo) do
+    case DateTime.from_naive(naive, zone_id, Tzdata.TimeZoneDatabase) do
+      {:ok, date_time} ->
+        {:ok, date_time}
+
+      {:ambiguous, first, second} ->
+        {:ok, disambiguate_fold(first, second, tempo)}
+
+      {:gap, _just_before, _just_after} ->
+        {:error,
+         Tempo.ConversionError.exception(
+           value: tempo,
+           target: DateTime,
+           reason:
+             "wall-clock time #{NaiveDateTime.to_string(naive)} does not exist in " <>
+               "#{zone_id} (spring-forward gap)"
+         )}
+
+      {:error, _reason} ->
+        {:error, Tempo.UnknownZoneError.exception(zone_id: zone_id)}
+    end
+  end
+
+  # On a DST fall-back the same wall time occurs at two offsets;
+  # pick the candidate whose total offset matches the offset the
+  # Tempo recorded (`extended.zone_offset`, in minutes). Falls back
+  # to the first (pre-transition, higher-offset) candidate.
+  defp disambiguate_fold(first, second, %Tempo{extended: %{zone_offset: minutes}})
+       when is_integer(minutes) do
+    target_seconds = minutes * 60
+
+    Enum.find([first, second], first, fn dt ->
+      dt.utc_offset + dt.std_offset == target_seconds
+    end)
+  end
+
+  defp disambiguate_fold(first, _second, _tempo), do: first
 
   def to_calendar(%Tempo{shift: nil} = tempo) do
     with {:error, %Tempo.ConversionError{target: Date}} <- to_date(tempo),
@@ -2816,9 +2929,13 @@ defmodule Tempo do
   line. `~o"2026-01"` *is* the interval `[2026-01-01, 2026-02-01)`
   — `to_interval/1` materialises that implicit span as a pair of
   concrete endpoints under the half-open `[from, to)` convention
-  (`from` inclusive, `to` exclusive). This is the canonical
-  representation used by the upcoming set-operations API
-  (`union/2`, `intersection/2`, `coalesce/1`).
+  (`from` inclusive, `to` exclusive). The span is one unit at the
+  value's resolution: a day value becomes a one-day interval, a
+  second value a one-second interval. This is the canonical
+  representation used by the set-operations API (`union/2`,
+  `intersection/2`, `coalesce/1`). See the
+  [interop guide](interop.html) for how converted Elixir
+  date/time values materialise.
 
   When the input expands to multiple disjoint spans — a set of
   explicit values, a range over a time unit, a stepped range —
@@ -2855,11 +2972,13 @@ defmodule Tempo do
     disjoint spans.
 
   * `{:error, reason}` when the input cannot be materialised — a
-    bare `Tempo.Duration` (no anchor), a `Tempo` already at its
-    finest resolution (no finer unit to bound the span), a
-    one-of `Tempo.Set` (epistemic disjunction is not an interval
-    list; the user must pick one or handle the disjunction
-    themselves), or an unbounded recurrence with no `:bound`.
+    bare `Tempo.Duration` (no anchor), a `Tempo` at a resolution
+    with no finer unit available to bound the span (microsecond
+    materialises to a one-microsecond span; only exotic selector
+    resolutions have no span), a one-of `Tempo.Set` (epistemic
+    disjunction is not an interval list; the user must pick one or
+    handle the disjunction themselves), or an unbounded recurrence
+    with no `:bound`.
 
   ### Examples
 

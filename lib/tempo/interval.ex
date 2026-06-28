@@ -378,21 +378,78 @@ defmodule Tempo.Interval do
 
   """
   def next_unit_boundary(%Tempo{time: time, calendar: calendar} = tempo) do
-    case masked_widening(time) do
-      {:ok, {lower_time, upper_time}} ->
-        {:ok, build_bounds(tempo, lower_time, upper_time)}
+    case List.last(time) do
+      # A group at the finest unit — `20C` (century =
+      # `{:group, 2000..2099}` on year), `201J` (decade), `1G6M`
+      # (first six-month group) — is a *contiguous* span of
+      # `[first, last]` at that unit. Materialise it to the enclosing
+      # half-open interval `[unit=first, unit=last+1)`. The upper
+      # bound is `add_unit(unit=last)` so it carries (month 12 → next
+      # January). Handling it here avoids the `ArithmeticError` that
+      # `add_unit(:year)` raises on a `{:group, …}` year value, and
+      # gives the right bounds for grouped months too (the generic
+      # path widened them to a full year).
+      {unit, {:group, %Range{first: first, last: last}}} ->
+        group_boundary(tempo, time, unit, first, last, calendar)
 
-      {:widen, prefix, unit} ->
-        upper_time = Math.add_unit(prefix, unit, calendar)
-        {:ok, build_bounds(tempo, prefix, upper_time)}
+      _ ->
+        case masked_widening(time) do
+          {:ok, {lower_time, upper_time}} ->
+            {:ok, build_bounds(tempo, lower_time, upper_time)}
 
-      {:error, _} = err ->
-        err
+          {:widen, prefix, unit} ->
+            upper_time = Math.add_unit(prefix, unit, calendar)
+            {:ok, build_bounds(tempo, prefix, upper_time)}
 
-      :no_mask ->
-        concrete_boundary(tempo, calendar)
+          {:error, _} = err ->
+            err
+
+          :no_mask ->
+            concrete_boundary(tempo, calendar)
+        end
     end
   end
+
+  # Materialise a group (`{:group, first..last}` at the finest unit)
+  # to the enclosing half-open span `[unit=first, unit=last+1)`. The
+  # upper bound is `add_unit(unit=last)` so it carries correctly.
+  #
+  # `add_unit` at a date unit needs the coarser units present to
+  # carry (days-in-month needs year+month; months-in-year needs
+  # year), and the carry can cascade up to year. A group materialises
+  # only when its value carries that contiguous anchored prefix; a
+  # non-anchored fragment (`5G10DU` — days 41..50, no year) or an
+  # ordinal-day group does not, and has no concrete span. Checking
+  # the prefix up front keeps the path total without a `rescue`.
+  defp group_boundary(tempo, time, unit, first, last, calendar) do
+    prefix = List.delete_at(time, -1)
+
+    case group_required_units(unit) do
+      units when is_list(units) ->
+        if Enum.all?(units, &Keyword.has_key?(prefix, &1)) do
+          lower_time = prefix ++ [{unit, first}]
+          upper_time = Math.add_unit(prefix ++ [{unit, last}], unit, calendar)
+          {:ok, build_bounds(tempo, lower_time, upper_time)}
+        else
+          {:error, Tempo.MaterialisationError.exception(value: tempo, reason: :unanchored_group)}
+        end
+
+      :not_a_group_unit ->
+        {:error, Tempo.MaterialisationError.exception(value: tempo, reason: :unanchored_group)}
+    end
+  end
+
+  # The coarser units `add_unit`'s carry can reach from each unit.
+  # Their presence guarantees the carry chain is well-defined, so
+  # materialisation cannot raise. Units outside the standard
+  # year→second chain aren't materialisable as a span.
+  defp group_required_units(:year), do: []
+  defp group_required_units(:month), do: [:year]
+  defp group_required_units(:day), do: [:year, :month]
+  defp group_required_units(:hour), do: [:year, :month, :day]
+  defp group_required_units(:minute), do: [:year, :month, :day, :hour]
+  defp group_required_units(:second), do: [:year, :month, :day, :hour, :minute]
+  defp group_required_units(_other), do: :not_a_group_unit
 
   # Concrete (non-masked) path: drill to the implicit-enumerator unit
   # for the lower bound, then add one unit at the input's resolution
@@ -407,6 +464,16 @@ defmodule Tempo.Interval do
       # (precision 6) spans a single microsecond.
       {:microsecond, {_value, _precision}} ->
         upper_time = Math.add_unit(time, :microsecond, calendar)
+        {:ok, build_bounds(tempo, time, upper_time)}
+
+      # A second-resolution value is no longer the finest unit once
+      # sub-second (microsecond) resolution exists below it, so it
+      # materialises to a one-second span rather than erroring. Like
+      # the microsecond case the lower bound is the value as-is and
+      # the upper is one second later, keeping both endpoints at
+      # second resolution instead of drilling into microseconds.
+      {:second, _value} ->
+        upper_time = Math.add_unit(time, :second, calendar)
         {:ok, build_bounds(tempo, time, upper_time)}
 
       _ ->
