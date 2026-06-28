@@ -3,17 +3,22 @@
   group (§8.2.2, right-of-component → that component + all coarser),
   and individual (§8.2.3, left-of-component → that one only) are all
   honoured, with overlapping qualifiers combining (`?` + `~` → `%`).
-  Two gaps remain, both a separate feature:
+  The explicit (designator) form and output rendering are also done:
 
-  1. **Explicit-form per-component qualifiers** — `2004~Y6M11D` (§8.3,
-     qualifier between value and designator) does not parse; only the
-     trailing complete form (`2004Y6M11D%`) does.
+  1. ~~**Explicit-form per-component qualifiers**~~ **Done.**
+     `2004~Y6?M11D` (§8.3, qualifier between value and designator)
+     parses; an explicit qualifier is always individual (§8.2.3).
 
-  2. **Rendering the `:qualifications` map on output** — `inspect/1`
-     and the ISO writer emit the complete `:qualification` but drop
-     the per-component map, so group/individual qualifications do not
-     round-trip. This is blocked on (1), since the writer uses the
-     explicit (designator) format.
+  2. ~~**Rendering the `:qualifications` map on output**~~ **Done.**
+     `inspect/1` and `to_iso8601/1` emit per-component qualifiers in
+     explicit form, so component qualification round-trips — a parsed
+     group (`2004-06~-11`) re-encodes as the equivalent explicit
+     individual qualifiers (`2004~Y6~M11D`).
+
+  Remaining nicety: the explicit-form BC year path (`2004~YB`) and the
+  §8.2.4 *preferred* canonical output (collapsing adjacent individual
+  qualifiers back into a single group/complete form) are not done; the
+  current output is valid and round-trips, just not minimal.
 
 * Find a way to express:
   * Astro events (Easter, New Moon, ....)

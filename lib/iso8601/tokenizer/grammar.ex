@@ -421,16 +421,22 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
       parsec(:group),
       parsec(:selection),
       explicit_year_bc() |> unwrap_and_tag(:year),
-      explicit_year_with_sign() |> unwrap_and_tag(:year)
+      explicit_year_with_sign()
     ])
     |> label("explicit year")
   end
 
+  # The year value is tagged here (rather than by the caller) so an
+  # optional ISO 8601-2 §8.3 explicit qualifier can be emitted between
+  # the value and the `Y` designator (`2018?Y`).
   def explicit_year_with_sign do
     choice([
-      parsec(:integer_set_all) |> ignore(string("Y")),
-      maybe_negative_number(min: 1) |> ignore(string("Y"))
+      parsec(:integer_set_all),
+      maybe_negative_number(min: 1)
     ])
+    |> unwrap_and_tag(:year)
+    |> optional(left_qualifier(:year))
+    |> ignore(string("Y"))
     |> label("explicit year with sign")
   end
 
@@ -459,7 +465,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
     choice([
       parsec(:group),
       parsec(:selection),
-      maybe_negative_number_or_integer_set("M", :month, min: 1),
+      qualified_number_or_integer_set("M", :month, min: 1),
       quarter(),
       half()
     ])
@@ -500,7 +506,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
     choice([
       parsec(:group),
       parsec(:selection),
-      maybe_negative_number_or_integer_set("D", :day, min: 1)
+      qualified_number_or_integer_set("D", :day, min: 1)
     ])
   end
 

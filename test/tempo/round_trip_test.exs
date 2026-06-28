@@ -137,27 +137,41 @@ defmodule Tempo.RoundTripTest do
     end
   end
 
-  describe "known encoder limitations" do
-    # These cases document where the AST carries more information
-    # than `to_iso8601/1` currently emits. Each one documents a
-    # specific future encoder improvement.
+  describe "component qualification round-trips (ISO 8601-2 §8.3)" do
+    # The explicit-form encoder emits a per-component qualifier between
+    # the value and its designator (`2022Y6?M15D`), which re-parses to
+    # the same `:qualifications` map.
 
-    test "component-level qualification is lost by the explicit-form encoder" do
-      # `2022-?06-15` (EDTF Level 2) parses with the month marked
-      # uncertain. Our encoder emits explicit-form
-      # (`2022Y6M15D`), which has no syntax for per-component
-      # qualification — only EDTF's extended form does. So the
-      # qualification is dropped on encode.
+    test "an individual qualifier is preserved through encode/decode" do
       {:ok, ast} = Tempo.from_iso8601("2022-?06-15")
       assert ast.qualifications == %{month: :uncertain}
 
       encoded = Tempo.to_iso8601(ast)
-      assert encoded == "2022Y6M15D"
+      assert encoded == "2022Y6?M15D"
 
       {:ok, ast2} = Tempo.from_iso8601(encoded)
-      assert ast2.qualifications == nil
-      # The time portion round-trips cleanly.
+      assert ast2.qualifications == %{month: :uncertain}
       assert ast.time == ast2.time
+    end
+
+    test "a group qualifier round-trips as per-component explicit qualifiers" do
+      # `2004-06~-11` (group: month and year approximate) encodes as
+      # explicit individual qualifiers that carry the same meaning.
+      {:ok, ast} = Tempo.from_iso8601("2004-06~-11")
+      assert ast.qualifications == %{year: :approximate, month: :approximate}
+
+      encoded = Tempo.to_iso8601(ast)
+      assert encoded == "2004~Y6~M11D"
+
+      {:ok, ast2} = Tempo.from_iso8601(encoded)
+      assert ast2.qualifications == %{year: :approximate, month: :approximate}
+    end
+
+    test "a complete qualifier still encodes at the rightmost end" do
+      {:ok, ast} = Tempo.from_iso8601("2004-06-11%")
+      assert ast.qualification == :uncertain_and_approximate
+
+      assert Tempo.to_iso8601(ast) == "2004Y6M11D%"
     end
   end
 

@@ -313,12 +313,35 @@ defmodule Tempo.Inspect do
   defp inspect_value(%Tempo{} = tempo) do
     %Tempo{time: time, shift: shift, qualification: qualification} = tempo
 
+    time =
+      time
+      |> fold_microsecond()
+      |> apply_qualifications(tempo.qualifications)
+
     [
-      inspect_value(fold_microsecond(time)),
+      inspect_value(time),
       inspect_shift(shift),
       inspect_qualification(qualification),
       extended_trailer(tempo)
     ]
+  end
+
+  # ISO 8601-2 §8.3 explicit component qualification: tag each unit
+  # that carries a per-component qualifier with a `{:q, value, q}`
+  # marker so the leaf renderer can emit the qualifier between the
+  # value and its designator (`2004~Y`). The `{unit, _}` shape is
+  # preserved so the list-walking clauses still route correctly.
+  defp apply_qualifications(time, nil), do: time
+  defp apply_qualifications(time, qualifications) when qualifications == %{}, do: time
+
+  defp apply_qualifications(time, qualifications) do
+    Enum.map(time, fn
+      {unit, value} when is_map_key(qualifications, unit) ->
+        {unit, {:q, value, Map.fetch!(qualifications, unit)}}
+
+      other ->
+        other
+    end)
   end
 
   defp inspect_value(%Tempo.Set{set: set, type: type}) do
@@ -539,6 +562,22 @@ defmodule Tempo.Inspect do
     [inspect_value(first), "..", inspect_value(last)]
   end
 
+  # Qualified components (ISO 8601-2 §8.3) — the qualifier symbol sits
+  # between the value and its designator.
+  defp inspect_value({:second, {:q, {:micro, second, microsecond}, qualifier}}) do
+    [
+      inspect_list(second),
+      ?.,
+      Tempo.Microsecond.to_digits_string(microsecond),
+      inspect_qualification(qualifier),
+      ?S
+    ]
+  end
+
+  defp inspect_value({unit, {:q, value, qualifier}}) do
+    [inspect_list(value), inspect_qualification(qualifier), unit_designator(unit)]
+  end
+
   defp inspect_value({:year, year}), do: [inspect_list(year), ?Y]
   defp inspect_value({:month, month}), do: [inspect_list(month), ?M]
   defp inspect_value({:day, day}), do: [inspect_list(day), ?D]
@@ -579,6 +618,16 @@ defmodule Tempo.Inspect do
   defp inspect_qualification(:uncertain), do: "?"
   defp inspect_qualification(:approximate), do: "~"
   defp inspect_qualification(:uncertain_and_approximate), do: "%"
+
+  defp unit_designator(:year), do: ?Y
+  defp unit_designator(:month), do: ?M
+  defp unit_designator(:day), do: ?D
+  defp unit_designator(:day_of_year), do: ?O
+  defp unit_designator(:hour), do: ?H
+  defp unit_designator(:minute), do: ?M
+  defp unit_designator(:second), do: ?S
+  defp unit_designator(:day_of_week), do: ?K
+  defp unit_designator(:week), do: ?W
 
   # Fold a trailing `:microsecond` component into the preceding
   # `:second` so the per-unit renderer and the T-marker arity logic

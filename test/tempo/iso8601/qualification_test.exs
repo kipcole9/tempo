@@ -88,6 +88,43 @@ defmodule Tempo.Iso8601.Qualification.Test do
     end
   end
 
+  describe "explicit (designator) form (§8.3)" do
+    # In explicit form a qualifier sits between a component's value and
+    # its designator, and is always individual (§8.2.3) — the
+    # designator makes each component self-delimiting.
+
+    test "qualifier before the year designator" do
+      assert {:ok, tempo} = Tempo.from_iso8601("2004~Y6M11D")
+      assert tempo.qualifications == %{year: :approximate}
+    end
+
+    test "qualifier before the month designator" do
+      assert {:ok, tempo} = Tempo.from_iso8601("2004Y6?M11D")
+      assert tempo.qualifications == %{month: :uncertain}
+    end
+
+    test "qualifier before the day designator" do
+      assert {:ok, tempo} = Tempo.from_iso8601("2004Y6M11%D")
+      assert tempo.qualifications == %{day: :uncertain_and_approximate}
+    end
+
+    test "each component qualified independently" do
+      assert {:ok, tempo} = Tempo.from_iso8601("2004~Y6?M11%D")
+
+      assert tempo.qualifications == %{
+               year: :approximate,
+               month: :uncertain,
+               day: :uncertain_and_approximate
+             }
+    end
+
+    test "a trailing qualifier after the last designator is still complete" do
+      assert {:ok, tempo} = Tempo.from_iso8601("2004Y6M11D%")
+      assert tempo.qualification == :uncertain_and_approximate
+      assert tempo.qualifications == nil
+    end
+  end
+
   describe "combinations" do
     test "each component qualified independently" do
       assert {:ok, tempo} = Tempo.from_iso8601("2022?-?06-%15")

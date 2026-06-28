@@ -177,6 +177,22 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
     |> unwrap_and_tag(tag)
   end
 
+  # As `maybe_negative_number_or_integer_set/3` but allows an ISO
+  # 8601-2 §8.3 explicit qualifier (`?`, `~`, `%`) between the value
+  # and its designator (`2018?Y`, `6~M`, `11%D`). In explicit form a
+  # qualifier is always *individual* (§8.2.3) — the designator makes
+  # each component self-delimiting — so it emits the same
+  # `:individual_qualification` token the implicit left-qualifier does.
+  def qualified_number_or_integer_set(indicator, tag, opts) do
+    choice([
+      parsec(:integer_set_all),
+      maybe_negative_number(opts)
+    ])
+    |> unwrap_and_tag(tag)
+    |> optional(left_qualifier(tag))
+    |> ignore(string(indicator))
+  end
+
   # Seconds-only variants that keep a fractional second as a *sibling*
   # `{:fraction, {digits, count}}` token rather than folding it into a
   # float (as `positive_number`/`maybe_negative_number` would). The

@@ -94,7 +94,7 @@ A `?` (uncertain), `~` (approximate), or `%` (both) qualifier's **position** set
 
 Overlapping qualifiers on one component combine: `2004-?06~-11` (individual `?` on the month, group `~` on the month and year) yields `%{year: :approximate, month: :uncertain_and_approximate}`.
 
-**Limitations.** Only the **implicit** (hyphenated) form is parsed; the explicit designator form (`2004~Y6M11D`, §8.3) is not yet supported — only its complete variant (`2004Y6M11D%`). The `:qualifications` map is also not yet rendered back on output (`inspect/1` emits the complete `:qualification` but drops the per-component map), so group/individual qualifications do not round-trip.
+The **explicit** (designator) form is also parsed: a qualifier between a value and its designator (`2004~Y6?M11D`, §8.3) is always individual. `inspect/1` and `to_iso8601/1` render the `:qualifications` map back in this form, so component qualification **round-trips** — a parsed group such as `2004-06~-11` re-encodes as the equivalent explicit individual qualifiers `2004~Y6~M11D`.
 
 ## 4. IXDTF — Internet Extended Date/Time Format
 
