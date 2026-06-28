@@ -49,6 +49,12 @@ defmodule Tempo.RRule.Rule do
   * `:bysetpos` — list of integers; applied last to pick the Nth
     element of the per-period candidate set.
 
+  * `:byyear` — list of absolute years. A non-standard extension
+    (RFC 5545 has no `BYYEAR`); used by `Tempo.Cron` to honour a
+    multi-year cron field such as `2025,2027,2029`. The expander
+    materialises the cadence up to the last listed year and keeps
+    only occurrences whose year is in the list.
+
   """
 
   @type frequency :: :second | :minute | :hour | :day | :week | :month | :year
@@ -69,7 +75,8 @@ defmodule Tempo.RRule.Rule do
           byhour: [non_neg_integer()] | nil,
           byminute: [non_neg_integer()] | nil,
           bysecond: [non_neg_integer()] | nil,
-          bysetpos: [integer()] | nil
+          bysetpos: [integer()] | nil,
+          byyear: [integer()] | nil
         }
 
   defstruct freq: nil,
@@ -85,7 +92,8 @@ defmodule Tempo.RRule.Rule do
             byhour: nil,
             byminute: nil,
             bysecond: nil,
-            bysetpos: nil
+            bysetpos: nil,
+            byyear: nil
 
   @doc """
   Does the rule include any `BY*` modifier?

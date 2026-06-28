@@ -51,12 +51,12 @@
      need a new `:bymonthday_nearest_weekday` field on `Rule` and a matching
      clause in the expander.
 
-  2. **Multi-year lists in 7-field cron** — e.g. `0 0 1 1 * 2025,2027,2029`.
-     A single concrete year becomes `:until` (Dec 31 of that year). Multi-
-     year lists have no direct AST field (`:byyear` does not exist) and the
-     constraint is silently dropped; callers currently have to supply a
-     `:bound` at materialisation time. Adding a `:byyear` field to `Rule`
-     would be the cleanest fix.
+  2. ~~**Multi-year lists in 7-field cron** — e.g. `0 0 1 1 * 2025,2027,2029`.~~
+     **Done.** `Rule` now has a non-standard `:byyear` field. `Tempo.Cron`
+     maps a multi-year list (or a range that expands to one) onto it and
+     bounds the cadence with `:until` one past the last listed year; the
+     expander materialises that span and keeps only occurrences whose year
+     is listed, skipping the gaps.
 
   3. **POSIX day-of-month OR day-of-week semantics** — when a cron expression
      has both `dom` and `dow` non-`*`, POSIX specifies the union (either

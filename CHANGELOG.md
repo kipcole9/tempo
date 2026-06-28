@@ -10,6 +10,8 @@
 
 * ISO 8601-2 expanded years — a sign-prefixed year of five or more digits (`+12022`, `-12022`, `+002022`, `+12022-06-15`). The mandatory sign distinguishes the expanded form from a basic-format date, and a signed four-digit value (`+2006`) is rejected as it is neither basic nor expanded.
 
+* Multi-year cron fields — a 7-field cron carrying a year list or range (`0 0 0 1 1 * 2025,2027,2029`) now expands to occurrences in exactly those years, via a new non-standard `:byyear` field on `Tempo.RRule.Rule`. Previously only a single concrete year was honoured and multi-year lists were silently dropped.
+
 ### Changed
 
 * `Tempo.from_elixir/2` now infers resolution for `Time`, `NaiveDateTime`, and `DateTime` from the type's declared precision (`:second`, or `:microsecond`) rather than the magnitude of the components, so `~U[2022-07-04 09:00:00Z]` is a fully specified second (not an hour) and round-trips losslessly through `to_naive_date_time/1`. Pass an explicit `:resolution` to force a coarser span (e.g. `resolution: :day` for a midnight value).

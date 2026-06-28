@@ -1,6 +1,8 @@
 defmodule Tempo.CronTest do
   use ExUnit.Case, async: true
 
+  import Tempo.Sigils
+
   doctest Tempo.Cron
 
   alias Tempo.Cron
@@ -195,6 +197,24 @@ defmodule Tempo.CronTest do
       assert {:ok, rule} = Cron.parse("0 0 0 1 1 * 2026")
       assert rule.freq == :year
       assert rule.until.time == [year: 2027]
+    end
+
+    test "multi-year list becomes a :byyear filter bounded by UNTIL" do
+      assert {:ok, rule} = Cron.parse("0 0 0 1 1 * 2025,2027,2029")
+      assert rule.byyear == [2025, 2027, 2029]
+      assert rule.until.time == [year: 2030]
+    end
+
+    test "a year range expands to a contiguous :byyear list" do
+      assert {:ok, rule} = Cron.parse("0 0 0 1 1 * 2025-2028")
+      assert rule.byyear == [2025, 2026, 2027, 2028]
+      assert rule.until.time == [year: 2029]
+    end
+
+    test "expansion keeps only the listed years, skipping the gaps" do
+      {:ok, rule} = Cron.parse("0 0 0 1 1 * 2025,2027,2029")
+      {:ok, occurrences} = Tempo.RRule.Expander.expand(rule, ~o"2025-01-01T00:00:00")
+      assert Enum.map(occurrences, & &1.from.time[:year]) == [2025, 2027, 2029]
     end
   end
 

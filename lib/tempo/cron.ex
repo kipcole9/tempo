@@ -420,6 +420,18 @@ defmodule Tempo.Cron do
     %{rule | until: %Tempo{calendar: Calendrical.Gregorian, time: [year: year + 1]}}
   end
 
+  # A multi-year list (`2025,2027,2029`, or a range/step that expands
+  # to one) becomes a `:byyear` filter. The cadence is bounded by an
+  # UNTIL one past the last listed year so the recurrence terminates;
+  # the expander then keeps only occurrences whose year is listed.
+  defp apply_year_limit(rule, {:list, [_ | _] = years}) do
+    %{
+      rule
+      | byyear: years,
+        until: %Tempo{calendar: Calendrical.Gregorian, time: [year: Enum.max(years) + 1]}
+    }
+  end
+
   defp apply_year_limit(rule, _multiple), do: rule
 
   ## ---------------------------------------------------------
