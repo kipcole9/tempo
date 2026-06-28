@@ -195,6 +195,7 @@ defmodule Tempo.RRule.Expander do
         |> push_by(rule.bymonth, :month)
         |> push_by(rule.bymonthday, :day)
         |> push_by(rule.bymonthday_nearest, :nearest_weekday)
+        |> push_or_day(rule.bymonthday_or_byday)
         |> push_by(rule.byyearday, :day_of_year)
         |> push_by(rule.byweekno, :week)
         |> push_by(rule.byhour, :hour)
@@ -232,6 +233,12 @@ defmodule Tempo.RRule.Expander do
   defp push_by(acc, [], _unit), do: acc
   defp push_by(acc, [single], unit), do: [{unit, single} | acc]
   defp push_by(acc, list, unit) when is_list(list), do: [{unit, list} | acc]
+
+  defp push_or_day(acc, nil), do: acc
+
+  defp push_or_day(acc, {monthdays, byday_entries}) do
+    [{:or_day, {List.wrap(monthdays), List.wrap(byday_entries)}} | acc]
+  end
 
   defp push_byday(acc, nil), do: acc
   defp push_byday(acc, []), do: acc

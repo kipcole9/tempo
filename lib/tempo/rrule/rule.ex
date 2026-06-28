@@ -62,6 +62,14 @@ defmodule Tempo.RRule.Rule do
     same month (Saturday → Friday, Sunday → Monday), never crossing
     a month boundary, so `1W` on a Saturday lands on the 3rd.
 
+  * `:bymonthday_or_byday` — a `{monthdays, byday_entries}` tuple. A
+    non-standard extension carrying POSIX cron's day-of-month **OR**
+    day-of-week union: when both fields are restricted (`13 * 5` —
+    "the 13th *or* any Friday"), a candidate is kept if its day is in
+    `monthdays` **or** its weekday matches `byday_entries`. Unlike the
+    AND-composing `:bymonthday` + `:byday`, which would select only
+    Friday-the-13ths.
+
   """
 
   @type frequency :: :second | :minute | :hour | :day | :week | :month | :year
@@ -84,7 +92,8 @@ defmodule Tempo.RRule.Rule do
           bysecond: [non_neg_integer()] | nil,
           bysetpos: [integer()] | nil,
           byyear: [integer()] | nil,
-          bymonthday_nearest: [pos_integer() | :last] | nil
+          bymonthday_nearest: [pos_integer() | :last] | nil,
+          bymonthday_or_byday: {[integer()], [byday_entry()]} | nil
         }
 
   defstruct freq: nil,
@@ -102,7 +111,8 @@ defmodule Tempo.RRule.Rule do
             bysecond: nil,
             bysetpos: nil,
             byyear: nil,
-            bymonthday_nearest: nil
+            bymonthday_nearest: nil,
+            bymonthday_or_byday: nil
 
   @doc """
   Does the rule include any `BY*` modifier?
@@ -132,7 +142,8 @@ defmodule Tempo.RRule.Rule do
         rule.byminute,
         rule.bysecond,
         rule.bysetpos,
-        rule.bymonthday_nearest
+        rule.bymonthday_nearest,
+        rule.bymonthday_or_byday
       ],
       &(&1 != nil)
     )

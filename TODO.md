@@ -59,13 +59,16 @@
      expander materialises that span and keeps only occurrences whose year
      is listed, skipping the gaps.
 
-  3. **POSIX day-of-month OR day-of-week semantics** — when a cron expression
-     has both `dom` and `dow` non-`*`, POSIX specifies the union (either
-     condition true). RRule BY rules AND-compose. Currently the parser
-     tightens `dom` into a conjunction alongside `dow`, producing fewer
-     matches than POSIX would. Exact OR would require a disjunction operator
-     in the AST — e.g. `:or_clauses` holding a list of sub-rules whose match
-     sets are unioned.
+  3. ~~**POSIX day-of-month OR day-of-week semantics**~~ **Done.** Rather
+     than a general disjunction operator, the common case is handled with a
+     `:bymonthday_or_byday` union filter on `Rule`: when both `dom` and `dow`
+     are plain lists, the parser emits a DAILY cadence whose selection keeps a
+     day if its day-of-month OR its weekday matches (`13 * 5` → every 13th and
+     every Friday). Month/time fields still AND-compose. A Quartz extension
+     (ordinal `5#2`/`5L`, or nearest-weekday `15W`) opts out and keeps the
+     AND interpretation. Known limit: a wildcard sub-day time field in the OR
+     case is under-served (the daily cadence assumes a fixed time); the common
+     fixed-time shape is exact.
 
   4. ~~**Step LHS semantics on day-of-week** — `MON-FRI/2` works, but `FRI/2`
      ...~~ **Done.** The design call: a day-of-week step expands in *cron*

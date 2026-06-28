@@ -124,6 +124,7 @@ defmodule Tempo.RRule.Selection do
     :day_of_year,
     :day,
     :nearest_weekday,
+    :or_day,
     :day_of_week,
     :byday,
     :hour,
@@ -187,6 +188,17 @@ defmodule Tempo.RRule.Selection do
   defp apply_entry({:nearest_weekday, targets}, candidates, _freq, _selection, _wkst) do
     Enum.filter(candidates, fn candidate ->
       day_of(candidate) in nearest_weekday_days(candidate, List.wrap(targets))
+    end)
+  end
+
+  # POSIX day-of-month OR day-of-week — a non-standard cron union.
+  # Always a LIMIT: keep a candidate whose day-of-month is in the
+  # monthday list OR whose weekday matches a byday entry. The cron
+  # builder pairs this with a DAILY cadence so every candidate day
+  # is visited.
+  defp apply_entry({:or_day, {monthdays, byday_entries}}, candidates, _freq, _selection, _wkst) do
+    Enum.filter(candidates, fn candidate ->
+      in_month_day_list?(candidate, monthdays) or weekday_matches?(candidate, byday_entries)
     end)
   end
 
@@ -465,6 +477,16 @@ defmodule Tempo.RRule.Selection do
   defp normalise_day_of_week(dow) when is_integer(dow) and dow in 1..7, do: dow
   defp normalise_day_of_week({dow, _first, _last}) when is_integer(dow), do: dow
   defp normalise_day_of_week(_), do: nil
+
+  # True when the candidate's weekday matches any `{ordinal, weekday}`
+  # entry. Used by the POSIX OR filter, where the entries are plain
+  # weekdays (the ordinal is `nil`), so only the weekday is compared.
+  defp weekday_matches?(%Interval{} = candidate, byday_entries) do
+    case weekday_of(candidate) do
+      nil -> false
+      weekday -> Enum.any?(byday_entries, fn {_ordinal, day} -> day == weekday end)
+    end
+  end
 
   # Walk every date in the candidate's enclosing week/month/year
   # and emit one new candidate per matching weekday. We preserve

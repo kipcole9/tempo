@@ -301,6 +301,77 @@ defmodule Tempo.CronTest do
     end
   end
 
+  describe "POSIX day-of-month OR day-of-week" do
+    # The {month, day} of each 2026 occurrence.
+    defp or_dates_2026(expression) do
+      {:ok, rule} = Cron.parse(expression)
+
+      {:ok, occurrences} =
+        Tempo.RRule.Expander.expand(rule, ~o"2026-01-01T00:00:00", bound: ~o"2027Y")
+
+      occurrences
+      |> Enum.map(fn occurrence ->
+        {occurrence.from.time[:year], occurrence.from.time[:month], occurrence.from.time[:day]}
+      end)
+      |> Enum.filter(fn {year, _, _} -> year == 2026 end)
+      |> Enum.map(fn {_, month, day} -> {month, day} end)
+    end
+
+    test "`13 * 5` parses to a daily cadence with a :bymonthday_or_byday union" do
+      assert {:ok, rule} = Cron.parse("0 0 13 * 5")
+      assert rule.freq == :day
+      assert rule.bymonthday_or_byday == {[13], [{nil, 5}]}
+      # The AND-composing fields are left clear so the union is not also filtered.
+      assert rule.bymonthday == nil
+      assert rule.byday == nil
+    end
+
+    test "`13 * 5` matches every 13th OR every Friday (the union, not the intersection)" do
+      dates = or_dates_2026("0 0 13 * 5")
+
+      fridays =
+        for month <- 1..12,
+            day <- 1..31,
+            match?({:ok, _}, Date.new(2026, month, day)),
+            Date.day_of_week(Date.new!(2026, month, day)) == 5,
+            do: {month, day}
+
+      thirteenths = for month <- 1..12, do: {month, 13}
+      expected = Enum.sort(Enum.uniq(fridays ++ thirteenths))
+
+      assert Enum.sort(dates) == expected
+      # Sanity: 52 Fridays + 12 thirteenths − 3 Friday-the-13ths in 2026.
+      assert length(dates) == 61
+    end
+
+    test "month still AND-composes with the day union" do
+      dates = or_dates_2026("0 0 13 6 5")
+      assert Enum.all?(dates, fn {month, _day} -> month == 6 end)
+      # June 2026: Fridays (5, 12, 19, 26) ∪ the 13th.
+      assert Enum.sort(dates) == [{6, 5}, {6, 12}, {6, 13}, {6, 19}, {6, 26}]
+    end
+
+    test "an ordinal day-of-week (`5#2`) opts out — keeps AND-composition" do
+      assert {:ok, rule} = Cron.parse("0 0 13 * 5#2")
+      assert rule.bymonthday_or_byday == nil
+      assert rule.bymonthday == [13]
+      assert rule.byday == [{2, 5}]
+    end
+
+    test "a `W` day-of-month opts out — keeps AND-composition" do
+      assert {:ok, rule} = Cron.parse("0 0 15W * 5")
+      assert rule.bymonthday_or_byday == nil
+      assert rule.bymonthday_nearest == [15]
+      assert rule.byday == [{nil, 5}]
+    end
+
+    test "a restricted day-of-month alone (dow = `*`) does not trigger the union" do
+      assert {:ok, rule} = Cron.parse("0 0 13 * *")
+      assert rule.bymonthday_or_byday == nil
+      assert rule.bymonthday == [13]
+    end
+  end
+
   describe "error reporting" do
     test "not enough fields" do
       assert {:error, %Tempo.CronError{} = e} = Cron.parse("wibble")

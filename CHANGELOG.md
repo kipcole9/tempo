@@ -14,6 +14,8 @@
 
 * Cron `W` (nearest-weekday) day-of-month — `15W` and `LW` now resolve to the nearest weekday within the month (Saturday → Friday, Sunday → Monday, never crossing a month boundary), via a new non-standard `:bymonthday_nearest` field on `Tempo.RRule.Rule`. Previously `W` returned an `:unsupported_w` error.
 
+* Cron POSIX day-of-month OR day-of-week — when both fields are restricted (`13 * 5` — "the 13th or any Friday"), occurrences are now the union of the two, via a new non-standard `:bymonthday_or_byday` field on `Tempo.RRule.Rule`. A Quartz extension (ordinal `5#2`, or nearest-weekday `15W`) opts out and keeps the AND-composing interpretation.
+
 ### Changed
 
 * `Tempo.from_elixir/2` now infers resolution for `Time`, `NaiveDateTime`, and `DateTime` from the type's declared precision (`:second`, or `:microsecond`) rather than the magnitude of the components, so `~U[2022-07-04 09:00:00Z]` is a fully specified second (not an hour) and round-trips losslessly through `to_naive_date_time/1`. Pass an explicit `:resolution` to force a coarser span (e.g. `resolution: :day` for a midnight value).

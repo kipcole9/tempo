@@ -80,14 +80,17 @@ defmodule Tempo.Cron do
     `1W` on a weekend clamps forward into the same month. Only valid
     on a single day, never a list or range.
 
-  ### Not supported (AST gaps)
+  ### POSIX day-of-month OR day-of-week
 
-  * **POSIX day-of-month vs day-of-week OR semantics** — when both
-    `dom` and `dow` are non-`*`, POSIX cron matches the union
-    (either condition true). The AST AND-composes BY rules, so in
-    this case the dow list is used and the dom list is folded into
-    a `bysetpos`-style predicate approximation. Exact OR semantics
-    would require a union operator in the AST.
+  When both `dom` and `dow` are restricted to plain lists (`13 * 5` —
+  "the 13th *or* any Friday"), POSIX cron matches the **union**, not
+  the intersection. Tempo honours this via a daily cadence carrying a
+  `bymonthday_or_byday` union filter, so `13 * 5` fires on every 13th
+  and every Friday — not only Friday-the-13ths. A Quartz extension in
+  either field (an ordinal day-of-week `5#2`/`5L`, or a nearest-weekday
+  `15W`) opts out and keeps the AND-composing interpretation.
+
+  ### Not supported (AST gaps)
 
   * **`@reboot`** — not a time expression.
 
@@ -257,8 +260,43 @@ defmodule Tempo.Cron do
         has_seconds?: sec != nil
       }
 
-      {:ok, choose_freq(fields) |> apply_year_limit(n_year)}
+      rule =
+        case posix_or_case(n_dom, n_dow) do
+          {:or, monthdays, byday_entries} -> build_or_rule(fields, monthdays, byday_entries)
+          :no -> choose_freq(fields)
+        end
+
+      {:ok, apply_year_limit(rule, n_year)}
     end
+  end
+
+  # POSIX cron: when BOTH day-of-month and day-of-week are restricted
+  # to plain lists, a date matches if EITHER is satisfied (the union),
+  # not both. Quartz extensions opt out — an ordinal day-of-week
+  # (`5#2`, `5L`) or a nearest-weekday day-of-month (`15W`, which is
+  # not a `{:list, _}`) keeps the AND-composing interpretation.
+  defp posix_or_case({:list, monthdays}, {:list, byday_entries}) do
+    if Enum.all?(byday_entries, fn {ordinal, _day} -> is_nil(ordinal) end) do
+      {:or, monthdays, byday_entries}
+    else
+      :no
+    end
+  end
+
+  defp posix_or_case(_dom, _dow), do: :no
+
+  # The POSIX OR case runs a DAILY cadence so every candidate day is
+  # visited, carrying the time-of-day and month as ordinary BY filters
+  # plus the day-of-month-OR-day-of-week union. (A wildcard sub-day
+  # time field is the one case this under-serves; fixed times — the
+  # common shape, e.g. `0 0 13 * 5` — are exact.)
+  defp build_or_rule(fields, monthdays, byday_entries) do
+    %Rule{freq: :day, interval: 1}
+    |> put_by_list(:byhour, fields.hour)
+    |> put_by_list(:byminute, fields.minute)
+    |> put_by_list(:bysecond, fields.second)
+    |> put_by_list(:bymonth, fields.month)
+    |> Map.put(:bymonthday_or_byday, {monthdays, byday_entries})
   end
 
   ## ---------------------------------------------------------
