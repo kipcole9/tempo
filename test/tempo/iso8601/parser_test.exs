@@ -19,6 +19,33 @@ defmodule Tempo.Iso8601.Parser.Test do
              {:ok, Tempo.Iso8601.AST.build(year: [1990..1999])}
   end
 
+  describe "ISO 8601-2 expanded year (±YYYYY)" do
+    test "a signed year of five or more digits parses" do
+      assert Tempo.from_iso8601("+12022") == {:ok, ~o"12022Y"}
+      assert Tempo.from_iso8601("-12022") == {:ok, ~o"-12022Y"}
+      # Leading zeros (the agreed expansion width) normalise to the value.
+      assert Tempo.from_iso8601("+002022") == {:ok, ~o"2022Y"}
+    end
+
+    test "an expanded year carries a full date" do
+      assert Tempo.from_iso8601("+12022-06-15") == {:ok, ~o"12022Y6M15D"}
+    end
+
+    test "a signed four-digit value is not expanded form and is rejected" do
+      # The expanded form requires at least one digit beyond the basic
+      # four; `+2006` is neither basic nor expanded (matches EDTF).
+      assert {:error, %Tempo.ParseError{}} = Tempo.from_iso8601("+2006")
+      assert {:error, %Tempo.ParseError{}} = Tempo.from_iso8601("+2022")
+    end
+
+    test "unsigned and basic-format parsing is unaffected" do
+      assert Tempo.from_iso8601("2022") == {:ok, ~o"2022Y"}
+      assert Tempo.from_iso8601("20220615") == {:ok, ~o"2022Y6M15D"}
+      # A bare negative four-digit year still works.
+      assert Tempo.from_iso8601("-0333") == {:ok, ~o"-333Y"}
+    end
+  end
+
   describe "selection adjacent to a group" do
     alias Tempo.Iso8601.Parser
 

@@ -303,6 +303,12 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
     form_number([-integer | rest])
   end
 
+  # Leading `+` of an ISO 8601-2 expanded year: positive, so drop the
+  # sign and keep the integer as-is.
+  def form_number([?+, integer | rest]) when is_integer(integer) do
+    form_number([integer | rest])
+  end
+
   def form_number([?-, {integer, options} | rest]) when is_integer(integer) do
     form_number([{-integer, options} | rest])
   end

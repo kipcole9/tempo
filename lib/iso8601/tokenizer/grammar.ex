@@ -394,6 +394,20 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
 
       # Short `Y`-prefix form (`Y2022`) — exactly 4 digits.
       ignore(string("Y")) |> maybe_negative_number(4) |> unwrap_and_tag(:year),
+
+      # ISO 8601-2 expanded year: a *mandatory* sign (`+` or `-`)
+      # followed by *five or more* digits (`+12022`, `-12022`,
+      # `+002022`). The expanded form adds at least one digit beyond
+      # the basic four, so a signed 4-digit value like `+2006` is not
+      # expanded and is rejected (matching the EDTF corpus); a basic
+      # negative year (`-0333`) is still handled by the 4-digit branch
+      # below. The mandatory sign disambiguates the expanded form from
+      # an unsigned basic-format date (`20220615`). Ordered before the
+      # plain 4-digit branch so a long signed year wins.
+      choice([negative(), positive()])
+      |> positive_integer(min: 5)
+      |> reduce(:form_number)
+      |> unwrap_and_tag(:year),
       maybe_negative_integer(4) |> unwrap_and_tag(:year)
     ])
     |> label("implicit year")

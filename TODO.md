@@ -1,8 +1,9 @@
-* Don't allow group in time shifts
-
-* Note doesn't support qualifications (section 8)
-
-* Note doesn't support expanded year
+* Qualifications (ISO 8601-2 §8) — whole-value and leading/trailing
+  qualifiers (`2022?`, `2022~`, `2022%`) already parse and round-trip.
+  The remaining gap is **per-component** qualification: `2022-06?`
+  (`?` on the month), `2004-06-~11` (`~` on the day), and a trailing
+  qualifier on a full date (`2004-06-11%`) currently drop the
+  qualifier instead of attaching it to the component / value.
 
 * Find a way to express:
   * Astro events (Easter, New Moon, ....)

@@ -31,6 +31,13 @@ defmodule Tempo.Iso8601.Tokenizer.Helpers do
     ascii_char([?-])
   end
 
+  # The leading `+` of an ISO 8601-2 expanded year (`+12022`). The
+  # sign is mandatory for the expanded form, which is what keeps it
+  # from clashing with unsigned basic-format dates (`20220615`).
+  def positive do
+    ascii_char([?+])
+  end
+
   def digit do
     ascii_char([?0..?9])
   end

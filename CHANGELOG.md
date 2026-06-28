@@ -1,12 +1,14 @@
 # Changelog
 
-## [v0.9.0] — 2026-06-28
+## [v0.9.0] — 2026-06-29
 
 ### Added
 
 * `Tempo.to_date_time/1` — convert a zoned Tempo back into a `DateTime`, preserving the named time zone and re-deriving the UTC offset from the time-zone database (the lossless inverse of `from_elixir/2` on a `DateTime`). DST fall-back ambiguity is resolved using the value's stored offset, and a spring-forward gap returns an error.
 
 * `Enumerable` `count/1`, `member?/2`, and `slice/1` are now implemented for `%Tempo{}`, delegating to the materialised interval's O(1) `Tempo.Interval.Steps` paths instead of an O(n) walk. They are DST-aware (a spring-forward day counts 23 hours, a fall-back day 25); group, range, and selection values fall back to the reduce walk.
+
+* ISO 8601-2 expanded years — a sign-prefixed year of five or more digits (`+12022`, `-12022`, `+002022`, `+12022-06-15`). The mandatory sign distinguishes the expanded form from a basic-format date, and a signed four-digit value (`+2006`) is rejected as it is neither basic nor expanded.
 
 ### Changed
 
