@@ -292,4 +292,86 @@ defmodule Tempo.Enumeration.Test do
     assert Enum.to_list(~o"2023Y{1..12//2}M") ==
              [~o"2023Y1M", ~o"2023Y3M", ~o"2023Y5M", ~o"2023Y7M", ~o"2023Y9M", ~o"2023Y11M"]
   end
+
+  describe "Enumerable count/member?/slice (fast paths)" do
+    # These delegate to the materialised interval's O(1) Steps-backed
+    # implementations and must agree with the reduce-based walk.
+    test "count matches the walk across resolutions" do
+      assert Enum.count(~o"2022Y") == 12
+      assert Enum.count(~o"2022-06") == 30
+      assert Enum.count(~o"2022-06-15") == 24
+      assert Enum.count(~o"2022-06-15T10") == 60
+
+      for t <- [~o"2022Y", ~o"2022-06", ~o"2022-06-15", ~o"2022-06-15T10"] do
+        assert Enum.count(t) == length(Enum.to_list(t))
+      end
+    end
+
+    test "member? agrees with the walk" do
+      year = ~o"2022Y"
+      assert Enum.member?(year, ~o"2022Y6M")
+      refute Enum.member?(year, ~o"2023Y6M")
+      assert Enum.all?(Enum.to_list(year), &Enum.member?(year, &1))
+    end
+
+    test "slice (Enum.at / Enum.slice) agrees with the walk" do
+      month = ~o"2022-06"
+      list = Enum.to_list(month)
+      assert Enum.at(month, 0) == Enum.at(list, 0)
+      assert Enum.at(month, 14) == Enum.at(list, 14)
+      assert Enum.slice(month, 5, 3) == Enum.slice(list, 5, 3)
+    end
+
+    test "group/range values fall back to the reduce walk" do
+      # Multi-valued shapes don't materialise to a single interval;
+      # Enum still works via the reduce-based traversal.
+      assert Enum.count(~o"2022Y{1..3}M") == 3
+    end
+  end
+
+  describe "Enumerable count/member?/slice under DST" do
+    setup do
+      Calendar.put_time_zone_database(Tzdata.TimeZoneDatabase)
+      :ok
+    end
+
+    test "spring-forward day counts 23 hours; skipped hour is not a member" do
+      day = ~o"2022-03-13[America/New_York]"
+      assert Enum.count(day) == 23
+      assert Enum.count(day) == length(Enum.to_list(day))
+      refute Enum.member?(day, ~o"2022-03-13T02[America/New_York]")
+    end
+
+    test "fall-back day counts 25 hours and count matches the walk" do
+      day = ~o"2022-11-06[America/New_York]"
+      assert Enum.count(day) == 25
+      assert Enum.count(day) == length(Enum.to_list(day))
+      assert Enum.all?(Enum.to_list(day), &Enum.member?(day, &1))
+    end
+  end
+
+  describe "enumeration honours the value's calendar" do
+    # The implicit `1..-1` range must resolve against the value's own
+    # calendar, not default to Gregorian. Both the reduce walk and the
+    # count fast path must agree, and agree with the calendar.
+    test "13-month calendars enumerate 13 months" do
+      for {cal, year, months} <- [
+            {Calendrical.Coptic, "1740", 13},
+            {Calendrical.Ethiopic, "2015", 13},
+            {Calendrical.Hebrew, "5784", 13},
+            {Calendrical.Hebrew, "5783", 12}
+          ] do
+        {:ok, y} = Tempo.from_iso8601(year, cal)
+        assert length(Enum.to_list(y)) == months
+        assert Enum.count(y) == months
+      end
+    end
+
+    test "a 30-day Coptic month enumerates 30 days, not 31" do
+      {:ok, month} = Tempo.from_iso8601("1740-01", Calendrical.Coptic)
+      days = Enum.map(Enum.to_list(month), & &1.time[:day])
+      assert days == Enum.to_list(1..30)
+      assert Enum.count(month) == 30
+    end
+  end
 end

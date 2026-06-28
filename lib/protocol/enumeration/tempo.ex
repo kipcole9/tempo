@@ -4,34 +4,67 @@ defimpl Enumerable, for: Tempo do
   alias Tempo.Enumeration
   alias Tempo.Validation
 
-  # TODO Implement Enumerable.count
-  # Count can be calculated from ranges/sets in all
-  # cases except where there is group or selection involved
-  # and therefore we would need to evaluate each date/time
+  # Implicit enumeration of a resolved `%Tempo{}` walks the same
+  # sequence as forward-stepping its materialised interval (see
+  # `to_interval/1`), so `count/1`, `member?/2`, and `slice/1` reuse
+  # the interval's O(1) `Tempo.Interval.Steps`-backed implementations.
+  # Those are DST-aware in the same way as `reduce/3` here — a
+  # spring-forward gap hour is not counted/sliced, a fall-back hour is
+  # counted twice — so the fast paths agree with the walk.
+  #
+  # Values that don't materialise to a single interval — groups,
+  # selections, ranges, sets, masks — return `{:error, __MODULE__}`,
+  # so `Enum` falls back to the reduce-based traversal that handles
+  # them.
 
   @impl Enumerable
-  def count(_array) do
+  def count(%Tempo{} = tempo) do
+    case single_interval(tempo) do
+      {:ok, interval} -> Enumerable.count(interval)
+      :error -> {:error, __MODULE__}
+    end
+  end
+
+  @impl Enumerable
+  def member?(%Tempo{} = tempo, %Tempo{} = element) do
+    case single_interval(tempo) do
+      {:ok, interval} -> Enumerable.member?(interval, element)
+      :error -> {:error, __MODULE__}
+    end
+  end
+
+  def member?(_tempo, _element) do
     {:error, __MODULE__}
   end
 
-  # TODO Implement Enumerable.member?
-  # Similar to the above, we can check inclusion by checking against
-  # the bounds of each range/set
-
   @impl Enumerable
-  def member?(_array, _element) do
-    {:error, __MODULE__}
+  def slice(%Tempo{} = tempo) do
+    # A DST fall-back duplicates a wall-clock hour (the same instant
+    # at two offsets). `reduce/3` emits both, but `slice/1` is
+    # position-based and cannot reproduce a duplicate, so zoned values
+    # defer to the reduce-based walk. `count/1` and `member?/2` are
+    # unaffected (a count knows about the extra hour; membership is a
+    # boolean). Non-zoned values have no DST and keep the O(1) path.
+    with false <- zoned?(tempo),
+         {:ok, interval} <- single_interval(tempo) do
+      Enumerable.slice(interval)
+    else
+      _ -> {:error, __MODULE__}
+    end
   end
 
-  # TODO Implement Enumerable.slice
-  # As for the above, we could calculate the bounds
-  # of each range/set and calculate their values
-  # based upon the catesian product of the bounds
-
-  @impl Enumerable
-  def slice(_enum) do
-    {:error, __MODULE__}
+  defp single_interval(%Tempo{} = tempo) do
+    case Tempo.to_interval(tempo) do
+      {:ok, %Tempo.Interval{} = interval} -> {:ok, interval}
+      _ -> :error
+    end
   end
+
+  # A value is zoned (and so could span a DST transition) when it
+  # carries a named IANA zone other than `Etc/UTC`, which has no DST.
+  defp zoned?(%Tempo{extended: %{zone_id: "Etc/UTC"}}), do: false
+  defp zoned?(%Tempo{extended: %{zone_id: zone}}) when is_binary(zone) and zone != "", do: true
+  defp zoned?(%Tempo{}), do: false
 
   @impl Enumerable
   def reduce(enum, {:cont, acc}, fun) do
@@ -106,11 +139,17 @@ defimpl Enumerable, for: Tempo do
   defp emit_values_after_suspend(rest, next, fun, {:suspend, acc}),
     do: {:suspended, acc, &emit_values_after_suspend(rest, next, fun, &1)}
 
-  defp make_enum(%Tempo{} = tempo) do
+  defp make_enum(%Tempo{calendar: calendar} = tempo) do
+    # Resolve the implicit `1..-1` enumeration range against the
+    # value's *own* calendar. Without the explicit calendar,
+    # `Validation.validate/1` defaults to Gregorian, so a Coptic
+    # month would enumerate 31 days (January) and a 13-month calendar
+    # year only 12 months. `Enumeration.next/1` already threads the
+    # calendar; this lines the range resolution up with it.
     {:ok, tempo} =
       tempo
       |> Enumeration.maybe_add_implicit_enumeration()
-      |> Validation.validate()
+      |> Validation.validate(calendar)
 
     tempo
   end

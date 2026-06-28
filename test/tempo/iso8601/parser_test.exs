@@ -19,6 +19,27 @@ defmodule Tempo.Iso8601.Parser.Test do
              {:ok, Tempo.Iso8601.AST.build(year: [1990..1999])}
   end
 
+  describe "selection adjacent to a group" do
+    alias Tempo.Iso8601.Parser
+
+    # Regression: a selection next to a group used to reach the
+    # generic unit/group clauses, which passed the `:selection` /
+    # `:group` tag to `Unit.compare/2` and raised `KeyError`. The
+    # dedicated clauses now validate ordering from each wrapper's own
+    # units, so the result is a clean parse or a clean `ParseError` —
+    # never a crash.
+    test "well-ordered selection/group pairs parse without crashing" do
+      assert is_list(Parser.parse_date([{:selection, [month: [1, 3]]}, {:group, [day: 1]}]))
+      assert is_list(Parser.parse_date([{:group, [month: 1]}, {:selection, [day: [1, 2]]}]))
+    end
+
+    test "a mis-ordered selection/group pair raises a clean ParseError, not KeyError" do
+      assert_raise Tempo.ParseError, fn ->
+        Parser.parse_date([{:selection, [day: [1, 3]]}, {:group, [month: 1]}])
+      end
+    end
+  end
+
   test "Section 5: groups" do
     # 5.3 Example 1
     assert Tempo.from_iso8601("5G10DU") ==

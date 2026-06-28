@@ -278,3 +278,36 @@
   document that the result lives on the time-of-day axis until anchored
   (see `guides/interop.md` for the anchored/non-anchored distinction).
 
+* **`Enumerable.Tempo.Interval.reduce/3` is not DST-aware — it
+  disagrees with its own `count/1`/`slice/1`.**
+
+  For a zoned day that spans a DST transition, the interval's
+  `count/1` and `slice/1` (the `Tempo.Interval.Steps` fast paths) are
+  DST-aware, but its `reduce/3` is not. Concretely, for
+  `Tempo.to_interval(~o"2022-03-13[America/New_York]")` (a
+  spring-forward day):
+
+  * `Enum.count(interval)` → `23` (Steps, skips the gap hour)
+
+  * `length(Enum.to_list(interval))` → `24` (reduce, walks every
+    wall-clock hour)
+
+  A fall-back day is the mirror image (`25` vs `24`). This violates
+  the `Enumerable` contract that `count/1` equal the number of
+  elements `reduce/3` yields, and it is a latent correctness bug for
+  any code that mixes the two.
+
+  The implicit `Enumerable.Tempo.reduce/3` (in
+  `lib/protocol/enumeration/tempo.ex`) already does the right thing —
+  it classifies each moment via `zone_status/1`, skipping gap hours
+  and emitting fall-back hours twice with their distinct `:shift`.
+  `Enumerable.Tempo.Interval.reduce/3` (in
+  `lib/protocol/enumeration/range.ex`) needs the same `zone_status`
+  treatment so the interval's walk matches its own fast paths.
+
+  Note: this is *why* `Enumerable.Tempo.slice/1` defers zoned values
+  to the reduce walk rather than delegating to the interval — the
+  fall-back duplicate can't be reproduced by position-based slicing.
+  Fixing the interval `reduce/3` is the prerequisite for making zoned
+  `slice/1` exact on both sides.
+

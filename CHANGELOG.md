@@ -6,11 +6,19 @@
 
 * `Tempo.to_date_time/1` — convert a zoned Tempo back into a `DateTime`, preserving the named time zone and re-deriving the UTC offset from the time-zone database (the lossless inverse of `from_elixir/2` on a `DateTime`). DST fall-back ambiguity is resolved using the value's stored offset, and a spring-forward gap returns an error.
 
+* `Enumerable` `count/1`, `member?/2`, and `slice/1` are now implemented for `%Tempo{}` (previously they fell back to an O(n) walk). They delegate to the materialised interval's O(1) `Tempo.Interval.Steps` paths and stay DST-aware — a spring-forward day counts 23 hours, a fall-back day 25. `slice/1` defers zoned values to the walk (a fall-back hour can't be reproduced by position), and group/range/selection values fall back as before.
+
 ### Changed
 
 * `Tempo.from_elixir/2` now infers resolution for `Time`, `NaiveDateTime`, and `DateTime` from the type's declared precision (`:second`, or `:microsecond` when a sub-second precision is present) rather than from the magnitude of the components. Previously `~U[2022-07-04 09:00:00Z]` was coarsened to hour resolution and midnight to day resolution; a zero second/minute is now treated as fully specified, which fixes lossy round-trips through `to_naive_date_time/1`. Pass an explicit `:resolution` to recover the old coarsening (e.g. `resolution: :day` for a midnight value).
 
 ### Bug Fixes
+
+* Implicit enumeration of a `%Tempo{}` now resolves its range against the value's own calendar instead of defaulting to Gregorian. A Coptic/Ethiopic year (or a Hebrew leap year) now enumerates 13 months, and a 30-day Coptic month enumerates 30 days rather than a Gregorian-style 31 (which produced a non-existent date). This applies to the `Enum` walk and the new `count`/`member?`/`slice` fast paths alike.
+
+* `Tempo.from_iso8601/1` now rejects genuinely inverted intervals such as `2026/2025` with a `Tempo.IntervalEndpointsError`. The check is narrow — it compares against the end's exclusive upper bound, so EDTF reduced-precision (`1111-01-01/1111`), masked, and non-anchored midnight-crossing (`T22/T02`) intervals stay valid.
+
+* The ISO 8601-2 parser no longer raises `KeyError` when a selection is adjacent to a group; such pairs now validate resolution ordering from each wrapper's units, yielding a clean parse or a clean `Tempo.ParseError`. A copy-paste bug that disabled cross-group ordering validation is also fixed.
 
 * `Tempo.Compare.to_utc_seconds/1` now resolves ISO week dates (`2022-W24`) and ordinal dates (`2022-166`) to their real calendar date before projecting. Previously they collapsed to January 1, so every week interval reported a zero-second duration and adjacent weeks compared `:equals` instead of `:meets`.
 

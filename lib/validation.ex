@@ -26,13 +26,16 @@ defmodule Tempo.Validation do
     end
   end
 
-  # TODO Check that the second time is after the first (ISO expectation)
-  # TODO Adjust the second time if its time shift is different to the first
+  # Endpoints carrying different time shifts (`...+05:00/...+02:00`)
+  # need no adjustment: `Tempo.Compare` projects both to a common UTC
+  # frame for ordering and duration, so the difference is already
+  # accounted for.
 
   def validate(%Tempo.Interval{} = tempo, calendar) do
     with {:ok, from} <- validate(tempo.from, calendar),
          {:ok, to} <- validate(tempo.to, calendar),
-         {:ok, duration} <- validate(tempo.duration, calendar) do
+         {:ok, duration} <- validate(tempo.duration, calendar),
+         :ok <- validate_endpoint_order(from, to) do
       {:ok, %{tempo | from: from, to: to, duration: duration}}
     end
   end
@@ -63,6 +66,52 @@ defmodule Tempo.Validation do
   def validate(:undefined, _calendar) do
     {:ok, :undefined}
   end
+
+  # ISO 8601 expects an interval's end to follow its start, so reject
+  # a genuinely inverted interval such as `2026/2025`. The check is
+  # deliberately narrow — it only fires when both endpoints are
+  # anchored (a year is present) and fully concrete (no mask, group,
+  # range, or set). This leaves two legitimate shapes untouched:
+  #
+  #   * Non-anchored time-of-day intervals, where `from > to` is the
+  #     representation of a midnight-crossing span (`T22/T02`).
+  #
+  #   * EDTF reduced-precision and masked intervals
+  #     (`1111-01-01/1111`, `0000/0000`, `1919-XX-02/1919-XX-01`),
+  #     whose end is a coarser or unknown span, not a real inversion.
+  #
+  # Inversion is judged against `to`'s *exclusive upper bound* (the
+  # end of its own span), not its start. That is what keeps
+  # `1111-01-01/1111` valid (the year 1111 ends in 1112, after the
+  # start) while still rejecting `2026/2025` (the year 2025 ends
+  # exactly where 2026 begins).
+  defp validate_endpoint_order(%Tempo{} = from, %Tempo{} = to) do
+    with true <- orderable?(from) and orderable?(to),
+         {:ok, {_lower, to_upper}} <- Tempo.Interval.next_unit_boundary(to),
+         order when order != :earlier <- Tempo.Compare.compare_endpoints(from, to_upper) do
+      {:error,
+       Tempo.IntervalEndpointsError.exception(
+         interval: %Tempo.Interval{from: from, to: to},
+         operation: :validate,
+         reason: "interval :from endpoint is not earlier than its :to endpoint"
+       )}
+    else
+      _ -> :ok
+    end
+  end
+
+  defp validate_endpoint_order(_from, _to), do: :ok
+
+  # Orderable: anchored (has a year, so a UTC start exists) and fully
+  # concrete (every component is a plain integer or a microsecond
+  # `{value, precision}` pair — no mask, group, range, or set).
+  defp orderable?(%Tempo{time: time}) do
+    Keyword.has_key?(time, :year) and Enum.all?(time, fn {_unit, value} -> concrete?(value) end)
+  end
+
+  defp concrete?(value) when is_integer(value), do: true
+  defp concrete?({value, precision}) when is_integer(value) and is_integer(precision), do: true
+  defp concrete?(_value), do: false
 
   # Resolution is the process of pre-calculating concrete
   # time units from groups whereever possible.

@@ -127,16 +127,51 @@ defmodule Tempo.Iso8601.Parser do
     parse_date([{:year, {:group, round(century * 10)..round((century + 1) * 10 - 1)}} | rest])
   end
 
-  # TODO what if prior unit is a selection
   def parse_date([{:group, group_1}, {:group, group_2} | rest]) do
     {_min_1, max_1} = group_min_max(group_1)
-    {min_2, _max} = group_min_max(group_1)
+    {min_2, _max} = group_min_max(group_2)
 
     if Unit.compare(max_1, min_2) == :lt do
       raise Tempo.ParseError,
             "Group max of #{inspect(group_1)} is less than the group min of #{inspect(group_2)}"
     else
       [{:group, parse_date(group_1)} | parse_date([{:group, group_2} | rest])]
+    end
+  end
+
+  # A selection adjacent to a group (in either order). The generic
+  # unit/group and unit/selection clauses below would bind the
+  # `:selection`/`:group` tag as a unit and pass it to
+  # `Unit.compare/2`, which has no sort key for it and raises a
+  # `KeyError`. Validate the resolution ordering from each wrapper's
+  # own units instead, mirroring the group/group clause above.
+  def parse_date([{:selection, selection}, {:group, group} | rest]) do
+    unless Unit.ordered?(selection) do
+      raise Tempo.ParseError,
+            "Selection time units must be in decreasing time scale order. Found #{inspect(selection)}."
+    end
+
+    {_min_1, max_1} = selection_min_max(selection)
+    {min_2, _max} = group_min_max(group)
+
+    if Unit.compare(max_1, min_2) == :lt do
+      raise Tempo.ParseError,
+            "selection #{inspect(selection)} is finer than the following group #{inspect(group)}"
+    else
+      selection = parse_date(selection) |> reduce_list()
+      [{:selection, selection} | parse_date([{:group, group} | rest])]
+    end
+  end
+
+  def parse_date([{:group, group}, {:selection, selection} | rest]) do
+    {_min_1, max_1} = group_min_max(group)
+    {min_2, _max} = selection_min_max(selection)
+
+    if Unit.compare(max_1, min_2) == :lt do
+      raise Tempo.ParseError,
+            "group #{inspect(group)} is finer than the following selection #{inspect(selection)}"
+    else
+      [{:group, parse_date(group)} | parse_date([{:selection, selection} | rest])]
     end
   end
 
@@ -150,7 +185,8 @@ defmodule Tempo.Iso8601.Parser do
     end
   end
 
-  # TODO what if successor unit is a selection or a group
+  # A group followed by a selection or another group is handled by
+  # the dedicated clauses above; this clause covers a plain unit.
   def parse_date([{:group, group}, {unit_2, value_2} | rest]) do
     {_min, max} = group_min_max(group)
 

@@ -277,4 +277,32 @@ defmodule Tempo.Parser.Interval.Test do
                  ]
                ], nil}}
   end
+
+  describe "inverted intervals (end before start)" do
+    test "a genuinely inverted concrete interval is rejected" do
+      assert {:error, %Tempo.IntervalEndpointsError{}} = Tempo.from_iso8601("2026/2025")
+      assert {:error, %Tempo.IntervalEndpointsError{}} = Tempo.from_iso8601("2027-06/2025")
+    end
+
+    test "EDTF reduced-precision and masked intervals stay valid" do
+      # The end is a coarser/masked span, not an inversion.
+      assert {:ok, _} = Tempo.from_iso8601("1111-01-01/1111")
+      assert {:ok, _} = Tempo.from_iso8601("0000/0000")
+      assert {:ok, _} = Tempo.from_iso8601("1919-XX-02/1919-XX-01")
+      assert {:ok, _} = Tempo.from_iso8601("198X/1999")
+    end
+
+    test "non-anchored time-of-day intervals (midnight-crossing) stay valid" do
+      # `from > to` here represents a span that crosses midnight.
+      assert {:ok, _} = Tempo.from_iso8601("T22/T02")
+      assert {:ok, _} = Tempo.from_iso8601("T11/T10")
+    end
+
+    test "open, duration, and forward intervals are unaffected" do
+      assert {:ok, _} = Tempo.from_iso8601("2026/2027")
+      assert {:ok, _} = Tempo.from_iso8601("2026/..")
+      assert {:ok, _} = Tempo.from_iso8601("../2026")
+      assert {:ok, _} = Tempo.from_iso8601("2026/P1Y")
+    end
+  end
 end
