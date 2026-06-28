@@ -69,36 +69,39 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
     choice([
       extended_week_date(),
 
-      # Year-Month-Day, with EDTF Level 2 component-level
-      # qualification at each hyphen boundary.
+      # Year-Month-Day, with ISO 8601-2 §8 component-level
+      # qualification at each hyphen boundary. A qualifier to the
+      # right of a component is a *group* qualifier (it + coarser);
+      # to the left, an *individual* qualifier (that one only). The
+      # trailing qualifier after the day is left for the outer
+      # `qualification/0` so it reads as *complete* (§8.2.1).
       parsec(:implicit_year_p)
-      |> optional(component_qualification(:year))
+      |> optional(right_qualifier(:year))
       |> ignore(dash())
-      |> optional(component_qualification(:month))
+      |> optional(left_qualifier(:month))
       |> concat(parsec(:implicit_month_p))
-      |> optional(component_qualification(:month))
+      |> optional(right_qualifier(:month))
       |> ignore(dash())
-      |> optional(component_qualification(:day))
-      |> concat(parsec(:implicit_day_of_month_p))
-      |> optional(component_qualification(:day)),
+      |> optional(left_qualifier(:day))
+      |> concat(parsec(:implicit_day_of_month_p)),
 
-      # Year-Month, with qualifiers.
+      # Year-Month, with qualifiers. The trailing qualifier after the
+      # month is the rightmost component, so it too is left for the
+      # outer complete qualifier.
       parsec(:implicit_year_p)
-      |> optional(component_qualification(:year))
+      |> optional(right_qualifier(:year))
       |> ignore(dash())
-      |> optional(component_qualification(:month))
+      |> optional(left_qualifier(:month))
       |> concat(parsec(:implicit_month_p))
-      |> optional(component_qualification(:month))
       |> lookahead_not(digit()),
 
       # Month-Day (no year) with qualifiers.
-      optional(component_qualification(:month))
+      optional(left_qualifier(:month))
       |> concat(parsec(:implicit_month_p))
-      |> optional(component_qualification(:month))
+      |> optional(right_qualifier(:month))
       |> ignore(dash())
-      |> optional(component_qualification(:day))
-      |> concat(parsec(:implicit_day_of_month_p))
-      |> optional(component_qualification(:day)),
+      |> optional(left_qualifier(:day))
+      |> concat(parsec(:implicit_day_of_month_p)),
       extended_ordinal_date()
     ])
     |> label("extended date")

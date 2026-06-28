@@ -113,23 +113,54 @@ defmodule Tempo.Iso8601.Tokenizer.Helpers do
   end
 
   @doc """
-  Qualification that attaches to a specific component.
+  ISO 8601-2 §8.2.3 *individual* qualification — a qualifier symbol
+  immediately to the **left** of a component (implicit form). It
+  qualifies that component **only**.
 
-  Emitted as `{unit_qualification: qualifier}` so that downstream
-  consumers can identify which component is being qualified
-  (e.g. `{:year_qualification, :uncertain}`).
+  Emitted as `{:individual_qualification, {unit, qualifier}}`.
 
   """
-  def component_qualification(combinator \\ empty(), unit) do
-    tag = :"#{unit}_qualification"
+  def left_qualifier(combinator \\ empty(), unit) do
+    combinator
+    |> concat(
+      empty()
+      |> qualifier_symbol()
+      |> reduce({__MODULE__, :pair_with_unit, [unit]})
+      |> unwrap_and_tag(:individual_qualification)
+    )
+  end
 
+  @doc """
+  ISO 8601-2 §8.2.2 *group* qualification — a qualifier symbol
+  immediately to the **right** of a component. It qualifies that
+  component's value **and all components to its left** (of coarser
+  resolution). When the component is the rightmost of the whole
+  expression the consumer instead treats it as §8.2.1 *complete*
+  qualification.
+
+  Emitted as `{:group_qualification, {unit, qualifier}}`.
+
+  """
+  def right_qualifier(combinator \\ empty(), unit) do
+    combinator
+    |> concat(
+      empty()
+      |> qualifier_symbol()
+      |> reduce({__MODULE__, :pair_with_unit, [unit]})
+      |> unwrap_and_tag(:group_qualification)
+    )
+  end
+
+  @doc false
+  def pair_with_unit([qualifier], unit), do: {unit, qualifier}
+
+  defp qualifier_symbol(combinator) do
     combinator
     |> choice([
       replace(string("?"), :uncertain),
       replace(string("~"), :approximate),
       replace(string("%"), :uncertain_and_approximate)
     ])
-    |> unwrap_and_tag(tag)
   end
 
   @doc """

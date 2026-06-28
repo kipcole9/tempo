@@ -52,7 +52,7 @@ A single `Tempo.from_iso8601/1` call therefore always returns a bounded value, n
 |---|---|
 | **Unspecified digits** (`X`) | `156X`, `1XXX`, `2022-XX`, `1985-XX-XX`, `-1XXX-XX`, `-XXXX-12-XX` |
 | **EDTF Level 1 qualification** (`?`, `~`, `%`) | `2022?`, `2022~`, `2022%` |
-| **EDTF Level 2 component qualification** | `2022-?06-15`, `2022-06?-15`, `?2022-06-15`, `%-2011-06-13` |
+| **ISO 8601-2 §8 component qualification** (implicit form) | `2004-06~-11` (group), `2004-?06-11` (individual), `?2022-06-15` (leading individual). See "Component qualification" below. |
 | **Per-endpoint qualification in intervals** | `1984?/2004~`, `2019-12/2020%`, `2004-06-11%/2004-06~` |
 | **Leading prefix qualifier** | `?2022-06-15`, `%2001`, `?-2004-06` |
 | **Open-ended intervals** | `1985/..`, `../1985`, `../..`, `1985/`, `/1985`, `/`, `/..`, `../` |
@@ -80,6 +80,21 @@ A single `Tempo.from_iso8601/1` call therefore always returns a bounded value, n
 | Cross-endpoint semantic validation of intervals | `2012-24/2012-21` (winter before spring) | Parses at syntax level; semantic check (via Allen's Interval Algebra) is planned for the set-operations milestone. |
 
 All other EDTF Level 2 features — including wide-range exponent years (`Y17E8`, `Y-170000002`) and long-year significant-digit annotations (`Y171010000S3`) — are supported.
+
+### Component qualification (ISO 8601-2 §8)
+
+A `?` (uncertain), `~` (approximate), or `%` (both) qualifier's **position** sets its scope, per §8.2. Tempo honours all three scopes for implicit-form dates, storing whole-value qualification on `:qualification` and per-component qualification on the `:qualifications` map (keyed by unit):
+
+| Position | §8 scope | Example | Result |
+|---|---|---|---|
+| Rightmost end | §8.2.1 **complete** | `2004-06-11%` | `qualification: :uncertain_and_approximate` |
+| Right of a component | §8.2.2 **group** — that component and every coarser one to its left | `2004-06~-11` | `qualifications: %{year: :approximate, month: :approximate}` |
+| Left of a component | §8.2.3 **individual** — that component only | `2004-?06-11` | `qualifications: %{month: :uncertain}` |
+| Leading (left of the first component) | §8.2.3 **individual** | `?2004-06-11` | `qualifications: %{year: :uncertain}` |
+
+Overlapping qualifiers on one component combine: `2004-?06~-11` (individual `?` on the month, group `~` on the month and year) yields `%{year: :approximate, month: :uncertain_and_approximate}`.
+
+**Limitations.** Only the **implicit** (hyphenated) form is parsed; the explicit designator form (`2004~Y6M11D`, §8.3) is not yet supported — only its complete variant (`2004Y6M11D%`). The `:qualifications` map is also not yet rendered back on output (`inspect/1` emits the complete `:qualification` but drops the per-component map), so group/individual qualifications do not round-trip.
 
 ## 4. IXDTF — Internet Extended Date/Time Format
 
@@ -116,7 +131,7 @@ A few ISO 8601 constructs are genuinely ambiguous; Tempo resolves them as follow
 | Seasons `21-24` | Hemisphere unspecified | Treated as **Northern meteorological** (`21` = spring = March-May). |
 | `Z` without offset | "UTC is known, local offset unknown" (per RFC 5322 / IXDTF) | Stored as `shift: [hour: 0]`. No distinction from `+00:00`. |
 | `-00:00` | ISO 8601:2000 forbade; ISO 8601:2019 permits | Permitted; equivalent to `Z`. |
-| Leading qualifier on whole date | All components qualified | Stored on expression-level `:qualification` field only; individual components are not stamped. |
+| Leading qualifier on a date (`?2022-06-15`) | §8.2.3: left of a component qualifies that component | Individual qualification of the leftmost (coarsest) component — `?2022-06-15` stamps `%{year: :uncertain}` on `:qualifications`, not the whole value. See §3 "Component qualification". |
 
 ## 7. Test coverage
 

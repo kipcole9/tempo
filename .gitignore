@@ -38,3 +38,6 @@ mise.toml
 
 # Test iCal file (has personal data in it)
 ical_apple_example_export.ics
+
+# Copyrighted ISO 8601 standard PDFs — reference only, never distributed
+/papers/iso8601_specs/

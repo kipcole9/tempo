@@ -1,9 +1,19 @@
-* Qualifications (ISO 8601-2 §8) — whole-value and leading/trailing
-  qualifiers (`2022?`, `2022~`, `2022%`) already parse and round-trip.
-  The remaining gap is **per-component** qualification: `2022-06?`
-  (`?` on the month), `2004-06-~11` (`~` on the day), and a trailing
-  qualifier on a full date (`2004-06-11%`) currently drop the
-  qualifier instead of attaching it to the component / value.
+* Qualifications (ISO 8601-2 §8) — **implicit-form parsing is now
+  fully §8-conformant.** Complete (§8.2.1, rightmost → whole value),
+  group (§8.2.2, right-of-component → that component + all coarser),
+  and individual (§8.2.3, left-of-component → that one only) are all
+  honoured, with overlapping qualifiers combining (`?` + `~` → `%`).
+  Two gaps remain, both a separate feature:
+
+  1. **Explicit-form per-component qualifiers** — `2004~Y6M11D` (§8.3,
+     qualifier between value and designator) does not parse; only the
+     trailing complete form (`2004Y6M11D%`) does.
+
+  2. **Rendering the `:qualifications` map on output** — `inspect/1`
+     and the ISO writer emit the complete `:qualification` but drop
+     the per-component map, so group/individual qualifications do not
+     round-trip. This is blocked on (1), since the writer uses the
+     explicit (designator) format.
 
 * Find a way to express:
   * Astro events (Easter, New Moon, ....)

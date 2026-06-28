@@ -16,6 +16,8 @@
 
 * Cron POSIX day-of-month OR day-of-week — when both fields are restricted (`13 * 5` — "the 13th or any Friday"), occurrences are now the union of the two, via a new non-standard `:bymonthday_or_byday` field on `Tempo.RRule.Rule`. A Quartz extension (ordinal `5#2`, or nearest-weekday `15W`) opts out and keeps the AND-composing interpretation.
 
+* ISO 8601-2 §8 component qualification (implicit form) is now spec-conformant: a qualifier at the rightmost end is *complete* (`2004-06-11%` → the whole value), to the right of a component is *group* (`2004-06~-11` → the month and the year), and to the left is *individual* (`2004-?06-11` → the month only). Previously every qualifier attached only to its adjacent component.
+
 ### Changed
 
 * `Tempo.from_elixir/2` now infers resolution for `Time`, `NaiveDateTime`, and `DateTime` from the type's declared precision (`:second`, or `:microsecond`) rather than the magnitude of the components, so `~U[2022-07-04 09:00:00Z]` is a fully specified second (not an hour) and round-trips losslessly through `to_naive_date_time/1`. Pass an explicit `:resolution` to force a coarser span (e.g. `resolution: :day` for a midnight value).

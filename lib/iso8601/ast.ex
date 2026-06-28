@@ -45,7 +45,7 @@ defmodule Tempo.Iso8601.AST do
     {shift, tokens} = Keyword.pop(tokens, :time_shift)
     {qualification, tokens} = Keyword.pop(tokens, :qualification)
     {extended, tokens} = Keyword.pop(tokens, :extended)
-    {component_qualifications, time} = pop_component_qualifications(tokens)
+    {individual, group, time} = pop_qualifier_tokens(tokens)
 
     %Tempo{
       time: time,
@@ -53,7 +53,7 @@ defmodule Tempo.Iso8601.AST do
       calendar: calendar,
       extended: extended,
       qualification: qualification,
-      qualifications: component_qualifications
+      qualifications: resolve_qualifications(individual, group, time)
     }
   end
 
@@ -77,43 +77,73 @@ defmodule Tempo.Iso8601.AST do
     Duration.build(tokens)
   end
 
-  # Removes any `{<unit>_qualification, value}` entries from `tokens`
-  # and returns them as a plain `%{unit => value}` map. Returns `nil`
-  # for the map when no component-level qualifications were present
-  # so that the `%Tempo{}` struct stays compact when the feature
-  # isn't used.
-  defp pop_component_qualifications(tokens) do
-    {remaining, acc} =
-      Enum.reduce(tokens, {[], %{}}, fn
-        {key, value}, {rest, acc} when is_atom(key) ->
-          case unit_from_qualification_key(key) do
-            nil -> {[{key, value} | rest], acc}
-            unit -> {rest, Map.put(acc, unit, value)}
-          end
+  # Date components in resolution order (coarsest → finest). Group
+  # qualification (ISO 8601-2 §8.2.2) propagates from a component
+  # leftward, i.e. toward coarser units earlier in this list.
+  @date_resolution_order [:year, :month, :day]
 
-        other, {rest, acc} ->
-          {[other | rest], acc}
+  # Split the `:individual_qualification` and `:group_qualification`
+  # tokens out of the token list, returning `{individual, group, time}`
+  # where `individual`/`group` are `[{unit, qualifier}]` lists in
+  # source order and `time` is the remaining keyword list.
+  defp pop_qualifier_tokens(tokens) do
+    {time, individual, group} =
+      Enum.reduce(tokens, {[], [], []}, fn
+        {:individual_qualification, {unit, qualifier}}, {time, individual, group} ->
+          {time, [{unit, qualifier} | individual], group}
+
+        {:group_qualification, {unit, qualifier}}, {time, individual, group} ->
+          {time, individual, [{unit, qualifier} | group]}
+
+        other, {time, individual, group} ->
+          {[other | time], individual, group}
       end)
 
-    result = if map_size(acc) == 0, do: nil, else: acc
-    {result, Enum.reverse(remaining)}
+    {Enum.reverse(individual), Enum.reverse(group), Enum.reverse(time)}
   end
 
-  @qualification_suffix "_qualification"
-  @qualification_suffix_size byte_size(@qualification_suffix)
+  # Resolve the per-component qualification map (ISO 8601-2 §8):
+  #
+  #   * a *group* qualifier applies to its component and every coarser
+  #     component present (§8.2.2);
+  #   * an *individual* qualifier applies to its component only (§8.2.3).
+  #
+  # Overlapping qualifiers on one component combine (`?` + `~` → `%`).
+  # Returns `nil` when no component-level qualification was present so
+  # the struct stays compact.
+  defp resolve_qualifications([], [], _time), do: nil
 
-  defp unit_from_qualification_key(key) do
-    key_string = Atom.to_string(key)
-    size = byte_size(key_string)
+  defp resolve_qualifications(individual, group, time) do
+    present = Enum.filter(@date_resolution_order, &Keyword.has_key?(time, &1))
 
-    if size > @qualification_suffix_size and
-         binary_part(key_string, size - @qualification_suffix_size, @qualification_suffix_size) ==
-           @qualification_suffix do
-      key_string
-      |> binary_part(0, size - @qualification_suffix_size)
-      |> String.to_existing_atom()
-    else
-      nil
-    end
+    map =
+      Enum.reduce(group, %{}, fn {unit, qualifier}, acc ->
+        Enum.reduce(group_target_units(unit, present), acc, fn target, inner ->
+          Map.update(inner, target, qualifier, &combine_qualification(&1, qualifier))
+        end)
+      end)
+
+    map =
+      Enum.reduce(individual, map, fn {unit, qualifier}, acc ->
+        Map.update(acc, unit, qualifier, &combine_qualification(&1, qualifier))
+      end)
+
+    if map_size(map) == 0, do: nil, else: map
   end
+
+  # A group qualifier's targets: its own component plus every coarser
+  # component that is actually present in the expression.
+  defp group_target_units(unit, present) do
+    index = Enum.find_index(@date_resolution_order, &(&1 == unit)) || 0
+
+    @date_resolution_order
+    |> Enum.take(index + 1)
+    |> Enum.filter(&(&1 in present))
+  end
+
+  # `?` (uncertain) and `~` (approximate) on the same component
+  # combine to `%` (uncertain and approximate); identical qualifiers
+  # are idempotent.
+  defp combine_qualification(qualifier, qualifier), do: qualifier
+  defp combine_qualification(_a, _b), do: :uncertain_and_approximate
 end

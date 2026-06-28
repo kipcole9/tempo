@@ -1,69 +1,95 @@
 defmodule Tempo.Iso8601.Qualification.Test do
   use ExUnit.Case, async: true
 
-  # ISO 8601-2 / EDTF date qualification operators.
+  # ISO 8601-2:2019 §8 — qualification of date and time expressions.
   #
-  # `?` marks a date as uncertain (best guess).
-  # `~` marks a date as approximate (e.g. "circa 1850").
-  # `%` marks a date as both uncertain and approximate.
+  # `?` marks a value uncertain (best guess), `~` approximate
+  # ("circa 1850"), `%` both. §8 defines three scopes by position:
   #
-  # At this stage only the top-level (expression-level) form is
-  # supported. Component-level qualification (EDTF Level 2) is
-  # not yet implemented.
+  #   * §8.2.1 Complete — a qualifier at the rightmost end qualifies
+  #     the entire expression (stored on `:qualification`).
+  #   * §8.2.2 Group — a qualifier immediately to the right of a
+  #     component qualifies that component and every coarser component
+  #     to its left (stored on the `:qualifications` map).
+  #   * §8.2.3 Individual — a qualifier immediately to the left of a
+  #     component (implicit form) qualifies that component only.
 
-  describe "year-level qualification" do
-    test "uncertain year with ?" do
+  describe "complete qualification (§8.2.1)" do
+    test "a trailing qualifier on a year is complete" do
       assert {:ok, tempo} = Tempo.from_iso8601("2022?")
       assert tempo.qualification == :uncertain
+      assert tempo.qualifications == nil
       assert Keyword.get(tempo.time, :year) == 2022
     end
 
-    test "approximate year with ~" do
-      assert {:ok, tempo} = Tempo.from_iso8601("1850~")
-      assert tempo.qualification == :approximate
+    test "approximate (~) and both (%) on a year" do
+      assert {:ok, approx} = Tempo.from_iso8601("1850~")
+      assert approx.qualification == :approximate
+
+      assert {:ok, both} = Tempo.from_iso8601("2022%")
+      assert both.qualification == :uncertain_and_approximate
     end
 
-    test "uncertain-and-approximate year with %" do
-      assert {:ok, tempo} = Tempo.from_iso8601("2022%")
+    test "a trailing qualifier on a full date is complete, not day-only" do
+      assert {:ok, tempo} = Tempo.from_iso8601("2004-06-11%")
       assert tempo.qualification == :uncertain_and_approximate
+      assert tempo.qualifications == nil
+    end
+
+    test "a trailing qualifier on a year-month is complete" do
+      assert {:ok, tempo} = Tempo.from_iso8601("2022-06?")
+      assert tempo.qualification == :uncertain
+      assert tempo.qualifications == nil
+      assert Keyword.get(tempo.time, :month) == 6
     end
   end
 
-  describe "component-level qualification (EDTF Level 2)" do
-    # Per EDTF Level 2, a qualifier adjacent to a specific component
-    # applies to that component, not the whole expression. The
-    # qualification ends up on the `:qualifications` map keyed by
-    # unit rather than on the expression-level `:qualification`.
+  describe "group qualification (§8.2.2)" do
+    # A qualifier to the right of a component applies to it and every
+    # coarser component to its left.
 
-    test "year-month post-suffix qualifies the month" do
-      assert {:ok, tempo} = Tempo.from_iso8601("2022-06?")
+    test "~ right of the month qualifies the month and the year" do
+      assert {:ok, tempo} = Tempo.from_iso8601("2004-06~-11")
       assert tempo.qualification == nil
-      assert tempo.qualifications == %{month: :uncertain}
-      assert Keyword.get(tempo.time, :month) == 6
+      assert tempo.qualifications == %{year: :approximate, month: :approximate}
+      # The day, to the right, is untouched.
+      refute Map.has_key?(tempo.qualifications, :day)
     end
 
-    test "year-month-day post-suffix qualifies the day" do
-      assert {:ok, tempo} = Tempo.from_iso8601("2022-06-15?")
-      assert tempo.qualification == nil
-      assert tempo.qualifications == %{day: :uncertain}
+    test "? right of the year qualifies the year only (nothing to its left)" do
+      assert {:ok, tempo} = Tempo.from_iso8601("2004?-06-11")
+      assert tempo.qualifications == %{year: :uncertain}
     end
+  end
 
-    test "~ on the day component" do
-      assert {:ok, tempo} = Tempo.from_iso8601("2022-06-15~")
-      assert tempo.qualifications == %{day: :approximate}
-    end
+  describe "individual qualification (§8.2.3)" do
+    # An implicit-form qualifier to the left of a component qualifies
+    # that component only.
 
-    test "pre-qualifier on month" do
-      assert {:ok, tempo} = Tempo.from_iso8601("2022-?06-15")
+    test "left of the month qualifies the month only" do
+      assert {:ok, tempo} = Tempo.from_iso8601("2004-?06-11")
       assert tempo.qualifications == %{month: :uncertain}
     end
 
-    test "pre-qualifier on day" do
-      assert {:ok, tempo} = Tempo.from_iso8601("2022-06-?15")
+    test "left of the day qualifies the day only" do
+      assert {:ok, tempo} = Tempo.from_iso8601("2004-06-?11")
       assert tempo.qualifications == %{day: :uncertain}
     end
 
-    test "multiple components qualified independently" do
+    test "a leading qualifier qualifies the leftmost component (the year)" do
+      assert {:ok, tempo} = Tempo.from_iso8601("?2004-06-11")
+      assert tempo.qualification == nil
+      assert tempo.qualifications == %{year: :uncertain}
+    end
+
+    test "a leading qualifier on a bare year qualifies the year" do
+      assert {:ok, tempo} = Tempo.from_iso8601("?1985")
+      assert tempo.qualifications == %{year: :uncertain}
+    end
+  end
+
+  describe "combinations" do
+    test "each component qualified independently" do
       assert {:ok, tempo} = Tempo.from_iso8601("2022?-?06-%15")
 
       assert tempo.qualifications == %{
@@ -73,16 +99,17 @@ defmodule Tempo.Iso8601.Qualification.Test do
              }
     end
 
-    test "leading prefix qualifies the whole expression" do
-      assert {:ok, tempo} = Tempo.from_iso8601("?2022-06-15")
-      assert tempo.qualification == :uncertain
-      assert tempo.qualifications == nil
+    test "leading individual plus trailing complete coexist" do
+      assert {:ok, tempo} = Tempo.from_iso8601("?2022-06-15~")
+      # Trailing ~ is complete; leading ? is individual on the year.
+      assert tempo.qualification == :approximate
+      assert tempo.qualifications == %{year: :uncertain}
     end
 
-    test "leading prefix plus trailing component qualifier" do
-      assert {:ok, tempo} = Tempo.from_iso8601("?2022-06-15~")
-      assert tempo.qualification == :uncertain
-      assert tempo.qualifications == %{day: :approximate}
+    test "? and ~ on the same component combine to %" do
+      # Group ~ on the month (and year) plus individual ? on the month.
+      assert {:ok, tempo} = Tempo.from_iso8601("2004-?06~-11")
+      assert tempo.qualifications == %{year: :approximate, month: :uncertain_and_approximate}
     end
   end
 
@@ -93,16 +120,15 @@ defmodule Tempo.Iso8601.Qualification.Test do
       assert tempo.qualifications == nil
     end
 
-    test "component qualification followed by an IXDTF suffix" do
+    test "complete qualification followed by an IXDTF suffix" do
       assert {:ok, tempo} = Tempo.from_iso8601("2022-06-15?[u-ca=hebrew]")
-      assert tempo.qualifications == %{day: :uncertain}
+      assert tempo.qualification == :uncertain
       assert tempo.extended.calendar == :hebrew
     end
 
     test "per-endpoint qualification in an interval" do
       # A qualifier immediately after an endpoint applies to that
-      # endpoint only. The two endpoints of an interval may carry
-      # different qualifications.
+      # endpoint only. The two endpoints may carry different scopes.
       assert {:ok, interval} = Tempo.from_iso8601("2022/2023?")
       assert interval.__struct__ == Tempo.Interval
       assert interval.from.qualification == nil
@@ -110,7 +136,8 @@ defmodule Tempo.Iso8601.Qualification.Test do
 
       assert {:ok, interval2} = Tempo.from_iso8601("1984?/2004-06~")
       assert interval2.from.qualification == :uncertain
-      assert interval2.to.qualifications == %{month: :approximate}
+      # `2004-06~` — ~ right of the rightmost component → complete.
+      assert interval2.to.qualification == :approximate
     end
   end
 
