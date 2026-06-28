@@ -192,6 +192,34 @@ defmodule Tempo.CronTest do
     end
   end
 
+  describe "day-of-week step (cron-numbered expansion)" do
+    # A day-of-week step iterates in cron numbering (Sunday = 0) then
+    # maps to RFC (Sunday = 7), so a Sunday start participates.
+    defp dow_days(expression) do
+      {:ok, rule} = Cron.parse(expression)
+      Enum.map(rule.byday, fn {nil, day} -> day end)
+    end
+
+    test "`5/2` (FRI/2) steps to the end of the week → Fri, Sun" do
+      assert dow_days("0 0 * * 5/2") == [5, 7]
+    end
+
+    test "`MON-FRI/2` steps within the named range → Mon, Wed, Fri" do
+      assert dow_days("0 0 * * MON-FRI/2") == [1, 3, 5]
+    end
+
+    test "`0/3` starts at Sunday and steps forward → Wed, Sat, Sun" do
+      # Sunday-as-0 is the week start: cron 0, 3, 6 → RFC 3 (Wed),
+      # 6 (Sat), 7 (Sun). Without cron-space expansion this collapsed
+      # to just Sunday.
+      assert dow_days("0 0 * * 0/3") == [3, 6, 7]
+    end
+
+    test "`*/2` covers every second cron day → Tue, Thu, Sat, Sun" do
+      assert dow_days("0 0 * * */2") == [2, 4, 6, 7]
+    end
+  end
+
   describe "7-field cron with year" do
     test "single year becomes UNTIL" do
       assert {:ok, rule} = Cron.parse("0 0 0 1 1 * 2026")

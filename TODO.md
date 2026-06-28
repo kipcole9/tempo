@@ -67,12 +67,14 @@
      in the AST — e.g. `:or_clauses` holding a list of sub-rules whose match
      sets are unioned.
 
-  4. **Step LHS semantics on day-of-week** — `MON-FRI/2` works, but `FRI/2`
-     (a step starting from a named day) currently expands to `FRI..SUN` at
-     step 2, which is the conservative interpretation. cron dialects
-     disagree on whether `N/S` means "every S from N to end of range" or
-     "every S starting from N with wrap-around". No AST change needed — a
-     design call only.
+  4. ~~**Step LHS semantics on day-of-week** — `MON-FRI/2` works, but `FRI/2`
+     ...~~ **Done.** The design call: a day-of-week step expands in *cron*
+     numbering (Sunday = 0, week start) to the end of the week — no
+     wrap-around — then maps to RFC. `5/2` stays Fri, Sun; `0/3` is now
+     Wed, Sat, Sun (previously collapsed to Sunday because Sunday-as-0 was
+     converted to RFC-7 before the range was built); `*/2` is Tue, Thu,
+     Sat, Sun. This also fixed a Sunday-spanning range LHS (`0-3`) that
+     had built a descending range.
 
 * **IXDTF strict mode — flag offset/zone disagreement.**
 

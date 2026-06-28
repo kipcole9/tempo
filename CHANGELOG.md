@@ -20,6 +20,8 @@
 
 ### Bug Fixes
 
+* Cron day-of-week steps now expand in cron numbering (Sunday = 0) before mapping to RFC, so `0/3` yields Wed, Sat, Sun (previously collapsed to Sunday alone) and `*/2` yields Tue, Thu, Sat, Sun. A Sunday-spanning range step LHS such as `0-3` no longer builds a descending range.
+
 * `Enumerable.Tempo.Interval.reduce/3` is now DST-aware, so an interval's `Enum.to_list/1` agrees with its `Enum.count/1`: a spring-forward day walks 23 hours and a fall-back day 25 (the folded hour emitted twice with its two offsets), matching the `Tempo.Interval.Steps` fast paths and the implicit `%Tempo{}` walk. The classification now lives in a shared `Tempo.Enumeration.Zone`.
 
 * `Tempo.Interval.Steps.nth_step/4` now disambiguates a DST fall-back's duplicated hour, assigning each occurrence its own offset. This makes the O(1) `slice/1` fast path exact across a DST transition, so `Enum.at/2` and `Enum.slice/2` agree with the walk for zoned values too (they previously deferred to the O(n) reduce walk).

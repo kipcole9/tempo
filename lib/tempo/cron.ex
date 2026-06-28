@@ -41,7 +41,11 @@ defmodule Tempo.Cron do
 
   Day-of-week accepts `SUN`–`SAT` (case-insensitive) as synonyms for
   `0`–`6`. Sunday is both `0` and `7` (cron convention); internally
-  converted to RFC 5545's `7` (Sunday last).
+  converted to RFC 5545's `7` (Sunday last). A day-of-week step
+  (`N/S`, `*/S`) is expanded in *cron* numbering — Sunday = 0, the
+  week start — then mapped to RFC, so `0/3` is Sun, Wed, Sat and
+  `*/2` is Sun, Tue, Thu, Sat. A bare-day step runs to the end of
+  the week and does not wrap (`5/2` is Fri, Sun — not Tue).
 
   Month accepts `JAN`–`DEC` (case-insensitive) as synonyms for `1`–`12`.
 
@@ -690,13 +694,24 @@ defmodule Tempo.Cron do
              )}
         end
 
-      # Step with name range on LHS, e.g. `MON-FRI/2`
+      # Step on day-of-week, e.g. `MON-FRI/2`, `5/2`, `0/3`, `*/2`.
+      # The step iterates in *cron* numbering (Sunday = 0, the week
+      # start) so a Sunday LHS participates correctly, then each
+      # result is mapped to RFC (Sunday = 7, the week end), sorted,
+      # and de-duplicated (0 and 7 both being Sunday).
       String.contains?(part, "/") ->
         [lhs, step_str] = String.split(part, "/", parts: 2)
 
-        with {:ok, base} <- dow_step_lhs(lhs),
+        with {:ok, base} <- dow_step_cron_base(lhs),
              {:ok, step} <- parse_int(step_str, :day_of_week, 1..7) do
-          entries = base |> Enum.take_every(step) |> Enum.map(&{nil, &1})
+          entries =
+            base
+            |> Enum.take_every(step)
+            |> Enum.map(&cron_to_rfc/1)
+            |> Enum.uniq()
+            |> Enum.sort()
+            |> Enum.map(&{nil, &1})
+
           {:ok, entries}
         end
 
@@ -715,18 +730,48 @@ defmodule Tempo.Cron do
     end
   end
 
-  defp dow_step_lhs("*"), do: {:ok, Enum.to_list(1..7)}
+  # The cron-numbered base list a day-of-week step iterates over.
+  # `*` spans the whole week (0..7); a bare day spans from that day
+  # to cron's inclusive max (7); a range spans its own bounds. Values
+  # stay in cron numbering (0 = Sunday); the caller maps to RFC.
+  defp dow_step_cron_base("*"), do: {:ok, Enum.to_list(0..7)}
 
-  defp dow_step_lhs(lhs) do
+  defp dow_step_cron_base(lhs) do
     if String.contains?(lhs, "-") do
       [a, b] = String.split(lhs, "-", parts: 2)
 
-      with {:ok, from} <- dow_to_rfc(a, lhs),
-           {:ok, to} <- dow_to_rfc(b, lhs) do
+      with {:ok, from} <- dow_to_cron(a, lhs),
+           {:ok, to} <- dow_to_cron(b, lhs) do
         {:ok, Enum.to_list(from..to)}
       end
     else
-      with {:ok, day} <- dow_to_rfc(lhs, lhs), do: {:ok, Enum.to_list(day..7)}
+      with {:ok, day} <- dow_to_cron(lhs, lhs), do: {:ok, Enum.to_list(day..7)}
+    end
+  end
+
+  # Parse a cron day-of-week token (name or number) to its cron
+  # number (0 = Sunday .. 6 = Saturday, 7 = Sunday), without the RFC
+  # conversion — used while expanding a step in cron space.
+  defp dow_to_cron(string, orig) do
+    down = String.downcase(string)
+
+    cond do
+      Map.has_key?(@dow_names, down) ->
+        {:ok, Map.fetch!(@dow_names, down)}
+
+      true ->
+        case Integer.parse(string) do
+          {int, ""} when int in 0..7 ->
+            {:ok, int}
+
+          _ ->
+            {:error,
+             Tempo.CronError.exception(
+               field: :day_of_week,
+               value: orig,
+               reason: "Invalid day-of-week: #{inspect(orig)}"
+             )}
+        end
     end
   end
 
