@@ -1,6 +1,6 @@
 # Temporal formalisms and where Tempo fits
 
-Tempo is a software library, but it sits on top of forty years of formal work on how to reason about time. This guide is a short survey of the main formalisms — Allen's interval algebra, the Vilain–Kautz point algebra, the Allen–Hayes interval theory, and Grüninger & Li's bounded-meeting ontology — and an honest account of which choices Tempo inherits, which it rejects, and the one idea it adds.
+Tempo is a software library, but it sits on top of forty years of formal work on how to reason about time. This guide is a short survey of the main formalisms — Allen's interval algebra, the Vilain–Kautz point algebra, the Allen–Hayes interval theory, and Grüninger & Li's bounded-meeting ontology — and an account of which choices Tempo inherits, which it rejects, and the one idea it adds.
 
 If you only remember one thing: **the field splits on a single question — is a *point* or an *interval* the primitive thing?** Tempo answers "interval", and everything else follows.
 

@@ -74,6 +74,25 @@ jobs:
       - name: Install dependencies
         run: mix deps.get
 
+      # `astro` downloads the ~32 MB JPL ephemeris from NASA on first
+      # application start and fails to boot without it, which aborts the
+      # whole test suite. Cache it and pre-fetch with retries so a flaky
+      # NASA connection can't fail CI.
+      - name: Cache Astro ephemeris
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/astro
+          key: astro-ephemeris-de440s
+
+      - name: Pre-fetch Astro ephemeris
+        run: |
+          mkdir -p ~/.cache/astro
+          if [ ! -f ~/.cache/astro/de440s.bsp ]; then
+            curl -fSL --retry 5 --retry-all-errors --retry-delay 5 \
+              -o ~/.cache/astro/de440s.bsp \
+              https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/planets/de440s.bsp
+          fi
+
       - name: Check formatting
         if: matrix.lint
         run: mix format --check-formatted
