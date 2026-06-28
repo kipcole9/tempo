@@ -40,17 +40,9 @@ defimpl Enumerable, for: Tempo do
 
   @impl Enumerable
   def slice(%Tempo{} = tempo) do
-    # A DST fall-back duplicates a wall-clock hour (the same instant
-    # at two offsets). `reduce/3` emits both, but `slice/1` is
-    # position-based and cannot reproduce a duplicate, so zoned values
-    # defer to the reduce-based walk. `count/1` and `member?/2` are
-    # unaffected (a count knows about the extra hour; membership is a
-    # boolean). Non-zoned values have no DST and keep the O(1) path.
-    with false <- zoned?(tempo),
-         {:ok, interval} <- single_interval(tempo) do
-      Enumerable.slice(interval)
-    else
-      _ -> {:error, __MODULE__}
+    case single_interval(tempo) do
+      {:ok, interval} -> Enumerable.slice(interval)
+      :error -> {:error, __MODULE__}
     end
   end
 
@@ -60,12 +52,6 @@ defimpl Enumerable, for: Tempo do
       _ -> :error
     end
   end
-
-  # A value is zoned (and so could span a DST transition) when it
-  # carries a named IANA zone other than `Etc/UTC`, which has no DST.
-  defp zoned?(%Tempo{extended: %{zone_id: "Etc/UTC"}}), do: false
-  defp zoned?(%Tempo{extended: %{zone_id: zone}}) when is_binary(zone) and zone != "", do: true
-  defp zoned?(%Tempo{}), do: false
 
   @impl Enumerable
   def reduce(enum, {:cont, acc}, fun) do

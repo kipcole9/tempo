@@ -42,6 +42,24 @@ defmodule Tempo.Enumeration.Zone do
 
   def zone_status(_tempo), do: :ok
 
+  @doc """
+  Convert a total UTC offset in seconds to a `%Tempo{}` `:shift`
+  keyword list, dropping the `:minute` element for a whole-hour
+  offset (matching the IXDTF `+HH` vs `+HH:MM` shapes).
+  """
+  @spec offset_to_shift(integer()) :: keyword()
+  def offset_to_shift(total_seconds) do
+    sign = if total_seconds < 0, do: -1, else: 1
+    abs_total = abs(total_seconds)
+    hours = div(abs_total, 3600)
+    minutes = div(rem(abs_total, 3600), 60)
+
+    case minutes do
+      0 -> [hour: sign * hours]
+      m -> [hour: sign * hours, minute: sign * m]
+    end
+  end
+
   # Extract `year, month, day, hour, minute, second` from a Tempo's
   # time keyword list and build a NaiveDateTime, filling missing
   # minute/second with 0. Returns `nil` if the value doesn't have
@@ -63,20 +81,6 @@ defmodule Tempo.Enumeration.Zone do
     end
   end
 
-  # Convert a DateTime's total offset (`utc_offset + std_offset`, in
-  # seconds) to a Tempo `:shift` keyword list. Drops the `:minute`
-  # element when the offset is an exact number of hours — matches the
-  # shape parsed from IXDTF `+HH` vs `+HH:MM`.
-  defp shift_from_datetime(%DateTime{utc_offset: utc, std_offset: std}) do
-    total = utc + std
-    sign = if total < 0, do: -1, else: 1
-    abs_total = abs(total)
-    hours = div(abs_total, 3600)
-    minutes = div(rem(abs_total, 3600), 60)
-
-    case minutes do
-      0 -> [hour: sign * hours]
-      m -> [hour: sign * hours, minute: sign * m]
-    end
-  end
+  defp shift_from_datetime(%DateTime{utc_offset: utc, std_offset: std}),
+    do: offset_to_shift(utc + std)
 end

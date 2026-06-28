@@ -63,39 +63,24 @@ defimpl Enumerable, for: Tempo.Interval do
 
   @impl Enumerable
   def slice(%Tempo.Interval{from: %Tempo{calendar: calendar} = from, to: %Tempo{} = to}) do
-    if zoned?(from) do
-      # A DST fall-back duplicates a wall-clock hour at two offsets.
-      # `Steps.nth_step/4` is position-based and can't reproduce the
-      # duplicate's distinct shifts, so a zoned interval defers slicing
-      # to the (DST-aware) reduce walk. `count/1` and `member?/2` are
-      # exact and keep the fast path; non-zoned intervals keep it too.
-      {:error, __MODULE__}
-    else
-      {unit, _span} = Tempo.resolution(from)
+    {unit, _span} = Tempo.resolution(from)
 
-      case Tempo.Interval.Steps.count_steps(from, to, unit, calendar) do
-        n when is_integer(n) and n >= 0 ->
-          slicing =
-            fn start, length, step ->
-              for i <- start..(start + length - 1)//step,
-                  do: Tempo.Interval.Steps.nth_step(from, i, unit, calendar)
-            end
+    case Tempo.Interval.Steps.count_steps(from, to, unit, calendar) do
+      n when is_integer(n) and n >= 0 ->
+        slicing =
+          fn start, length, step ->
+            for i <- start..(start + length - 1)//step,
+                do: Tempo.Interval.Steps.nth_step(from, i, unit, calendar)
+          end
 
-          {:ok, n, slicing}
+        {:ok, n, slicing}
 
-        _ ->
-          {:error, __MODULE__}
-      end
+      _ ->
+        {:error, __MODULE__}
     end
   end
 
   def slice(_interval), do: {:error, __MODULE__}
-
-  # A value is zoned (and so could span a DST transition) when it
-  # carries a named IANA zone other than `Etc/UTC`, which has no DST.
-  defp zoned?(%Tempo{extended: %{zone_id: "Etc/UTC"}}), do: false
-  defp zoned?(%Tempo{extended: %{zone_id: zone}}) when is_binary(zone) and zone != "", do: true
-  defp zoned?(%Tempo{}), do: false
 
   @impl Enumerable
   def reduce(%Tempo.Interval{from: :undefined, to: :undefined}, _acc, _fun) do

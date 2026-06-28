@@ -366,6 +366,25 @@ defmodule Tempo.Enumeration.Test do
 
       assert shifts == [[hour: -4], [hour: -5]]
     end
+
+    test "the slice fast path matches the walk across a DST transition" do
+      for str <- ["2022-03-13", "2022-11-06", "2022-06-15"] do
+        {:ok, day} = Tempo.from_iso8601(str <> "[America/New_York]")
+        {:ok, interval} = Tempo.to_interval(day)
+        walk = Enum.to_list(interval)
+        # Enum.at / Enum.slice use the Steps slice path; must match.
+        assert Enum.map(0..(length(walk) - 1), &Enum.at(interval, &1)) == walk
+        assert Enum.slice(interval, 1, 3) == Enum.slice(walk, 1, 3)
+      end
+    end
+
+    test "slice disambiguates the folded hour by offset" do
+      {:ok, day} = Tempo.from_iso8601("2022-11-06[America/New_York]")
+      {:ok, interval} = Tempo.to_interval(day)
+      # Steps step 1 and 2 are both 01:00, with the EDT then EST offset.
+      assert Enum.at(interval, 1).shift == [hour: -4]
+      assert Enum.at(interval, 2).shift == [hour: -5]
+    end
   end
 
   describe "enumeration honours the value's calendar" do

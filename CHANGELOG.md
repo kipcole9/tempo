@@ -16,6 +16,8 @@
 
 * `Enumerable.Tempo.Interval.reduce/3` is now DST-aware, so an interval's `Enum.to_list/1` agrees with its `Enum.count/1`: a spring-forward day walks 23 hours and a fall-back day 25 (the folded hour emitted twice with its two offsets), matching the `Tempo.Interval.Steps` fast paths and the implicit `%Tempo{}` walk. The classification now lives in a shared `Tempo.Enumeration.Zone`.
 
+* `Tempo.Interval.Steps.nth_step/4` now disambiguates a DST fall-back's duplicated hour, assigning each occurrence its own offset. This makes the O(1) `slice/1` fast path exact across a DST transition, so `Enum.at/2` and `Enum.slice/2` agree with the walk for zoned values too (they previously deferred to the O(n) reduce walk).
+
 * Implicit enumeration of a `%Tempo{}` now resolves its range against the value's own calendar instead of defaulting to Gregorian. A Coptic/Ethiopic year (or a Hebrew leap year) now enumerates 13 months, and a 30-day Coptic month enumerates 30 days rather than a Gregorian-style 31 (which produced a non-existent date). This applies to the `Enum` walk and the new `count`/`member?`/`slice` fast paths alike.
 
 * `Tempo.from_iso8601/1` now rejects genuinely inverted intervals such as `2026/2025` with a `Tempo.IntervalEndpointsError`. The check is narrow — it compares against the end's exclusive upper bound, so EDTF reduced-precision (`1111-01-01/1111`), masked, and non-anchored midnight-crossing (`T22/T02`) intervals stay valid.

@@ -407,11 +407,28 @@ defmodule Tempo.Interval.Steps do
         new_utc = trunc(Tempo.Compare.to_utc_seconds(tempo)) + delta_seconds
         new_offset = zone_offset_at_utc(tempo.extended.zone_id, new_utc)
         new_wall = new_utc + new_offset
-        %{tempo | time: replace_date_time(time, new_wall, calendar)}
+        result = %{tempo | time: replace_date_time(time, new_wall, calendar)}
+        disambiguate_fold(result, new_offset)
 
       true ->
         new_wall = wall_seconds(time, calendar) + delta_seconds
         %{tempo | time: replace_date_time(time, new_wall, calendar)}
+    end
+  end
+
+  # When the stepped-to wall time occurs twice (a DST fall-back fold),
+  # carry the explicit offset for *this* occurrence so the two folded
+  # steps are distinct values, matching the reduce walk. Unambiguous
+  # moments keep their original shift (a `nil` shift plus the zone id
+  # resolves to a single instant). `offset_seconds` already pins which
+  # side of the fold this step landed on.
+  defp disambiguate_fold(%Tempo{} = result, offset_seconds) do
+    case Tempo.Enumeration.Zone.zone_status(result) do
+      {:ambiguous, _first, _second} ->
+        %{result | shift: Tempo.Enumeration.Zone.offset_to_shift(offset_seconds)}
+
+      _ ->
+        result
     end
   end
 

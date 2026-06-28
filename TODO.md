@@ -277,22 +277,3 @@
   groups to a non-anchored interval, leave date groups erroring, and
   document that the result lives on the time-of-day axis until anchored
   (see `guides/interop.md` for the anchored/non-anchored distinction).
-
-* **`Tempo.Interval.Steps.nth_step/4` can't reproduce a DST
-  fall-back's duplicate hour, so `slice/1` defers zoned values.**
-
-  `count/1`, `member?/2`, and `reduce/3` are now all DST-aware and
-  agree (gap day = 23, fall-back day = 25), via the shared
-  `Tempo.Enumeration.Zone.zone_status/1`. `slice/1` is the exception:
-  a fall-back hour appears twice at the same wall position with two
-  different offsets (e.g. `01:00-04:00` then `01:00-05:00`), and
-  position-based `nth_step/4` produces only one of them. So both
-  `Enumerable.Tempo.slice/1` and `Enumerable.Tempo.Interval.slice/1`
-  return `{:error, ...}` for zoned values and let `Enum` fall back to
-  the (correct) reduce walk.
-
-  To make zoned `slice/1` O(1) again, `nth_step/4` would need to map a
-  position to *which* occurrence of a folded hour it is and assign the
-  matching `:shift`. Low priority — slicing a single DST-transition
-  day is rare, and the fall-back is correct, just O(n).
-
