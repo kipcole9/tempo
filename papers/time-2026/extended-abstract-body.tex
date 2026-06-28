@@ -232,6 +232,47 @@ queries (\texttt{any\_overlaps?}, \texttt{disjoint?}). The library's
 public surface is, deliberately, an English-prose description of
 Allen's algebra over ISO~8601 values.
 
+\section{Position among temporal formalisms}
+
+The choice to make intervals primitive places Tempo on one side of a
+long-standing divide. Vilain and Kautz~\cite{vilainkautz1986} take
+\emph{points} as primitive: an interval is an ordered pair of endpoint
+points, and an interval relation reduces to a conjunction of
+point-relations $\{<,=,>\}$ among the four endpoints. The reward is
+tractability --- reasoning in the point algebra is polynomial, whereas
+constraint reasoning over the full interval algebra is intractable in
+general~\cite{vilainkautz1986,nebel1995}. Allen and
+Hayes~\cite{allenhayes1989} take the opposite stance, axiomatising the
+algebra from the single primitive \textit{meets} and reconstructing
+points only as derived entities --- \emph{moments} (intervals with no
+proper subinterval) and the meeting-places between intervals.
+Gr\"uninger and Li's $T_{bounded\_meeting}$~\cite{gruninger2017allenontology}
+continues this interval-only lineage, excluding degenerate intervals
+and points from the domain entirely; this is the ontology Tempo
+adopts.
+
+Tempo's contribution is best read as a synthesis across this divide.
+\emph{Ontologically} it is interval-only: there are no instants,
+degenerate intervals are excluded, and the half-open seam realises
+Hayes' open-connected model rather than Allen's closed intervals.
+\emph{Computationally}, however, comparison projects every endpoint to
+a real number on a single UTC frame and orders intervals by their
+endpoints --- precisely the Vilain--Kautz reduction, used as an engine
+beneath an interval ontology. Two consequences follow. First, because
+Tempo's intervals are always \emph{fully grounded} (concrete
+endpoints, never disjunctive qualitative constraints), it never enters
+the NP-hard regime that motivated the point algebra: relation queries
+are constant-time endpoint comparisons rather than constraint
+propagation. Second, the ``instant'' is recovered not as a primitive
+point but as the interval of one unit at the value's \emph{finest
+declared resolution} --- a \emph{moment} in Allen and Hayes' sense,
+but relativised to representational precision: a second-resolution
+datetime is a one-second interval, a microsecond value a
+one-microsecond interval. This resolution-indexed atomicity, tying
+interval granularity to ISO~8601 syntax rather than to an absolute
+atom, is the element of the model without a direct precedent in the
+formalisms it draws on.
+
 \section{Set operations on intervals and interval sets}
 
 The current implementation focus is closing the library under
@@ -365,6 +406,25 @@ sharpen them.
   \newblock Maintaining knowledge about temporal intervals.
   \newblock \emph{Communications of the ACM}, 26(11):832--843, 1983.
   \newblock \doi{10.1145/182.358434}
+
+\bibitem{vilainkautz1986}
+  Marc B. Vilain and Henry A. Kautz.
+  \newblock Constraint propagation algorithms for temporal reasoning.
+  \newblock In \emph{Proceedings of the 5th National Conference on
+  Artificial Intelligence (AAAI-86)}, pages 377--382, 1986.
+
+\bibitem{allenhayes1989}
+  James F. Allen and Patrick J. Hayes.
+  \newblock Moments and points in an interval-based temporal logic.
+  \newblock \emph{Computational Intelligence}, 5(3):225--238, 1989.
+  \newblock \doi{10.1111/j.1467-8640.1989.tb00329.x}
+
+\bibitem{nebel1995}
+  Bernhard Nebel and Hans-J\"urgen B\"urckert.
+  \newblock Reasoning about temporal relations: A maximal tractable
+  subclass of Allen's interval algebra.
+  \newblock \emph{Journal of the ACM}, 42(1):43--66, 1995.
+  \newblock \doi{10.1145/200836.200848}
 
 \bibitem{iso8601-1}
   International Organization for Standardization.

@@ -123,6 +123,9 @@ defmodule Tempo.MixProject do
         "guides/iso8601-conformance.md",
         "guides/rfc5545_rrule_conformance.md",
         "guides/shared-ast-iso8601-and-rrule.md"
+      ],
+      Foundations: [
+        "guides/temporal-formalisms.md"
       ]
     ]
   end
