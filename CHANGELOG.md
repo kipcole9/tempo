@@ -1,16 +1,16 @@
 # Changelog
 
-## [Unreleased]
+## [v0.9.0] — 2026-06-28
 
 ### Added
 
 * `Tempo.to_date_time/1` — convert a zoned Tempo back into a `DateTime`, preserving the named time zone and re-deriving the UTC offset from the time-zone database (the lossless inverse of `from_elixir/2` on a `DateTime`). DST fall-back ambiguity is resolved using the value's stored offset, and a spring-forward gap returns an error.
 
-* `Enumerable` `count/1`, `member?/2`, and `slice/1` are now implemented for `%Tempo{}` (previously they fell back to an O(n) walk). They delegate to the materialised interval's O(1) `Tempo.Interval.Steps` paths and stay DST-aware — a spring-forward day counts 23 hours, a fall-back day 25. `slice/1` defers zoned values to the walk (a fall-back hour can't be reproduced by position), and group/range/selection values fall back as before.
+* `Enumerable` `count/1`, `member?/2`, and `slice/1` are now implemented for `%Tempo{}`, delegating to the materialised interval's O(1) `Tempo.Interval.Steps` paths instead of an O(n) walk. They are DST-aware (a spring-forward day counts 23 hours, a fall-back day 25); group, range, and selection values fall back to the reduce walk.
 
 ### Changed
 
-* `Tempo.from_elixir/2` now infers resolution for `Time`, `NaiveDateTime`, and `DateTime` from the type's declared precision (`:second`, or `:microsecond` when a sub-second precision is present) rather than from the magnitude of the components. Previously `~U[2022-07-04 09:00:00Z]` was coarsened to hour resolution and midnight to day resolution; a zero second/minute is now treated as fully specified, which fixes lossy round-trips through `to_naive_date_time/1`. Pass an explicit `:resolution` to recover the old coarsening (e.g. `resolution: :day` for a midnight value).
+* `Tempo.from_elixir/2` now infers resolution for `Time`, `NaiveDateTime`, and `DateTime` from the type's declared precision (`:second`, or `:microsecond`) rather than the magnitude of the components, so `~U[2022-07-04 09:00:00Z]` is a fully specified second (not an hour) and round-trips losslessly through `to_naive_date_time/1`. Pass an explicit `:resolution` to force a coarser span (e.g. `resolution: :day` for a midnight value).
 
 ### Bug Fixes
 
@@ -18,7 +18,7 @@
 
 * `Tempo.Interval.Steps.nth_step/4` now disambiguates a DST fall-back's duplicated hour, assigning each occurrence its own offset. This makes the O(1) `slice/1` fast path exact across a DST transition, so `Enum.at/2` and `Enum.slice/2` agree with the walk for zoned values too (they previously deferred to the O(n) reduce walk).
 
-* Implicit enumeration of a `%Tempo{}` now resolves its range against the value's own calendar instead of defaulting to Gregorian. A Coptic/Ethiopic year (or a Hebrew leap year) now enumerates 13 months, and a 30-day Coptic month enumerates 30 days rather than a Gregorian-style 31 (which produced a non-existent date). This applies to the `Enum` walk and the new `count`/`member?`/`slice` fast paths alike.
+* Implicit enumeration of a `%Tempo{}` now resolves its range against the value's own calendar instead of defaulting to Gregorian, for both the `Enum` walk and the `count`/`member?`/`slice` fast paths. A Coptic/Ethiopic year (or a Hebrew leap year) now enumerates 13 months, and a 30-day Coptic month enumerates 30 days rather than a non-existent Gregorian-style 31.
 
 * `Tempo.from_iso8601/1` now rejects genuinely inverted intervals such as `2026/2025` with a `Tempo.IntervalEndpointsError`. The check is narrow — it compares against the end's exclusive upper bound, so EDTF reduced-precision (`1111-01-01/1111`), masked, and non-anchored midnight-crossing (`T22/T02`) intervals stay valid.
 
@@ -30,7 +30,7 @@
 
 * `Tempo.to_interval/1` now materialises second-resolution values to a one-second span `[t, t+1s)` instead of returning `{:error, :finest_resolution}`. Since sub-second resolution landed, a second is no longer the finest unit, so the common case of a plain `DateTime`/`NaiveDateTime` (which infers to second resolution) can now become an interval and participate in set operations.
 
-* `Tempo.to_naive_date_time/1` and `Tempo.to_time/1` no longer error on zoned values. They now drop the offset and return the wall-clock reading (matching `to_date/1` and the stdlib `DateTime.to_naive/1`); the numbers are not shifted to UTC. Use `to_date_time/1` to keep the zone, or `shift_zone(tempo, "Etc/UTC")` to normalise to UTC wall time first.
+* `Tempo.to_naive_date_time/1` and `Tempo.to_time/1` no longer error on zoned values; they drop the offset and return the wall-clock reading (matching `to_date/1` and the stdlib `DateTime.to_naive/1`), not shifted to UTC. Use `to_date_time/1` to keep the zone, or `shift_zone(tempo, "Etc/UTC")` to normalise to UTC wall time first.
 
 ## [v0.8.0] — 2026-06-27
 

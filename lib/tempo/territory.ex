@@ -89,14 +89,23 @@ defmodule Tempo.Territory do
   end
 
   def resolve(value) when is_binary(value) do
-    cond do
-      territory_shape?(value) ->
-        {:ok, normalize_territory_string(value)}
-
-      true ->
-        with {:ok, tag} <- Localize.validate_locale(value) do
-          Localize.Territory.territory_from_locale(tag)
-        end
+    # Delegate all BCP 47 parsing to Localize rather than hand-rolling
+    # territory/locale shapes. A bare territory code (`"US"`, `"sa"`)
+    # validates directly; a locale (`"en-GB"`, `"en-US-u-rg-sazzzz"`)
+    # resolves through `territory_from_locale/1`, which decodes the
+    # `-u-` extension — including the `u-rg` region override — via
+    # `Localize.LanguageTag.U`; a bare `u-rg` value (`"sazzzz"`) is
+    # decoded by the same `-u` key decoder. Every path validates
+    # against CLDR data, so no untrusted string reaches
+    # `String.to_atom/1`.
+    with {:error, _} <- Localize.validate_territory(value),
+         {:error, _} <- Localize.Territory.territory_from_locale(value),
+         {:error, _} <- decode_region_override(value) do
+      {:error,
+       ArgumentError.exception(
+         "Tempo.Territory.resolve/1 does not recognise #{inspect(value)} as a " <>
+           "territory, locale, or region override."
+       )}
     end
   end
 
@@ -118,20 +127,14 @@ defmodule Tempo.Territory do
     |> Localize.Territory.territory_from_locale()
   end
 
-  # A territory-shaped string is two or three letters, optionally
-  # followed by BCP 47's `zzzz` padding used in `u-rg` subtags.
-  # Anything with a hyphen (`"en-GB"`) or longer is treated as a
-  # locale.
-  defp territory_shape?(value) do
-    stripped = String.trim_trailing(value, "zzzz")
-    length = String.length(stripped)
-    length in 2..3 and not String.contains?(stripped, "-")
-  end
-
-  defp normalize_territory_string(value) do
-    value
-    |> String.trim_trailing("zzzz")
-    |> String.upcase()
-    |> String.to_atom()
+  # A bare BCP 47 `u-rg` region-override value (`"sazzzz"` → `:SA`),
+  # decoded by Localize's `-u` extension key decoder. It strips the
+  # `zzzz` padding and validates the territory against CLDR data, so
+  # Tempo never has to recognise the `u-rg` shape itself.
+  defp decode_region_override(value) do
+    case Localize.Validity.U.decode("rg", value) do
+      {:ok, {:rg, territory}} -> {:ok, territory}
+      {:error, _} = error -> error
+    end
   end
 end

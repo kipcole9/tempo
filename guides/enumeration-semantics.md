@@ -221,14 +221,21 @@ iex> Enum.take(interval, 3)
 ** (ArgumentError) Cannot enumerate an interval with an open lower bound `../to` — Enumerable iterates forward from the lower bound, which is not defined.
 ```
 
-### 3.4. Values at the finest available resolution
+### 3.4. Microsecond values at maximum precision
 
-A fully-specified second-resolution datetime has no finer unit to drill into. Tempo deliberately does not invent a sub-second "tick" unit — the value is a single indivisible moment at its declared resolution.
+Sub-second resolution drills one decimal place at a time: a second iterates into ten tenths, a tenth into ten hundredths, and so on down to microsecond precision (six digits). This is the intended design — a stated resolution is always enumerable by stepping into the next-finer decimal place. The single exception is a value *already* at microsecond precision 6: it has no finer unit to drill into, so it is the one clock resolution that cannot be enumerated.
 
 ```
-iex> {:ok, value} = Tempo.from_iso8601("2022-06-15T10:30:00Z")
+iex> {:ok, value} = Tempo.from_iso8601("2022-06-15T10:30:00.000000Z")
 iex> Enum.take(value, 1)
-** (ArgumentError) Cannot enumerate a Tempo at :second resolution — no finer unit is defined. …
+** (ArgumentError) Cannot enumerate a Tempo at microsecond precision 6 — that is the finest representable ulp. …
+```
+
+A second-resolution value, by contrast, *is* enumerable — it drills into ten deciseconds:
+
+```
+iex> Enum.take(~o"2026-01-15T10:30:00", 3)
+[~o"2026Y1M15DT10H30M0.0S", ~o"2026Y1M15DT10H30M0.1S", ~o"2026Y1M15DT10H30M0.2S"]
 ```
 
 ### 3.5. Significant-digits blocks larger than 10 000
@@ -243,27 +250,15 @@ iex> Enum.take(value, 3)
 
 The parsed value itself is usable for comparison, equality, and round-trip serialisation; only iteration is refused.
 
-## 4. Not enumerable — not yet implemented
+## 4. `count/1`, `member?/2`, `slice/1` — fast paths
 
-These *will* be enumerable in future versions, but are not today. Each is pinned by a test that will force a conscious update when the implementation lands.
+`Enum.count/1`, `Enum.member?/2`, and `Enum.slice/2` (with `Enum.at/2`) have O(1) implementations for `%Tempo{}` and `%Tempo.Interval{}`, backed by `Tempo.Interval.Steps`. They are calendar-aware (a Coptic year counts 13 months, not 12) and DST-aware (a spring-forward day counts 23 hours, a fall-back day 25), and they agree element-for-element with the `reduce/3` walk.
 
-### 4.1. `count/1`, `member?/2`, `slice/1` on `Tempo.Interval`
+Values that don't materialise to a single interval — groups, selections, ranges, sets, masks — return `{:error, …}` and let `Enum` fall back to the `reduce/3` walk, which handles them.
 
-All three currently return `{:error, Enumerable.Tempo.Interval}`, which tells Elixir's `Enum` module to fall back to iterating via `reduce/3`.
+### 4.1. Still pending: `%Tempo.Set{}`
 
-Precise implementations need:
-
-* For `count/1` on closed intervals — Tempo-to-Tempo distance in resolution-units (calendar-aware).
-
-* For `member?/2` — a full Tempo comparison (`lib/comparison.ex` is currently a template).
-
-* For `slice/1` — addressing the Nth element directly.
-
-Tracked with the set-operations milestone, which also depends on `Tempo.relation/2`.
-
-### 4.2. `count/1` and `member?/2` on `%Tempo{}` and `%Tempo.Set{}`
-
-Both return `{:error, Enumerable.Tempo}` / `{:error, Enumerable.Tempo.Set}` today. Will be filled in alongside the same comparison primitives as §4.2.
+`count/1` and `member?/2` on `%Tempo.Set{}` return `{:error, Enumerable.Tempo.Set}` today, so `Enum` falls back to `reduce/3`. A direct implementation would sum the members' counts; it is tracked with the broader set-operations work.
 
 ## 5. Semantic edge cases
 
@@ -326,7 +321,7 @@ true
 
 Known divergences:
 
-* **Second-resolution values.** `~o"2026-01-15T10:30:00"` has no finer unit to drill into. Implicit iteration raises `ArgumentError`; `to_interval/1` raises a matching error. Neither form yields a value.
+* **Second-resolution values.** `to_interval/1` materialises a one-second span (`~o"2026-01-15T10:30:00"` → `[10:30:00, 10:30:01)`), but implicit iteration drills one unit finer into sub-second tenths — so `Enum.to_list(~o"2026-01-15T10:30:00")` yields ten deciseconds (`.0`–`.9`) while the interval forward-steps as a single second. Coarser resolutions don't diverge because `to_interval/1` drills their endpoints one unit finer too; the second case keeps second-resolution endpoints (a clean `[t, t+1s)` span for set operations).
 
 * **Masked values iterated implicitly.** The current implicit enumeration of masked values (`1985-XX-XX`) has known quirks — it does not always walk the full cartesian product of valid month/day pairs. `to_interval/1` widens to the coarsest un-masked prefix and produces a clean span; iterating that interval yields the straightforward forward-stepped sequence. Prefer the explicit form for set operations on masked values.
 
@@ -335,5 +330,6 @@ Known divergences:
 | Category | Examples |
 |---|---|
 | **Enumerable** | every standard ISO 8601 / EDTF value with a concrete anchor — single values, ranges, sets, masks, long years, qualified values, IXDTF-tagged values, closed intervals, open-upper intervals, seasons, mixed-resolution intervals |
-| **Not enumerable by design** | bare `%Tempo.Duration{}`, fully open intervals `../..`, open-lower intervals `../to`, values at finest resolution, significant-digits blocks > 10 000 candidates |
-| **Not enumerable (deferred)** | exact `count/1` / `member?/2` / `slice/1` on intervals, `count/1` / `member?/2` on `%Tempo{}` and `%Tempo.Set{}` |
+| **Not enumerable by design** | bare `%Tempo.Duration{}`, fully open intervals `../..`, open-lower intervals `../to`, microsecond values at precision 6 (the finest resolution), significant-digits blocks > 10 000 candidates |
+| **O(1) fast paths** | `count/1`, `member?/2`, `slice/1` on `%Tempo{}` and `%Tempo.Interval{}` (calendar- and DST-aware) |
+| **Deferred** | `count/1` / `member?/2` on `%Tempo.Set{}` (falls back to `reduce/3`) |

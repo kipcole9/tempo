@@ -49,7 +49,7 @@ iex> Tempo.from_elixir(~D[2026-06-15])
 ~o"2026Y6M15D"
 
 iex> Tempo.from_elixir(~U[2026-06-15 10:30:00Z])
-# Hour-resolution datetime with zone_id "Etc/UTC"
+~o"2026Y6M15DT10H30M0SZ[Etc/UTC]"   # second resolution, zone_id "Etc/UTC"
 ```
 
 `from_elixir/2` accepts a `:resolution` option when you want to coarsen or extend the inferred one.
