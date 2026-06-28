@@ -1,6 +1,7 @@
 defimpl Enumerable, for: Tempo.Interval do
   @moduledoc false
 
+  alias Tempo.Enumeration.Zone
   alias Tempo.Math
 
   # An interval represents a span on the time line. Enumerating it
@@ -62,24 +63,39 @@ defimpl Enumerable, for: Tempo.Interval do
 
   @impl Enumerable
   def slice(%Tempo.Interval{from: %Tempo{calendar: calendar} = from, to: %Tempo{} = to}) do
-    {unit, _span} = Tempo.resolution(from)
+    if zoned?(from) do
+      # A DST fall-back duplicates a wall-clock hour at two offsets.
+      # `Steps.nth_step/4` is position-based and can't reproduce the
+      # duplicate's distinct shifts, so a zoned interval defers slicing
+      # to the (DST-aware) reduce walk. `count/1` and `member?/2` are
+      # exact and keep the fast path; non-zoned intervals keep it too.
+      {:error, __MODULE__}
+    else
+      {unit, _span} = Tempo.resolution(from)
 
-    case Tempo.Interval.Steps.count_steps(from, to, unit, calendar) do
-      n when is_integer(n) and n >= 0 ->
-        slicing =
-          fn start, length, step ->
-            for i <- start..(start + length - 1)//step,
-                do: Tempo.Interval.Steps.nth_step(from, i, unit, calendar)
-          end
+      case Tempo.Interval.Steps.count_steps(from, to, unit, calendar) do
+        n when is_integer(n) and n >= 0 ->
+          slicing =
+            fn start, length, step ->
+              for i <- start..(start + length - 1)//step,
+                  do: Tempo.Interval.Steps.nth_step(from, i, unit, calendar)
+            end
 
-        {:ok, n, slicing}
+          {:ok, n, slicing}
 
-      _ ->
-        {:error, __MODULE__}
+        _ ->
+          {:error, __MODULE__}
+      end
     end
   end
 
   def slice(_interval), do: {:error, __MODULE__}
+
+  # A value is zoned (and so could span a DST transition) when it
+  # carries a named IANA zone other than `Etc/UTC`, which has no DST.
+  defp zoned?(%Tempo{extended: %{zone_id: "Etc/UTC"}}), do: false
+  defp zoned?(%Tempo{extended: %{zone_id: zone}}) when is_binary(zone) and zone != "", do: true
+  defp zoned?(%Tempo{}), do: false
 
   @impl Enumerable
   def reduce(%Tempo.Interval{from: :undefined, to: :undefined}, _acc, _fun) do
@@ -153,9 +169,56 @@ defimpl Enumerable, for: Tempo.Interval do
         {:done, acc}
 
       false ->
-        do_reduce(increment(current), to, fun.(current, acc), fun)
+        # Classify each emitted moment against its zone so the walk
+        # matches the DST-aware `Tempo.Interval.Steps` count/slice and
+        # the implicit `Enumerable.Tempo` walk: skip a spring-forward
+        # gap hour, emit a fall-back hour twice with its two offsets.
+        case Zone.zone_status(current) do
+          :gap ->
+            do_reduce(increment(current), to, {:cont, acc}, fun)
+
+          {:ambiguous, first_shift, second_shift} ->
+            emit_fold(
+              [%{current | shift: first_shift}, %{current | shift: second_shift}],
+              current,
+              to,
+              acc,
+              fun
+            )
+
+          :ok ->
+            do_reduce(increment(current), to, fun.(current, acc), fun)
+        end
     end
   end
+
+  # Emit each occurrence of a DST fall-back moment, threading the
+  # accumulator and honouring halt/suspend, then advance past the
+  # folded hour exactly once.
+  defp emit_fold([], current, to, acc, fun),
+    do: do_reduce(increment(current), to, {:cont, acc}, fun)
+
+  defp emit_fold([value | rest], current, to, acc, fun) do
+    case fun.(value, acc) do
+      {:cont, acc2} ->
+        emit_fold(rest, current, to, acc2, fun)
+
+      {:halt, acc2} ->
+        {:halted, acc2}
+
+      {:suspend, acc2} ->
+        {:suspended, acc2, &emit_fold_after_suspend(rest, current, to, fun, &1)}
+    end
+  end
+
+  defp emit_fold_after_suspend(rest, current, to, fun, {:cont, acc}),
+    do: emit_fold(rest, current, to, acc, fun)
+
+  defp emit_fold_after_suspend(_rest, _current, _to, _fun, {:halt, acc}),
+    do: {:halted, acc}
+
+  defp emit_fold_after_suspend(rest, current, to, fun, {:suspend, acc}),
+    do: {:suspended, acc, &emit_fold_after_suspend(rest, current, to, fun, &1)}
 
   # Open-upper: `to` is `:undefined` (explicit `../` in source) or
   # `nil` (from+duration shape with no computed upper bound yet).

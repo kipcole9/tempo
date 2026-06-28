@@ -348,6 +348,24 @@ defmodule Tempo.Enumeration.Test do
       assert Enum.count(day) == length(Enum.to_list(day))
       assert Enum.all?(Enum.to_list(day), &Enum.member?(day, &1))
     end
+
+    test "the materialised interval's walk is DST-aware and agrees with its count" do
+      for {str, hours} <- [{"2022-03-13", 23}, {"2022-11-06", 25}, {"2022-06-15", 24}] do
+        {:ok, day} = Tempo.from_iso8601(str <> "[America/New_York]")
+        {:ok, interval} = Tempo.to_interval(day)
+        assert Enum.count(interval) == hours
+        assert length(Enum.to_list(interval)) == hours
+      end
+    end
+
+    test "fall-back hour is emitted twice with its two offsets" do
+      {:ok, interval} = Tempo.to_interval(~o"2022-11-06[America/New_York]")
+
+      shifts =
+        interval |> Enum.to_list() |> Enum.filter(&(&1.time[:hour] == 1)) |> Enum.map(& &1.shift)
+
+      assert shifts == [[hour: -4], [hour: -5]]
+    end
   end
 
   describe "enumeration honours the value's calendar" do

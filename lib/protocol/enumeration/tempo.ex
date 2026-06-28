@@ -2,6 +2,7 @@ defimpl Enumerable, for: Tempo do
   @moduledoc false
 
   alias Tempo.Enumeration
+  alias Tempo.Enumeration.Zone
   alias Tempo.Validation
 
   # Implicit enumeration of a resolved `%Tempo{}` walks the same
@@ -77,7 +78,7 @@ defimpl Enumerable, for: Tempo do
       next ->
         tempo = Enumeration.collect(next)
 
-        case zone_status(tempo) do
+        case Zone.zone_status(tempo) do
           # Wall clock never shows this moment (DST spring-forward):
           # skip and advance.
           :gap ->
@@ -152,74 +153,5 @@ defimpl Enumerable, for: Tempo do
       |> Validation.validate(calendar)
 
     tempo
-  end
-
-  # Classify a Tempo value against its configured zone:
-  #
-  #   * `:ok` — no zone, no time-of-day, or the wall time resolves
-  #     to a single unambiguous UTC instant.
-  #
-  #   * `:gap` — wall time falls in a DST spring-forward gap; the
-  #     clock never shows it.
-  #
-  #   * `{:ambiguous, first_shift, second_shift}` — wall time
-  #     happens twice (DST fall-back). The shifts are keyword lists
-  #     derived from the pre- and post-transition total UTC offset.
-  defp zone_status(%Tempo{extended: %{zone_id: zone}} = tempo) when is_binary(zone) do
-    with %NaiveDateTime{} = naive <- naive_from_tempo(tempo),
-         db when is_atom(db) <- Calendar.get_time_zone_database() do
-      case DateTime.from_naive(naive, zone, db) do
-        {:gap, _before, _after} ->
-          :gap
-
-        {:ambiguous, first, second} ->
-          {:ambiguous, shift_from_datetime(first), shift_from_datetime(second)}
-
-        _ ->
-          :ok
-      end
-    else
-      _ -> :ok
-    end
-  end
-
-  defp zone_status(_tempo), do: :ok
-
-  # Extract `year, month, day, hour, minute, second` from a Tempo's
-  # time keyword list and build a NaiveDateTime, filling missing
-  # minute/second with 0. Returns `nil` if the value doesn't have
-  # enough components to form a NaiveDateTime.
-  defp naive_from_tempo(%Tempo{time: time}) do
-    with year when is_integer(year) <- Keyword.get(time, :year),
-         month when is_integer(month) <- Keyword.get(time, :month),
-         day when is_integer(day) <- Keyword.get(time, :day),
-         hour when is_integer(hour) <- Keyword.get(time, :hour) do
-      minute = Keyword.get(time, :minute, 0)
-      second = Keyword.get(time, :second, 0)
-
-      case NaiveDateTime.new(year, month, day, hour, minute, second) do
-        {:ok, naive} -> naive
-        _ -> nil
-      end
-    else
-      _ -> nil
-    end
-  end
-
-  # Convert a DateTime's total offset (`utc_offset + std_offset`, in
-  # seconds) to a Tempo `:shift` keyword list. Drops the `:minute`
-  # element when the offset is an exact number of hours — matches
-  # the shape parsed from IXDTF `+HH` vs `+HH:MM`.
-  defp shift_from_datetime(%DateTime{utc_offset: utc, std_offset: std}) do
-    total = utc + std
-    sign = if total < 0, do: -1, else: 1
-    abs_total = abs(total)
-    hours = div(abs_total, 3600)
-    minutes = div(rem(abs_total, 3600), 60)
-
-    case minutes do
-      0 -> [hour: sign * hours]
-      m -> [hour: sign * hours, minute: sign * m]
-    end
   end
 end
