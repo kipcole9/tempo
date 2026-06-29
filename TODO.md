@@ -105,7 +105,13 @@
      Sat, Sun. This also fixed a Sunday-spanning range LHS (`0-3`) that
      had built a descending range.
 
-* **IXDTF strict mode — flag offset/zone disagreement.**
+* ~~**IXDTF strict mode — flag offset/zone disagreement.**~~ **Done.**
+  `Tempo.validate_zone_offset/1` returns `:ok | {:error,
+  %Tempo.ZoneOffsetMismatchError{}}`, and `Tempo.from_iso8601/2`
+  accepts `strict: true` (composing with `calendar:`) to reject a
+  disagreeing value at parse time. A DST fall-back offset is treated as
+  disambiguation, not disagreement. The `!` critical flag is not yet
+  wired to auto-strict — left as a possible refinement. Analysis below.
 
   When an IXDTF string carries both a numeric offset and a zone identifier
   (e.g. `2022-11-20T10:37:00+05:00[Europe/Paris]`), the two can disagree —

@@ -1,6 +1,8 @@
 defmodule Tempo.ZoneValidationTest do
   use ExUnit.Case, async: true
 
+  doctest Tempo.ZoneOffsetMismatchError
+
   # Parse-time validation of zoned wall times: during a DST
   # spring-forward, an hour of local time doesn't exist. ISO 8601
   # permits the syntax; Tempo rejects the semantics so downstream
@@ -396,6 +398,68 @@ defmodule Tempo.ZoneValidationTest do
 
       # No zone → plain wall-clock delta of 24h.
       assert Tempo.Interval.duration(iv) == %Tempo.Duration{time: [second: 86400]}
+    end
+  end
+
+  describe "IXDTF offset/zone consistency (strict mode, RFC 9557 §4.2)" do
+    test "validate_zone_offset accepts an offset that matches the zone" do
+      {:ok, t} = Tempo.from_iso8601("2022-11-20T10:37:00+01:00[Europe/Paris]")
+      assert Tempo.validate_zone_offset(t) == :ok
+    end
+
+    test "validate_zone_offset flags an offset that disagrees with the zone" do
+      {:ok, t} = Tempo.from_iso8601("2022-11-20T10:37:00+05:00[Europe/Paris]")
+      assert {:error, %Tempo.ZoneOffsetMismatchError{} = error} = Tempo.validate_zone_offset(t)
+      assert error.zone_id == "Europe/Paris"
+      assert error.stated_offset == 5 * 3600
+      assert error.zone_offsets == [3600]
+      assert Exception.message(error) =~ "+05:00 disagrees with"
+    end
+
+    test "strict: true rejects the inconsistent value at parse time" do
+      assert {:error, %Tempo.ZoneOffsetMismatchError{}} =
+               Tempo.from_iso8601("2022-11-20T10:37:00+05:00[Europe/Paris]", strict: true)
+    end
+
+    test "strict: true accepts a consistent value" do
+      assert {:ok, %Tempo{}} =
+               Tempo.from_iso8601("2022-11-20T10:37:00+01:00[Europe/Paris]", strict: true)
+    end
+
+    test "from_iso8601! with strict: true raises on disagreement" do
+      assert_raise Tempo.ZoneOffsetMismatchError, fn ->
+        Tempo.from_iso8601!("2022-11-20T10:37:00+05:00[Europe/Paris]", strict: true)
+      end
+    end
+
+    test "the default (non-strict) still accepts an inconsistent value" do
+      assert {:ok, %Tempo{}} = Tempo.from_iso8601("2022-11-20T10:37:00+05:00[Europe/Paris]")
+    end
+
+    test "a DST fall-back offset disambiguates rather than disagrees" do
+      # 2024-11-03 01:30 New York occurs twice; both the pre-fall-back
+      # (EDT, -04:00) and post-fall-back (EST, -05:00) offsets are valid.
+      {:ok, edt} = Tempo.from_iso8601("2024-11-03T01:30:00-04:00[America/New_York]")
+      {:ok, est} = Tempo.from_iso8601("2024-11-03T01:30:00-05:00[America/New_York]")
+      assert Tempo.validate_zone_offset(edt) == :ok
+      assert Tempo.validate_zone_offset(est) == :ok
+    end
+
+    test "nothing to check: zone without an offset, or offset without a zone" do
+      assert Tempo.validate_zone_offset(Tempo.from_iso8601!("2022-11-20T10:37:00[Europe/Paris]")) ==
+               :ok
+
+      assert Tempo.validate_zone_offset(Tempo.from_iso8601!("2022-11-20T10:37:00+05:00")) == :ok
+    end
+
+    test "calendar and strict options compose (both honored)" do
+      # `:calendar` swaps the calendar; `strict: true` has nothing to
+      # check here (an offset with no zone), so both apply cleanly.
+      assert {:ok, %Tempo{calendar: Calendrical.Hebrew}} =
+               Tempo.from_iso8601("5786-10-30T10:37:00+02:00",
+                 calendar: Calendrical.Hebrew,
+                 strict: true
+               )
     end
   end
 

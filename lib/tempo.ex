@@ -607,6 +607,27 @@ defmodule Tempo do
     do_from_iso8601(string, :from_ixdtf_or_default)
   end
 
+  @spec from_iso8601(string :: String.t(), options :: keyword()) ::
+          {:ok,
+           t()
+           | Tempo.Interval.t()
+           | Tempo.Duration.t()
+           | Tempo.Set.t()
+           | Tempo.Range.t()}
+          | {:error, error_reason()}
+  def from_iso8601(string, options) when is_binary(string) and is_list(options) do
+    # Options form. `:calendar` selects the calendar (default: IXDTF or
+    # Gregorian); `strict: true` rejects an IXDTF value whose numeric
+    # offset disagrees with its zone (RFC 9557 §4.2), via
+    # `Tempo.Compare.validate_zone_offset/1`. Strict only applies to a
+    # `%Tempo{}` result; intervals/durations pass straight through.
+    calendar = Keyword.get(options, :calendar, :from_ixdtf_or_default)
+
+    with {:ok, %Tempo{} = tempo} <- do_from_iso8601(string, calendar) do
+      enforce_strict(tempo, options)
+    end
+  end
+
   def from_iso8601(string, calendar) when is_binary(string) do
     # Explicit user calendar always wins — IXDTF `[u-ca=NAME]` is
     # recorded on `extended.calendar` for metadata but does not
@@ -720,11 +741,32 @@ defmodule Tempo do
     end
   end
 
+  @spec from_iso8601!(string :: String.t(), options :: keyword()) :: t | no_return()
+  def from_iso8601!(string, options) when is_binary(string) and is_list(options) do
+    case from_iso8601(string, options) do
+      {:ok, tempo} -> tempo
+      {:error, exception} -> raise exception
+    end
+  end
+
   @spec from_iso8601!(string :: String.t(), calendar :: Calendar.calendar()) :: t | no_return()
   def from_iso8601!(string, calendar) when is_binary(string) do
     case from_iso8601(string, calendar) do
       {:ok, tempo} -> tempo
       {:error, exception} -> raise exception
+    end
+  end
+
+  # Apply the `strict: true` IXDTF offset/zone consistency check when
+  # requested; otherwise the value passes through unchanged.
+  defp enforce_strict(%Tempo{} = tempo, options) do
+    if Keyword.get(options, :strict, false) do
+      case Tempo.Compare.validate_zone_offset(tempo) do
+        :ok -> {:ok, tempo}
+        {:error, _exception} = error -> error
+      end
+    else
+      {:ok, tempo}
     end
   end
 
@@ -1419,6 +1461,41 @@ defmodule Tempo do
   def anchored?(%__MODULE__{}) do
     false
   end
+
+  @doc """
+  Check that an IXDTF value's explicit numeric offset agrees with its
+  IANA time zone at the value's wall instant.
+
+  A value such as `2022-11-20T10:37:00+05:00[Europe/Paris]` carries both
+  a numeric offset and a zone; Paris is `+01:00` in November, so the
+  stated `+05:00` is inconsistent. By default the zone wins and the
+  offset is consulted only for DST disambiguation; this surfaces the
+  disagreement instead (RFC 9557 §4.2). The same check backs the
+  `strict: true` option of `from_iso8601/2`.
+
+  ### Arguments
+
+  * `tempo` is a `t:t/0`.
+
+  ### Returns
+
+  * `:ok` when the offset agrees, or when there is nothing to check (no
+    zone, no explicit offset, or a non-anchored value).
+
+  * `{:error, t:Tempo.ZoneOffsetMismatchError.t/0}` on disagreement.
+
+  ### Examples
+
+      iex> {:ok, t} = Tempo.from_iso8601("2022-11-20T10:37:00+01:00[Europe/Paris]")
+      iex> Tempo.validate_zone_offset(t)
+      :ok
+
+      iex> {:error, %Tempo.ZoneOffsetMismatchError{}} =
+      ...>   Tempo.from_iso8601("2022-11-20T10:37:00+05:00[Europe/Paris]", strict: true)
+
+  """
+  @spec validate_zone_offset(t()) :: :ok | {:error, Tempo.ZoneOffsetMismatchError.t()}
+  defdelegate validate_zone_offset(tempo), to: Tempo.Compare
 
   @doc """
   Truncates a tempo struct to the specified resolution.

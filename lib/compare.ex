@@ -253,16 +253,89 @@ defmodule Tempo.Compare do
               "calling operation."
     end
 
+    wall = wall_seconds(time, year)
+    wall - resolve_offset_seconds(extended, shift, wall)
+  end
+
+  # The wall-clock instant as gregorian seconds (before any offset is
+  # applied). Shared by `to_utc_seconds/1` and `validate_zone_offset/1`.
+  defp wall_seconds(time, year) do
     {year, month, day} = resolve_ymd(time, year)
     hour = Keyword.get(time, :hour, 0)
     minute = Keyword.get(time, :minute, 0)
     second = Keyword.get(time, :second, 0)
+    :calendar.datetime_to_gregorian_seconds({{year, month, day}, {hour, minute, second}})
+  end
 
-    wall_seconds =
-      :calendar.datetime_to_gregorian_seconds({{year, month, day}, {hour, minute, second}})
+  @doc """
+  Check that an IXDTF value's explicit numeric offset agrees with its
+  IANA time zone at the value's wall instant.
 
-    offset_seconds = resolve_offset_seconds(extended, shift, wall_seconds)
-    wall_seconds - offset_seconds
+  When a value carries both a numeric offset and a zone identifier (e.g.
+  `2022-11-20T10:37:00+05:00[Europe/Paris]`), the offset is normally
+  consulted only to disambiguate a DST fall-back — the zone otherwise
+  wins. This check (RFC 9557 §4.2) flags the case where the stated
+  offset matches no offset the zone actually uses at that instant.
+
+  ### Arguments
+
+  * `tempo` is a `t:Tempo.t/0`.
+
+  ### Returns
+
+  * `:ok` when the offset agrees with the zone, when there is nothing to
+    check (no zone, or no explicit offset), or when the value is not
+    anchored (no wall instant to evaluate against).
+
+  * `{:error, t:Tempo.ZoneOffsetMismatchError.t/0}` when the stated
+    offset disagrees with the zone.
+
+  See `Tempo.validate_zone_offset/1`, which delegates here, for worked
+  examples.
+
+  """
+  @spec validate_zone_offset(Tempo.t()) ::
+          :ok | {:error, Tempo.ZoneOffsetMismatchError.t()}
+  def validate_zone_offset(%Tempo{time: time, extended: extended, shift: shift} = tempo) do
+    zone_id = extended && Map.get(extended, :zone_id)
+    stated = explicit_offset_seconds(extended, shift)
+
+    cond do
+      is_nil(zone_id) or zone_id == "" -> :ok
+      is_nil(stated) -> :ok
+      not Tempo.anchored?(tempo) -> :ok
+      true -> check_zone_offset(time, zone_id, stated)
+    end
+  end
+
+  defp check_zone_offset(time, zone_id, stated) do
+    wall = wall_seconds(time, Keyword.get(time, :year))
+
+    offsets =
+      case Tzdata.periods_for_time(zone_id, wall, :wall) do
+        [] -> []
+        periods -> Enum.map(periods, &(&1.utc_off + &1.std_off))
+      end
+
+    if stated in offsets do
+      :ok
+    else
+      {:error,
+       Tempo.ZoneOffsetMismatchError.exception(
+         zone_id: zone_id,
+         stated_offset: stated,
+         zone_offsets: offsets,
+         wall_time: wall_seconds_to_iso(wall)
+       )}
+    end
+  end
+
+  defp wall_seconds_to_iso(wall) do
+    {{y, mo, d}, {h, mi, s}} = :calendar.gregorian_seconds_to_datetime(wall)
+
+    [y, mo, d, h, mi, s]
+    |> then(&:io_lib.format("~4..0B-~2..0B-~2..0BT~2..0B:~2..0B:~2..0B", &1))
+    |> IO.iodata_to_binary()
   end
 
   # Resolve the calendar `{year, month, day}` from the time list,

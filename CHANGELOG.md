@@ -14,6 +14,8 @@
 
 * Business-day arithmetic: `Tempo.add_working_days/3` (forward or backward, skipping the territory's weekend), `Tempo.next_working_day/2`, `Tempo.previous_working_day/2`, and `Tempo.working_days_in/2`.
 
+* IXDTF offset/zone consistency (RFC 9557 §4.2): `Tempo.validate_zone_offset/1` flags a numeric offset that disagrees with its IANA zone, and `Tempo.from_iso8601/2` accepts `strict: true` to reject such a value at parse time. A DST fall-back offset is treated as disambiguation, not disagreement.
+
 ### Fixed
 
 * iCal import no longer produces zero-extent intervals. A punctual event (RFC 5545 §3.6.1 zero-duration, or an explicit `DTEND == DTSTART`) now materialises as the one-unit implicit span of its start, tagged `metadata: %{punctual: true}`, upholding the domain's no-degenerate-interval invariant through set operations.
