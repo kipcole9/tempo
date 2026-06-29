@@ -10,7 +10,9 @@
 
 * `Tempo.shift/2` now accepts a `Tempo.Duration` directly (`Tempo.shift(~o"2026", ~o"P2Y")`), in addition to the keyword-list form; both delegate to `Tempo.Math.add/2`.
 
-* `Tempo.weekend?/2` and `Tempo.workday?/2` classify a day against a territory's weekend (`weekend?(~o"2026-06-12", :SA)` is `true`, `:US` is `false`). Weekend days come from CLDR via `Localize.Calendar.weekend/1`; the day of week from `Date.day_of_week/1`.
+* `Tempo.weekend?/2` and `Tempo.workday?/2` classify a day against a territory's weekend (`weekend?(~o"2026-06-12", :SA)` is `true`, `:US` is `false`). Weekend days come from CLDR via `Localize.Calendar.weekend/1`; the day of week from `Date.day_of_week/1`, computed in the value's own calendar so non-Gregorian values are correct.
+
+* Business-day arithmetic: `Tempo.add_working_days/3` (forward or backward, skipping the territory's weekend), `Tempo.next_working_day/2`, `Tempo.previous_working_day/2`, and `Tempo.working_days_in/2`.
 
 ### Fixed
 

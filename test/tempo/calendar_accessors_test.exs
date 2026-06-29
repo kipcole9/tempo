@@ -202,4 +202,68 @@ defmodule Tempo.CalendarAccessorsTest do
       end
     end
   end
+
+  describe "Tempo.add_working_days/3 and friends" do
+    test "adding one working day to a Friday lands on Monday" do
+      assert Tempo.add_working_days(~o"2026-06-12", 1, :US) == ~o"2026-06-15"
+    end
+
+    test "subtracting crosses the weekend backward" do
+      assert Tempo.add_working_days(~o"2026-06-15", -1, :US) == ~o"2026-06-12"
+    end
+
+    test "a multi-week span skips every weekend" do
+      # 5 working days on from Monday is the next Monday; 10 is the one after.
+      assert Tempo.add_working_days(~o"2026-06-15", 5, :US) == ~o"2026-06-22"
+      assert Tempo.add_working_days(~o"2026-06-15", 10, :US) == ~o"2026-06-29"
+    end
+
+    test "adding zero working days returns the value unchanged" do
+      assert Tempo.add_working_days(~o"2026-06-13", 0, :US) == ~o"2026-06-13"
+    end
+
+    test "the time of day is preserved" do
+      assert Tempo.add_working_days(~o"2026-06-15T09:30:00", 1, :US) == ~o"2026-06-16T09:30:00"
+    end
+
+    test "the weekend that is skipped depends on the territory" do
+      # Saudi Arabia weekends Friday/Saturday: Thursday + 1 working day is Sunday.
+      assert Tempo.add_working_days(~o"2026-06-11", 1, :SA) == ~o"2026-06-14"
+    end
+
+    test "next_working_day / previous_working_day" do
+      assert Tempo.next_working_day(~o"2026-06-12", :US) == ~o"2026-06-15"
+      assert Tempo.previous_working_day(~o"2026-06-15", :US) == ~o"2026-06-12"
+    end
+
+    test "working_days_in counts working days in a half-open interval" do
+      {:ok, june} = Tempo.Interval.new(from: ~o"2026-06-01", to: ~o"2026-07-01")
+      assert Tempo.working_days_in(june, :US) == 22
+      # A single work week is five working days.
+      {:ok, week} = Tempo.Interval.new(from: ~o"2026-06-15", to: ~o"2026-06-22")
+      assert Tempo.working_days_in(week, :US) == 5
+    end
+
+    test "raises on a value coarser than a day" do
+      assert_raise ArgumentError, ~r/denotes a day/, fn ->
+        Tempo.add_working_days(~o"2026-06", 1, :US)
+      end
+    end
+
+    test "arithmetic is calendar-correct (steps land on the right absolute day)" do
+      iso = fn t ->
+        Date.convert!(
+          Date.new!(t.time[:year], t.time[:month], t.time[:day], t.calendar),
+          Calendar.ISO
+        )
+      end
+
+      for calendar <- @calendars do
+        # Friday 2026-06-12 in each calendar; +1 working day (US) is Monday 06-15.
+        friday = Tempo.from_date(Date.convert!(~D[2026-06-12], calendar))
+        result = Tempo.add_working_days(friday, 1, :US)
+        assert iso.(result) == ~D[2026-06-15], "#{inspect(calendar)} Fri + 1 working day"
+      end
+    end
+  end
 end

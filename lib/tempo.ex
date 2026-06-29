@@ -4002,6 +4002,128 @@ defmodule Tempo do
     not weekend?(tempo, territory)
   end
 
+  @doc """
+  Shift `tempo` by `count` working days, skipping the territory's
+  weekend.
+
+  A positive `count` moves forward, a negative `count` backward, and
+  `0` returns the value unchanged. Each counted step lands on a working
+  day, so adding one working day to a Friday returns the following
+  Monday (in a Saturday/Sunday-weekend territory). The time of day,
+  calendar, and zone are preserved.
+
+  ### Arguments
+
+  * `tempo` is a `t:t/0` that denotes a single day (a date or
+    datetime).
+
+  * `count` is the integer number of working days to add — negative to
+    subtract.
+
+  * `territory` is resolved through `Tempo.Territory.resolve/1`, as for
+    `weekend?/2`.
+
+  ### Returns
+
+  * a `t:t/0` that is `count` working days from `tempo`.
+
+  ### Examples
+
+      iex> Tempo.add_working_days(~o"2026-06-12", 1, :US)
+      ~o"2026Y6M15D"
+
+      iex> Tempo.add_working_days(~o"2026-06-15", -1, :US)
+      ~o"2026Y6M12D"
+
+      iex> # Five working days on from a Monday is the next Monday.
+      iex> Tempo.add_working_days(~o"2026-06-15", 5, :US)
+      ~o"2026Y6M22D"
+
+      iex> # The weekend differs by territory (Saudi Arabia: Friday/Saturday).
+      iex> Tempo.add_working_days(~o"2026-06-11", 1, :SA)
+      ~o"2026Y6M14D"
+
+  """
+  @spec add_working_days(t(), integer(), Tempo.Territory.input()) :: t()
+  def add_working_days(%Tempo{} = tempo, count, territory \\ nil) when is_integer(count) do
+    # weekend?/2 validates that the value denotes a day and resolves the
+    # territory, so a coarse value or bad territory fails up front.
+    _ = weekend?(tempo, territory)
+    step = if count < 0, do: -1, else: 1
+
+    Enum.reduce(1..abs(count)//1, tempo, fn _, day ->
+      advance_to_working_day(day, step, territory)
+    end)
+  end
+
+  @doc """
+  The next working day strictly after `tempo` in the territory.
+
+  Equivalent to `add_working_days(tempo, 1, territory)`.
+
+  ### Examples
+
+      iex> Tempo.next_working_day(~o"2026-06-12", :US)
+      ~o"2026Y6M15D"
+
+  """
+  @spec next_working_day(t(), Tempo.Territory.input()) :: t()
+  def next_working_day(%Tempo{} = tempo, territory \\ nil) do
+    add_working_days(tempo, 1, territory)
+  end
+
+  @doc """
+  The working day immediately before `tempo` in the territory.
+
+  Equivalent to `add_working_days(tempo, -1, territory)`.
+
+  ### Examples
+
+      iex> Tempo.previous_working_day(~o"2026-06-15", :US)
+      ~o"2026Y6M12D"
+
+  """
+  @spec previous_working_day(t(), Tempo.Territory.input()) :: t()
+  def previous_working_day(%Tempo{} = tempo, territory \\ nil) do
+    add_working_days(tempo, -1, territory)
+  end
+
+  @doc """
+  Count the working days within an interval, excluding the territory's
+  weekend.
+
+  The interval is half-open `[from, to)`, so the result is the number
+  of working days from its start up to but not including its end. Any
+  day-yielding value works the same way through `Enum` —
+  `Enum.count(value, &Tempo.workday?(&1, territory))`.
+
+  ### Arguments
+
+  * `interval` is a `t:Tempo.Interval.t/0` whose boundaries denote days.
+
+  * `territory` is resolved through `Tempo.Territory.resolve/1`.
+
+  ### Returns
+
+  * the count of working days in the interval.
+
+  ### Examples
+
+      iex> {:ok, june} = Tempo.Interval.new(from: ~o"2026-06-01", to: ~o"2026-07-01")
+      iex> Tempo.working_days_in(june, :US)
+      22
+
+  """
+  @spec working_days_in(Tempo.Interval.t(), Tempo.Territory.input()) :: non_neg_integer()
+  def working_days_in(%Tempo.Interval{} = interval, territory \\ nil) do
+    Enum.count(interval, &workday?(&1, territory))
+  end
+
+  defp advance_to_working_day(%Tempo{} = tempo, step, territory) do
+    next = shift(tempo, day: step)
+    if weekend?(next, territory), do: advance_to_working_day(next, step, territory), else: next
+  end
+
   # ISO day of week (1 = Monday … 7 = Sunday) of the day a value
   # denotes. The day of week is the same in every calendar, but a
   # calendar date carries year/month/day in *its own* calendar, so the

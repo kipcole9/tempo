@@ -30,8 +30,10 @@
     territory's CLDR weekend (via `Localize.Calendar.weekend/1`), using
     `Date.day_of_week/1` for the ISO day number. Complements the
     existing `Tempo.weekend/1` and `Tempo.workdays/1` recurrence
-    selectors. Business-day arithmetic (add/count working days across
-    an interval) is the natural next step.
+    selectors. Business-day arithmetic is also done:
+    `Tempo.add_working_days/3` (forward/backward, skipping the
+    territory's weekend, calendar-correct), `next_working_day/2`,
+    `previous_working_day/2`, and `working_days_in/2`.
 
 * Resolve the tension in `Enumerable.Tempo.IntervalSet` semantics. An
   IntervalSet can sensibly be enumerated two ways, and we currently
