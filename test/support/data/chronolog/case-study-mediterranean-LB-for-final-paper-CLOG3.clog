@@ -1,0 +1,557 @@
+{
+  "chronolog-version": "3.0 beta",
+  "synchronisms": [
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "mostLeast": "e",
+      "type": "Delay synchronism",
+      "beforeAfter": "a",
+      "polyLine": [
+        {
+          "x": 200,
+          "y": 580
+        },
+        {
+          "x": 200,
+          "y": 620
+        },
+        {
+          "x": 80,
+          "y": 620
+        },
+        {
+          "x": 80,
+          "y": 180
+        },
+        {
+          "x": 120,
+          "y": 180
+        }
+      ],
+      "tags": [],
+      "delay": 6,
+      "boundary1": "s",
+      "period2": "Amenophis IV",
+      "boundary2": "s",
+      "period1": "Amarna (capital)"
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "mostLeast": "e",
+      "type": "Delay synchronism",
+      "beforeAfter": "a",
+      "polyLine": [
+        {
+          "x": 200,
+          "y": 500
+        },
+        {
+          "x": 200,
+          "y": 380
+        }
+      ],
+      "tags": [],
+      "delay": 2,
+      "boundary1": "e",
+      "period2": "Tutankhamun",
+      "boundary2": "s",
+      "period1": "Amarna (capital)"
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "LM III A1",
+      "period1": "Sellopoulo tomb 4",
+      "type": "Is included in",
+      "polyLine": [
+        {
+          "x": 640,
+          "y": 100
+        },
+        {
+          "x": 860,
+          "y": 100
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "LH III A1",
+      "period1": "Sellopoulo tomb 4",
+      "type": "Ends after start of",
+      "polyLine": [
+        {
+          "x": 640,
+          "y": 100
+        },
+        {
+          "x": 860,
+          "y": 360
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "LH III A2",
+      "period1": "Tel Batash VII",
+      "type": "Ends after start of",
+      "polyLine": [
+        {
+          "x": 640,
+          "y": 260
+        },
+        {
+          "x": 860,
+          "y": 440
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "LH III A2",
+      "period1": "Amarna (capital)",
+      "type": "Is included in",
+      "polyLine": [
+        {
+          "x": 200,
+          "y": 580
+        },
+        {
+          "x": 200,
+          "y": 620
+        },
+        {
+          "x": 940,
+          "y": 620
+        },
+        {
+          "x": 940,
+          "y": 480
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "LM III A2",
+      "period1": "LH III A2",
+      "type": "Equality",
+      "polyLine": [
+        {
+          "x": 1020,
+          "y": 440
+        },
+        {
+          "x": 1080,
+          "y": 440
+        },
+        {
+          "x": 1080,
+          "y": 180
+        },
+        {
+          "x": 1020,
+          "y": 180
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "LM III A1",
+      "period1": "LH III A1",
+      "type": "Equality",
+      "polyLine": [
+        {
+          "x": 1020,
+          "y": 360
+        },
+        {
+          "x": 1120,
+          "y": 360
+        },
+        {
+          "x": 1120,
+          "y": 100
+        },
+        {
+          "x": 1020,
+          "y": 100
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "Amenophis III",
+      "period1": "Tel Batash VII",
+      "type": "Ends after start of",
+      "polyLine": [
+        {
+          "x": 480,
+          "y": 260
+        },
+        {
+          "x": 280,
+          "y": 100
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "Tel Batash VII",
+      "period1": "Batash VII - C14 sample",
+      "type": "Is included in",
+      "polyLine": [
+        {
+          "x": 560,
+          "y": 380
+        },
+        {
+          "x": 560,
+          "y": 300
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "LH III A2",
+      "period1": "Uluburun shipwreck",
+      "type": "Is included in",
+      "polyLine": [
+        {
+          "x": 640,
+          "y": 540
+        },
+        {
+          "x": 860,
+          "y": 440
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "Amenophis IV",
+      "period1": "Uluburun shipwreck",
+      "type": "Starts after start of",
+      "polyLine": [
+        {
+          "x": 480,
+          "y": 540
+        },
+        {
+          "x": 280,
+          "y": 180
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "Amenophis III",
+      "period1": "Sellopoulo tomb 4",
+      "type": "Ends after start of",
+      "polyLine": [
+        {
+          "x": 480,
+          "y": 100
+        },
+        {
+          "x": 280,
+          "y": 100
+        }
+      ],
+      "tags": []
+    }
+  ],
+  "imports": [],
+  "C14StartDatesForExport": {
+    "Smenkhare (sole reign)": [],
+    "Tel Batash VII": [],
+    "Sellopoulo tomb 4": [],
+    "Tutankhamun": [],
+    "Amarna (capital)": [],
+    "LH III A2": [],
+    "Amenophis IV": [],
+    "LM III A2": [],
+    "LM III A1": [],
+    "LH III A1": [],
+    "Amenophis III": []
+  },
+  "C14EndDatesForExport": {
+    "Smenkhare (sole reign)": [],
+    "Tel Batash VII": [],
+    "Sellopoulo tomb 4": [],
+    "Tutankhamun": [],
+    "Amarna (capital)": [],
+    "LH III A2": [],
+    "Amenophis IV": [],
+    "LM III A2": [],
+    "LM III A1": [],
+    "LH III A1": [],
+    "Amenophis III": []
+  },
+  "name": "",
+  "sequences": [
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "name": "Egypt: Dyn. 18",
+      "periods": [
+        {
+          "endDateUB": -1352,
+          "fillColor": -1315861,
+          "periodY": 60,
+          "comments": "",
+          "startDateLB": -1390,
+          "name": "Amenophis III",
+          "width": 160,
+          "endDateLB": -1352,
+          "startDateUB": -1390,
+          "periodX": 120,
+          "height": 80
+        },
+        {
+          "endDateUB": -1336,
+          "fillColor": -1315861,
+          "periodY": 140,
+          "comments": "",
+          "startDateLB": -1352,
+          "name": "Amenophis IV",
+          "width": 160,
+          "endDateLB": -1336,
+          "startDateUB": -1352,
+          "periodX": 120,
+          "height": 80
+        },
+        {
+          "endDateUB": -1335,
+          "fillColor": -1315861,
+          "periodY": 220,
+          "comments": "",
+          "startDateLB": -1336,
+          "name": "Smenkhare (sole reign)",
+          "width": 160,
+          "endDateLB": -1335,
+          "startDateUB": -1336,
+          "periodX": 120,
+          "height": 80
+        },
+        {
+          "endDateUB": -1326,
+          "fillColor": -1315861,
+          "periodY": 300,
+          "comments": "",
+          "startDateLB": -1335,
+          "name": "Tutankhamun",
+          "width": 160,
+          "endDateLB": -1326,
+          "startDateUB": -1335,
+          "periodX": 120,
+          "height": 80
+        }
+      ],
+      "startY": 60,
+      "startX": 120,
+      "tags": [
+        "Egypt"
+      ]
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "name": "Sellopoulo tomb 4",
+      "periods": [
+        {
+          "fillColor": -1315861,
+          "periodY": 60,
+          "comments": "",
+          "name": "Sellopoulo tomb 4",
+          "width": 160,
+          "periodX": 480,
+          "height": 80
+        }
+      ],
+      "startY": 60,
+      "startX": 480,
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "name": "Late Minoan",
+      "periods": [
+        {
+          "fillColor": -1315861,
+          "periodY": 60,
+          "comments": "",
+          "name": "LM III A1",
+          "width": 160,
+          "periodX": 860,
+          "height": 80
+        },
+        {
+          "fillColor": -1315861,
+          "periodY": 140,
+          "comments": "",
+          "name": "LM III A2",
+          "width": 160,
+          "periodX": 860,
+          "height": 80
+        }
+      ],
+      "startY": 60,
+      "startX": 860,
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "name": "Late Helladic",
+      "periods": [
+        {
+          "fillColor": -1315861,
+          "periodY": 320,
+          "comments": "",
+          "name": "LH III A1",
+          "width": 160,
+          "periodX": 860,
+          "height": 80
+        },
+        {
+          "fillColor": -1315861,
+          "periodY": 400,
+          "comments": "",
+          "name": "LH III A2",
+          "width": 160,
+          "periodX": 860,
+          "height": 80
+        }
+      ],
+      "startY": 320,
+      "startX": 860,
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "name": "Amarna (capital)",
+      "periods": [
+        {
+          "fillColor": -1315861,
+          "periodY": 500,
+          "comments": "",
+          "name": "Amarna (capital)",
+          "width": 160,
+          "periodX": 120,
+          "height": 80
+        }
+      ],
+      "startY": 500,
+      "startX": 120,
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "name": "Tel Batash",
+      "periods": [
+        {
+          "fillColor": -1315861,
+          "periodY": 220,
+          "comments": "",
+          "name": "Tel Batash VII",
+          "width": 160,
+          "periodX": 480,
+          "height": 80
+        }
+      ],
+      "startY": 220,
+      "startX": 480,
+      "tags": []
+    }
+  ],
+  "lonePeriods": [],
+  "C14PhaseDatesForExport": {
+    "Smenkhare (sole reign)": [],
+    "Tel Batash VII": [],
+    "Sellopoulo tomb 4": [],
+    "Tutankhamun": [],
+    "Amarna (capital)": [],
+    "LH III A2": [],
+    "Amenophis IV": [],
+    "LM III A2": [],
+    "LM III A1": [],
+    "LH III A1": [],
+    "Amenophis III": []
+  },
+  "events": [
+    {
+      "fillColor": -1315861,
+      "visible": true,
+      "comments": "",
+      "dateLB": -1437,
+      "name": "Batash VII - C14 sample",
+      "width": 160,
+      "dateUB": -1394,
+      "startY": 380,
+      "startX": 480,
+      "height": 80,
+      "tags": []
+    },
+    {
+      "fillColor": -1315861,
+      "visible": true,
+      "comments": "",
+      "dateLB": -1340,
+      "name": "Uluburun shipwreck",
+      "width": 160,
+      "dateUB": -1289,
+      "startY": 500,
+      "startX": 480,
+      "height": 80,
+      "tags": []
+    }
+  ],
+  "C14EventDatesForExport": {
+    "Uluburun shipwreck": [],
+    "Batash VII - C14 sample": []
+  }
+}

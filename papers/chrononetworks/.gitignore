@@ -1,3 +1,6 @@
+# ChronoLog application binary (decompilation aid; not source)
+*.jar
+
 # LaTeX build artifacts
 *.aux
 *.log

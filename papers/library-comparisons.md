@@ -120,7 +120,7 @@ These mostly share the same shape: pair-of-points, abstract over comparable type
 | Property tests verifying Allen / Allen-Hayes axioms | — | ✓ | partial | — | n/a | — |
 | Typeclass / trait for user-defined "intervallic" types | partial | ✓ (`Intervallic`) | ✓ (`IntervalBounds`) | — | — | — |
 | Interval-tree backing store for large sets | — | — | — | ✓ | — | — |
-| Citation of Grüninger & Li's `T_{bounded_meeting}` ontology | ✓ (TIME 2026 paper) | — | — | — | — | — |
+| Citation of Grüninger & Li's `T_{bounded_meeting}` ontology | ✓ (TIME 2027 paper) | — | — | — | — | — |
 
 The cells that aren't checked for Tempo are the **interesting** ones — they're what the next four sections of this document discuss.
 
@@ -132,7 +132,7 @@ These are concrete suggestions, ordered from "trivially adoptable" to "would req
 
 Haskell's `interval-algebra` includes axiom tests that mechanically verify the implementation satisfies Allen-Hayes (1987). For Tempo this is straightforward to add: a property-test module that generates random pairs of intervals and asserts the 13 relations are jointly exhaustive (exactly one holds), pairwise disjoint (no two hold), and that `inverse_relation(relation(a, b)) == relation(b, a)`. Could also verify the Sum Axiom of `T_{bounded_meeting}` (three chain-meeting intervals coalesce).
 
-**Effort:** A few hours; uses StreamData or similar. **Reward:** Discharges one of the concrete weaknesses the convenor reviewer would flag in the TIME 2026 submission — "the realisation claim is asserted, not proven."
+**Effort:** A few hours; uses StreamData or similar. **Reward:** Discharges one of the concrete weaknesses the convenor reviewer would flag in the TIME 2027 submission — "the realisation claim is asserted, not proven."
 
 ### 2. Typeclass / protocol for user-defined "intervallic" types
 
@@ -169,7 +169,7 @@ The capabilities that distinguish Tempo from every other library in the comparis
 5. **Recurrence rules.** iCalendar RRULE expansion and back-projection.
 6. **EDTF uncertainty.** `~o"2022~"` (approximately 2022), `~o"2022?"` (uncertain), `~o"156X"` (the 1560s).
 7. **Predicate vocabulary as a design discipline.** Named predicates (`within?`, `adjacent?`, `contains?`) defined as specific subsets of Allen relations, so application code never falls back to relation-list pattern matching.
-8. **Grüninger & Li ontological alignment.** The TIME 2026 paper positions Tempo as a software realisation of `T_{bounded_meeting}`. No other library in this comparison engages with the ontology literature at this depth.
+8. **Grüninger & Li ontological alignment.** The TIME 2027 paper positions Tempo as a software realisation of `T_{bounded_meeting}`. No other library in this comparison engages with the ontology literature at this depth.
 
 None of the pure-Allen libraries can be a drop-in replacement for Tempo without re-implementing 80% of what Tempo does. Conversely, Tempo doesn't compete with the pure-Allen libraries on minimalism, type-safety in pure-functional settings, or raw query throughput.
 

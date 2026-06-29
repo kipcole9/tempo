@@ -34,7 +34,19 @@ defmodule Tempo.Network.Relation do
     and the dual.
 
   * `:synchronous_start` / `:synchronous_end` — shared start / end
-    boundary.
+    boundary (in either direction; the loose form of Allen's
+    `starts`/`started_by` and `finishes`/`finished_by`).
+
+  * `:starts` / `:started_by` — `A` and `B` share a start boundary and
+    `A` ends no later than / no earlier than `B` (Allen's `starts` /
+    `started_by`).
+
+  * `:finishes` / `:finished_by` — `A` and `B` share an end boundary
+    and `A` starts no earlier than / no later than `B` (Allen's
+    `finishes` / `finished_by`).
+
+  * `:strictly_contemporary` — `A` and `B` share a non-empty *interior*
+    (overlap of positive extent, not merely a touching boundary).
 
   * `:equals` — identical start and end.
 
@@ -45,10 +57,29 @@ defmodule Tempo.Network.Relation do
     `:at_most`) `duration` before the `edge_b` boundary of `B`, where
     each edge is `:start` or `:end`.
 
+  Boundary (a single comparison between one boundary of each period):
+
+  * `{:boundary, edge_a, comparison, edge_b}` — the `edge_a` boundary of
+    `A` is `comparison` the `edge_b` boundary of `B`, where `comparison`
+    is `:before` (strictly), `:at_or_before`, `:coincident` (equal),
+    `:at_or_after`, or `:after` (strictly). This is the complete
+    boundary-inequality lattice: any of ChronoLog's "starts/ends
+    before/after/at the start/end of" synchronisms is one such relation
+    (e.g. `{:boundary, :end, :at_or_before, :start}` is "ends before or
+    at the start of").
+
   """
 
   @type edge :: :start | :end
   @type comparison :: :exactly | :at_least | :at_most
+
+  @typedoc """
+  A comparison between two boundaries: strictly `:before`,
+  `:at_or_before` (≤), `:coincident` (=), `:at_or_after` (≥), or
+  strictly `:after`.
+  """
+  @type boundary_comparison ::
+          :before | :at_or_before | :coincident | :at_or_after | :after
 
   @type relation_type ::
           :contemporary
@@ -66,8 +97,14 @@ defmodule Tempo.Network.Relation do
           | :immediately_follows
           | :synchronous_start
           | :synchronous_end
+          | :starts
+          | :started_by
+          | :finishes
+          | :finished_by
+          | :strictly_contemporary
           | :equals
           | {:delay, edge(), edge(), comparison(), Tempo.Duration.t()}
+          | {:boundary, edge(), boundary_comparison(), edge()}
 
   @type t :: %__MODULE__{
           type: relation_type(),
@@ -157,6 +194,9 @@ defmodule Tempo.Network.Relation do
       iex> Tempo.Network.Relation.new(:immediately_precedes, :a, :b) |> Tempo.Network.Relation.to_atomic()
       [{{:end, :a}, {:start, :b}, 0}, {{:start, :b}, {:end, :a}, 0}]
 
+      iex> Tempo.Network.Relation.new({:boundary, :end, :at_or_before, :start}, :a, :b) |> Tempo.Network.Relation.to_atomic()
+      [{{:end, :a}, {:start, :b}, 0}]
+
   """
   @spec to_atomic(t()) :: [atomic()]
   def to_atomic(%__MODULE__{type: type, from: a, to: b}) do
@@ -223,8 +263,29 @@ defmodule Tempo.Network.Relation do
       :equals ->
         eq(start_a, start_b) ++ eq(end_a, end_b)
 
+      # Shared start, A ends no later / no earlier than B (Allen starts / started_by).
+      :starts ->
+        eq(start_a, start_b) ++ [le(end_a, end_b, 0)]
+
+      :started_by ->
+        eq(start_a, start_b) ++ [le(end_b, end_a, 0)]
+
+      # Shared end, A starts no earlier / no later than B (Allen finishes / finished_by).
+      :finishes ->
+        eq(end_a, end_b) ++ [le(start_b, start_a, 0)]
+
+      :finished_by ->
+        eq(end_a, end_b) ++ [le(start_a, start_b, 0)]
+
+      # Non-empty interior overlap: start(B) < end(A) ∧ start(A) < end(B).
+      :strictly_contemporary ->
+        [lt(start_b, end_a), lt(start_a, end_b)]
+
       {:delay, edge_a, edge_b, comparison, duration} ->
         delay_atomic(boundary(edge_a, a), boundary(edge_b, b), comparison, duration)
+
+      {:boundary, edge_a, comparison, edge_b} ->
+        boundary_atomic(boundary(edge_a, a), comparison, boundary(edge_b, b))
     end
   end
 
@@ -254,6 +315,13 @@ defmodule Tempo.Network.Relation do
     [{bb, ba, {:duration, duration}}]
   end
 
+  # "ba is `comparison` bb": one boundary of A against one of B.
+  defp boundary_atomic(ba, :before, bb), do: [lt(ba, bb)]
+  defp boundary_atomic(ba, :at_or_before, bb), do: [le(ba, bb, 0)]
+  defp boundary_atomic(ba, :coincident, bb), do: eq(ba, bb)
+  defp boundary_atomic(ba, :at_or_after, bb), do: [le(bb, ba, 0)]
+  defp boundary_atomic(ba, :after, bb), do: [lt(bb, ba)]
+
   @doc """
   The Allen interval relation(s) a chronological relation corresponds
   to, for querying a solved network with `Tempo.Interval` predicates.
@@ -281,6 +349,10 @@ defmodule Tempo.Network.Relation do
   def to_allen(:includes), do: :contains
   def to_allen(:included_in), do: :during
   def to_allen(:equals), do: :equals
+  def to_allen(:starts), do: :starts
+  def to_allen(:started_by), do: :started_by
+  def to_allen(:finishes), do: :finishes
+  def to_allen(:finished_by), do: :finished_by
   def to_allen(:synchronous_start), do: [:starts, :started_by, :equals]
   def to_allen(:synchronous_end), do: [:finishes, :finished_by, :equals]
 
@@ -289,6 +361,18 @@ defmodule Tempo.Network.Relation do
   def to_allen(:includes_start), do: nil
   def to_allen(:ends_during), do: nil
   def to_allen(:includes_end), do: nil
+
+  def to_allen(:strictly_contemporary),
+    do: [
+      :overlaps,
+      :overlapped_by,
+      :starts,
+      :started_by,
+      :during,
+      :contains,
+      :finishes,
+      :finished_by
+    ]
 
   def to_allen(:contemporary),
     do: [
@@ -304,6 +388,9 @@ defmodule Tempo.Network.Relation do
     ]
 
   def to_allen({:delay, _, _, _, _}), do: nil
+
+  # A single boundary inequality is looser than any one Allen relation.
+  def to_allen({:boundary, _, _, _}), do: nil
 
   @doc """
   The chronological relation type naming a given Allen relation.
@@ -331,8 +418,8 @@ defmodule Tempo.Network.Relation do
   def from_allen(:contains), do: :includes
   def from_allen(:during), do: :included_in
   def from_allen(:equals), do: :equals
-  def from_allen(:starts), do: :synchronous_start
-  def from_allen(:started_by), do: :synchronous_start
-  def from_allen(:finishes), do: :synchronous_end
-  def from_allen(:finished_by), do: :synchronous_end
+  def from_allen(:starts), do: :starts
+  def from_allen(:started_by), do: :started_by
+  def from_allen(:finishes), do: :finishes
+  def from_allen(:finished_by), do: :finished_by
 end

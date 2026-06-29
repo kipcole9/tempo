@@ -179,6 +179,70 @@ Tempo.to_iso8601(solved.periods[:psammetichus_i].earliest_start)
 #=> "-664Y"
 ```
 
+## 9. Validated against ChronoLog
+
+Tempo's network model *is* the ChronoLog scheme, so the proof it is faithful is that it re-solves ChronoLog's own models and gets ChronoLog's own answers. Tempo's test suite decodes a corpus of published `.clog` files — the Egyptian 26th dynasty, three Near-Eastern models from the 2022 Radiocarbon Dating and Chronology workshop (Dynasty 18, the Aegean LH→PG ceramic sequence, the Iron Age Levant), and the Mediterranean Late Bronze Age study — and checks each one is consistent and, where the model is anchored, recovers the same dates.
+
+The Egyptian dynasty is the sharpest demonstration. In §6 we assumed exact reign lengths *and* a known accession, so no network was needed. The original ChronoLog model assumes neither: every reign length is only a **lower bound**, and the sole calendar anchor — the Persian conquest of Egypt in 525 BCE — sits at the dynasty's *end*. What pins the accessions is a web of epigraphic **delay synchronisms**: dated Apis-bull installations, each tied to a specific regnal year. A delay synchronism is a metric relation, the one constraint Allen's algebra cannot state — "this boundary falls exactly *n* years after that one":
+
+```elixir
+import Tempo.Sigils
+alias Tempo.Network
+alias Tempo.Network.Solver
+
+dynasty =
+  Network.new()
+  |> Network.add_period("Psammetichus I", duration: {:at_least, ~o"P54Y"})
+  |> Network.add_period("Necho II", duration: {:at_least, ~o"P15Y"})
+  |> Network.add_period("Psammetichus II", duration: ~o"P6Y")
+  |> Network.add_period("Apries", duration: {:at_least, ~o"P19Y"})
+  |> Network.add_period("Amasis", duration: ~o"P44Y")
+  |> Network.add_period("Psammetichus III", duration: ~o"P1Y")
+  |> Network.add_sequence(["Psammetichus I", "Necho II", "Psammetichus II", "Apries", "Amasis", "Psammetichus III"])
+  # The Persian conquest, 525 BCE, ends Psammetichus III's reign.
+  |> Network.add_period("Persian conquest", start: ~o"-525Y", end: ~o"-525Y", duration: ~o"P0Y")
+  |> Network.add_relation(:synchronous_end, "Persian conquest", "Psammetichus III")
+  # Apis bull III was installed exactly 52 years into Psammetichus I's reign.
+  |> Network.add_period("Apis Bull III", duration: ~o"P17Y")
+  |> Network.add_relation({:delay, :start, :start, :exactly, ~o"P52Y"}, "Psammetichus I", "Apis Bull III")
+
+{:ok, solved} = Solver.tighten(dynasty)
+solved.periods["Psammetichus I"].latest_start
+#=> ~o"-664Y"
+```
+
+> *"Even with every reign length only a 'no less than' and the only fixed date at the very end, a single dated Apis bull already forces Psammetichus I's accession to no later than 664 BCE."* The complete model — all five Apis bulls, the full set of delay synchronisms, and the Herodotus/Manetho reign lengths — tightens that bound to *exactly* 664 BCE, recovering the §6 dates without ever assuming them. That model, decoded straight from ChronoLog's `.clog` export, is checked end-to-end in Tempo's test suite.
+
+## 10. Scope relative to ChronoLog
+
+Tempo implements ChronoLog's **formal scheme** — the chronological network as a reasoning problem — not the ChronoLog *application*. It is worth being precise about where the boundary falls, because the two split a chronology into two layers and Tempo covers one of them completely and the other not at all.
+
+**The relative/metric layer — full coverage.** Periods with bounded durations, gap-free sequences, events, the synchronism vocabulary, consistency checking, bound tightening, and the inconsistency trace are all here, solved as a Simple Temporal Problem exactly as the paper describes. Every ChronoLog synchronism reduces to constraints of the form `boundary₁ − boundary₂ ≤ k`, which is precisely what `Tempo.Network.Relation` emits, so the engine is equivalent — and the test suite proves it by re-solving ChronoLog's own published models and recovering their dates.
+
+**The synchronism vocabulary.** ChronoLog names a large lattice of boundary relations; every one has a Tempo equivalent. The qualitative relations and Allen's thirteen are named atoms; the systematic "starts/ends before/after/at the start/end of" lattice is the single parameterised `{:boundary, edge, comparison, edge}` relation; metric offsets are `{:delay, …}`:
+
+| ChronoLog synchronism | Tempo relation (read `A` *rel* `B`) |
+|---|---|
+| Equals · Starts with · Ends with | `:equals` · `:synchronous_start` · `:synchronous_end` |
+| Meets · Met by | `:immediately_precedes` · `:immediately_follows` |
+| Begins · Begun by · Ends · Ended by | `:starts` · `:started_by` · `:finishes` · `:finished_by` |
+| Included in · Includes | `:included_in` · `:includes` |
+| Starts during · Ends during | `:starts_during` · `:ends_during` |
+| Includes start of · Includes end of | `:includes_start` · `:includes_end` |
+| Overlaps before · Overlaps after | `:overlaps` · `:overlapped_by` |
+| Contemporary with · Strictly contemporary with | `:contemporary` · `:strictly_contemporary` |
+| Ends before or at start of | `{:boundary, :end, :at_or_before, :start}` |
+| Starts after or at start of | `{:boundary, :start, :at_or_after, :start}` |
+| Starts strictly after end of | `{:boundary, :start, :after, :end}` (≡ `:after`) |
+| …the full before/after/at lattice | `{:boundary, edge, :before \| :at_or_before \| :coincident \| :at_or_after \| :after, edge}` |
+| Delay (n units before/after) | `{:delay, edge, edge, :exactly \| :at_least \| :at_most, duration}` |
+
+ChronoLog's *strict* composite synchronisms (e.g. "strictly included in") are the non-strict relation paired with a strict `{:boundary, …}` edge — two `add_relation/4` calls rather than one name. Its tolerance and hierarchy relations (`Start within`, `Equal within`, `Child of`, `Parent of`) are tied to ChronoLog's period-gazetteer features and are not modelled.
+
+**The absolute/scientific layer — not covered.** Radiocarbon evidence and its Bayesian calibration (the `C14…ForExport` fields, exported to OxCal against the IntCal curve) are a separate, statistical layer. Tempo's network derives *deterministic* date bounds from order, duration, and historical anchors; it does not calibrate radiocarbon or compute probability distributions. Three of the bundled case studies are therefore purely *relative* in Tempo's hands — consistent and internally ordered, but unanchored in absolute time until a historical date is supplied — whereas the Egyptian and Mediterranean models, which carry historical anchors inside the network, resolve to calendar years.
+
+**Also outside Tempo's scope, by design:** the ChronoLog GUI (visual modelling, the implication graph, the interactive trace panel), PERIODO gazetteer linking, and import/export as product features (Tempo's `.clog` decoder exists only to drive the validation tests). In short — Tempo is the chronological-network *engine* at parity with ChronoLog's formal model, not a replacement for the ChronoLog *tool* and its radiocarbon-dating workflow.
+
 ## Reference
 
 Levy, E., Geeraerts, G., Pluquet, F., Piasetzky, E., & Fantalkin, A. (2020). Chronological networks in archaeology: A formalised scheme. *Journal of Archaeological Science*, 105225. <https://doi.org/10.1016/j.jas.2020.105225>. The ChronoLog software is at <http://chrono.ulb.be>.

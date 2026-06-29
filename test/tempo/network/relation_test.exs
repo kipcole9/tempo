@@ -66,6 +66,73 @@ defmodule Tempo.Network.RelationTest do
       assert Relation.new(:ends_during, :a, :b) |> Relation.to_atomic() ==
                [{{:start, :b}, {:end, :a}, 0}, {{:end, :a}, {:end, :b}, 0}]
     end
+
+    test "starts / started_by share a start and order the ends (Allen starts)" do
+      # start(A) = start(B) ∧ end(A) ≤ end(B)
+      assert Relation.new(:starts, :a, :b) |> Relation.to_atomic() ==
+               [
+                 {{:start, :a}, {:start, :b}, 0},
+                 {{:start, :b}, {:start, :a}, 0},
+                 {{:end, :a}, {:end, :b}, 0}
+               ]
+
+      # start(A) = start(B) ∧ end(B) ≤ end(A)
+      assert Relation.new(:started_by, :a, :b) |> Relation.to_atomic() ==
+               [
+                 {{:start, :a}, {:start, :b}, 0},
+                 {{:start, :b}, {:start, :a}, 0},
+                 {{:end, :b}, {:end, :a}, 0}
+               ]
+    end
+
+    test "finishes / finished_by share an end and order the starts (Allen finishes)" do
+      # end(A) = end(B) ∧ start(B) ≤ start(A)
+      assert Relation.new(:finishes, :a, :b) |> Relation.to_atomic() ==
+               [
+                 {{:end, :a}, {:end, :b}, 0},
+                 {{:end, :b}, {:end, :a}, 0},
+                 {{:start, :b}, {:start, :a}, 0}
+               ]
+
+      # end(A) = end(B) ∧ start(A) ≤ start(B)
+      assert Relation.new(:finished_by, :a, :b) |> Relation.to_atomic() ==
+               [
+                 {{:end, :a}, {:end, :b}, 0},
+                 {{:end, :b}, {:end, :a}, 0},
+                 {{:start, :a}, {:start, :b}, 0}
+               ]
+    end
+
+    test "strictly_contemporary requires a non-empty interior overlap" do
+      # start(B) < end(A) ∧ start(A) < end(B)
+      assert Relation.new(:strictly_contemporary, :a, :b) |> Relation.to_atomic() ==
+               [{{:start, :b}, {:end, :a}, -1}, {{:start, :a}, {:end, :b}, -1}]
+    end
+  end
+
+  describe "to_atomic/1 — boundary comparisons" do
+    test "the five comparisons cover the boundary lattice" do
+      # end(A) < start(B) — strict before.
+      assert Relation.new({:boundary, :end, :before, :start}, :a, :b) |> Relation.to_atomic() ==
+               [{{:end, :a}, {:start, :b}, -1}]
+
+      # end(A) ≤ start(B).
+      assert Relation.new({:boundary, :end, :at_or_before, :start}, :a, :b)
+             |> Relation.to_atomic() == [{{:end, :a}, {:start, :b}, 0}]
+
+      # start(A) = start(B).
+      assert Relation.new({:boundary, :start, :coincident, :start}, :a, :b)
+             |> Relation.to_atomic() ==
+               [{{:start, :a}, {:start, :b}, 0}, {{:start, :b}, {:start, :a}, 0}]
+
+      # start(A) ≥ start(B).
+      assert Relation.new({:boundary, :start, :at_or_after, :start}, :a, :b)
+             |> Relation.to_atomic() == [{{:start, :b}, {:start, :a}, 0}]
+
+      # start(A) > end(B) — strict after.
+      assert Relation.new({:boundary, :start, :after, :end}, :a, :b) |> Relation.to_atomic() ==
+               [{{:end, :b}, {:start, :a}, -1}]
+    end
   end
 
   describe "to_atomic/1 — metric (delay) relations" do
@@ -103,7 +170,11 @@ defmodule Tempo.Network.RelationTest do
             :overlaps,
             :includes,
             :included_in,
-            :equals
+            :equals,
+            :starts,
+            :started_by,
+            :finishes,
+            :finished_by
           ] do
         assert Relation.from_allen(Relation.to_allen(type)) == type
       end
@@ -113,6 +184,11 @@ defmodule Tempo.Network.RelationTest do
       assert :equals in Relation.to_allen(:synchronous_start)
       assert :starts in Relation.to_allen(:synchronous_start)
       assert Relation.to_allen({:delay, :start, :start, :exactly, ~o"P1Y"}) == nil
+    end
+
+    test "metric and boundary relations have no single Allen image" do
+      assert Relation.to_allen({:delay, :start, :start, :exactly, ~o"P1Y"}) == nil
+      assert Relation.to_allen({:boundary, :end, :at_or_before, :start}) == nil
     end
   end
 end

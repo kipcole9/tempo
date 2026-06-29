@@ -1,7 +1,7 @@
 % Chronological networks over an interval-native date/time library.
 %
 % Format: OASIcs (oasics-v2021), the TIME-symposium template, reused
-% from ../time-2026. The class file and its logos (cc-by.pdf,
+% from ../time-2027. The class file and its logos (cc-by.pdf,
 % oasics-logo-bw.pdf, orcid.pdf) sit alongside this file.
 %
 % Build:
@@ -182,9 +182,32 @@ period synchronisms (``starts during'' and kin) are looser than any
 single Allen relation --- they are disjunctions --- and the metric
 delays carry an integer Allen cannot express.
 
+The coverage is \emph{complete} for ChronoLog's boundary vocabulary,
+not a selection from it. Every synchronism reduces to one of three
+mechanisms. (i)~The qualitative relations include all thirteen of
+Allen's --- the four precise endpoint-sharing relations
+(\textit{starts}, \textit{started-by}, \textit{finishes},
+\textit{finished-by}) alongside containment, overlap, immediate
+precedence, and the looser period synchronisms. (ii)~A single
+parameterised \emph{boundary} relation compares one endpoint of $A$
+with one endpoint of $B$ under any of $\{<, \leq, =, \geq, >\}$; this
+one relation form expresses ChronoLog's entire family of ordered
+single-boundary synchronisms (``starts/ends strictly or loosely
+before/after/at the start/end of'', sixteen in all). (iii)~The metric
+\emph{delay} relation states an exact, minimum, or maximum offset
+between two endpoints. ChronoLog's \emph{strict composite} synchronisms
+(e.g.\ strictly-included-in) are a non-strict relation conjoined with
+one strict boundary relation; the only family left outside the layer is
+its tolerance and gazetteer-hierarchy relations (\textit{within},
+\textit{child-of}, \textit{parent-of}), which are tied to ChronoLog's
+period-database features rather than to interval geometry. We validate
+the mapping against ChronoLog's own published models
+(§\ref{sec:examples}).
+
 \begin{table}[t]
-  \caption{Selected ChronoLog relations, their Allen counterpart, and
-    their atomic constraints. $s,e$ abbreviate start, end.}
+  \caption{Representative ChronoLog relations, their Allen counterpart,
+    and their atomic constraints; the boundary and delay rows stand for
+    a parameterised family. $s,e$ abbreviate start, end.}
   \label{tab:map}
   \centering
   \begin{tabular}{lll}
@@ -197,9 +220,11 @@ delays carry an integer Allen cannot express.
     $A \supseteq B$ (includes)    & contains   & $s(A) \leq s(B),\ e(B) \leq e(A)$ \\
     $A \leq B$ (overlaps)         & overlaps   & $s(A) \leq s(B) \leq e(A) \leq e(B)$ \\
     $A \sim B$ (contemporary)     & ---        & $s(B) \leq e(A),\ s(A) \leq e(B)$ \\
+    $A$ begins $B$ (starts)       & starts     & $s(A) = s(B),\ e(A) \leq e(B)$ \\
     $A$ starts during $B$         & ---        & $s(B) \leq s(A) \leq e(B)$ \\
     $A$ ends during $B$           & ---        & $s(B) \leq e(A) \leq e(B)$ \\
     $A \top B$ (synchronous start) & ---       & $s(A) = s(B)$ \\
+    boundary: $e(A) \leq s(B)$    & ---        & $e(A) - s(B) \leq 0$ \\
     delay: $s(A)$ at least $X$ before $s(B)$ & --- & $s(A) - s(B) \leq -X$ \\
     \bottomrule
   \end{tabular}
@@ -271,6 +296,28 @@ BCE (negative) years and a six-period sequence. Amasis~II's accession is
 recovered as 570~BCE, forced by the anchor and the five preceding
 reigns, with no date stated for it directly.
 
+\paragraph{A native-format corpus.} Beyond the two worked examples, we
+exercise the layer against a corpus of published ChronoLog models in the
+tool's own save format. ChronoLog's \texttt{.clog} files are JSON; we
+decode their periods, sequences, events, and synchronisms directly into
+networks and re-solve them. The corpus spans the 26th-dynasty model
+above, a New-Kingdom Dynasty~18 model, an Aegean Late-Helladic to
+Proto-Geometric ceramic sequence, an Iron~Age Levant model, and a
+Mediterranean Late Bronze Age study. Every model decodes and is
+consistent. The two that carry historical anchors \emph{inside} the
+network --- the 26th dynasty (anchored by the Persian conquest of
+525~BCE together with a set of epigraphic Apis-bull delay synchronisms)
+and the Mediterranean study (dated events and an Amarna delay) ---
+tighten to absolute calendar dates, the former recovering its full reign
+chronology exactly. The remaining three are radiocarbon-driven and hence
+purely \emph{relative}: their absolute evidence is radiocarbon, which
+lies outside the network (§\ref{sec:beyond}), so the layer confirms their
+consistency and relative ordering but leaves them unanchored in absolute
+time until a historical date is supplied. That a single decoder both
+reproduces an anchored chronology to the year and correctly reports a
+relative one as floating is itself evidence that ChronoLog's serialised
+models and the interval layer express the same object.
+
 \section{What the library adds, and its limits}
 \label{sec:beyond}
 
@@ -285,11 +332,29 @@ range. The solver shares interval-arithmetic primitives with the
 library's planned set-operations milestone (union, intersection,
 coalescing of interval sets).
 
+\paragraph{Scope: two layers.} A chronology has a \emph{relative/metric}
+layer --- the order, duration, and synchronism constraints that fix
+periods relative to one another and to historical anchors --- and an
+\emph{absolute/scientific} layer, in which radiocarbon determinations are
+calibrated against a reference curve (IntCal) and combined by Bayesian
+modelling (OxCal) into probabilistic calendar ranges.
+\texttt{Tempo.Network} is the first layer in full: it derives
+\emph{deterministic} bounds from order, duration, and anchors. It is
+deliberately not the second --- it neither calibrates radiocarbon nor
+computes probability distributions, and ChronoLog's per-period
+radiocarbon samples (its \texttt{C14\dots ForExport} fields, destined for
+OxCal) are carried through decoding but excluded from the constraint
+graph. Uncertainty here is bounds, not probability; this is why a
+radiocarbon-only model (§\ref{sec:examples}) is consistent and internally
+ordered yet floating in absolute time. The two layers compose --- the
+relative network is the natural prior structure for the Bayesian one ---
+but the statistical layer belongs to a tool such as OxCal, not to an
+interval library.
+
 \paragraph{Limitations.} Following the source model, relations compose
 by \emph{conjunction}; a genuine \emph{or}-relation (``$A$ ends before
 $B$ \emph{or} $A$ starts after $B$'') is outside the STP and is not
-supported. There is no fuzzy or Bayesian layer; uncertainty is bounds,
-not probability. Cross-unit duration conversion (e.g.\ a year-grained
+supported. Cross-unit duration conversion (e.g.\ a year-grained
 duration on a day axis) uses nominal calendar lengths and is therefore
 approximate, though the uniform-unit chronologies that dominate practice
 are exact.

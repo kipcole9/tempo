@@ -1,0 +1,556 @@
+{
+  "chronolog-version": "3.0.0",
+  "synchronisms": [
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "Amasis",
+      "period1": "Amasis (Herodotus)",
+      "type": "Equals",
+      "polyLine": [
+        {
+          "x": 180,
+          "y": 400
+        },
+        {
+          "x": 240,
+          "y": 400
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "Psammetichus III",
+      "period1": "Psam. III",
+      "type": "Equals",
+      "polyLine": [
+        {
+          "x": 180,
+          "y": 480
+        },
+        {
+          "x": 240,
+          "y": 480
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "mostLeast": "e",
+      "type": "Delay synchronism",
+      "beforeAfter": "a",
+      "polyLine": [
+        {
+          "x": 680,
+          "y": 80
+        },
+        {
+          "x": 400,
+          "y": 80
+        }
+      ],
+      "tags": [],
+      "delay": 52,
+      "boundary1": "s",
+      "period2": "Psammetichus I",
+      "boundary2": "s",
+      "period1": "Apis Bull III"
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "mostLeast": "e",
+      "type": "Delay synchronism",
+      "beforeAfter": "a",
+      "polyLine": [
+        {
+          "x": 680,
+          "y": 80
+        },
+        {
+          "x": 400,
+          "y": 160
+        }
+      ],
+      "tags": [],
+      "delay": 15,
+      "boundary1": "e",
+      "period2": "Necho II",
+      "boundary2": "s",
+      "period1": "Apis Bull III"
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "mostLeast": "e",
+      "type": "Delay synchronism",
+      "beforeAfter": "a",
+      "polyLine": [
+        {
+          "x": 680,
+          "y": 200
+        },
+        {
+          "x": 400,
+          "y": 160
+        }
+      ],
+      "tags": [],
+      "delay": 15,
+      "boundary1": "s",
+      "period2": "Necho II",
+      "boundary2": "s",
+      "period1": "Apis Bull IV"
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "mostLeast": "e",
+      "type": "Delay synchronism",
+      "beforeAfter": "a",
+      "polyLine": [
+        {
+          "x": 680,
+          "y": 320
+        },
+        {
+          "x": 400,
+          "y": 160
+        }
+      ],
+      "tags": [],
+      "delay": 0,
+      "boundary1": "s",
+      "period2": "Necho II",
+      "boundary2": "s",
+      "period1": "Priest Psammetichus"
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "mostLeast": "e",
+      "type": "Delay synchronism",
+      "beforeAfter": "a",
+      "polyLine": [
+        {
+          "x": 680,
+          "y": 320
+        },
+        {
+          "x": 400,
+          "y": 400
+        }
+      ],
+      "tags": [],
+      "delay": 26,
+      "boundary1": "e",
+      "period2": "Amasis",
+      "boundary2": "s",
+      "period1": "Priest Psammetichus"
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "mostLeast": "e",
+      "type": "Delay synchronism",
+      "beforeAfter": "a",
+      "polyLine": [
+        {
+          "x": 680,
+          "y": 200
+        },
+        {
+          "x": 400,
+          "y": 320
+        }
+      ],
+      "tags": [],
+      "delay": 11,
+      "boundary1": "e",
+      "period2": "Apries",
+      "boundary2": "s",
+      "period1": "Apis Bull IV"
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "mostLeast": "e",
+      "type": "Delay synchronism",
+      "beforeAfter": "a",
+      "polyLine": [
+        {
+          "x": 680,
+          "y": 440
+        },
+        {
+          "x": 400,
+          "y": 400
+        }
+      ],
+      "tags": [],
+      "delay": 34,
+      "boundary1": "e",
+      "period2": "Amasis",
+      "boundary2": "s",
+      "period1": "Other Psammetichus"
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "mostLeast": "e",
+      "type": "Delay synchronism",
+      "beforeAfter": "a",
+      "polyLine": [
+        {
+          "x": 680,
+          "y": 440
+        },
+        {
+          "x": 400,
+          "y": 160
+        }
+      ],
+      "tags": [],
+      "delay": 2,
+      "boundary1": "s",
+      "period2": "Necho II",
+      "boundary2": "s",
+      "period1": "Other Psammetichus"
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "mostLeast": "e",
+      "type": "Delay synchronism",
+      "beforeAfter": "a",
+      "polyLine": [
+        {
+          "x": 680,
+          "y": 540
+        },
+        {
+          "x": 400,
+          "y": 80
+        }
+      ],
+      "tags": [],
+      "delay": 17,
+      "boundary1": "s",
+      "period2": "Psammetichus I",
+      "boundary2": "s",
+      "period1": "Besmaut"
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "mostLeast": "e",
+      "type": "Delay synchronism",
+      "beforeAfter": "a",
+      "polyLine": [
+        {
+          "x": 680,
+          "y": 540
+        },
+        {
+          "x": 400,
+          "y": 400
+        }
+      ],
+      "tags": [],
+      "delay": 22,
+      "boundary1": "e",
+      "period2": "Amasis",
+      "boundary2": "s",
+      "period1": "Besmaut"
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "Psammetichus III",
+      "period1": "Persian conquest of Egypt",
+      "type": "Ends with",
+      "polyLine": [
+        {
+          "x": 320,
+          "y": 600
+        },
+        {
+          "x": 320,
+          "y": 520
+        }
+      ],
+      "tags": []
+    }
+  ],
+  "imports": [],
+  "C14StartDatesForExport": {
+    "Necho II": [],
+    "Apis Bull IV": [],
+    "Other Psammetichus": [],
+    "Apis Bull III": [],
+    "Amasis": [],
+    "Priest Psammetichus": [],
+    "Psam. III": [],
+    "Psammetichus II": [],
+    "Amasis (Herodotus)": [],
+    "Psammetichus I": [],
+    "Apries": [],
+    "Psammetichus III": [],
+    "Besmaut": []
+  },
+  "C14EndDatesForExport": {
+    "Necho II": [],
+    "Apis Bull IV": [],
+    "Other Psammetichus": [],
+    "Apis Bull III": [],
+    "Amasis": [],
+    "Priest Psammetichus": [],
+    "Psam. III": [],
+    "Psammetichus II": [],
+    "Amasis (Herodotus)": [],
+    "Psammetichus I": [],
+    "Apries": [],
+    "Psammetichus III": [],
+    "Besmaut": []
+  },
+  "name": "",
+  "sequences": [
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "name": "Dyn. 26",
+      "periods": [
+        {
+          "fillColor": -1315861,
+          "periodY": 40,
+          "comments": "",
+          "name": "Psammetichus I",
+          "width": 160,
+          "periodX": 240,
+          "durationLB": 54,
+          "height": 80
+        },
+        {
+          "fillColor": -1315861,
+          "periodY": 120,
+          "comments": "",
+          "name": "Necho II",
+          "width": 160,
+          "periodX": 240,
+          "durationLB": 15,
+          "height": 80
+        },
+        {
+          "fillColor": -1315861,
+          "periodY": 200,
+          "comments": "",
+          "durationUB": 6,
+          "name": "Psammetichus II",
+          "width": 160,
+          "periodX": 240,
+          "durationLB": 6,
+          "height": 80
+        },
+        {
+          "fillColor": -1315861,
+          "periodY": 280,
+          "comments": "",
+          "name": "Apries",
+          "width": 160,
+          "periodX": 240,
+          "durationLB": 19,
+          "height": 80
+        },
+        {
+          "fillColor": -1315861,
+          "periodY": 360,
+          "comments": "",
+          "name": "Amasis",
+          "width": 160,
+          "periodX": 240,
+          "durationLB": 43,
+          "height": 80
+        },
+        {
+          "fillColor": -1315861,
+          "periodY": 440,
+          "comments": "",
+          "name": "Psammetichus III",
+          "width": 160,
+          "periodX": 240,
+          "height": 80
+        }
+      ],
+      "startY": 40,
+      "startX": 240,
+      "tags": [
+        "Epigraphic"
+      ]
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "name": "Herodotus \u0026 Manetho",
+      "periods": [
+        {
+          "fillColor": -1315861,
+          "periodY": 360,
+          "comments": "",
+          "durationUB": 44,
+          "name": "Amasis (Herodotus)",
+          "width": 160,
+          "periodX": 20,
+          "durationLB": 44,
+          "height": 80
+        },
+        {
+          "fillColor": -1315861,
+          "periodY": 440,
+          "comments": "",
+          "durationUB": 1,
+          "name": "Psam. III",
+          "width": 160,
+          "periodX": 20,
+          "durationLB": 1,
+          "height": 80
+        }
+      ],
+      "startY": 360,
+      "startX": 20,
+      "tags": [
+        "Literary"
+      ]
+    }
+  ],
+  "lonePeriods": [
+    {
+      "fillColor": -1315861,
+      "periodY": 40,
+      "visible": true,
+      "comments": "",
+      "durationUB": 17,
+      "name": "Apis Bull III",
+      "width": 160,
+      "periodX": 680,
+      "durationLB": 17,
+      "height": 80,
+      "tags": [
+        "Epigraphic"
+      ]
+    },
+    {
+      "fillColor": -1315861,
+      "periodY": 160,
+      "visible": true,
+      "comments": "",
+      "durationUB": 17,
+      "name": "Apis Bull IV",
+      "width": 160,
+      "periodX": 680,
+      "durationLB": 17,
+      "height": 80,
+      "tags": [
+        "Epigraphic"
+      ]
+    },
+    {
+      "fillColor": -1315861,
+      "periodY": 280,
+      "visible": true,
+      "comments": "",
+      "durationUB": 66,
+      "name": "Priest Psammetichus",
+      "width": 160,
+      "periodX": 680,
+      "durationLB": 66,
+      "height": 80,
+      "tags": [
+        "Epigraphic"
+      ]
+    },
+    {
+      "fillColor": -1315861,
+      "periodY": 400,
+      "visible": true,
+      "comments": "",
+      "durationUB": 72,
+      "name": "Other Psammetichus",
+      "width": 160,
+      "periodX": 680,
+      "durationLB": 72,
+      "height": 80,
+      "tags": [
+        "Epigraphic"
+      ]
+    },
+    {
+      "fillColor": -1315861,
+      "periodY": 500,
+      "visible": true,
+      "comments": "",
+      "durationUB": 100,
+      "name": "Besmaut",
+      "width": 160,
+      "periodX": 680,
+      "durationLB": 99,
+      "height": 80,
+      "tags": [
+        "Epigraphic"
+      ]
+    }
+  ],
+  "C14PhaseDatesForExport": {
+    "Necho II": [],
+    "Apis Bull IV": [],
+    "Other Psammetichus": [],
+    "Apis Bull III": [],
+    "Amasis": [],
+    "Priest Psammetichus": [],
+    "Psam. III": [],
+    "Psammetichus II": [],
+    "Amasis (Herodotus)": [],
+    "Psammetichus I": [],
+    "Apries": [],
+    "Psammetichus III": [],
+    "Besmaut": []
+  },
+  "events": [
+    {
+      "fillColor": -1315861,
+      "visible": true,
+      "comments": "",
+      "dateLB": -525,
+      "name": "Persian conquest of Egypt",
+      "width": 200,
+      "dateUB": -525,
+      "startY": 600,
+      "startX": 220,
+      "height": 80,
+      "tags": [
+        "Historical"
+      ]
+    }
+  ],
+  "C14EventDatesForExport": {
+    "Persian conquest of Egypt": []
+  }
+}
