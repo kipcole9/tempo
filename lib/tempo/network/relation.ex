@@ -1,0 +1,338 @@
+defmodule Tempo.Network.Relation do
+  @moduledoc """
+  A chronological relation — a constraint between the boundaries of two
+  time-periods.
+
+  Relations are stored as data and translated to atomic Simple Temporal
+  Problem constraints (`b₁ − b₂ ≤ k`) during normalisation. The
+  vocabulary follows ChronoLog (Levy et al. 2020, Tables 1–5) and maps
+  onto Allen's interval algebra where an Allen relation exists; the
+  *metric* (delay) relations carry an integer offset Allen does not
+  express.
+
+  ### Relation types
+
+  Qualitative (no parameters):
+
+  * `:contemporary` — `A` and `B` overlap (non-empty intersection).
+
+  * `:includes` / `:included_in` — `A` contains / is contained by `B`.
+
+  * `:overlaps` / `:overlapped_by` — `A` overlaps and precedes /
+    follows `B` (a shared extent, neither containing the other).
+
+  * `:starts_during` / `:includes_start` — `A`'s start falls within
+    `B` / `B`'s start falls within `A`.
+
+  * `:ends_during` / `:includes_end` — `A`'s end falls within `B` /
+    `B`'s end falls within `A`.
+
+  * `:before` / `:after` — `A` is strictly before / after `B`
+    (no overlap).
+
+  * `:immediately_precedes` / `:immediately_follows` — `end(A)=start(B)`
+    and the dual.
+
+  * `:synchronous_start` / `:synchronous_end` — shared start / end
+    boundary.
+
+  * `:equals` — identical start and end.
+
+  Metric (parameterised by a duration and a comparison):
+
+  * `{:delay, edge_a, edge_b, comparison, duration}` — the `edge_a`
+    boundary of `A` is `comparison` (`:exactly` | `:at_least` |
+    `:at_most`) `duration` before the `edge_b` boundary of `B`, where
+    each edge is `:start` or `:end`.
+
+  """
+
+  @type edge :: :start | :end
+  @type comparison :: :exactly | :at_least | :at_most
+
+  @type relation_type ::
+          :contemporary
+          | :includes
+          | :included_in
+          | :overlaps
+          | :overlapped_by
+          | :starts_during
+          | :includes_start
+          | :ends_during
+          | :includes_end
+          | :before
+          | :after
+          | :immediately_precedes
+          | :immediately_follows
+          | :synchronous_start
+          | :synchronous_end
+          | :equals
+          | {:delay, edge(), edge(), comparison(), Tempo.Duration.t()}
+
+  @type t :: %__MODULE__{
+          type: relation_type(),
+          from: term(),
+          to: term(),
+          metadata: map()
+        }
+
+  defstruct [:type, :from, :to, metadata: %{}]
+
+  @doc """
+  Build a relation between two periods.
+
+  ### Arguments
+
+  * `type` is a relation type (see the module documentation).
+
+  * `from` and `to` are the ids of the two periods the relation
+    constrains, read as "`from` *type* `to`".
+
+  ### Options
+
+  * `:metadata` is an arbitrary map carried with the relation.
+
+  ### Returns
+
+  * a `t:Tempo.Network.Relation.t/0`.
+
+  ### Examples
+
+      iex> relation = Tempo.Network.Relation.new(:included_in, :s1, :k1)
+      iex> {relation.type, relation.from, relation.to}
+      {:included_in, :s1, :k1}
+
+  """
+  @spec new(relation_type(), term(), term(), keyword()) :: t()
+  def new(type, from, to, options \\ []) do
+    %__MODULE__{
+      type: type,
+      from: from,
+      to: to,
+      metadata: Keyword.get(options, :metadata, %{})
+    }
+  end
+
+  @typedoc """
+  A boundary variable in the constraint graph: the start or end of a
+  period, or the network origin `z₀`.
+  """
+  @type boundary :: {:start, term()} | {:end, term()} | :origin
+
+  @typedoc """
+  An edge weight. An integer is a fixed offset in the network's unit
+  (`0` for `≤`, `-1` for a strict `<`); a duration weight is resolved
+  to an integer by normalisation once the unit is known.
+  """
+  @type weight ::
+          integer() | {:duration, Tempo.Duration.t()} | {:neg_duration, Tempo.Duration.t()}
+
+  @typedoc """
+  An atomic Simple Temporal Problem constraint `from − to ≤ weight`,
+  one directed weighted edge `from → to` in the constraint graph.
+  """
+  @type atomic :: {boundary(), boundary(), weight()}
+
+  @doc """
+  Translate a relation into its atomic STP constraints.
+
+  Each constraint has the single shape `from − to ≤ weight` (ISO of the
+  paper's §3). An equality becomes two constraints; a strict `<` on the
+  integer time-scale becomes `≤ -1`; a metric (delay) relation carries a
+  duration weight that normalisation later resolves to an integer.
+
+  ### Arguments
+
+  * `relation` is a `t:Tempo.Network.Relation.t/0`.
+
+  ### Returns
+
+  * a list of `t:Tempo.Network.Relation.atomic/0` constraints.
+
+  ### Examples
+
+      iex> Tempo.Network.Relation.new(:before, :a, :b) |> Tempo.Network.Relation.to_atomic()
+      [{{:end, :a}, {:start, :b}, -1}]
+
+      iex> Tempo.Network.Relation.new(:immediately_precedes, :a, :b) |> Tempo.Network.Relation.to_atomic()
+      [{{:end, :a}, {:start, :b}, 0}, {{:start, :b}, {:end, :a}, 0}]
+
+  """
+  @spec to_atomic(t()) :: [atomic()]
+  def to_atomic(%__MODULE__{type: type, from: a, to: b}) do
+    start_a = {:start, a}
+    end_a = {:end, a}
+    start_b = {:start, b}
+    end_b = {:end, b}
+
+    case type do
+      # end(A) ≥ start(B) ∧ end(B) ≥ start(A) — non-empty overlap.
+      :contemporary ->
+        [le(start_b, end_a, 0), le(start_a, end_b, 0)]
+
+      # start(A) ≤ start(B) ∧ end(B) ≤ end(A).
+      :includes ->
+        [le(start_a, start_b, 0), le(end_b, end_a, 0)]
+
+      # start(B) ≤ start(A) ∧ end(A) ≤ end(B).
+      :included_in ->
+        [le(start_b, start_a, 0), le(end_a, end_b, 0)]
+
+      # Overlaps succeeding (Table 2): start(A) ≤ start(B) ≤ end(A) ≤ end(B).
+      :overlaps ->
+        [le(start_a, start_b, 0), le(start_b, end_a, 0), le(end_a, end_b, 0)]
+
+      # Overlaps preceding: start(B) ≤ start(A) ≤ end(B) ≤ end(A).
+      :overlapped_by ->
+        [le(start_b, start_a, 0), le(start_a, end_b, 0), le(end_b, end_a, 0)]
+
+      # A starts during B: start(B) ≤ start(A) ≤ end(B).
+      :starts_during ->
+        [le(start_b, start_a, 0), le(start_a, end_b, 0)]
+
+      # A includes the start of B: start(A) ≤ start(B) ≤ end(A).
+      :includes_start ->
+        [le(start_a, start_b, 0), le(start_b, end_a, 0)]
+
+      # A ends during B: start(B) ≤ end(A) ≤ end(B).
+      :ends_during ->
+        [le(start_b, end_a, 0), le(end_a, end_b, 0)]
+
+      # A includes the end of B: start(A) ≤ end(B) ≤ end(A).
+      :includes_end ->
+        [le(start_a, end_b, 0), le(end_b, end_a, 0)]
+
+      :before ->
+        [lt(end_a, start_b)]
+
+      :after ->
+        [lt(end_b, start_a)]
+
+      :immediately_precedes ->
+        eq(end_a, start_b)
+
+      :immediately_follows ->
+        eq(start_a, end_b)
+
+      :synchronous_start ->
+        eq(start_a, start_b)
+
+      :synchronous_end ->
+        eq(end_a, end_b)
+
+      :equals ->
+        eq(start_a, start_b) ++ eq(end_a, end_b)
+
+      {:delay, edge_a, edge_b, comparison, duration} ->
+        delay_atomic(boundary(edge_a, a), boundary(edge_b, b), comparison, duration)
+    end
+  end
+
+  # from − to ≤ k.
+  defp le(from, to, k), do: {from, to, k}
+
+  # from < to  ⇒  from − to ≤ -1 (strict on the integer time-scale).
+  defp lt(from, to), do: {from, to, -1}
+
+  # from = to  ⇒  from − to ≤ 0 ∧ to − from ≤ 0.
+  defp eq(from, to), do: [{from, to, 0}, {to, from, 0}]
+
+  defp boundary(:start, id), do: {:start, id}
+  defp boundary(:end, id), do: {:end, id}
+
+  # "edge_a is `comparison` `duration` before edge_b": with the offset
+  # `bb − ba`, exactly = d, at least ≥ d, at most ≤ d.
+  defp delay_atomic(ba, bb, :exactly, duration) do
+    [{bb, ba, {:duration, duration}}, {ba, bb, {:neg_duration, duration}}]
+  end
+
+  defp delay_atomic(ba, bb, :at_least, duration) do
+    [{ba, bb, {:neg_duration, duration}}]
+  end
+
+  defp delay_atomic(ba, bb, :at_most, duration) do
+    [{bb, ba, {:duration, duration}}]
+  end
+
+  @doc """
+  The Allen interval relation(s) a chronological relation corresponds
+  to, for querying a solved network with `Tempo.Interval` predicates.
+
+  Returns a single Allen atom for a one-to-one correspondence, a list
+  when the relation is the disjunction of several Allen relations (e.g.
+  `:contemporary`), or `nil` for a metric relation Allen cannot express.
+
+  ### Examples
+
+      iex> Tempo.Network.Relation.to_allen(:before)
+      :precedes
+
+      iex> Tempo.Network.Relation.to_allen(:synchronous_start)
+      [:starts, :started_by, :equals]
+
+  """
+  @spec to_allen(relation_type()) :: atom() | [atom()] | nil
+  def to_allen(:before), do: :precedes
+  def to_allen(:after), do: :preceded_by
+  def to_allen(:immediately_precedes), do: :meets
+  def to_allen(:immediately_follows), do: :met_by
+  def to_allen(:overlaps), do: :overlaps
+  def to_allen(:overlapped_by), do: :overlapped_by
+  def to_allen(:includes), do: :contains
+  def to_allen(:included_in), do: :during
+  def to_allen(:equals), do: :equals
+  def to_allen(:synchronous_start), do: [:starts, :started_by, :equals]
+  def to_allen(:synchronous_end), do: [:finishes, :finished_by, :equals]
+
+  # Period synchronisms are looser than any single Allen relation.
+  def to_allen(:starts_during), do: nil
+  def to_allen(:includes_start), do: nil
+  def to_allen(:ends_during), do: nil
+  def to_allen(:includes_end), do: nil
+
+  def to_allen(:contemporary),
+    do: [
+      :overlaps,
+      :overlapped_by,
+      :starts,
+      :started_by,
+      :during,
+      :contains,
+      :finishes,
+      :finished_by,
+      :equals
+    ]
+
+  def to_allen({:delay, _, _, _, _}), do: nil
+
+  @doc """
+  The chronological relation type naming a given Allen relation.
+
+  The inverse of `to_allen/1` for the one-to-one cases. The two
+  direction-symmetric Allen relations (`:overlapped_by`) name the same
+  chronological type with the operands read in the other order.
+
+  ### Examples
+
+      iex> Tempo.Network.Relation.from_allen(:meets)
+      :immediately_precedes
+
+      iex> Tempo.Network.Relation.from_allen(:during)
+      :included_in
+
+  """
+  @spec from_allen(atom()) :: relation_type()
+  def from_allen(:precedes), do: :before
+  def from_allen(:preceded_by), do: :after
+  def from_allen(:meets), do: :immediately_precedes
+  def from_allen(:met_by), do: :immediately_follows
+  def from_allen(:overlaps), do: :overlaps
+  def from_allen(:overlapped_by), do: :overlaps
+  def from_allen(:contains), do: :includes
+  def from_allen(:during), do: :included_in
+  def from_allen(:equals), do: :equals
+  def from_allen(:starts), do: :synchronous_start
+  def from_allen(:started_by), do: :synchronous_start
+  def from_allen(:finishes), do: :synchronous_end
+  def from_allen(:finished_by), do: :synchronous_end
+end
