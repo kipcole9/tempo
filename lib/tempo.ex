@@ -2744,13 +2744,13 @@ defmodule Tempo do
   ## ---------------------------------------------------------
 
   @doc """
-  Shift a `t:t/0` by a keyword list of signed unit amounts,
-  returning a new `t:t/0`.
+  Shift a `t:t/0` by a duration, returning a new `t:t/0`.
 
-  This is the ergonomic companion to `Tempo.Math.add/2` — the
-  Duration-based API remains the principled path (durations carry
-  their own calendar and leap-second semantics), but for ad-hoc
-  shifts a keyword list reads more naturally.
+  The shift amount may be given either as a `t:Tempo.Duration.t/0`
+  (when you already have one, e.g. `~o"P1M"`) or as a keyword list of
+  signed unit amounts (the ergonomic ad-hoc form). Both delegate to
+  `Tempo.Math.add/2`, which is the principled path when composing
+  durations directly.
 
   Units are applied largest-to-smallest with the standard
   month-end clamping rule (e.g. `~o"2024-01-31" + 1 month` is
@@ -2760,10 +2760,10 @@ defmodule Tempo do
 
   * `tempo` is any `t:t/0`.
 
-  * `units` is a keyword list of `{unit, amount}` pairs such as
-    `[month: 1, day: -5]` or `[year: 2]`. Valid units: `:year`,
-    `:month`, `:week`, `:day`, `:hour`, `:minute`, `:second`.
-    Amounts may be negative.
+  * `shift` is either a `t:Tempo.Duration.t/0`, or a keyword list of
+    `{unit, amount}` pairs such as `[month: 1, day: -5]` or
+    `[year: 2]`. Valid units: `:year`, `:month`, `:week`, `:day`,
+    `:hour`, `:minute`, `:second`. Keyword amounts may be negative.
 
   ### Returns
 
@@ -2780,8 +2780,15 @@ defmodule Tempo do
       iex> Tempo.shift(~o"2026-06-15T10:00:00", hour: -3)
       ~o"2026Y6M15DT7H0M0S"
 
+      iex> Tempo.shift(~o"2026", ~o"P2Y")
+      ~o"2028Y"
+
   """
-  @spec shift(t(), keyword()) :: t()
+  @spec shift(t(), Tempo.Duration.t() | keyword()) :: t()
+  def shift(%Tempo{} = tempo, %Tempo.Duration{} = duration) do
+    Tempo.Math.add(tempo, duration)
+  end
+
   def shift(%Tempo{} = tempo, units) when is_list(units) do
     Tempo.Math.add(tempo, Tempo.Duration.build(units))
   end

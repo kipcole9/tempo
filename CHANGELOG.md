@@ -2,6 +2,11 @@
 
 ## [v0.10.0] — Unreleased
 
+### Added
+
+* `Tempo.Network` — a chronological-network constraint layer implementing the ChronoLog scheme (Levy et al. 2020) over Tempo's intervals: time-periods with independent start/end/duration bounds, sequences, and the ChronoLog relation vocabulary, normalised to a Simple Temporal Problem and solved by Floyd–Warshall (`consistent?/1`, `tighten/1`, and explanatory `trace/3`). Reproduces the paper's ChronoLand and 26th-dynasty results exactly.
+
+* `Tempo.shift/2` now accepts a `Tempo.Duration` directly (`Tempo.shift(~o"2026", ~o"P2Y")`), in addition to the keyword-list form; both delegate to `Tempo.Math.add/2`.
 
 ## [v0.9.0] — 2026-06-29
 

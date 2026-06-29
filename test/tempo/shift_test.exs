@@ -39,4 +39,20 @@ defmodule Tempo.ShiftTest do
       assert Tempo.shift(~o"2026-06-15", []) == ~o"2026Y6M15D"
     end
   end
+
+  describe "Tempo.shift/2 with a duration value" do
+    test "accepts a Tempo.Duration directly" do
+      assert Tempo.shift(~o"2026", ~o"P2Y") == ~o"2028Y"
+      assert Tempo.shift(~o"2026-06-15", ~o"P1M") == ~o"2026Y7M15D"
+    end
+
+    test "agrees with the keyword-list form and with Tempo.Math.add/2" do
+      assert Tempo.shift(~o"2026-06-15", ~o"P1M") == Tempo.shift(~o"2026-06-15", month: 1)
+      assert Tempo.shift(~o"2026-06-15", ~o"P1M") == Tempo.Math.add(~o"2026-06-15", ~o"P1M")
+    end
+
+    test "month-end clamping applies the same as the keyword form" do
+      assert Tempo.shift(~o"2026-01-31", ~o"P1M") == ~o"2026Y2M28D"
+    end
+  end
 end
