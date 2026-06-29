@@ -1,0 +1,368 @@
+% Chronological networks over an interval-native date/time library.
+%
+% Format: OASIcs (oasics-v2021), the TIME-symposium template, reused
+% from ../time-2026. The class file and its logos (cc-by.pdf,
+% oasics-logo-bw.pdf, orcid.pdf) sit alongside this file.
+%
+% Build:
+%   pdflatex chrononetworks && pdflatex chrononetworks
+%
+% Uses an inline thebibliography so no .bib is required at draft stage.
+
+\documentclass[a4paper,USenglish,cleveref,autoref,thm-restate]{oasics-v2021}
+
+\usepackage{amssymb}
+\usepackage{booktabs}
+
+% The OASIcs class defines \doi for BibTeX; provide it for the inline
+% thebibliography below (mirrors the plainurl style).
+\providecommand{\doi}[1]{\href{https://doi.org/#1}{doi:\texttt{#1}}}
+
+\title{Chronological Networks as a Library Primitive: \texorpdfstring{\\}{ }%
+  ChronoLog over an Interval-Native Date/Time Stack}
+\titlerunning{Chronological Networks as a Library Primitive}
+
+\author{Kip Cole}{Independent}{kipcole9@gmail.com}{}{}
+\authorrunning{K.~Cole}
+\Copyright{Kip Cole}
+
+\ccsdesc[500]{Applied computing~Arts and humanities}
+\ccsdesc[300]{Theory of computation~Modal and temporal logics}
+\ccsdesc[300]{Information systems~Temporal data}
+
+\keywords{Chronological networks, Allen's interval algebra, simple
+  temporal problems, archaeological dating, ISO 8601, EDTF,
+  interval-based time}
+
+\relatedversion{Source repository: \url{https://github.com/kipcole9/tempo}}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+  Levy, Geeraerts, Pluquet, Piasetzky and Fantalkin (2020) formalised
+  archaeological chronology as a \emph{chronological network} --- a set
+  of time-periods related by synchronisms, asynchronisms, and duration
+  bounds --- and showed that consistency checking and the computation
+  of tightest possible date ranges reduce to a Simple Temporal Problem
+  (STP), solvable in polynomial time. Their tool, ChronoLog, invents an
+  interval/relation vocabulary from scratch. We observe that this
+  vocabulary is exactly the one a general, interval-native date/time
+  library already provides: half-open intervals, Allen's thirteen
+  relations, partial and reduced-precision dates, calendar-aware
+  durations, and uncertainty qualifiers. We implement the ChronoLog
+  model as a small layer (\texttt{Tempo.Network}) over the Tempo Elixir
+  library, mapping each ChronoLog relation to its Allen counterpart plus
+  metric (delay) extensions, normalising a network to an STP, and
+  solving consistency and tightening by Floyd--Warshall. The layer
+  reproduces the paper's published bounds exactly and inherits, for
+  free, ISO~8601 / EDTF interchange, multiple calendars, BCE arithmetic,
+  and §8 uncertainty qualifiers. The contribution is less a new
+  algorithm than an argument: chronological-network modelling is a
+  natural \emph{library primitive} when the library already treats time
+  as intervals.
+\end{abstract}
+
+\section{Introduction}
+
+Archaeological and historical chronology is rarely a list of fixed
+dates. It is a web of relationships: a king reigns before another, a
+stratum is built during a reign, a ceramic style overlaps its
+successor, an inscription supplies a \emph{terminus post quem}. Levy et
+al.~\cite{levy2020} call such a web a \emph{chronological network} and
+give it a formal model with three object types --- time-periods,
+sequences, and chronological relations --- and two operations:
+\emph{consistency checking} (does any assignment of dates satisfy every
+constraint?) and \emph{tightening} (what is the narrowest start, end,
+and duration each period can take?). Their key technical result is that
+the model is a Simple Temporal Problem~\cite{dechter1991}: every
+relation, duration, and absolute date reduces to atomic constraints of
+the form $b_1 - b_2 \leq k$ over boundary variables, so consistency is
+the absence of a negative cycle and tightening is all-pairs shortest
+paths. This is polynomial-time, in contrast to exhaustive-search tools
+such as Groundhog~\cite{falk2020}.
+
+ChronoLog~\cite{chronolog} implements this model as a bespoke
+application, and in doing so re-creates a small interval algebra: a
+period has a start, an end, and a duration, each possibly unknown,
+bounded, or ranged; relations express containment, overlap, synchronised
+boundaries, and metric delays. Our observation is that this is precisely
+the vocabulary that an \emph{interval-native} general-purpose date/time
+library already provides. We demonstrate this with Tempo, an Elixir
+library in which every temporal value is a bounded half-open interval at
+a declared resolution, comparison is Allen's thirteen
+relations~\cite{allen1983}, and partial ISO~8601 / EDTF values
+(\texttt{2022}, \texttt{2022-06}, \texttt{$\sim$720}) are first-class.
+
+We contribute \texttt{Tempo.Network}, a layer that (i) names the
+ChronoLog relation vocabulary and maps it to Allen's algebra plus metric
+extensions (§\ref{sec:mapping}); (ii) normalises a network to an STP
+against a single origin boundary (§\ref{sec:solver}); and (iii) solves
+consistency and tightening by Floyd--Warshall, with shortest-path
+\emph{traces} that explain each derived bound (§\ref{sec:solver}). The
+layer reproduces the paper's ChronoLand and 26th-dynasty results exactly
+(§\ref{sec:examples}) and inherits ISO~8601/EDTF interchange, calendars,
+and qualifiers from the host library (§\ref{sec:beyond}).
+
+\section{The ChronoLog model}
+\label{sec:chronolog}
+
+A \emph{time-period} is a continuous interval --- a reign, an era, the
+life of a stratum --- characterised by a start date, an end date, and a
+duration, each of which may be unknown, known, lower-bounded,
+upper-bounded, or known within a range $[lo, hi]$. Dates and durations
+are modelled \emph{independently}: a period is at most six numbers
+(earliest/latest start, earliest/latest end, minimum/maximum duration),
+reconciled by the relation $\textit{duration} = \textit{end} -
+\textit{start}$.
+
+A \emph{sequence} is a list of consecutive time-periods with no gaps:
+$\textit{end}(p_i) = \textit{start}(p_{i+1})$. A gap is modelled by
+inserting an explicit gap period.
+
+A \emph{chronological relation} constrains two periods. The vocabulary
+(the paper's Tables~1--5) covers contemporaneity ($A \sim B$: non-empty
+overlap), inclusion ($A \subseteq B$, $A \supseteq B$), overlap ($A \leq
+B$, $A \geq B$), start/end-period synchronisms (``$A$ starts during
+$B$'', ``$A$ includes the start of $B$'', and the end-side duals),
+synchronised boundaries (synchronous start/end, equality, immediate
+precedence/following), asynchronisms ($A \ll B$, $A \gg B$), ordered
+boundaries (strict orderings of individual start/end dates), and
+\emph{delay synchronisms} --- metric constraints stating that one
+boundary is an exact, minimum, or maximum number of years before or
+after another.
+
+\paragraph{The STP reduction.} Every relation, duration, sequence link,
+and absolute date normalises to a conjunction of atomic constraints of
+one shape, $b_1 - b_2 \leq k$, where $b_1, b_2$ are boundary variables
+and $k$ is an integer. Equalities become two inequalities; a strict $<$
+on an integer time-scale becomes $\leq k-1$; absolute dates are
+constraints against a single origin boundary $z_0$. The constraints form
+a directed weighted graph with one node per boundary plus $z_0$. The
+network is \emph{consistent} iff the graph has no negative cycle, and the
+tightest bound on $b_1 - b_2$ is the shortest-path weight $b_1 \to b_2$;
+tightening is therefore all-pairs shortest paths
+(Floyd--Warshall)~\cite{dechter1991,floyd1962}.
+
+\section{Tempo's interval model}
+\label{sec:tempo}
+
+Tempo represents every temporal value as a bounded, half-open interval
+$[\textit{from}, \textit{to})$ at a declared resolution. A partial
+ISO~8601 value is an interval of the appropriate width: \texttt{2026} is
+$[2026\text{-}01\text{-}01, 2027\text{-}01\text{-}01)$, \texttt{2026-06}
+spans one month, \texttt{2026-06-15} one day. The half-open convention
+makes adjacent spans concatenate without gap or overlap, and makes
+comparison total under Allen's thirteen relations, exposed as predicates
+(\texttt{before?}, \texttt{overlaps?}, \texttt{within?},
+\texttt{adjacent?}). Durations are calendar-aware
+(\texttt{P20Y}, \texttt{P2Y6M}), and ISO~8601-2 / EDTF uncertainty
+qualifiers ($?$ uncertain, $\sim$ approximate, $\%$ both) are parsed and
+carried per component.
+
+These are exactly the primitives ChronoLog needs. A time-period's
+boundaries are interval endpoints; a sequence is the half-open
+concatenation $[a,b)$ then $[b,c)$; the relations are Allen relations
+plus metric offsets; absolute and floating chronologies are anchored and
+unanchored values; uncertainty is the qualifier vocabulary. The one
+missing piece is the constraint solver, which is small and
+well-understood. \texttt{Tempo.Network} supplies it.
+
+\section{Mapping the relation vocabulary}
+\label{sec:mapping}
+
+Each ChronoLog relation is stored as data and translated, by
+\texttt{to\_atomic/1}, to its atomic constraints; Table~\ref{tab:map}
+gives the correspondence to Allen's algebra and the atomic form. Where a
+single Allen relation exists the mapping is one-to-one (and invertible,
+so a solved network can be \emph{queried} with Allen predicates and an
+Allen relation between two solved periods can be \emph{named}). The
+period synchronisms (``starts during'' and kin) are looser than any
+single Allen relation --- they are disjunctions --- and the metric
+delays carry an integer Allen cannot express.
+
+\begin{table}[t]
+  \caption{Selected ChronoLog relations, their Allen counterpart, and
+    their atomic constraints. $s,e$ abbreviate start, end.}
+  \label{tab:map}
+  \centering
+  \begin{tabular}{lll}
+    \toprule
+    ChronoLog relation & Allen & Atomic constraints \\
+    \midrule
+    $A \ll B$ (before)            & precedes   & $e(A) - s(B) \leq -1$ \\
+    $A \sqsupset B$ (immed.\ prec.) & meets    & $e(A) = s(B)$ \\
+    $A \subseteq B$ (included in) & during     & $s(B) \leq s(A),\ e(A) \leq e(B)$ \\
+    $A \supseteq B$ (includes)    & contains   & $s(A) \leq s(B),\ e(B) \leq e(A)$ \\
+    $A \leq B$ (overlaps)         & overlaps   & $s(A) \leq s(B) \leq e(A) \leq e(B)$ \\
+    $A \sim B$ (contemporary)     & ---        & $s(B) \leq e(A),\ s(A) \leq e(B)$ \\
+    $A$ starts during $B$         & ---        & $s(B) \leq s(A) \leq e(B)$ \\
+    $A$ ends during $B$           & ---        & $s(B) \leq e(A) \leq e(B)$ \\
+    $A \top B$ (synchronous start) & ---       & $s(A) = s(B)$ \\
+    delay: $s(A)$ at least $X$ before $s(B)$ & --- & $s(A) - s(B) \leq -X$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\section{Normalisation and solver}
+\label{sec:solver}
+
+\texttt{Tempo.Network.Normalize} reduces a network to
+$\{\textit{nodes}, \textit{edges}, \textit{unit}\}$. Each period
+contributes \texttt{start} and \texttt{end} nodes; a shared origin
+\texttt{:origin} ($z_0$) anchors absolute dates. The network's
+\emph{finest unit} --- the finest resolution among its dates --- fixes
+the integer axis: a date becomes its count of that unit relative to
+$z_0$, a duration its count of that unit. Conversion is exact for the
+uniform-unit (typically year-grained) chronologies that are the
+discipline's norm; a duration expressed across units uses nominal
+calendar lengths. Each edge is tagged with the constraint that produced
+it, for tracing.
+
+\texttt{Tempo.Network.Solver} runs Floyd--Warshall once, in $O(n^3)$ on
+the boundary count --- interactive for the hundreds of periods these
+chronologies contain. \texttt{consistent?/1} reports the absence of a
+negative cycle; \texttt{tighten/1} reads the tightest start, end, and
+duration of each period off the shortest-path matrix and maps them back
+to Tempo values. \texttt{trace/3} reconstructs the shortest path
+underlying a chosen bound and renders it as prose --- the paper's notion
+of an explanatory trace, where every step names the input it rests on.
+
+\section{Worked examples}
+\label{sec:examples}
+
+\paragraph{ChronoLand.} The paper's toy kingdom: kings \texttt{K1} then
+\texttt{K2} reign in succession, both between 1200 and 1300~CE; \texttt{K1}
+reigns at most 10 years, \texttt{K2} at least 35. Strata \texttt{S1}
+(built by \texttt{K1}) and \texttt{S2} (destroyed under \texttt{K2})
+follow one another, each lasting 20--100 years.
+
+\begin{verbatim}
+network =
+  Network.new()
+  |> Network.add_period(:k1, start: {:not_before, ~o"1200Y"}, duration: {:at_most, ~o"P10Y"})
+  |> Network.add_period(:k2, end: {:not_after, ~o"1300Y"}, duration: {:at_least, ~o"P35Y"})
+  |> Network.add_period(:s1, duration: {~o"P20Y", ~o"P100Y"})
+  |> Network.add_period(:s2, duration: {~o"P20Y", ~o"P100Y"})
+  |> Network.add_sequence([:k1, :k2])
+  |> Network.add_sequence([:s1, :s2])
+  |> Network.add_relation(:starts_during, :s1, :k1)
+  |> Network.add_relation(:ends_during, :s2, :k2)
+\end{verbatim}
+
+Tightening reproduces the paper's Fig.~6b exactly: \texttt{K2} tightens
+to start $\in [1200, 1265]$, end $\in [1240, 1300]$, duration $\in [35,
+100]$; the strata, given no dates as input, acquire them, and each
+stratum's duration tightens from $[20,100]$ to $[20,80]$ because the
+dynasty is too short to hold a longer one. The trace for the earliest
+end of \texttt{K2} reproduces the paper's Fig.~6c reasoning:
+\texttt{K1} starts no earlier than 1200; \texttt{S1} starts during
+\texttt{K1}; \texttt{S1} lasts at least 20 years, so ends after 1220;
+\texttt{S1} meets \texttt{S2}; \texttt{S2} lasts at least 20 years, so
+ends after 1240; \texttt{S2} ends during \texttt{K2}, so \texttt{K2}
+ends after 1240. Capping \texttt{K2} at 25 rather than 35 years makes
+the network inconsistent (Fig.~7), detected as a negative cycle.
+
+\paragraph{The 26th dynasty.} Six reigns in succession (after Kitchen
+2000). Given only Psammetichus~I's accession (664~BCE) and each reign's
+length, tightening derives every reign's absolute dates --- exercising
+BCE (negative) years and a six-period sequence. Amasis~II's accession is
+recovered as 570~BCE, forced by the anchor and the five preceding
+reigns, with no date stated for it directly.
+
+\section{What the library adds, and its limits}
+\label{sec:beyond}
+
+Because boundaries are ordinary Tempo values, a network is interoperable
+by construction: each period round-trips through ISO~8601 / EDTF for
+exchange with other tooling, BCE and proleptic dates are handled
+uniformly, and non-Gregorian calendars are available through the
+underlying calendrical stack. Uncertainty qualifiers are carried as
+metadata and, by design, do \emph{not} silently widen a bound: a vague
+``circa'' never performs arithmetic unless the modeller restates it as a
+range. The solver shares interval-arithmetic primitives with the
+library's planned set-operations milestone (union, intersection,
+coalescing of interval sets).
+
+\paragraph{Limitations.} Following the source model, relations compose
+by \emph{conjunction}; a genuine \emph{or}-relation (``$A$ ends before
+$B$ \emph{or} $A$ starts after $B$'') is outside the STP and is not
+supported. There is no fuzzy or Bayesian layer; uncertainty is bounds,
+not probability. Cross-unit duration conversion (e.g.\ a year-grained
+duration on a day axis) uses nominal calendar lengths and is therefore
+approximate, though the uniform-unit chronologies that dominate practice
+are exact.
+
+\section{Related work}
+
+Allen's interval algebra~\cite{allen1983} underlies the relation
+vocabulary; Holst~\cite{holst2004} applied temporal logic to archaeology.
+The direct antecedent is ChronoLog~\cite{levy2020,chronolog}; the STP
+machinery is that of Dechter, Meiri and Pearl~\cite{dechter1991} via
+Floyd~\cite{floyd1962}. Falk's Groundhog~\cite{falk2020} addresses the
+same problem by exhaustive search. Tempo's contribution is orthogonal to
+all of these: it shows that, given an interval-native host library, the
+network model and its solver are a compact, reusable primitive rather
+than a standalone application.
+
+\section{Conclusion}
+
+Chronological-network modelling does not require a bespoke tool. When the
+host library already represents time as half-open intervals with Allen's
+algebra, partial dates, and calendar-aware durations, the ChronoLog
+model is a thin layer: a relation-to-atomic translation, an STP
+normalisation, and a Floyd--Warshall solver. The result reproduces the
+reference results exactly while inheriting ISO~8601/EDTF interchange,
+calendars, and uncertainty qualifiers --- and makes consistency checking
+and tightening available wherever the library is.
+
+%
+% References
+%
+\begin{thebibliography}{10}
+
+\bibitem{allen1983}
+James F. Allen.
+\newblock Maintaining knowledge about temporal intervals.
+\newblock \emph{Communications of the ACM}, 26(11):832--843, 1983.
+\newblock \doi{10.1145/182.358434}.
+
+\bibitem{dechter1991}
+Rina Dechter, Itay Meiri, and Judea Pearl.
+\newblock Temporal constraint networks.
+\newblock \emph{Artificial Intelligence}, 49(1--3):61--95, 1991.
+\newblock \doi{10.1016/0004-3702(91)90006-6}.
+
+\bibitem{falk2020}
+Dan Falk.
+\newblock Groundhog: A chronological modelling tool.
+\newblock \url{http://www.groundhogchronology.com/}, 2020.
+
+\bibitem{floyd1962}
+Robert W. Floyd.
+\newblock Algorithm 97: Shortest path.
+\newblock \emph{Communications of the ACM}, 5(6):345, 1962.
+\newblock \doi{10.1145/367766.368168}.
+
+\bibitem{holst2004}
+Mads K. Holst.
+\newblock Complicated relations and blind dating: Formal analysis of
+  relative chronological structures.
+\newblock In \emph{Tools for Constructing Chronologies}, pages 129--147.
+  Springer, 2004.
+
+\bibitem{levy2020}
+Eythan Levy, Gilles Geeraerts, Fr\'ed\'eric Pluquet, Eli Piasetzky, and
+  Alexander Fantalkin.
+\newblock Chronological networks in archaeology: A formalised scheme.
+\newblock \emph{Journal of Archaeological Science}, 124:105225, 2020.
+\newblock \doi{10.1016/j.jas.2020.105225}.
+
+\bibitem{chronolog}
+ChronoLog.
+\newblock \url{http://chrono.ulb.be}.
+
+\end{thebibliography}
+
+\end{document}
