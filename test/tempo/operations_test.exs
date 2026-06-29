@@ -674,4 +674,83 @@ defmodule Tempo.Operations.Test do
       assert Tempo.equal?(not_a_and_b, not_a_or_not_b)
     end
   end
+
+  # Every operation must give the same answer whether its operands are
+  # `%Tempo.Interval{}`, `%Tempo.IntervalSet{}`, a bare `%Tempo{}`, or a
+  # mix — `align/3` coerces both operands to an IntervalSet before any
+  # logic runs, so representation must never change the result.
+  describe "cross-type invariance — Interval, IntervalSet, and mixed operands" do
+    setup do
+      a_i = Tempo.Interval.new!(from: ~o"2026-06-15T09:00:00", to: ~o"2026-06-15T12:00:00")
+      b_i = Tempo.Interval.new!(from: ~o"2026-06-15T10:00:00", to: ~o"2026-06-15T14:00:00")
+
+      %{
+        a_i: a_i,
+        b_i: b_i,
+        a_s: Tempo.IntervalSet.new!([a_i]),
+        b_s: Tempo.IntervalSet.new!([b_i])
+      }
+    end
+
+    test "binary ops agree across II, IS, SI, SS representations", ctx do
+      for op <- [:union, :intersection, :difference, :symmetric_difference] do
+        ii = canon(apply(Tempo, op, [ctx.a_i, ctx.b_i]))
+        assert ii == canon(apply(Tempo, op, [ctx.a_i, ctx.b_s])), "#{op}: Interval×Set"
+        assert ii == canon(apply(Tempo, op, [ctx.a_s, ctx.b_i])), "#{op}: Set×Interval"
+        assert ii == canon(apply(Tempo, op, [ctx.a_s, ctx.b_s])), "#{op}: Set×Set"
+      end
+    end
+
+    test "predicates agree across II, IS, SI, SS representations", ctx do
+      for op <- [:disjoint?, :overlaps?, :subset?, :contains?, :equal?] do
+        ii = apply(Tempo, op, [ctx.a_i, ctx.b_i])
+        assert ii == apply(Tempo, op, [ctx.a_i, ctx.b_s]), "#{op}: Interval×Set"
+        assert ii == apply(Tempo, op, [ctx.a_s, ctx.b_i]), "#{op}: Set×Interval"
+        assert ii == apply(Tempo, op, [ctx.a_s, ctx.b_s]), "#{op}: Set×Set"
+      end
+    end
+
+    test "multi-member set vs single-interval operand agree (incl. member-preserving ops)" do
+      a =
+        Tempo.IntervalSet.new!([
+          Tempo.Interval.new!(from: ~o"2026-06-15T09:00:00", to: ~o"2026-06-15T11:00:00"),
+          Tempo.Interval.new!(from: ~o"2026-06-15T13:00:00", to: ~o"2026-06-15T16:00:00")
+        ])
+
+      b_i = Tempo.Interval.new!(from: ~o"2026-06-15T10:00:00", to: ~o"2026-06-15T14:00:00")
+      b_s = Tempo.IntervalSet.new!([b_i])
+
+      ops = [
+        :union,
+        :intersection,
+        :difference,
+        :symmetric_difference,
+        :members_overlapping,
+        :members_outside,
+        :members_in_exactly_one
+      ]
+
+      for op <- ops do
+        assert canon(apply(Tempo, op, [a, b_i])) == canon(apply(Tempo, op, [a, b_s])), "#{op}"
+      end
+    end
+
+    test "a bare Tempo operand mixes with Interval and IntervalSet", ctx do
+      day = ~o"2026-06-15"
+      assert canon(Tempo.intersection(day, ctx.b_i)) == canon(Tempo.intersection(day, ctx.b_s))
+      assert canon(Tempo.union(ctx.b_i, day)) == canon(Tempo.union(ctx.b_s, day))
+    end
+  end
+
+  # Normalise any set-op result (an Interval or an IntervalSet) to a
+  # sorted list of `{from, to}` UTC-second pairs for representation-
+  # independent comparison.
+  defp canon({:ok, result}) do
+    {:ok, set} = Tempo.to_interval_set(result)
+
+    set
+    |> Tempo.IntervalSet.to_list()
+    |> Enum.map(&{Tempo.Compare.to_utc_seconds(&1.from), Tempo.Compare.to_utc_seconds(&1.to)})
+    |> Enum.sort()
+  end
 end
