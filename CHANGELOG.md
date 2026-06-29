@@ -1,6 +1,6 @@
 # Changelog
 
-## [v0.10.0] — Unreleased
+## [v0.10.0] — 2026-06-30
 
 ### Added
 
@@ -23,8 +23,6 @@
 * `Tempo.Schedule` — constraint-based project scheduling (critical path method) over `Tempo.Network`: declare tasks with durations and finish-to-start dependencies, anchors and deadlines, then `solve/1` for each task's early/late position and `critical?` flag, plus `critical_path/1` and `span/1`. An over-tight deadline or dependency cycle is reported infeasible.
 
 * `Tempo.Network` now derives its axis unit from duration bounds as well as dates, so a purely relative network of day-length periods measures in days rather than collapsing onto the default year axis.
-
-### Fixed
 
 * iCal import no longer produces zero-extent intervals. A punctual event (RFC 5545 §3.6.1 zero-duration, or an explicit `DTEND == DTSTART`) now materialises as the one-unit implicit span of its start, tagged `metadata: %{punctual: true}`, upholding the domain's no-degenerate-interval invariant through set operations.
 

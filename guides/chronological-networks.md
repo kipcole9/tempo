@@ -162,7 +162,7 @@ reign_spans |> Tempo.IntervalSet.new!() |> Tempo.IntervalSet.coalesce()
 
 A network would give the identical answer, but it adds nothing here. Reach for `Tempo.Network` the moment a length becomes a *range*, a relation is anything other than succession, or you need to propagate from an anchor that isn't first — exactly the ChronoLand case in §3–5.
 
-## 7. Uncertainty, honestly
+## 7. Uncertainty
 
 * **Qualifiers vs bounds.** An EDTF qualifier such as `~720` ("circa") is carried as a *note* on the period; it does not silently widen a date. If you mean "720 give or take a decade", say so with a range (`{710, 730}`). Keeping the two separate stops a vague "circa" from quietly doing arithmetic.
 

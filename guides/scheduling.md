@@ -1,16 +1,22 @@
 # Scheduling
 
-This guide is about the hard part of time: **future dates, recurring events, and time zones that change**. The basics are covered in the cookbook; this guide covers the four things that bite real calendars.
+Scheduling is really three questions, and Tempo answers each with a different part of the library:
 
-1. **You can't materialise an infinite stream.** Bounded scheduling is a design decision.
+1. **"When does this recur?"** — generate the occurrences of a repeating rule, bounded and zone-correct (sections 1–4).
 
-2. **Wall-clock time is authoritative; UTC is a projection.** Tempo stores the user's wall time and derives the UTC instant on demand.
+2. **"When are we free to meet?"** — turn busy calendars into open, bookable time with set operations (section 5).
 
-3. **"Floating" events vs zoned events** — Tempo distinguishes them through what's on the value, not a flag.
+3. **"When can these dependent tasks run?"** — order constrained work to a deadline and find the critical path (section 6).
 
-4. **Future dates survive zone-rule changes** — because Tempo never caches a UTC value, re-reading a future event automatically uses the current Tzdata.
+The first question has the sharpest edges — future dates, wall-clock vs UTC, and time zones that change rules out from under you — so it gets the most space. Sections 1–4 each give the principle, the Tempo idiom, and the pitfall to avoid:
 
-Each section below gives the principle, the Tempo idiom, and the pitfall to avoid.
+* **You can't materialise an infinite stream.** Bounded scheduling is a design decision.
+
+* **Wall-clock time is authoritative; UTC is a projection.** Tempo stores the user's wall time and derives the UTC instant on demand.
+
+* **"Floating" events vs zoned events** — Tempo distinguishes them through what's on the value, not a flag.
+
+* **Future dates survive zone-rule changes** — because Tempo never caches a UTC value, re-reading a future event automatically uses the current Tzdata.
 
 ## Setup — required for every example
 
@@ -165,7 +171,47 @@ There are cases where you **want** the UTC instant frozen — a CI build that mu
 
 **Don't cache UTC. Don't cache DST. Tempo doesn't, and the reason you trust this library over rolling your own is exactly this discipline.**
 
-## 5. Dependency scheduling (the critical path)
+## 5. Free-busy and availability
+
+The recurrence sections generate *when things happen*. The opposite question — *when is nobody busy* — is set algebra over those occurrences. **Free time is the workday minus the busy periods; mutual free time is the intersection of each person's free time.**
+
+```elixir
+work = ~o"2026-06-15T09:00:00/2026-06-15T17:00:00"
+
+alice_busy =
+  Tempo.IntervalSet.new!([
+    ~o"2026-06-15T10:00:00/2026-06-15T11:00:00",
+    ~o"2026-06-15T14:00:00/2026-06-15T15:00:00"
+  ])
+
+bob_busy =
+  Tempo.IntervalSet.new!([
+    ~o"2026-06-15T09:30:00/2026-06-15T10:30:00",
+    ~o"2026-06-15T16:00:00/2026-06-15T17:00:00"
+  ])
+
+{:ok, alice_free} = Tempo.difference(work, alice_busy)
+{:ok, bob_free}   = Tempo.difference(work, bob_busy)
+{:ok, mutual}     = Tempo.intersection(alice_free, bob_free)
+#=> 09:00–09:30, 11:00–14:00, 15:00–16:00
+```
+
+> *"Alice's free time is the workday **minus** her meetings; Bob's is the same. **Mutual** free time is the **intersection** of theirs."*
+
+Free time gives you the *regions* where a meeting could go. Turn them into the discrete slots a booking page actually offers with `Tempo.IntervalSet.slots/3`:
+
+```elixir
+mutual
+|> Tempo.IntervalSet.slots(~o"PT1H")    # cut into back-to-back 1-hour slots
+|> Tempo.IntervalSet.to_list()
+#=> 11:00–12:00, 12:00–13:00, 13:00–14:00, 15:00–16:00
+```
+
+> *"The bookable hour-long slots are the mutual windows cut into one-hour pieces."* The 09:00–09:30 opening is too short to hold an hour, so it drops out. Pass `every: ~o"PT30M"` to offer a start on every half-hour instead (overlapping slots), or a larger `:every` to leave gaps between offered times.
+
+This is **instant-level** set algebra — you are asking about *time regions*, not preserving individual calendar events — so `difference`/`intersection` are the right operators rather than their member-preserving companions. The [set operations guide](./set-operations.md) explains that distinction in full; to load real calendars from `.ics` files instead of inline busy sets, see the free-busy recipe in the [cookbook](./cookbook.md).
+
+## 6. Dependency scheduling (the critical path)
 
 The sections above schedule *recurrences* — a rule repeated over a window. A different question is scheduling *a plan of dependent tasks*: "design takes 2 days, then build (3 days) and docs (1 day) can run, then ship (2 days) needs both — when does each run, and what's due by the deadline?" That's the critical path method, and `Tempo.Schedule` solves it directly (it's the same Simple Temporal Problem `Tempo.Network` already solves — tasks are periods, dependencies are boundary relations).
 
