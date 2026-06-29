@@ -1,4 +1,5 @@
 defmodule Tempo.GregorianEasterTest do
+  @moduledoc false
   @test_data Path.join(__DIR__, "../support/data/easter500.txt") |> Path.expand()
 
   def data do

@@ -103,10 +103,10 @@ defmodule Tempo do
 
   """
 
-  alias Tempo.Iso8601.{Tokenizer, Parser, Group, Unit}
   alias Tempo.Enumeration
-  alias Tempo.Validation
+  alias Tempo.Iso8601.{Group, Parser, Tokenizer, Unit}
   alias Tempo.Rounding
+  alias Tempo.Validation
 
   defstruct [:time, :shift, :calendar, :extended, :qualification, :qualifications]
 

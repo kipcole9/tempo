@@ -88,9 +88,7 @@ defmodule Tempo.Explain do
   """
   @spec to_string(Explanation.t()) :: String.t()
   def to_string(%Explanation{parts: parts}) do
-    parts
-    |> Enum.map(fn {_tag, text} -> text end)
-    |> Enum.join("\n")
+    Enum.map_join(parts, "\n", fn {_tag, text} -> text end)
   end
 
   @doc """
@@ -441,8 +439,7 @@ defmodule Tempo.Explain do
   defp set_parts(%Tempo.Set{type: :all, set: members}) do
     [
       {:headline, "An all-of set: every member happened."},
-      {:member,
-       "#{length(members)} member(s): #{members |> Enum.map(&inspect/1) |> Enum.join(", ")}."},
+      {:member, "#{length(members)} member(s): #{Enum.map_join(members, ", ", &inspect/1)}."},
       {:hint, "Materialise as an IntervalSet with `Tempo.to_interval/1`."}
     ]
   end
@@ -451,8 +448,7 @@ defmodule Tempo.Explain do
     [
       {:headline,
        "A one-of set: exactly one of the members happened — we don't know which (epistemic disjunction)."},
-      {:member,
-       "#{length(members)} candidate(s): #{members |> Enum.map(&inspect/1) |> Enum.join(", ")}."},
+      {:member, "#{length(members)} candidate(s): #{Enum.map_join(members, ", ", &inspect/1)}."},
       {:hint, "Cannot be materialised to an IntervalSet; pick a specific member first."}
     ]
   end
@@ -556,9 +552,7 @@ defmodule Tempo.Explain do
   defp render_endpoint(other), do: inspect(other)
 
   defp duration_prose(time) do
-    time
-    |> Enum.map(fn {unit, n} -> "#{n} #{pluralise(unit, n)}" end)
-    |> Enum.join(", ")
+    Enum.map_join(time, ", ", fn {unit, n} -> "#{n} #{pluralise(unit, n)}" end)
   end
 
   defp pluralise(unit, 1), do: Atom.to_string(unit)

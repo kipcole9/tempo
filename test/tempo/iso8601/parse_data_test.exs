@@ -18,8 +18,7 @@ defmodule Tempo.Iso8601.Parser.Data.Test do
               |> List.first()
               |> String.split("\n")
               |> Enum.with_index()
-              |> Enum.reject(&String.starts_with?(elem(&1, 0), "#"))
-              |> Enum.reject(&(elem(&1, 0) == ""))
+              |> Enum.reject(&(String.starts_with?(elem(&1, 0), "#") or elem(&1, 0) == ""))
 
   @interval_tests @interval_data
                   |> File.read!()

@@ -1,4 +1,5 @@
 defmodule Tempo.Iso8601.Tokenizer.Grammar do
+  @moduledoc false
   import NimbleParsec
   import Tempo.Iso8601.Tokenizer.Numbers
   import Tempo.Iso8601.Tokenizer.Helpers

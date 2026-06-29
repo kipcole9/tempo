@@ -103,9 +103,8 @@ defmodule Tempo.RRule do
   def parse("RRULE:" <> rest, options), do: parse(rest, options)
 
   def parse(rrule, options) when is_binary(rrule) do
-    with {:ok, parts} <- parse_parts(rrule),
-         {:ok, interval} <- build_interval(parts, options) do
-      {:ok, interval}
+    with {:ok, parts} <- parse_parts(rrule) do
+      build_interval(parts, options)
     end
   end
 
@@ -270,11 +269,7 @@ defmodule Tempo.RRule do
 
     duration = %Tempo.Duration{time: [{freq_unit, interval}]}
 
-    recurrence =
-      cond do
-        is_integer(count) -> count
-        true -> :infinity
-      end
+    recurrence = if is_integer(count), do: count, else: :infinity
 
     repeat_rule = build_repeat_rule(parts)
 

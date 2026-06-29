@@ -598,7 +598,7 @@ defmodule Tempo.ICal.Test do
     test "timezone_event.ics parses (zoned events)" do
       path = Path.join(@fixtures_dir, "timezone_event.ics")
       assert {:ok, set} = Tempo.ICal.from_ical_file(path)
-      assert length(set.intervals) > 0
+      assert set.intervals != []
     end
 
     test "calendar_name.ics surfaces X-WR-CALNAME on the set's metadata" do
@@ -637,7 +637,7 @@ defmodule Tempo.ICal.Test do
       test "parses without error and produces an IntervalSet", %{ics: ics} do
         assert {:ok, set} = Tempo.ICal.from_ical(ics)
         assert %Tempo.IntervalSet{} = set
-        assert length(set.intervals) > 0
+        assert set.intervals != []
       end
 
       test "preserves every event's summary on its interval", %{ics: ics} do
@@ -649,7 +649,7 @@ defmodule Tempo.ICal.Test do
           |> Enum.map(& &1.metadata[:summary])
           |> Enum.reject(&is_nil/1)
 
-        assert length(summaries) > 0
+        assert summaries != []
       end
 
       test "calendar name from X-WR-CALNAME is captured", %{ics: ics} do

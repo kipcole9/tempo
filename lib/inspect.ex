@@ -123,9 +123,10 @@ defmodule Tempo.Inspect do
   defp interval_metadata_tag(%{summary: s} = metadata) when is_binary(s) do
     location = Map.get(metadata, :location)
 
-    cond do
-      is_binary(location) and location != "" -> "· " <> s <> " @ " <> location
-      true -> "· " <> s
+    if is_binary(location) and location != "" do
+      "· " <> s <> " @ " <> location
+    else
+      "· " <> s
     end
   end
 
@@ -153,9 +154,9 @@ defmodule Tempo.Inspect do
         opts
       ) do
     body =
-      intervals
-      |> Enum.map(fn iv -> Kernel.inspect(iv, opts |> Map.from_struct() |> Enum.into([])) end)
-      |> Enum.join(", ")
+      Enum.map_join(intervals, ", ", fn iv ->
+        Kernel.inspect(iv, opts |> Map.from_struct() |> Enum.into([]))
+      end)
 
     count = length(intervals)
     header = "#Tempo.IntervalSet<" <> Integer.to_string(count) <> " intervals"

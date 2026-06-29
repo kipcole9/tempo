@@ -298,7 +298,7 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
     ])
   end
 
-  def unspecified_or_set() do
+  def unspecified_or_set do
     choice([
       unspecified(),
       ascii_char([?{])

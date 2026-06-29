@@ -53,8 +53,8 @@ defmodule Tempo.Interval do
   alias Tempo.Compare
   alias Tempo.Duration
   alias Tempo.IntervalSet
-  alias Tempo.Math
   alias Tempo.Iso8601.Unit
+  alias Tempo.Math
 
   @type t :: %__MODULE__{
           recurrence: pos_integer() | :infinity,
@@ -1298,17 +1298,15 @@ defmodule Tempo.Interval do
   end
 
   defp require_same_calendar(%Tempo{} = from, %Tempo{} = to, context) do
-    cond do
-      not Tempo.anchored?(from) or not Tempo.anchored?(to) ->
-        :ok
-
-      true ->
-        raise ArgumentError,
-              "#{context} requires both endpoints in the same calendar. " <>
-                "Got #{inspect(from.calendar)} and #{inspect(to.calendar)}. " <>
-                "Convert one endpoint first — set operations such as " <>
-                "`Tempo.intersection/2` and `Tempo.difference/2` handle " <>
-                "cross-calendar inputs automatically via `Date.convert!/2`."
+    if not Tempo.anchored?(from) or not Tempo.anchored?(to) do
+      :ok
+    else
+      raise ArgumentError,
+            "#{context} requires both endpoints in the same calendar. " <>
+              "Got #{inspect(from.calendar)} and #{inspect(to.calendar)}. " <>
+              "Convert one endpoint first — set operations such as " <>
+              "`Tempo.intersection/2` and `Tempo.difference/2` handle " <>
+              "cross-calendar inputs automatically via `Date.convert!/2`."
     end
   end
 

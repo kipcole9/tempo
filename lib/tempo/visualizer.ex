@@ -97,7 +97,7 @@ else
     """
 
     @compile_error "Tempo.Visualizer requires both :plug and :bandit. " <>
-                     "Add `{:plug, \"~> 1.15\"}` and `{:bandit, \"~> 1.5\"}` " <>
+                     ~s(Add `{:plug, "~> 1.15"}` and `{:bandit, "~> 1.5"}` ) <>
                      "to your project's deps and run `mix deps.get`."
 
     @doc false

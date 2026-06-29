@@ -133,7 +133,7 @@ defmodule Tempo.ToInterval.Test do
       {:ok, tempo} = Tempo.from_iso8601("XXXX")
       {:ok, interval} = Tempo.to_interval(tempo)
       assert interval.from.time == [year: 0]
-      assert interval.to.time == [year: 10000]
+      assert interval.to.time == [year: 10_000]
     end
 
     test "negative year mask `-1XXX` → signed span (most-negative first)" do

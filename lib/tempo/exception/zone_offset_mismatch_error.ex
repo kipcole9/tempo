@@ -33,10 +33,7 @@ defmodule Tempo.ZoneOffsetMismatchError do
         stated_offset: stated,
         zone_offsets: zone_offsets
       }) do
-    actual =
-      zone_offsets
-      |> Enum.map(&format_offset/1)
-      |> Enum.join(" or ")
+    actual = Enum.map_join(zone_offsets, " or ", &format_offset/1)
 
     "Stated offset #{format_offset(stated)} disagrees with #{inspect(zone_id)} " <>
       "(#{actual}) at #{wall_time}."

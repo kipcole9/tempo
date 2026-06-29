@@ -103,7 +103,7 @@ defmodule Tempo.Visualizer.Standalone do
     defp ip_tuple({_, _, _, _} = tuple), do: tuple
   else
     @compile_error "Tempo.Visualizer.Standalone requires both :plug and :bandit. " <>
-                     "Add `{:plug, \"~> 1.15\"}` and `{:bandit, \"~> 1.5\"}` " <>
+                     ~s(Add `{:plug, "~> 1.15"}` and `{:bandit, "~> 1.5"}` ) <>
                      "to your project's deps and run `mix deps.get`."
 
     @doc false

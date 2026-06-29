@@ -371,7 +371,7 @@ defmodule Tempo.ZoneValidationTest do
       iv = %Tempo.Interval{from: from, to: to}
 
       # 23h = 82800s. The hour between 02:00 and 03:00 was skipped.
-      assert Tempo.Interval.duration(iv) == %Tempo.Duration{time: [second: 82800]}
+      assert Tempo.Interval.duration(iv) == %Tempo.Duration{time: [second: 82_800]}
     end
 
     test "24 wall-clock hours across fall-back = 25 real hours" do
@@ -380,7 +380,7 @@ defmodule Tempo.ZoneValidationTest do
       iv = %Tempo.Interval{from: from, to: to}
 
       # 25h = 90000s. The hour between 01:00 and 02:00 was repeated.
-      assert Tempo.Interval.duration(iv) == %Tempo.Duration{time: [second: 90000]}
+      assert Tempo.Interval.duration(iv) == %Tempo.Duration{time: [second: 90_000]}
     end
 
     test "24 wall-clock hours outside any transition = 24 real hours" do
@@ -388,7 +388,7 @@ defmodule Tempo.ZoneValidationTest do
       to = Tempo.from_iso8601!("2024-06-16T12:00:00[America/New_York]")
       iv = %Tempo.Interval{from: from, to: to}
 
-      assert Tempo.Interval.duration(iv) == %Tempo.Duration{time: [second: 86400]}
+      assert Tempo.Interval.duration(iv) == %Tempo.Duration{time: [second: 86_400]}
     end
 
     test "unzoned interval ignores zone math" do
@@ -397,7 +397,7 @@ defmodule Tempo.ZoneValidationTest do
       iv = %Tempo.Interval{from: from, to: to}
 
       # No zone → plain wall-clock delta of 24h.
-      assert Tempo.Interval.duration(iv) == %Tempo.Duration{time: [second: 86400]}
+      assert Tempo.Interval.duration(iv) == %Tempo.Duration{time: [second: 86_400]}
     end
   end
 

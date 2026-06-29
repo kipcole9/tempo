@@ -793,23 +793,21 @@ defmodule Tempo.Cron do
   defp dow_to_cron(string, orig) do
     down = String.downcase(string)
 
-    cond do
-      Map.has_key?(@dow_names, down) ->
-        {:ok, Map.fetch!(@dow_names, down)}
+    if Map.has_key?(@dow_names, down) do
+      {:ok, Map.fetch!(@dow_names, down)}
+    else
+      case Integer.parse(string) do
+        {int, ""} when int in 0..7 ->
+          {:ok, int}
 
-      true ->
-        case Integer.parse(string) do
-          {int, ""} when int in 0..7 ->
-            {:ok, int}
-
-          _ ->
-            {:error,
-             Tempo.CronError.exception(
-               field: :day_of_week,
-               value: orig,
-               reason: "Invalid day-of-week: #{inspect(orig)}"
-             )}
-        end
+        _ ->
+          {:error,
+           Tempo.CronError.exception(
+             field: :day_of_week,
+             value: orig,
+             reason: "Invalid day-of-week: #{inspect(orig)}"
+           )}
+      end
     end
   end
 
@@ -818,23 +816,21 @@ defmodule Tempo.Cron do
   defp dow_to_rfc(string, orig) do
     down = String.downcase(string)
 
-    cond do
-      Map.has_key?(@dow_names, down) ->
-        {:ok, cron_to_rfc(Map.fetch!(@dow_names, down))}
+    if Map.has_key?(@dow_names, down) do
+      {:ok, cron_to_rfc(Map.fetch!(@dow_names, down))}
+    else
+      case Integer.parse(string) do
+        {int, ""} when int in 0..7 ->
+          {:ok, cron_to_rfc(int)}
 
-      true ->
-        case Integer.parse(string) do
-          {int, ""} when int in 0..7 ->
-            {:ok, cron_to_rfc(int)}
-
-          _ ->
-            {:error,
-             Tempo.CronError.exception(
-               field: :day_of_week,
-               value: orig,
-               reason: "Invalid day-of-week: #{inspect(orig)}"
-             )}
-        end
+        _ ->
+          {:error,
+           Tempo.CronError.exception(
+             field: :day_of_week,
+             value: orig,
+             reason: "Invalid day-of-week: #{inspect(orig)}"
+           )}
+      end
     end
   end
 

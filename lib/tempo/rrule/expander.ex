@@ -36,8 +36,8 @@ defmodule Tempo.RRule.Expander do
 
   """
 
-  alias Tempo.RRule.Rule
   alias Tempo.Interval
+  alias Tempo.RRule.Rule
 
   @doc """
   Expand a rule into a list of concrete `%Tempo.Interval{}`
@@ -153,11 +153,7 @@ defmodule Tempo.RRule.Expander do
   def to_ast(%Rule{} = rule, %Tempo{} = dtstart, options \\ []) do
     cadence = %Tempo.Duration{time: [{rule.freq, rule.interval}]}
 
-    recurrence =
-      cond do
-        is_integer(rule.count) and rule.count > 0 -> rule.count
-        true -> :infinity
-      end
+    recurrence = if is_integer(rule.count) and rule.count > 0, do: rule.count, else: :infinity
 
     base_metadata = Keyword.get(options, :metadata, %{})
 

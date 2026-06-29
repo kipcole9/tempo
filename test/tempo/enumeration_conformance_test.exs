@@ -37,11 +37,9 @@ defmodule Tempo.EnumerationConformance.Test do
   end
 
   defp take_tempo(%Tempo{} = value, n \\ @sample_size) do
-    try do
-      {:ok, Enum.take(value, n)}
-    rescue
-      e -> {:crash, Exception.message(e)}
-    end
+    {:ok, Enum.take(value, n)}
+  rescue
+    e -> {:crash, Exception.message(e)}
   end
 
   ## Baseline — shapes the current implementation already handles.

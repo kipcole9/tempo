@@ -49,8 +49,7 @@ defmodule Tempo.Visualizer.ParseViewTest do
         # the raw input.
         rejoined =
           Regex.scan(~r{<div class="vz-glyph">(.*?)</div>}s, segments_html)
-          |> Enum.map(fn [_, inner] -> strip_html_tags(inner) end)
-          |> Enum.join("")
+          |> Enum.map_join("", fn [_, inner] -> strip_html_tags(inner) end)
           |> unescape_entities()
 
         assert rejoined == input,

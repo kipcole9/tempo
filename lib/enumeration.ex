@@ -1,7 +1,7 @@
 defmodule Tempo.Enumeration do
   @moduledoc false
-  alias Tempo.Validation
   alias Tempo.Iso8601.Unit
+  alias Tempo.Validation
 
   defguard is_continuation(unit, fun) when is_atom(unit) and is_function(fun)
   defguard is_unit(unit, value) when (is_atom(unit) and is_list(value)) or is_number(value)

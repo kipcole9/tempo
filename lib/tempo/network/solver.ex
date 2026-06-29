@@ -144,35 +144,33 @@ defmodule Tempo.Network.Solver do
     normalized = Normalize.normalize(network)
     %{dist: distances, next: next} = shortest_paths(normalized)
 
-    cond do
-      negative_cycle?(distances) ->
-        {:error, :inconsistent}
-
-      true ->
-        {from_node, to_node} =
-          case bound do
-            :earliest -> {:origin, boundary}
-            :latest -> {boundary, :origin}
-          end
-
-        case get(distances, from_node, to_node) do
-          :inf ->
-            {:error, :unbounded}
-
-          _weight ->
-            path = reconstruct(next, from_node, to_node)
-            provenance = build_provenance(normalized.edges)
-            steps = build_steps(path, distances, provenance, bound, normalized.unit)
-
-            {:ok,
-             %{
-               boundary: boundary,
-               bound: bound,
-               value: bound_value(distances, boundary, bound, normalized.unit),
-               steps: steps,
-               prose: render_prose(steps, boundary, bound, network)
-             }}
+    if negative_cycle?(distances) do
+      {:error, :inconsistent}
+    else
+      {from_node, to_node} =
+        case bound do
+          :earliest -> {:origin, boundary}
+          :latest -> {boundary, :origin}
         end
+
+      case get(distances, from_node, to_node) do
+        :inf ->
+          {:error, :unbounded}
+
+        _weight ->
+          path = reconstruct(next, from_node, to_node)
+          provenance = build_provenance(normalized.edges)
+          steps = build_steps(path, distances, provenance, bound, normalized.unit)
+
+          {:ok,
+           %{
+             boundary: boundary,
+             bound: bound,
+             value: bound_value(distances, boundary, bound, normalized.unit),
+             steps: steps,
+             prose: render_prose(steps, boundary, bound, network)
+           }}
+      end
     end
   end
 

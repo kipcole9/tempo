@@ -744,16 +744,14 @@ defmodule Tempo.Operations do
         left = maybe_emit(a_from, b.from, a_meta)
         rest_from = later_endpoint(b.to, a_from)
 
-        cond do
-          # B fully covers A's tail — stop emitting, B may extend further.
-          not after_or_eq?(a_to, b.to) ->
-            {left, [b | b_rest]}
-
+        if after_or_eq?(a_to, b.to) do
           # B ends inside A — continue subtracting from the rest.
-          true ->
-            rest_a = %Interval{from: rest_from, to: a_to, metadata: a_meta}
-            {right, remaining_b} = subtract_from(rest_a, b_rest)
-            {left ++ right, remaining_b}
+          rest_a = %Interval{from: rest_from, to: a_to, metadata: a_meta}
+          {right, remaining_b} = subtract_from(rest_a, b_rest)
+          {left ++ right, remaining_b}
+        else
+          # B fully covers A's tail — stop emitting, B may extend further.
+          {left, [b | b_rest]}
         end
     end
   end
@@ -872,12 +870,14 @@ defmodule Tempo.Operations do
   @spec equal?(operand, operand, keyword()) :: boolean()
         when operand: Tempo.t() | Interval.t() | IntervalSet.t() | Tempo.Set.t()
   def equal?(a, b, opts \\ []) do
-    with {:ok, {a_set, b_set}} <- align(a, b, opts) do
-      coalesced_a = IntervalSet.coalesce(a_set)
-      coalesced_b = IntervalSet.coalesce(b_set)
-      coalesced_a.intervals == coalesced_b.intervals
-    else
-      {:error, exception} -> raise exception
+    case align(a, b, opts) do
+      {:ok, {a_set, b_set}} ->
+        coalesced_a = IntervalSet.coalesce(a_set)
+        coalesced_b = IntervalSet.coalesce(b_set)
+        coalesced_a.intervals == coalesced_b.intervals
+
+      {:error, exception} ->
+        raise exception
     end
   end
 end

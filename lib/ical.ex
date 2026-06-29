@@ -117,13 +117,11 @@ if Code.ensure_loaded?(ICal) do
     """
     @spec from_ical(binary(), keyword()) :: {:ok, IntervalSet.t()} | {:error, term()}
     def from_ical(ics, opts \\ []) when is_binary(ics) do
-      try do
-        calendar = ICal.from_ics(ics)
-        build_interval_set(calendar, opts)
-      rescue
-        e in [ArgumentError, MatchError, FunctionClauseError] ->
-          {:error, Exception.message(e)}
-      end
+      calendar = ICal.from_ics(ics)
+      build_interval_set(calendar, opts)
+    rescue
+      e in [ArgumentError, MatchError, FunctionClauseError] ->
+        {:error, Exception.message(e)}
     end
 
     @doc """
@@ -266,40 +264,38 @@ if Code.ensure_loaded?(ICal) do
     # EXRULE is RFC-deprecated and the `ical` library does not
     # surface it, so we don't need to handle it.
     defp expand_recurrence(event, %ICal.Recurrence{} = rule, opts) do
-      cond do
-        rule.count == nil and rule.until == nil and not Keyword.has_key?(opts, :bound) ->
-          {:error,
-           Tempo.UnboundedRecurrenceError.exception(
-             reason:
-               "Event #{inspect(event.uid)} has an unbounded recurrence rule " <>
-                 "(no COUNT, no UNTIL). Provide a `:bound` option — a Tempo " <>
-                 "value within which the recurrence will be materialised."
-           )}
+      if rule.count == nil and rule.until == nil and not Keyword.has_key?(opts, :bound) do
+        {:error,
+         Tempo.UnboundedRecurrenceError.exception(
+           reason:
+             "Event #{inspect(event.uid)} has an unbounded recurrence rule " <>
+               "(no COUNT, no UNTIL). Provide a `:bound` option — a Tempo " <>
+               "value within which the recurrence will be materialised."
+         )}
+      else
+        with {:ok, base} <- single_event_to_interval(event) do
+          expander_opts =
+            []
+            |> maybe_put(:bound, Keyword.get(opts, :bound))
+            |> Keyword.put(:metadata, base.metadata)
+            |> Keyword.put(:base_to, base.to)
 
-        true ->
-          with {:ok, base} <- single_event_to_interval(event) do
-            expander_opts =
-              []
-              |> maybe_put(:bound, Keyword.get(opts, :bound))
-              |> Keyword.put(:metadata, base.metadata)
-              |> Keyword.put(:base_to, base.to)
+          case Tempo.RRule.Expander.expand(rule, base.from, expander_opts) do
+            {:ok, rrule_occurrences} ->
+              capped = Enum.take(rrule_occurrences, @safety_cap)
 
-            case Tempo.RRule.Expander.expand(rule, base.from, expander_opts) do
-              {:ok, rrule_occurrences} ->
-                capped = Enum.take(rrule_occurrences, @safety_cap)
+              combined =
+                capped
+                |> apply_rdates(event, base)
+                |> apply_exdates(event)
+                |> sort_by_from()
 
-                combined =
-                  capped
-                  |> apply_rdates(event, base)
-                  |> apply_exdates(event)
-                  |> sort_by_from()
+              {:ok, combined}
 
-                {:ok, combined}
-
-              {:error, _} = err ->
-                err
-            end
+            {:error, _} = err ->
+              err
           end
+        end
       end
     end
 

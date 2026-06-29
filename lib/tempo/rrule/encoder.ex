@@ -229,16 +229,14 @@ defmodule Tempo.RRule.Encoder do
   defp byday_csv(day) when is_integer(day), do: Map.fetch!(@weekday_code, day)
 
   defp byday_csv(days) when is_list(days) do
-    days |> Enum.map(&Map.fetch!(@weekday_code, &1)) |> Enum.join(",")
+    Enum.map_join(days, ",", &Map.fetch!(@weekday_code, &1))
   end
 
   defp byday_pairs_csv(pairs) do
-    pairs
-    |> Enum.map(fn
+    Enum.map_join(pairs, ",", fn
       {nil, day} -> Map.fetch!(@weekday_code, day)
       {ord, day} when is_integer(ord) -> "#{ord}#{Map.fetch!(@weekday_code, day)}"
     end)
-    |> Enum.join(",")
   end
 
   ## Small helpers
@@ -246,7 +244,7 @@ defmodule Tempo.RRule.Encoder do
   defp list_csv(n) when is_integer(n), do: Integer.to_string(n)
 
   defp list_csv(list) when is_list(list),
-    do: list |> Enum.map(&Integer.to_string/1) |> Enum.join(",")
+    do: Enum.map_join(list, ",", &Integer.to_string/1)
 
   defp pad(n, width) when is_integer(n) and n >= 0 do
     n |> Integer.to_string() |> String.pad_leading(width, "0")

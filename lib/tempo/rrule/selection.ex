@@ -1060,17 +1060,15 @@ defmodule Tempo.RRule.Selection do
   }
 
   defp expand_or_limit_time(candidates, unit, values, freq) do
-    cond do
-      Map.get(@unit_weight, freq, 0) < Map.get(@unit_weight, unit, 0) ->
-        Enum.flat_map(candidates, fn candidate ->
-          Enum.map(values, fn value -> set_time_unit(candidate, unit, value) end)
-        end)
-
-      true ->
-        Enum.filter(candidates, fn candidate ->
-          current = get_time_unit(candidate, unit)
-          is_integer(current) and current in values
-        end)
+    if Map.get(@unit_weight, freq, 0) < Map.get(@unit_weight, unit, 0) do
+      Enum.flat_map(candidates, fn candidate ->
+        Enum.map(values, fn value -> set_time_unit(candidate, unit, value) end)
+      end)
+    else
+      Enum.filter(candidates, fn candidate ->
+        current = get_time_unit(candidate, unit)
+        is_integer(current) and current in values
+      end)
     end
   end
 

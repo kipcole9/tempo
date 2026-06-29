@@ -76,17 +76,11 @@ defmodule Tempo.Compare do
   end
 
   def compare_time([{:microsecond, {v, _p}} | rest], []) do
-    cond do
-      v > 0 -> :gt
-      true -> compare_time(rest, [])
-    end
+    if v > 0, do: :gt, else: compare_time(rest, [])
   end
 
   def compare_time([], [{:microsecond, {v, _p}} | rest]) do
-    cond do
-      v > 0 -> :lt
-      true -> compare_time([], rest)
-    end
+    if v > 0, do: :lt, else: compare_time([], rest)
   end
 
   def compare_time([{unit, v} | rest], []) do

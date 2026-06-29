@@ -19,7 +19,7 @@ defmodule Tempo.DuplicateZoneError do
   end
 
   @impl true
-  def message(%__MODULE__{zones: zones}) when is_list(zones) and length(zones) > 0 do
+  def message(%__MODULE__{zones: zones}) when is_list(zones) and zones != [] do
     "Only one time zone may appear in a single IXDTF suffix; got #{inspect(zones)}"
   end
 

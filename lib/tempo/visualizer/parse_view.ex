@@ -22,18 +22,16 @@ defmodule Tempo.Visualizer.ParseView do
     input = Map.get(params, :input, "") || ""
 
     parsed_body =
-      cond do
-        input == "" ->
-          []
+      if input == "" do
+        []
+      else
+        case Tempo.from_iso8601(input) do
+          {:ok, value} ->
+            [segments_card(input, value), details_card(value)]
 
-        true ->
-          case Tempo.from_iso8601(input) do
-            {:ok, value} ->
-              [segments_card(input, value), details_card(value)]
-
-            {:error, reason} ->
-              [error_card(reason)]
-          end
+          {:error, reason} ->
+            [error_card(reason)]
+        end
       end
 
     body =
@@ -506,20 +504,18 @@ defmodule Tempo.Visualizer.ParseView do
     hour = Keyword.get(shift, :hour, 0)
     minute = Keyword.get(shift, :minute, 0)
 
-    cond do
-      hour == 0 and minute == 0 ->
-        [{:shift, %{label: "Time shift", detail: "UTC", kind: "extended"}}]
+    if hour == 0 and minute == 0 do
+      [{:shift, %{label: "Time shift", detail: "UTC", kind: "extended"}}]
+    else
+      sign = if hour >= 0, do: "+", else: "-"
+      detail = "#{sign}#{abs(hour)}h#{if minute != 0, do: " #{minute}m", else: ""} from UTC"
 
-      true ->
-        sign = if hour >= 0, do: "+", else: "-"
-        detail = "#{sign}#{abs(hour)}h#{if minute != 0, do: " #{minute}m", else: ""} from UTC"
-
-        # Two numeric slots (hour, minute) because the input
-        # writes them as two digit groups separated by `:`.
-        [
-          {:numeric, %{label: "Shift hour", detail: detail, kind: "extended"}},
-          {:numeric, %{label: "Shift minute", detail: detail, kind: "extended"}}
-        ]
+      # Two numeric slots (hour, minute) because the input
+      # writes them as two digit groups separated by `:`.
+      [
+        {:numeric, %{label: "Shift hour", detail: detail, kind: "extended"}},
+        {:numeric, %{label: "Shift minute", detail: detail, kind: "extended"}}
+      ]
     end
   end
 
