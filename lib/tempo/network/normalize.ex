@@ -27,7 +27,22 @@ defmodule Tempo.Network.Normalize do
   @days_per_month 30.436875
 
   @type boundary :: Relation.boundary()
-  @type edge :: {boundary(), boundary(), integer()}
+
+  @typedoc """
+  A constraint `from − to ≤ weight`, tagged with the `source` that
+  produced it (an absolute bound, duration, sequence link, relation, or
+  the implicit non-negativity of a period) so the solver can build a
+  trace.
+  """
+  @type edge :: {boundary(), boundary(), integer(), source()}
+
+  @type source ::
+          {:bound, :start | :end, :lower | :upper, term(), Tempo.t()}
+          | {:duration, :min | :max, term(), Tempo.Duration.t()}
+          | {:non_negative, term()}
+          | {:sequence, term(), term()}
+          | {:relation, Relation.t()}
+
   @type t :: %{nodes: [boundary()], edges: [edge()], unit: atom()}
 
   @doc """
@@ -40,7 +55,7 @@ defmodule Tempo.Network.Normalize do
   ### Returns
 
   * a map with `:nodes` (boundary variables including `:origin`),
-    `:edges` (integer `{from, to, weight}` constraints meaning
+    `:edges` (`{from, to, weight, source}` constraints meaning
     `from − to ≤ weight`), and `:unit` (the axis unit atom).
 
   ### Examples
@@ -51,7 +66,7 @@ defmodule Tempo.Network.Normalize do
       iex> normalized = Tempo.Network.Normalize.normalize(network)
       iex> normalized.unit
       :year
-      iex> {{:start, :k1}, {:end, :k1}, -20} in normalized.edges
+      iex> Enum.any?(normalized.edges, &match?({{:start, :k1}, {:end, :k1}, -20, _}, &1))
       true
 
   """
@@ -67,12 +82,14 @@ defmodule Tempo.Network.Normalize do
     sequence_edges = Enum.flat_map(network.sequences, &sequence_constraints/1)
 
     relation_edges =
-      network.relations
-      |> Enum.flat_map(&Relation.to_atomic/1)
-      |> Enum.map(&resolve_weight(&1, unit))
+      Enum.flat_map(network.relations, fn relation ->
+        relation
+        |> Relation.to_atomic()
+        |> Enum.map(fn atomic -> resolve_weight(atomic, unit, {:relation, relation}) end)
+      end)
 
     edges = period_edges ++ sequence_edges ++ relation_edges
-    nodes = edges |> Enum.flat_map(fn {from, to, _} -> [from, to] end) |> Enum.uniq()
+    nodes = edges |> Enum.flat_map(fn {from, to, _, _} -> [from, to] end) |> Enum.uniq()
 
     %{nodes: nodes, edges: edges, unit: unit}
   end
@@ -107,43 +124,43 @@ defmodule Tempo.Network.Normalize do
 
     [
       # A period never ends before it starts.
-      {start, finish, 0}
+      {start, finish, 0, {:non_negative, id}}
     ]
-    |> lower_bound(:origin, start, period.earliest_start, unit)
-    |> upper_bound(start, :origin, period.latest_start, unit)
-    |> lower_bound(:origin, finish, period.earliest_end, unit)
-    |> upper_bound(finish, :origin, period.latest_end, unit)
-    |> min_duration(start, finish, period.min_duration, unit)
-    |> max_duration(start, finish, period.max_duration, unit)
+    |> lower_bound(:origin, start, period.earliest_start, unit, {:bound, :start, :lower, id})
+    |> upper_bound(start, :origin, period.latest_start, unit, {:bound, :start, :upper, id})
+    |> lower_bound(:origin, finish, period.earliest_end, unit, {:bound, :end, :lower, id})
+    |> upper_bound(finish, :origin, period.latest_end, unit, {:bound, :end, :upper, id})
+    |> min_duration(start, finish, period.min_duration, unit, {:duration, :min, id})
+    |> max_duration(start, finish, period.max_duration, unit, {:duration, :max, id})
   end
 
   # value(node) ≥ bound  ⇒  origin − node ≤ −bound.
-  defp lower_bound(edges, origin, node, %Tempo{} = value, unit) do
-    [{origin, node, -date_axis(value, unit)} | edges]
+  defp lower_bound(edges, origin, node, %Tempo{} = value, unit, {tag, edge, dir, id}) do
+    [{origin, node, -date_axis(value, unit), {tag, edge, dir, id, value}} | edges]
   end
 
-  defp lower_bound(edges, _origin, _node, nil, _unit), do: edges
+  defp lower_bound(edges, _origin, _node, nil, _unit, _source), do: edges
 
   # value(node) ≤ bound  ⇒  node − origin ≤ bound.
-  defp upper_bound(edges, node, origin, %Tempo{} = value, unit) do
-    [{node, origin, date_axis(value, unit)} | edges]
+  defp upper_bound(edges, node, origin, %Tempo{} = value, unit, {tag, edge, dir, id}) do
+    [{node, origin, date_axis(value, unit), {tag, edge, dir, id, value}} | edges]
   end
 
-  defp upper_bound(edges, _node, _origin, nil, _unit), do: edges
+  defp upper_bound(edges, _node, _origin, nil, _unit, _source), do: edges
 
   # end − start ≥ min  ⇒  start − end ≤ −min.
-  defp min_duration(edges, start, finish, %Tempo.Duration{} = duration, unit) do
-    [{start, finish, -duration_axis(duration, unit)} | edges]
+  defp min_duration(edges, start, finish, %Tempo.Duration{} = duration, unit, {tag, kind, id}) do
+    [{start, finish, -duration_axis(duration, unit), {tag, kind, id, duration}} | edges]
   end
 
-  defp min_duration(edges, _start, _finish, nil, _unit), do: edges
+  defp min_duration(edges, _start, _finish, nil, _unit, _source), do: edges
 
   # end − start ≤ max  ⇒  end − start ≤ max.
-  defp max_duration(edges, start, finish, %Tempo.Duration{} = duration, unit) do
-    [{finish, start, duration_axis(duration, unit)} | edges]
+  defp max_duration(edges, start, finish, %Tempo.Duration{} = duration, unit, {tag, kind, id}) do
+    [{finish, start, duration_axis(duration, unit), {tag, kind, id, duration}} | edges]
   end
 
-  defp max_duration(edges, _start, _finish, nil, _unit), do: edges
+  defp max_duration(edges, _start, _finish, nil, _unit, _source), do: edges
 
   # --- sequence → immediately-precedes links ---------------------
 
@@ -152,22 +169,23 @@ defmodule Tempo.Network.Normalize do
     |> Enum.chunk_every(2, 1, :discard)
     |> Enum.flat_map(fn [a, b] ->
       # end(a) = start(b).
-      [{{:end, a}, {:start, b}, 0}, {{:start, b}, {:end, a}, 0}]
+      source = {:sequence, a, b}
+      [{{:end, a}, {:start, b}, 0, source}, {{:start, b}, {:end, a}, 0, source}]
     end)
   end
 
   # --- relation duration weights → integers ----------------------
 
-  defp resolve_weight({from, to, {:duration, duration}}, unit) do
-    {from, to, duration_axis(duration, unit)}
+  defp resolve_weight({from, to, {:duration, duration}}, unit, source) do
+    {from, to, duration_axis(duration, unit), source}
   end
 
-  defp resolve_weight({from, to, {:neg_duration, duration}}, unit) do
-    {from, to, -duration_axis(duration, unit)}
+  defp resolve_weight({from, to, {:neg_duration, duration}}, unit, source) do
+    {from, to, -duration_axis(duration, unit), source}
   end
 
-  defp resolve_weight({from, to, weight}, _unit) when is_integer(weight) do
-    {from, to, weight}
+  defp resolve_weight({from, to, weight}, _unit, source) when is_integer(weight) do
+    {from, to, weight, source}
   end
 
   # --- unit machinery --------------------------------------------

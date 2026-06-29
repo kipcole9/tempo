@@ -83,6 +83,29 @@ defmodule Tempo.Network.ChronoLandTest do
     end
   end
 
+  test "the trace for the earliest end of K2 follows the paper's Fig. 6c" do
+    {:ok, trace} = Solver.trace(chronoland(), {:end, :k2}, bound: :earliest)
+
+    assert TimePeriod.year(trace.value) == 1240
+
+    # The six-step propagation: K1 ≥ 1200 → S1 starts during K1 → S1 ≥ 20y
+    # → S1 meets S2 → S2 ≥ 20y → S2 ends during K2.
+    derived =
+      Enum.map(trace.steps, fn step -> {step.boundary, TimePeriod.year(step.value)} end)
+
+    assert derived == [
+             {{:start, :k1}, 1200},
+             {{:start, :s1}, 1200},
+             {{:end, :s1}, 1220},
+             {{:start, :s2}, 1220},
+             {{:end, :s2}, 1240},
+             {{:end, :k2}, 1240}
+           ]
+
+    assert trace.prose =~ "lasts at least 20 years"
+    assert trace.prose =~ "ends during"
+  end
+
   test "the Fig. 7 variant (K2 at most 25 years) is inconsistent" do
     # The two strata together last at least 40 years, but capping K2 at
     # 25 makes the whole dynasty at most 35 (10 + 25) — too short to

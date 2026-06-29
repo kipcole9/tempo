@@ -46,7 +46,7 @@ defmodule Tempo.Network.Solver do
   """
   @spec consistent?(Network.t()) :: boolean()
   def consistent?(%Network{} = network) do
-    distances = network |> Normalize.normalize() |> shortest_paths()
+    %{dist: distances} = network |> Normalize.normalize() |> shortest_paths()
     not negative_cycle?(distances)
   end
 
@@ -81,7 +81,7 @@ defmodule Tempo.Network.Solver do
   @spec tighten(Network.t()) :: {:ok, Network.t()} | {:error, :inconsistent}
   def tighten(%Network{} = network) do
     normalized = Normalize.normalize(network)
-    distances = shortest_paths(normalized)
+    %{dist: distances} = shortest_paths(normalized)
 
     if negative_cycle?(distances) do
       {:error, :inconsistent}
@@ -92,6 +92,87 @@ defmodule Tempo.Network.Solver do
         end)
 
       {:ok, %{network | periods: periods}}
+    end
+  end
+
+  @doc """
+  Explain a tightened bound as a trace — the chain of constraints that
+  forces it.
+
+  Reconstructs the shortest path in the constraint graph that produces
+  the `:earliest` or `:latest` value of a boundary, mirroring the
+  paper's Fig. 6c. Each step names the constraint responsible and the
+  bound derived so far, and `:prose` renders the whole chain as a
+  sentence.
+
+  ### Arguments
+
+  * `network` is a `t:Tempo.Network.t/0`.
+
+  * `boundary` is `{:start, period_id}` or `{:end, period_id}`.
+
+  ### Options
+
+  * `:bound` is `:earliest` (the default) or `:latest`.
+
+  ### Returns
+
+  * `{:ok, %{value: t:Tempo.t/0, steps: list, prose: String.t()}}`;
+
+  * `{:error, :unbounded}` when the constraints leave the bound open;
+    or
+
+  * `{:error, :inconsistent}` when the network has no valid assignment.
+
+  ### Examples
+
+      iex> {:ok, trace} =
+      ...>   Tempo.Network.new()
+      ...>   |> Tempo.Network.add_period(:k1, start: {:not_before, 1200}, duration: {:at_least, 20})
+      ...>   |> Tempo.Network.add_period(:k2, duration: {:at_least, 35})
+      ...>   |> Tempo.Network.add_sequence([:k1, :k2])
+      ...>   |> Tempo.Network.Solver.trace({:end, :k2})
+      iex> Tempo.Network.TimePeriod.year(trace.value)
+      1255
+
+  """
+  @spec trace(Network.t(), {:start | :end, term()}, keyword()) ::
+          {:ok, map()} | {:error, :unbounded | :inconsistent}
+  def trace(%Network{} = network, {edge, _id} = boundary, options \\ [])
+      when edge in [:start, :end] do
+    bound = Keyword.get(options, :bound, :earliest)
+    normalized = Normalize.normalize(network)
+    %{dist: distances, next: next} = shortest_paths(normalized)
+
+    cond do
+      negative_cycle?(distances) ->
+        {:error, :inconsistent}
+
+      true ->
+        {from_node, to_node} =
+          case bound do
+            :earliest -> {:origin, boundary}
+            :latest -> {boundary, :origin}
+          end
+
+        case get(distances, from_node, to_node) do
+          :inf ->
+            {:error, :unbounded}
+
+          _weight ->
+            path = reconstruct(next, from_node, to_node)
+            provenance = build_provenance(normalized.edges)
+            steps = build_steps(path, distances, provenance, bound, normalized.unit)
+
+            {:ok,
+             %{
+               boundary: boundary,
+               bound: bound,
+               value: bound_value(distances, boundary, bound, normalized.unit),
+               steps: steps,
+               prose: render_prose(steps, boundary, bound, network)
+             }}
+        end
     end
   end
 
@@ -147,30 +228,38 @@ defmodule Tempo.Network.Solver do
 
   # --- Floyd–Warshall --------------------------------------------
 
+  # Floyd–Warshall returning both the all-pairs distances and a
+  # next-hop map for path reconstruction (`next[{i, j}]` is the first
+  # node after `i` on a shortest path to `j`).
   defp shortest_paths(%{nodes: nodes, edges: edges}) do
-    initial =
+    distances =
       for from <- nodes, to <- nodes, into: %{} do
         {{from, to}, if(from == to, do: 0, else: :inf)}
       end
 
-    seeded =
-      Enum.reduce(edges, initial, fn {from, to, weight}, acc ->
-        Map.update!(acc, {from, to}, &min_weight(&1, weight))
+    {seeded, next} =
+      Enum.reduce(edges, {distances, %{}}, fn {from, to, weight, _source}, {dist, next} ->
+        if less?(weight, dist[{from, to}]) do
+          {%{dist | {from, to} => weight}, Map.put(next, {from, to}, to)}
+        else
+          {dist, next}
+        end
       end)
 
-    Enum.reduce(nodes, seeded, fn k, dk ->
-      Enum.reduce(nodes, dk, fn i, di ->
-        Enum.reduce(nodes, di, fn j, distances ->
-          via = add_weight(distances[{i, k}], distances[{k, j}])
+    Enum.reduce(nodes, {seeded, next}, fn k, acc_k ->
+      Enum.reduce(nodes, acc_k, fn i, acc_i ->
+        Enum.reduce(nodes, acc_i, fn j, {dist, next} ->
+          via = add_weight(dist[{i, k}], dist[{k, j}])
 
-          if less?(via, distances[{i, j}]) do
-            %{distances | {i, j} => via}
+          if less?(via, dist[{i, j}]) do
+            {%{dist | {i, j} => via}, Map.put(next, {i, j}, next[{i, k}])}
           else
-            distances
+            {dist, next}
           end
         end)
       end)
     end)
+    |> then(fn {dist, next} -> %{dist: dist, next: next} end)
   end
 
   defp negative_cycle?(distances) do
@@ -181,10 +270,6 @@ defmodule Tempo.Network.Solver do
   end
 
   defp get(distances, from, to), do: Map.get(distances, {from, to}, :inf)
-
-  defp min_weight(:inf, weight), do: weight
-  defp min_weight(weight, :inf), do: weight
-  defp min_weight(a, b), do: min(a, b)
 
   defp add_weight(:inf, _), do: :inf
   defp add_weight(_, :inf), do: :inf
@@ -214,4 +299,123 @@ defmodule Tempo.Network.Solver do
 
   defp pad(month) when month < 10, do: "0#{month}"
   defp pad(month), do: "#{month}"
+
+  # --- trace reconstruction --------------------------------------
+
+  defp reconstruct(_next, node, node), do: [node]
+
+  defp reconstruct(next, from, to) do
+    case Map.get(next, {from, to}) do
+      nil -> [from]
+      hop -> [from | reconstruct(next, hop, to)]
+    end
+  end
+
+  # The source of the minimal-weight direct edge for each {from, to}.
+  defp build_provenance(edges) do
+    Enum.reduce(edges, %{}, fn {from, to, weight, source}, acc ->
+      case acc[{from, to}] do
+        {best, _} when best <= weight -> acc
+        _ -> Map.put(acc, {from, to}, {weight, source})
+      end
+    end)
+  end
+
+  # Each path hop becomes a step naming the constraint that justifies it
+  # and the bound derived at the reached boundary. The origin carries no
+  # bound of its own, so it never appears as a step.
+  defp build_steps(path, distances, provenance, bound, unit) do
+    path
+    |> Enum.chunk_every(2, 1, :discard)
+    |> Enum.reject(fn [_prev, node] -> node == :origin end)
+    |> Enum.map(fn [prev, node] ->
+      {_weight, source} = Map.fetch!(provenance, {prev, node})
+      %{boundary: node, value: bound_value(distances, node, bound, unit), source: source}
+    end)
+  end
+
+  defp bound_value(distances, boundary, :earliest, unit) do
+    axis_to_date(-get(distances, :origin, boundary), unit)
+  end
+
+  defp bound_value(distances, boundary, :latest, unit) do
+    axis_to_date(get(distances, boundary, :origin), unit)
+  end
+
+  # --- trace prose -----------------------------------------------
+
+  defp render_prose(steps, _boundary, bound, network) do
+    Enum.map_join(steps, "; ", fn step ->
+      "#{render_source(step.source, network)} ⇒ " <>
+        "#{boundary_phrase(step.boundary, network)} #{comparison(bound)} #{year_label(step.value)}"
+    end)
+  end
+
+  defp render_source({:bound, :start, :lower, id, value}, network),
+    do: "#{label(network, id)} starts no earlier than #{year_label(value)}"
+
+  defp render_source({:bound, :start, :upper, id, value}, network),
+    do: "#{label(network, id)} starts no later than #{year_label(value)}"
+
+  defp render_source({:bound, :end, :lower, id, value}, network),
+    do: "#{label(network, id)} ends no earlier than #{year_label(value)}"
+
+  defp render_source({:bound, :end, :upper, id, value}, network),
+    do: "#{label(network, id)} ends no later than #{year_label(value)}"
+
+  defp render_source({:duration, :min, id, duration}, network),
+    do: "#{label(network, id)} lasts at least #{duration_label(duration)}"
+
+  defp render_source({:duration, :max, id, duration}, network),
+    do: "#{label(network, id)} lasts at most #{duration_label(duration)}"
+
+  defp render_source({:non_negative, id}, network),
+    do: "#{label(network, id)} cannot end before it starts"
+
+  defp render_source({:sequence, a, b}, network),
+    do: "#{label(network, a)} immediately precedes #{label(network, b)}"
+
+  defp render_source({:relation, relation}, network) do
+    "#{label(network, relation.from)} #{relation_phrase(relation.type)} #{label(network, relation.to)}"
+  end
+
+  defp relation_phrase(:starts_during), do: "starts during"
+  defp relation_phrase(:ends_during), do: "ends during"
+  defp relation_phrase(:includes_start), do: "includes the start of"
+  defp relation_phrase(:includes_end), do: "includes the end of"
+  defp relation_phrase(:included_in), do: "is included in"
+  defp relation_phrase(:includes), do: "includes"
+  defp relation_phrase(:contemporary), do: "is contemporary with"
+  defp relation_phrase(:overlaps), do: "overlaps"
+  defp relation_phrase(:overlapped_by), do: "is overlapped by"
+  defp relation_phrase(:before), do: "is before"
+  defp relation_phrase(:after), do: "is after"
+  defp relation_phrase(:immediately_precedes), do: "immediately precedes"
+  defp relation_phrase(:immediately_follows), do: "immediately follows"
+  defp relation_phrase(:synchronous_start), do: "shares a start with"
+  defp relation_phrase(:synchronous_end), do: "shares an end with"
+  defp relation_phrase(:equals), do: "equals"
+  defp relation_phrase({:delay, _, _, _, _}), do: "is offset from"
+
+  defp boundary_phrase({:start, id}, network), do: "the start of #{label(network, id)}"
+  defp boundary_phrase({:end, id}, network), do: "the end of #{label(network, id)}"
+
+  defp comparison(:earliest), do: "≥"
+  defp comparison(:latest), do: "≤"
+
+  defp label(network, id) do
+    case network.periods[id] do
+      %{name: name} when is_binary(name) -> name
+      _ -> to_string(id)
+    end
+  end
+
+  defp year_label(%Tempo{time: time}), do: "#{Keyword.get(time, :year)}"
+
+  defp duration_label(%Tempo.Duration{time: time}) do
+    case Keyword.get(time, :year) do
+      nil -> Inspect.inspect(%Tempo.Duration{time: time}, %Inspect.Opts{})
+      years -> "#{years} years"
+    end
+  end
 end

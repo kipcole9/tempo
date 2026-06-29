@@ -143,4 +143,33 @@ defmodule Tempo.Network.SolverTest do
                |> Solver.tighten()
     end
   end
+
+  describe "trace/3" do
+    test "explains an earliest bound as a chain of named constraints" do
+      {:ok, trace} =
+        Network.new()
+        |> Network.add_period(:k1, start: {:not_before, 1200}, duration: {:at_least, 20})
+        |> Network.add_period(:k2, duration: {:at_least, 35})
+        |> Network.add_sequence([:k1, :k2])
+        |> Solver.trace({:end, :k2})
+
+      assert TimePeriod.year(trace.value) == 1255
+      assert List.last(trace.steps).boundary == {:end, :k2}
+      assert trace.prose =~ "immediately precedes"
+    end
+
+    test "an unbounded boundary returns {:error, :unbounded}" do
+      assert {:error, :unbounded} =
+               Network.new()
+               |> Network.add_period(:k, duration: {:at_least, 10})
+               |> Solver.trace({:end, :k}, bound: :latest)
+    end
+
+    test "an inconsistent network returns {:error, :inconsistent}" do
+      assert {:error, :inconsistent} =
+               Network.new()
+               |> Network.add_period(:k, start: 1200, end: 1180)
+               |> Solver.trace({:start, :k})
+    end
+  end
 end
