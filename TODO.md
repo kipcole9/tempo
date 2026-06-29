@@ -15,10 +15,13 @@
      group (`2004-06~-11`) re-encodes as the equivalent explicit
      individual qualifiers (`2004~Y6~M11D`).
 
-  Remaining nicety: the explicit-form BC year path (`2004~YB`) and the
-  §8.2.4 *preferred* canonical output (collapsing adjacent individual
-  qualifiers back into a single group/complete form) are not done; the
-  current output is valid and round-trips, just not minimal.
+  The explicit-form BC year path (`2004~YB`) and §8.2.4 canonical
+  output are also done: a qualified explicit BC year parses, and an
+  output whose every present component shares one qualifier collapses
+  to the compact complete form (`2004%Y6%M11%D` → `2004Y6M11D%`). Group
+  collapse is intentionally not attempted — the explicit (designator)
+  output form has no group representation, so complete is the only
+  available reduction.
 
 * Find a way to express:
   * Astro events (Easter, New Moon, ....)

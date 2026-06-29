@@ -16,7 +16,7 @@
 
 * Cron POSIX day-of-month OR day-of-week — when both fields are restricted (`13 * 5` — "the 13th or any Friday"), occurrences are now the union of the two, via a new non-standard `:bymonthday_or_byday` field on `Tempo.RRule.Rule`. A Quartz extension (ordinal `5#2`, or nearest-weekday `15W`) opts out and keeps the AND-composing interpretation.
 
-* ISO 8601-2 §8 component qualification is now spec-conformant and round-trips. On parse, a qualifier at the rightmost end is *complete* (`2004-06-11%` → the whole value), to the right of a component is *group* (`2004-06~-11` → the month and the year), to the left is *individual* (`2004-?06-11` → the month only), and the explicit designator form (`2004~Y6?M11D`) parses too. `inspect/1` and `to_iso8601/1` now render the per-component qualifications back in explicit form, so a parsed group re-encodes as the equivalent `2004~Y6~M11D`.
+* ISO 8601-2 §8 component qualification is now spec-conformant and round-trips. On parse, a qualifier at the rightmost end is *complete* (`2004-06-11%` → the whole value), to the right of a component is *group* (`2004-06~-11` → the month and the year), to the left is *individual* (`2004-?06-11` → the month only), and the explicit designator form (`2004~Y6?M11D`, including a qualified BC year `2004~YB`) parses too. `inspect/1` and `to_iso8601/1` render the per-component qualifications back in explicit form — a parsed group re-encodes as the equivalent `2004~Y6~M11D` — and, per §8.2.4, collapse a uniformly-qualified value to the compact complete form (`2004%Y6%M11%D` → `2004Y6M11D%`).
 
 ### Changed
 

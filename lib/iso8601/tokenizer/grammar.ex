@@ -420,7 +420,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
     choice([
       parsec(:group),
       parsec(:selection),
-      explicit_year_bc() |> unwrap_and_tag(:year),
+      explicit_year_bc(),
       explicit_year_with_sign()
     ])
     |> label("explicit year")
@@ -442,12 +442,26 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
 
   def explicit_year_bc do
     choice([
-      parsec(:integer_set_all) |> ignore(string("Y")),
-      maybe_negative_number(min: 1) |> ignore(string("Y"))
+      parsec(:integer_set_all),
+      maybe_negative_number(min: 1)
     ])
+    |> optional(left_qualifier(:year))
+    |> ignore(string("Y"))
     |> optional(string("B"))
-    |> reduce(:convert_bc)
+    |> post_traverse({__MODULE__, :build_bc_year, []})
     |> label("explicit year BC")
+  end
+
+  # Emit the BC-converted `{:year, _}` token plus, if present, the
+  # `:individual_qualification` token from a §8.3 explicit qualifier
+  # (`2004~YB`). `post_traverse` is needed (rather than `reduce`)
+  # because two sibling tokens must be produced, not one.
+  def build_bc_year(rest, acc, context, _line, _offset) do
+    {qualifiers, value_tokens} =
+      Enum.split_with(acc, &match?({:individual_qualification, _}, &1))
+
+    year = value_tokens |> Enum.reverse() |> convert_bc()
+    {rest, qualifiers ++ [{:year, year}], context}
   end
 
   # Months

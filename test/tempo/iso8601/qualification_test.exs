@@ -150,6 +150,50 @@ defmodule Tempo.Iso8601.Qualification.Test do
     end
   end
 
+  describe "canonical output (§8.2.4)" do
+    # When every present component shares one qualifier, the compact
+    # complete form is preferred over per-component qualifiers. (The
+    # explicit output form has no group representation, so complete is
+    # the only available collapse.)
+
+    test "all components with the same qualifier collapse to complete" do
+      {:ok, tempo} = Tempo.from_iso8601("2004%Y6%M11%D")
+
+      assert tempo.qualifications == %{
+               year: :uncertain_and_approximate,
+               month: :uncertain_and_approximate,
+               day: :uncertain_and_approximate
+             }
+
+      assert Tempo.to_iso8601(tempo) == "2004Y6M11D%"
+    end
+
+    test "a partially-qualified date keeps per-component qualifiers" do
+      {:ok, tempo} = Tempo.from_iso8601("2004-06~-11")
+      # year + month approximate, day unqualified → no collapse.
+      assert Tempo.to_iso8601(tempo) == "2004~Y6~M11D"
+    end
+
+    test "mixed qualifiers stay per-component" do
+      {:ok, tempo} = Tempo.from_iso8601("2022?-?06-%15")
+      assert Tempo.to_iso8601(tempo) == "2022?Y6?M15%D"
+    end
+  end
+
+  describe "explicit BC year qualification (§8.3)" do
+    test "a qualifier on an explicit BC year parses" do
+      {:ok, tempo} = Tempo.from_iso8601("2004~YB")
+      assert Keyword.get(tempo.time, :year) == -2003
+      assert tempo.qualifications == %{year: :approximate}
+    end
+
+    test "an unqualified explicit BC year is unchanged" do
+      {:ok, tempo} = Tempo.from_iso8601("2004YB")
+      assert Keyword.get(tempo.time, :year) == -2003
+      assert tempo.qualifications == nil
+    end
+  end
+
   describe "interaction with other features" do
     test "no qualification leaves both fields nil" do
       assert {:ok, tempo} = Tempo.from_iso8601("2022-06-15")

@@ -311,19 +311,60 @@ defmodule Tempo.Inspect do
   end
 
   defp inspect_value(%Tempo{} = tempo) do
-    %Tempo{time: time, shift: shift, qualification: qualification} = tempo
+    {qualification, qualifications} = canonical_qualifications(tempo)
 
     time =
-      time
+      tempo.time
       |> fold_microsecond()
-      |> apply_qualifications(tempo.qualifications)
+      |> apply_qualifications(qualifications)
 
     [
       inspect_value(time),
-      inspect_shift(shift),
+      inspect_shift(tempo.shift),
       inspect_qualification(qualification),
       extended_trailer(tempo)
     ]
+  end
+
+  @qualifiable_units [
+    :year,
+    :month,
+    :day,
+    :day_of_year,
+    :week,
+    :day_of_week,
+    :hour,
+    :minute,
+    :second
+  ]
+
+  # ISO 8601-2 §8.2.4: when every present component carries the same
+  # qualifier, prefer the compact *complete* form (one trailing
+  # qualifier) over per-component qualifiers — `2004%Y6%M11%D` reduces
+  # to `2004Y6M11D%`. The explicit (designator) output form has no
+  # *group* representation, so complete is the only available collapse.
+  defp canonical_qualifications(%Tempo{
+         qualification: nil,
+         qualifications: qualifications,
+         time: time
+       })
+       when is_map(qualifications) and map_size(qualifications) > 0 do
+    present = for {unit, _value} <- time, unit in @qualifiable_units, do: unit
+    values = Enum.map(present, &Map.get(qualifications, &1))
+
+    if present != [] and map_size(qualifications) == length(present) and
+         match?([_single], Enum.uniq(values)) and hd(values) != nil do
+      {hd(values), nil}
+    else
+      {nil, qualifications}
+    end
+  end
+
+  defp canonical_qualifications(%Tempo{
+         qualification: qualification,
+         qualifications: qualifications
+       }) do
+    {qualification, qualifications}
   end
 
   # ISO 8601-2 §8.3 explicit component qualification: tag each unit
