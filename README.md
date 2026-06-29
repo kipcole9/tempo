@@ -161,6 +161,10 @@ Full specification including modifier-binding, container patterns, and calendar-
 
 * **First-class set algebra on time.** Union, intersection, complement, difference, symmetric difference — plus the predicate set (`disjoint?`, `overlaps?`, `subset?`, `contains?`, `equal?`) — all defined over any Tempo value. Cross-zone, cross-calendar, across resolutions.
 
+* **Constraint reasoning, not just representation.** `Tempo.Network` models a web of partially-known intervals — reigns, strata, project tasks — and computes the tightest dates each one can take (the ChronoLog scheme), with a plain-English trace for every bound. `Tempo.Schedule` applies the same solver to project scheduling: declare tasks, durations, and dependencies, and get each task's earliest/latest run plus the critical path.
+
+* **Business days and territory-aware calendars.** `Tempo.weekend?/2`, `Tempo.workday?/2`, `Tempo.add_working_days/3`, and `Tempo.working_days_in/2` answer "how many working days until the deadline?" with CLDR-correct weekends per territory (the US weekends Saturday/Sunday, Saudi Arabia Friday/Saturday) and correct on any calendar.
+
 * **iCalendar import with metadata that travels.** `Tempo.ICal.from_ical/2` parses RFC 5545 `.ics` data and every event's metadata (summary, location, attendees, status, …) rides along through every downstream operation. Intersect your schedule with work hours, get back *which meetings* are in work hours.
 
 * **Unlocking queries that used to be hard.** "Every Friday the 13th this century." "When was I both in Japan and enrolled at my university?" "Free time on Tuesday, accounting for meetings across three zones." "Does this dig layer overlap with this dynasty?" All direct expressions over the same `Tempo` API.
@@ -206,11 +210,21 @@ Either [`:tzdata`](https://hex.pm/packages/tzdata) or [`:tz`](https://hex.pm/pac
 
 ## Guides
 
-* [ISO 8601 conformance](guides/iso8601-conformance.md) — what's supported from the standards.
-* [Enumeration semantics](guides/enumeration-semantics.md) — iterating across Tempo values.
-* [Set operations](guides/set-operations.md) — union, intersection, complement, difference, predicates.
-* [iCalendar integration](guides/ical-integration.md) — importing `.ics` schedules with metadata preserved.
-* [Shared AST for ISO 8601 and RRULE](guides/shared-ast-iso8601-and-rrule.md) — the internal representation that unifies both.
+* [Cookbook](https://github.com/kipcole9/tempo/blob/v0.10.0/guides/cookbook.md) — recipe-format answers to common temporal questions.
+* [When to use Tempo](https://github.com/kipcole9/tempo/blob/v0.10.0/guides/when-to-use-tempo.md) — where the interval model earns its keep (and where it doesn't).
+* [Set operations](https://github.com/kipcole9/tempo/blob/v0.10.0/guides/set-operations.md) — union, intersection, complement, difference, predicates.
+* [Scheduling](https://github.com/kipcole9/tempo/blob/v0.10.0/guides/scheduling.md) — recurrence, free-busy availability, and dependency (critical-path) scheduling.
+* [Workdays and weekends](https://github.com/kipcole9/tempo/blob/v0.10.0/guides/workdays-and-weekends.md) — territory-aware business-day arithmetic.
+* [Chronological networks](https://github.com/kipcole9/tempo/blob/v0.10.0/guides/chronological-networks.md) — constraint reasoning over partially-known dates (the ChronoLog scheme).
+* [Holidays](https://github.com/kipcole9/tempo/blob/v0.10.0/guides/holidays.md) — composing a real holiday calendar with workday logic.
+* [iCalendar integration](https://github.com/kipcole9/tempo/blob/v0.10.0/guides/ical-integration.md) — importing `.ics` schedules with metadata preserved.
+* [Enumeration semantics](https://github.com/kipcole9/tempo/blob/v0.10.0/guides/enumeration-semantics.md) — iterating across Tempo values and interval sets.
+* [Interop](https://github.com/kipcole9/tempo/blob/v0.10.0/guides/interop.md) — anchored vs non-anchored values, and bridging native Elixir types.
+* [Pattern matching with sigils](https://github.com/kipcole9/tempo/blob/v0.10.0/guides/pattern-matching-with-sigils.md) — destructuring Tempo values in function heads.
+* [ISO 8601 conformance](https://github.com/kipcole9/tempo/blob/v0.10.0/guides/iso8601-conformance.md) — what's supported from the standards.
+* [RFC 5545 RRULE conformance](https://github.com/kipcole9/tempo/blob/v0.10.0/guides/rfc5545_rrule_conformance.md) — recurrence-rule coverage, property by property.
+* [Shared AST for ISO 8601 and RRULE](https://github.com/kipcole9/tempo/blob/v0.10.0/guides/shared-ast-iso8601-and-rrule.md) — the internal representation that unifies both.
+* [Temporal formalisms](https://github.com/kipcole9/tempo/blob/v0.10.0/guides/temporal-formalisms.md) — how Tempo relates to Allen's algebra and the time-ontology literature.
 
 ## Related links
 
@@ -221,4 +235,4 @@ Either [`:tzdata`](https://hex.pm/packages/tzdata) or [`:tz`](https://hex.pm/pac
 
 ## Licence
 
-See [LICENSE.md](LICENSE.md). Copyright © Kip Cole.
+See [LICENSE.md](https://github.com/kipcole9/tempo/blob/v0.10.0/LICENSE.md). Copyright © Kip Cole.
