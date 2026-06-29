@@ -115,4 +115,4 @@ The accompanying [chronological-networks guide](chronological-networks.md) devel
 * E. Levy, G. Geeraerts, F. Pluquet, E. Piasetzky, and A. Fantalkin. *Chronological Networks in Archaeology: A Formalised Scheme.* Journal of Archaeological Science 124, 2020.
 * M. Grüninger and Z. Li. *The Time Ontology of Allen's Interval Algebra.* TIME 2017.
 
-The accompanying paper, *Tempo: Intervals as the Primitive Datetime Type* (`papers/time-2026/`), develops this positioning in full.
+The accompanying paper, *Time as Intervals, Not Instants* (`papers/time-2027/`), develops this positioning in full.

@@ -113,4 +113,93 @@ defmodule Tempo.CalendarAccessorsTest do
       end
     end
   end
+
+  describe "Tempo.weekend?/2 and workday?/2" do
+    # 2026-06-12 Fri, -13 Sat, -14 Sun, -15 Mon.
+    test "United States weekends on Saturday and Sunday" do
+      assert Tempo.weekend?(~o"2026-06-13", :US)
+      assert Tempo.weekend?(~o"2026-06-14", :US)
+      refute Tempo.weekend?(~o"2026-06-15", :US)
+      assert Tempo.workday?(~o"2026-06-15", :US)
+      refute Tempo.workday?(~o"2026-06-13", :US)
+    end
+
+    test "the weekend varies by territory (same Friday, different verdict)" do
+      friday = ~o"2026-06-12"
+      assert Tempo.weekend?(friday, :SA)
+      refute Tempo.weekend?(friday, :US)
+      assert Tempo.workday?(friday, :US)
+    end
+
+    test "India weekends on Sunday only" do
+      assert Tempo.weekend?(~o"2026-06-14", :IN)
+      refute Tempo.weekend?(~o"2026-06-13", :IN)
+    end
+
+    test "weekend? and workday? partition the week" do
+      for day <- 12..15, territory <- [:US, :SA, :IN] do
+        value = Tempo.from_iso8601!("2026-06-#{day}")
+        assert Tempo.weekend?(value, territory) != Tempo.workday?(value, territory)
+      end
+    end
+
+    test "a datetime is classified by its day" do
+      assert Tempo.weekend?(~o"2026-06-13T10:30:00", :US)
+      assert Tempo.workday?(~o"2026-06-15T10:30:00", :US)
+    end
+
+    test "ordinal-date form is supported (day-of-year 166 is 2026-06-15, a Monday)" do
+      assert Tempo.workday?(~o"2026-166", :US)
+    end
+
+    test "a territory string resolves the same as the atom" do
+      assert Tempo.weekend?(~o"2026-06-13", "US")
+    end
+
+    test "raises on a value coarser than a day" do
+      assert_raise ArgumentError, ~r/denotes a day/, fn -> Tempo.weekend?(~o"2026", :US) end
+      assert_raise ArgumentError, ~r/denotes a day/, fn -> Tempo.weekend?(~o"2026-06", :US) end
+    end
+
+    @calendars [
+      Calendrical.Gregorian,
+      Calendrical.Hebrew,
+      Calendrical.Islamic.Civil,
+      Calendrical.Islamic.Observational,
+      Calendrical.Japanese,
+      Calendrical.Indian,
+      Calendrical.Persian,
+      Calendrical.Chinese,
+      Calendrical.Coptic,
+      Calendrical.Ethiopic
+    ]
+
+    test "the verdict is the same in every calendar (the weekday is absolute)" do
+      # The same instant, expressed in a non-Gregorian calendar, carries
+      # year/month/day in *that* calendar — so the day of week must be
+      # read off a date built in the value's own calendar, not by
+      # interpreting its components as Gregorian.
+      saturday = ~D[2026-06-13]
+      monday = ~D[2026-06-15]
+
+      for calendar <- @calendars do
+        sat = Tempo.from_date(Date.convert!(saturday, calendar))
+        mon = Tempo.from_date(Date.convert!(monday, calendar))
+
+        assert Tempo.weekend?(sat, :US), "#{inspect(calendar)} Saturday should be a US weekend"
+        refute Tempo.weekend?(mon, :US), "#{inspect(calendar)} Monday should be a US workday"
+        assert Tempo.workday?(mon, :US)
+      end
+    end
+
+    test "territory weekend differences hold across calendars too" do
+      friday = ~D[2026-06-12]
+
+      for calendar <- @calendars do
+        fri = Tempo.from_date(Date.convert!(friday, calendar))
+        assert Tempo.weekend?(fri, :SA), "#{inspect(calendar)} Friday should be a Saudi weekend"
+        refute Tempo.weekend?(fri, :US), "#{inspect(calendar)} Friday should be a US workday"
+      end
+    end
+  end
 end

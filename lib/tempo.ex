@@ -3919,6 +3919,126 @@ defmodule Tempo do
   end
 
   @doc """
+  Return `true` when `tempo` falls on a weekend day in the given
+  territory.
+
+  Different territories weekend on different days — the United States
+  on `[Saturday, Sunday]`, Saudi Arabia on `[Friday, Saturday]`, India
+  on `[Sunday]` — read from CLDR via Localize. The day of week is taken
+  from `Date.day_of_week/1` (ISO `1` = Monday … `7` = Sunday), computed
+  in the value's own calendar so a non-Gregorian value (Japanese,
+  Islamic, Indian, …) is classified by the correct weekday.
+
+  ### Arguments
+
+  * `tempo` is a `t:t/0` that denotes a single day — a date or
+    datetime, including the day-of-year and ISO week-date forms.
+
+  * `territory` is an atom, string, locale, or `%Localize.LanguageTag{}`
+    resolved through `Tempo.Territory.resolve/1`. Defaults to `nil`,
+    which walks the territory-resolution chain (app config, then
+    ambient locale).
+
+  ### Returns
+
+  * `true` when the value's day of week is one of the territory's
+    weekend days, `false` otherwise.
+
+  * Raises `ArgumentError` when `tempo` does not denote a day (for
+    example a year- or month-resolution value).
+
+  ### Examples
+
+      iex> Tempo.weekend?(~o"2026-06-13", :US)
+      true
+
+      iex> Tempo.weekend?(~o"2026-06-15", :US)
+      false
+
+      iex> # The same Friday: a weekend in Saudi Arabia, a workday in the US.
+      iex> Tempo.weekend?(~o"2026-06-12", :SA)
+      true
+      iex> Tempo.weekend?(~o"2026-06-12", :US)
+      false
+
+  """
+  @spec weekend?(t(), Tempo.Territory.input()) :: boolean()
+  def weekend?(%Tempo{} = tempo, territory \\ nil) do
+    {:ok, resolved} = Tempo.Territory.resolve(territory)
+    day_of_week_iso(tempo, :weekend?) in Localize.Calendar.weekend(resolved)
+  end
+
+  @doc """
+  Return `true` when `tempo` falls on a workday — a day that is *not*
+  in the territory's weekend.
+
+  The complement of `weekend?/2`; together they partition the week.
+  This is the weekend/weekday distinction only — it does not consult
+  public-holiday calendars.
+
+  ### Arguments
+
+  * `tempo` is a `t:t/0` that denotes a single day.
+
+  * `territory` is resolved through `Tempo.Territory.resolve/1`, as for
+    `weekend?/2`.
+
+  ### Returns
+
+  * `true` when the value's day of week is not a weekend day in the
+    territory, `false` otherwise.
+
+  ### Examples
+
+      iex> Tempo.workday?(~o"2026-06-15", :US)
+      true
+
+      iex> Tempo.workday?(~o"2026-06-13", :US)
+      false
+
+  """
+  @spec workday?(t(), Tempo.Territory.input()) :: boolean()
+  def workday?(%Tempo{} = tempo, territory \\ nil) do
+    not weekend?(tempo, territory)
+  end
+
+  # ISO day of week (1 = Monday … 7 = Sunday) of the day a value
+  # denotes. The day of week is the same in every calendar, but a
+  # calendar date carries year/month/day in *its own* calendar, so the
+  # date is built in that calendar and then converted to `Calendar.ISO`
+  # before reading `Date.day_of_week/1` — ISO's default numbering is a
+  # stable Monday-based 1..7, whereas a Calendrical calendar's own
+  # `day_of_week` may use a different week start or only support the
+  # `:default` ordering. The date-with-time case is covered here (its
+  # date part is the year/month/day); the ordinal (day-of-year) and ISO
+  # week-date forms are Gregorian/ISO only and resolve through
+  # `to_date/1`, which already returns a `Calendar.ISO` date.
+  defp day_of_week_iso(%Tempo{time: time} = tempo, function) do
+    year = Keyword.get(time, :year)
+    month = Keyword.get(time, :month)
+    day = Keyword.get(time, :day)
+
+    iso_date =
+      if is_integer(year) and is_integer(month) and is_integer(day) do
+        with {:ok, date} <- Date.new(year, month, day, calendar_of(tempo)) do
+          {:ok, Date.convert!(date, Calendar.ISO)}
+        end
+      else
+        to_date(tempo)
+      end
+
+    case iso_date do
+      {:ok, %Date{} = date} ->
+        Date.day_of_week(date)
+
+      _ ->
+        raise ArgumentError,
+              "Tempo.#{function}/2 requires a value that denotes a day. " <>
+                "Got: #{inspect(tempo)}"
+    end
+  end
+
+  @doc """
   Return a multi-line prose explanation of any Tempo value —
   what it is, what it spans, and how to work with it.
 

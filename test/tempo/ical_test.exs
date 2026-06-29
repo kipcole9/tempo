@@ -137,7 +137,7 @@ defmodule Tempo.ICal.Test do
       assert Tempo.Interval.duration(iv) == ~o"PT86400S"
     end
 
-    test "timed event with no DTEND is a zero-duration point (RFC 5545 §3.6.1)" do
+    test "timed event with no DTEND materialises as a one-unit punctual span (RFC 5545 §3.6.1)" do
       import Tempo.Sigils
 
       ics = """
@@ -156,10 +156,69 @@ defmodule Tempo.ICal.Test do
       {:ok, set} = Tempo.ICal.from_ical(ics)
       [iv] = set.intervals
 
-      # The event ends at the same instant it starts: `to == from`,
-      # a zero-width half-open span — not widened by one unit.
-      assert iv.to.time == iv.from.time
-      assert Tempo.Interval.duration(iv) == ~o"PT0S"
+      # RFC 5545 calls this a zero-duration point, but Tempo's domain
+      # has no zero-extent intervals: the punctual event becomes the
+      # one-second span [09:00:00, 09:00:01) and is tagged punctual.
+      assert iv.from.time == [year: 2022, month: 7, day: 4, hour: 9, minute: 0, second: 0]
+      assert iv.to.time == [year: 2022, month: 7, day: 4, hour: 9, minute: 0, second: 1]
+      assert Tempo.Interval.duration(iv) == ~o"PT1S"
+      assert iv.metadata.punctual == true
+      refute Tempo.Interval.empty?(iv)
+    end
+
+    test "an explicit DTEND equal to DTSTART is also materialised, not zero-extent" do
+      import Tempo.Sigils
+
+      ics = """
+      BEGIN:VCALENDAR
+      VERSION:2.0
+      PRODID:-//Test//EN
+      BEGIN:VEVENT
+      UID:explicit-equal
+      DTSTAMP:20220101T000000Z
+      DTSTART:20220704T090000Z
+      DTEND:20220704T090000Z
+      SUMMARY:Marker
+      END:VEVENT
+      END:VCALENDAR
+      """
+
+      {:ok, set} = Tempo.ICal.from_ical(ics)
+      [iv] = set.intervals
+
+      # The same chokepoint catches an explicit zero-duration DTEND.
+      assert Tempo.Interval.duration(iv) == ~o"PT1S"
+      assert iv.metadata.punctual == true
+      refute Tempo.Interval.empty?(iv)
+    end
+
+    test "no imported interval is ever zero-extent (the domain invariant holds)" do
+      # A calendar mixing a punctual reminder with a normal meeting must
+      # never yield a degenerate interval — the invariant the interval
+      # domain (and the set operations built on it) relies on.
+      ics = """
+      BEGIN:VCALENDAR
+      VERSION:2.0
+      PRODID:-//Test//EN
+      BEGIN:VEVENT
+      UID:reminder
+      DTSTAMP:20220101T000000Z
+      DTSTART:20220704T090000Z
+      SUMMARY:Reminder
+      END:VEVENT
+      BEGIN:VEVENT
+      UID:meeting
+      DTSTAMP:20220101T000000Z
+      DTSTART:20220704T100000Z
+      DTEND:20220704T110000Z
+      SUMMARY:Meeting
+      END:VEVENT
+      END:VCALENDAR
+      """
+
+      {:ok, set} = Tempo.ICal.from_ical(ics)
+
+      refute Enum.any?(set.intervals, &Tempo.Interval.empty?/1)
     end
 
     test "overlapping events are preserved (no coalesce)" do

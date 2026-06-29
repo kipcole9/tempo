@@ -10,6 +10,12 @@
 
 * `Tempo.shift/2` now accepts a `Tempo.Duration` directly (`Tempo.shift(~o"2026", ~o"P2Y")`), in addition to the keyword-list form; both delegate to `Tempo.Math.add/2`.
 
+* `Tempo.weekend?/2` and `Tempo.workday?/2` classify a day against a territory's weekend (`weekend?(~o"2026-06-12", :SA)` is `true`, `:US` is `false`). Weekend days come from CLDR via `Localize.Calendar.weekend/1`; the day of week from `Date.day_of_week/1`.
+
+### Fixed
+
+* iCal import no longer produces zero-extent intervals. A punctual event (RFC 5545 §3.6.1 zero-duration, or an explicit `DTEND == DTSTART`) now materialises as the one-unit implicit span of its start, tagged `metadata: %{punctual: true}`, upholding the domain's no-degenerate-interval invariant through set operations.
+
 ## [v0.9.0] — 2026-06-29
 
 ### Added

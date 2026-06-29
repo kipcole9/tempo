@@ -433,8 +433,30 @@ if Code.ensure_loaded?(ICal) do
     defp single_event_to_interval(%ICal.Event{} = event) do
       with {:ok, from} <- dtstart_to_tempo(event.dtstart),
            {:ok, to} <- dtend_to_tempo(event, from) do
-        metadata = event_metadata(event)
+        {from, to, metadata} = ensure_non_degenerate(from, to, event_metadata(event))
         {:ok, %Interval{from: from, to: to, metadata: metadata}}
+      end
+    end
+
+    # RFC 5545 §3.6.1 lets a timed event carry zero duration (a point) —
+    # an instant-model artefact. Tempo's interval domain excludes
+    # zero-extent intervals (Grüninger & Li's `T_bounded_meeting`: an
+    # interval is never returned with zero extent), and building one via
+    # the `%Interval{}` struct would smuggle a value past
+    # `Tempo.Interval.new/1`'s guard and into set operations. A punctual
+    # event is therefore materialised as the one-unit implicit span of
+    # its start — the smallest span containing the instant — and tagged
+    # `punctual: true` so the instantaneous origin is not lost. This
+    # covers both the no-DTEND case and an explicit `DTEND == DTSTART`.
+    defp ensure_non_degenerate(from, to, metadata) do
+      case Tempo.Compare.compare_endpoints(from, to) do
+        :same ->
+          {unit, _span} = Tempo.resolution(from)
+          widened = Tempo.Math.add_unit(from, unit, from.calendar)
+          {from, widened, Map.put(metadata, :punctual, true)}
+
+        _earlier_or_later ->
+          {from, to, metadata}
       end
     end
 
@@ -474,9 +496,10 @@ if Code.ensure_loaded?(ICal) do
 
     defp dtend_to_tempo(%ICal.Event{dtend: nil, duration: nil}, from) do
       # Timed event (DATE-TIME DTSTART) with neither DTEND nor
-      # DURATION. RFC 5545 §3.6.1: the event ends on the same date
-      # and time of day as DTSTART — a zero-duration point. Under the
-      # half-open `[from, to)` convention that is `to == from`.
+      # DURATION. RFC 5545 §3.6.1: the event ends on the same date and
+      # time of day as DTSTART — a zero-duration point (`to == from`).
+      # `ensure_non_degenerate/3` then widens this punctual value to the
+      # one-unit span the interval domain requires.
       {:ok, from}
     end
 

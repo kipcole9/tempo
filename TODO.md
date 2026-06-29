@@ -25,7 +25,13 @@
 
 * Find a way to express:
   * Astro events (Easter, New Moon, ....)
-  * Workdays versus Weekends (different per locale)
+  * ~~Workdays versus Weekends (different per locale)~~ **Done.**
+    `Tempo.weekend?/2` and `Tempo.workday?/2` classify a day against a
+    territory's CLDR weekend (via `Localize.Calendar.weekend/1`), using
+    `Date.day_of_week/1` for the ISO day number. Complements the
+    existing `Tempo.weekend/1` and `Tempo.workdays/1` recurrence
+    selectors. Business-day arithmetic (add/count working days across
+    an interval) is the natural next step.
 
 * Resolve the tension in `Enumerable.Tempo.IntervalSet` semantics. An
   IntervalSet can sensibly be enumerated two ways, and we currently
@@ -185,8 +191,14 @@
 
   Reference: [Tempo vs. other interval-algebra libraries](papers/library-comparisons.md#what-tempo-could-learn).
 
-* **iCal import of zero-duration events vs. the no-degenerate-intervals
-  domain.**
+* ~~**iCal import of zero-duration events vs. the no-degenerate-intervals
+  domain.**~~ **Resolved** — punctual events materialise at DTSTART's
+  one-unit implicit span (the "materialise" option below), tagged
+  `metadata: %{punctual: true}`. The widening happens at a single
+  construction chokepoint (`ensure_non_degenerate/3` in `lib/ical.ex`),
+  so it also catches an explicit `DTEND == DTSTART`; no zero-extent
+  interval can reach a `%Tempo.Interval{}` or a set operation. The
+  analysis below is kept for context.
 
   The iCal importer now follows RFC 5545 §3.6.1 for events with no
   `DTEND`/`DURATION`: a `DATE-TIME` `DTSTART` becomes a zero-duration
@@ -198,12 +210,12 @@
   event currently survives import and (empirically) a `union`.
 
   This is in direct tension with a *deliberate* ontological commitment,
-  not an accident. Reviewing the TIME 2026 paper confirms the intent:
+  not an accident. Reviewing the TIME 2027 paper confirms the intent:
   Tempo follows Grüninger & Li's $T_{bounded\_meeting}$, which **excludes
   degenerate (zero-extent) intervals from the domain** — "intervals are
   the only entities", points are deliberately avoided, and
   "an interval is never returned with zero extent". See
-  [papers/time-2026/extended-abstract-body.tex](papers/time-2026/extended-abstract-body.tex)
+  [papers/time-2027/extended-abstract-body.tex](papers/time-2027/extended-abstract-body.tex)
   §"Set operations on intervals and interval sets" (the
   `T_bounded_meeting` exclusion at lines 242–247) and the
   point-avoidance rationale at lines 276–280. The v0.7.0 changelog entry
