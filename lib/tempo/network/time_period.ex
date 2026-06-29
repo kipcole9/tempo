@@ -84,10 +84,17 @@ defmodule Tempo.Network.TimePeriod do
 
   ### Bound specifications
 
-  A date value may be a `t:Tempo.t/0`, an EDTF/ISO 8601 string
-  (`"1200Y"`, `"-664Y"`), or a bare integer year. A duration value may
-  be a `t:Tempo.Duration.t/0`, an ISO 8601 duration string (`"P20Y"`),
-  or a bare integer number of years.
+  A date value is a `t:Tempo.t/0` — idiomatically a sigil literal such
+  as `~o"1200Y"`, `~o"-664Y"`, or `~o"1200-06-15"`. As a year-grained
+  convenience an EDTF/ISO 8601 string (`"1200Y"`) or a bare integer year
+  (`1200`, `-664` for BCE) is also accepted and normalised to the
+  corresponding Tempo value.
+
+  A duration value is a `t:Tempo.Duration.t/0` (`~o"P20Y"`); an ISO 8601
+  duration string (`"P20Y"`) or a bare integer number of years is
+  likewise accepted.
+
+  All bounds are stored, and returned, as Tempo values.
 
   ### Returns
 
@@ -95,11 +102,11 @@ defmodule Tempo.Network.TimePeriod do
 
   ### Examples
 
-      iex> period = Tempo.Network.TimePeriod.new(:k1, name: "King 1", start: {:not_before, 1200})
-      iex> {period.id, period.name, Tempo.Network.TimePeriod.year(period.earliest_start)}
-      {:k1, "King 1", 1200}
+      iex> period = Tempo.Network.TimePeriod.new(:k1, name: "King 1", start: {:not_before, ~o"1200Y"})
+      iex> {period.id, period.name, period.earliest_start}
+      {:k1, "King 1", ~o"1200Y"}
 
-      iex> period = Tempo.Network.TimePeriod.new(:s1, duration: {:at_least, 20})
+      iex> period = Tempo.Network.TimePeriod.new(:s1, duration: {:at_least, ~o"P20Y"})
       iex> period.min_duration
       ~o"P20Y"
 

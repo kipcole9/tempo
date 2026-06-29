@@ -39,7 +39,7 @@ defmodule Tempo.Network.Solver do
   ### Examples
 
       iex> Tempo.Network.new()
-      ...> |> Tempo.Network.add_period(:k, start: 1200, end: 1180)
+      ...> |> Tempo.Network.add_period(:k, start: ~o"1200Y", end: ~o"1180Y")
       ...> |> Tempo.Network.Solver.consistent?()
       false
 
@@ -70,12 +70,12 @@ defmodule Tempo.Network.Solver do
 
       iex> {:ok, tightened} =
       ...>   Tempo.Network.new()
-      ...>   |> Tempo.Network.add_period(:k1, start: 1200, duration: {:at_least, 20})
-      ...>   |> Tempo.Network.add_period(:k2, duration: {:at_least, 35})
+      ...>   |> Tempo.Network.add_period(:k1, start: ~o"1200Y", duration: {:at_least, ~o"P20Y"})
+      ...>   |> Tempo.Network.add_period(:k2, duration: {:at_least, ~o"P35Y"})
       ...>   |> Tempo.Network.add_sequence([:k1, :k2])
       ...>   |> Tempo.Network.Solver.tighten()
-      iex> Tempo.Network.TimePeriod.year(tightened.periods[:k2].earliest_end)
-      1255
+      iex> tightened.periods[:k2].earliest_end
+      ~o"1255Y"
 
   """
   @spec tighten(Network.t()) :: {:ok, Network.t()} | {:error, :inconsistent}
@@ -128,12 +128,12 @@ defmodule Tempo.Network.Solver do
 
       iex> {:ok, trace} =
       ...>   Tempo.Network.new()
-      ...>   |> Tempo.Network.add_period(:k1, start: {:not_before, 1200}, duration: {:at_least, 20})
-      ...>   |> Tempo.Network.add_period(:k2, duration: {:at_least, 35})
+      ...>   |> Tempo.Network.add_period(:k1, start: {:not_before, ~o"1200Y"}, duration: {:at_least, ~o"P20Y"})
+      ...>   |> Tempo.Network.add_period(:k2, duration: {:at_least, ~o"P35Y"})
       ...>   |> Tempo.Network.add_sequence([:k1, :k2])
       ...>   |> Tempo.Network.Solver.trace({:end, :k2})
-      iex> Tempo.Network.TimePeriod.year(trace.value)
-      1255
+      iex> trace.value
+      ~o"1255Y"
 
   """
   @spec trace(Network.t(), {:start | :end, term()}, keyword()) ::

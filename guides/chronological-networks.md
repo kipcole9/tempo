@@ -20,30 +20,33 @@ You state what you know. Tempo works out what that *implies*.
 
 ## 2. Stating what you know
 
-A period's start, end, and duration are each stated independently, and each can be exact, one-sided, a range, or simply unknown:
+Dates and durations are ordinary Tempo values, written with the `~o` sigil: a year is `~o"1200Y"` (`~o"-664Y"` for BCE), a precise day `~o"1200-06-15"`, a duration `~o"P20Y"`. A period's start, end, and duration are each stated independently, and each can be exact, one-sided, a range, or simply unknown:
 
 ```elixir
+import Tempo.Sigils
 alias Tempo.Network
 
 network =
   Network.new()
   # "King K1's reign began no earlier than 1200 and lasted at most 10 years."
-  |> Network.add_period(:k1, name: "King K1", start: {:not_before, 1200}, duration: {:at_most, 10})
+  |> Network.add_period(:k1, name: "King K1", start: {:not_before, ~o"1200Y"}, duration: {:at_most, ~o"P10Y"})
   # "King K2's reign ended by 1300 and lasted at least 35 years."
-  |> Network.add_period(:k2, name: "King K2", end: {:not_after, 1300}, duration: {:at_least, 35})
+  |> Network.add_period(:k2, name: "King K2", end: {:not_after, ~o"1300Y"}, duration: {:at_least, ~o"P35Y"})
 ```
 
 The vocabulary mirrors how an archaeologist actually speaks:
 
 | You want to say | You write |
 |---|---|
-| "exactly 664 BCE" | `start: -664` |
-| "no earlier than 1200" | `start: {:not_before, 1200}` |
-| "no later than 1300" | `end: {:not_after, 1300}` |
-| "between 1200 and 1250" | `start: {1200, 1250}` |
-| "lasted at least 20 years" | `duration: {:at_least, 20}` |
-| "lasted 20 to 100 years" | `duration: {20, 100}` |
-| "circa 720 (`~720`)" | `start: "~720"` *(the `~` is kept as a note; it does not move the date)* |
+| "exactly 664 BCE" | `start: ~o"-664Y"` |
+| "no earlier than 1200" | `start: {:not_before, ~o"1200Y"}` |
+| "no later than 1300" | `end: {:not_after, ~o"1300Y"}` |
+| "between 1200 and 1250" | `start: {~o"1200Y", ~o"1250Y"}` |
+| "lasted at least 20 years" | `duration: {:at_least, ~o"P20Y"}` |
+| "lasted 20 to 100 years" | `duration: {~o"P20Y", ~o"P100Y"}` |
+| "circa 720 (`~720`)" | `start: ~o"~720Y"` *(the `~` is kept as a note; it does not move the date)* |
+
+A bare integer year (`1200`, `-664`) and an ISO 8601 string are also accepted as shorthands for year-grained work, but the `~o` form is the idiom — and it is what every bound is stored and returned as.
 
 > *"K1 began no earlier than 1200 and reigned at most 10 years; K2 ended by 1300 and reigned at least 35."*
 
@@ -52,14 +55,15 @@ The vocabulary mirrors how an archaeologist actually speaks:
 The paper's worked example. In the Kingdom of ChronoLand, kings **K1** then **K2** reigned in succession, both between 1200 and 1300 CE; K1 reigned at most 10 years and K2 at least 35. Two strata follow one another: **S1** (built by K1, who founded the city) and **S2** (destroyed by fire under K2). Each stratum lasted 20 to 100 years.
 
 ```elixir
+import Tempo.Sigils
 alias Tempo.Network
 
 chronoland =
   Network.new()
-  |> Network.add_period(:k1, name: "King K1", start: {:not_before, 1200}, duration: {:at_most, 10})
-  |> Network.add_period(:k2, name: "King K2", end: {:not_after, 1300}, duration: {:at_least, 35})
-  |> Network.add_period(:s1, name: "Stratum S1", duration: {20, 100})
-  |> Network.add_period(:s2, name: "Stratum S2", duration: {20, 100})
+  |> Network.add_period(:k1, name: "King K1", start: {:not_before, ~o"1200Y"}, duration: {:at_most, ~o"P10Y"})
+  |> Network.add_period(:k2, name: "King K2", end: {:not_after, ~o"1300Y"}, duration: {:at_least, ~o"P35Y"})
+  |> Network.add_period(:s1, name: "Stratum S1", duration: {~o"P20Y", ~o"P100Y"})
+  |> Network.add_period(:s2, name: "Stratum S2", duration: {~o"P20Y", ~o"P100Y"})
   |> Network.add_sequence([:k1, :k2])
   |> Network.add_sequence([:s1, :s2])
   |> Network.add_relation(:starts_during, :s1, :k1)
@@ -81,9 +85,12 @@ Tempo.Network.Solver.consistent?(chronoland)
 
 ```elixir
 {:ok, solved} = Tempo.Network.Solver.tighten(chronoland)
+
+solved.periods[:k2].earliest_end
+#=> ~o"1240Y"
 ```
 
-The strata, which had *no dates at all* as input, now have them — derived purely from the relations:
+Every bound comes back as a Tempo value. The strata, which had *no dates at all* as input, now have them — derived purely from the relations:
 
 | Period | Start | End | Duration |
 |---|---|---|---|
@@ -124,21 +131,22 @@ The network says **no**: if S2 had begun during K1's reign, that reign would hav
 When dates *are* known, the same machinery confirms them — and fills in any you left out. The Egyptian 26th dynasty (after Kitchen 2000) is six reigns in succession. Give only the anchor (Psammetichus I acceded in 664 BCE) and each reign's length, and Tempo derives every date:
 
 ```elixir
+import Tempo.Sigils
 alias Tempo.Network
 
 dynasty =
   Network.new()
-  |> Network.add_period(:psammetichus_i, start: -664, duration: 54)
-  |> Network.add_period(:necho_ii, duration: 15)
-  |> Network.add_period(:psammetichus_ii, duration: 6)
-  |> Network.add_period(:apries, duration: 19)
-  |> Network.add_period(:amasis_ii, duration: 44)
-  |> Network.add_period(:psammetichus_iii, duration: 1)
+  |> Network.add_period(:psammetichus_i, start: ~o"-664Y", duration: ~o"P54Y")
+  |> Network.add_period(:necho_ii, duration: ~o"P15Y")
+  |> Network.add_period(:psammetichus_ii, duration: ~o"P6Y")
+  |> Network.add_period(:apries, duration: ~o"P19Y")
+  |> Network.add_period(:amasis_ii, duration: ~o"P44Y")
+  |> Network.add_period(:psammetichus_iii, duration: ~o"P1Y")
   |> Network.add_sequence([:psammetichus_i, :necho_ii, :psammetichus_ii, :apries, :amasis_ii, :psammetichus_iii])
 
 {:ok, solved} = Tempo.Network.Solver.tighten(dynasty)
-Tempo.Network.TimePeriod.year(solved.periods[:amasis_ii].earliest_start)
-#=> -570
+solved.periods[:amasis_ii].earliest_start
+#=> ~o"-570Y"
 ```
 
 > *"Amasis II acceded in 570 BCE — not stated, but forced by the anchor and the five reigns before it."* Negative years are BCE throughout.

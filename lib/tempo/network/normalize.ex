@@ -62,7 +62,7 @@ defmodule Tempo.Network.Normalize do
 
       iex> network =
       ...>   Tempo.Network.new()
-      ...>   |> Tempo.Network.add_period(:k1, start: 1200, duration: {:at_least, 20})
+      ...>   |> Tempo.Network.add_period(:k1, start: ~o"1200Y", duration: {:at_least, ~o"P20Y"})
       iex> normalized = Tempo.Network.Normalize.normalize(network)
       iex> normalized.unit
       :year

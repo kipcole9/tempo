@@ -89,9 +89,9 @@ defmodule Tempo.Network do
 
   ### Examples
 
-      iex> network = Tempo.Network.new() |> Tempo.Network.add_period(:k1, start: {:not_before, 1200})
-      iex> Tempo.Network.TimePeriod.year(network.periods[:k1].earliest_start)
-      1200
+      iex> network = Tempo.Network.new() |> Tempo.Network.add_period(:k1, start: {:not_before, ~o"1200Y"})
+      iex> network.periods[:k1].earliest_start
+      ~o"1200Y"
 
   """
   @spec add_period(t(), term(), keyword()) :: t()

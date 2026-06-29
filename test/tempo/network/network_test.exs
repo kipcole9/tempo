@@ -11,10 +11,24 @@ defmodule Tempo.NetworkTest do
   doctest Tempo.Network
 
   describe "TimePeriod.new/2 bound specifications" do
+    test "Tempo values are the idiomatic form, and bounds are stored as Tempo values" do
+      period =
+        TimePeriod.new(:k1,
+          start: {:not_before, ~o"1200Y"},
+          end: {~o"1300Y", ~o"1350Y"},
+          duration: {:at_least, ~o"P20Y"}
+        )
+
+      assert period.earliest_start == ~o"1200Y"
+      assert period.earliest_end == ~o"1300Y"
+      assert period.latest_end == ~o"1350Y"
+      assert period.min_duration == ~o"P20Y"
+    end
+
     test "an exact start fixes both start bounds" do
-      period = TimePeriod.new(:k1, start: 1200)
-      assert TimePeriod.year(period.earliest_start) == 1200
-      assert TimePeriod.year(period.latest_start) == 1200
+      period = TimePeriod.new(:k1, start: ~o"1200Y")
+      assert period.earliest_start == ~o"1200Y"
+      assert period.latest_start == ~o"1200Y"
     end
 
     test "a range start sets the lower and upper bounds" do
