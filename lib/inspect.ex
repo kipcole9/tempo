@@ -326,65 +326,6 @@ defmodule Tempo.Inspect do
     ]
   end
 
-  @qualifiable_units [
-    :year,
-    :month,
-    :day,
-    :day_of_year,
-    :week,
-    :day_of_week,
-    :hour,
-    :minute,
-    :second
-  ]
-
-  # ISO 8601-2 §8.2.4: when every present component carries the same
-  # qualifier, prefer the compact *complete* form (one trailing
-  # qualifier) over per-component qualifiers — `2004%Y6%M11%D` reduces
-  # to `2004Y6M11D%`. The explicit (designator) output form has no
-  # *group* representation, so complete is the only available collapse.
-  defp canonical_qualifications(%Tempo{
-         qualification: nil,
-         qualifications: qualifications,
-         time: time
-       })
-       when is_map(qualifications) and map_size(qualifications) > 0 do
-    present = for {unit, _value} <- time, unit in @qualifiable_units, do: unit
-    values = Enum.map(present, &Map.get(qualifications, &1))
-
-    if present != [] and map_size(qualifications) == length(present) and
-         match?([_single], Enum.uniq(values)) and hd(values) != nil do
-      {hd(values), nil}
-    else
-      {nil, qualifications}
-    end
-  end
-
-  defp canonical_qualifications(%Tempo{
-         qualification: qualification,
-         qualifications: qualifications
-       }) do
-    {qualification, qualifications}
-  end
-
-  # ISO 8601-2 §8.3 explicit component qualification: tag each unit
-  # that carries a per-component qualifier with a `{:q, value, q}`
-  # marker so the leaf renderer can emit the qualifier between the
-  # value and its designator (`2004~Y`). The `{unit, _}` shape is
-  # preserved so the list-walking clauses still route correctly.
-  defp apply_qualifications(time, nil), do: time
-  defp apply_qualifications(time, qualifications) when qualifications == %{}, do: time
-
-  defp apply_qualifications(time, qualifications) do
-    Enum.map(time, fn
-      {unit, value} when is_map_key(qualifications, unit) ->
-        {unit, {:q, value, Map.fetch!(qualifications, unit)}}
-
-      other ->
-        other
-    end)
-  end
-
   defp inspect_value(%Tempo.Set{set: set, type: type}) do
     elements = Enum.map_join(set, ",", &inspect_value/1)
 
@@ -636,6 +577,65 @@ defmodule Tempo.Inspect do
   defp inspect_value({:interval, interval}), do: inspect_value(interval)
   defp inspect_value({:duration, duration}), do: inspect_value(duration)
   defp inspect_value(:undefined), do: ".."
+
+  @qualifiable_units [
+    :year,
+    :month,
+    :day,
+    :day_of_year,
+    :week,
+    :day_of_week,
+    :hour,
+    :minute,
+    :second
+  ]
+
+  # ISO 8601-2 §8.2.4: when every present component carries the same
+  # qualifier, prefer the compact *complete* form (one trailing
+  # qualifier) over per-component qualifiers — `2004%Y6%M11%D` reduces
+  # to `2004Y6M11D%`. The explicit (designator) output form has no
+  # *group* representation, so complete is the only available collapse.
+  defp canonical_qualifications(%Tempo{
+         qualification: nil,
+         qualifications: qualifications,
+         time: time
+       })
+       when is_map(qualifications) and map_size(qualifications) > 0 do
+    present = for {unit, _value} <- time, unit in @qualifiable_units, do: unit
+    values = Enum.map(present, &Map.get(qualifications, &1))
+
+    if present != [] and map_size(qualifications) == length(present) and
+         match?([_single], Enum.uniq(values)) and hd(values) != nil do
+      {hd(values), nil}
+    else
+      {nil, qualifications}
+    end
+  end
+
+  defp canonical_qualifications(%Tempo{
+         qualification: qualification,
+         qualifications: qualifications
+       }) do
+    {qualification, qualifications}
+  end
+
+  # ISO 8601-2 §8.3 explicit component qualification: tag each unit
+  # that carries a per-component qualifier with a `{:q, value, q}`
+  # marker so the leaf renderer can emit the qualifier between the
+  # value and its designator (`2004~Y`). The `{unit, _}` shape is
+  # preserved so the list-walking clauses still route correctly.
+  defp apply_qualifications(time, nil), do: time
+  defp apply_qualifications(time, qualifications) when qualifications == %{}, do: time
+
+  defp apply_qualifications(time, qualifications) do
+    Enum.map(time, fn
+      {unit, value} when is_map_key(qualifications, unit) ->
+        {unit, {:q, value, Map.fetch!(qualifications, unit)}}
+
+      other ->
+        other
+    end)
+  end
 
   defp inspect_shift(nil),
     do: ""
