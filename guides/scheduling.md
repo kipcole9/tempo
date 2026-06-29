@@ -165,6 +165,33 @@ There are cases where you **want** the UTC instant frozen — a CI build that mu
 
 **Don't cache UTC. Don't cache DST. Tempo doesn't, and the reason you trust this library over rolling your own is exactly this discipline.**
 
+## 5. Dependency scheduling (the critical path)
+
+The sections above schedule *recurrences* — a rule repeated over a window. A different question is scheduling *a plan of dependent tasks*: "design takes 2 days, then build (3 days) and docs (1 day) can run, then ship (2 days) needs both — when does each run, and what's due by the deadline?" That's the critical path method, and `Tempo.Schedule` solves it directly (it's the same Simple Temporal Problem `Tempo.Network` already solves — tasks are periods, dependencies are boundary relations).
+
+```elixir
+{:ok, plan} =
+  Tempo.Schedule.new()
+  |> Tempo.Schedule.task(:design, duration: ~o"P2D", start: ~o"2026-06-01")
+  |> Tempo.Schedule.task(:build, duration: ~o"P3D", after: :design)
+  |> Tempo.Schedule.task(:docs, duration: ~o"P1D", after: :design)
+  |> Tempo.Schedule.task(:ship, duration: ~o"P2D", after: [:build, :docs], deadline: ~o"2026-06-08")
+  |> Tempo.Schedule.solve()
+
+plan[:ship].start                 #=> ~o"2026Y6M6D"
+plan[:docs].critical?             #=> false   (docs has slack)
+Tempo.Schedule.critical_path(plan) #=> [:design, :build, :ship]
+Tempo.Schedule.span(plan)          #=> the project interval, 06-01 .. 06-08
+```
+
+> *"Design, then build and docs in parallel, then ship — due the 8th. Ship starts on the 6th; docs has slack and isn't on the critical path; the project runs design → build → ship."*
+
+Each task carries a `:duration` (exact or a `{min, max}` range) and optional `:after` dependencies (finish-to-start — a successor starts no earlier than its predecessors finish). Bounds come from `:start` (a fixed anchor), `:earliest`, `:deadline`, or a `:within` window. `solve/1` returns a `%Tempo.Schedule.Slot{}` per task with its early and late positions; `critical?` is true when a task has zero slack. An over-tight deadline or a dependency cycle returns `{:error, :infeasible}`.
+
+### What this is not
+
+Scheduling *around* a busy calendar — "drop this task into the first free gap" — is a disjunctive problem (before *or* after each existing meeting) that the Simple Temporal Problem can't express. For that, compute the free regions with the set operations (`Tempo.difference/2`) and discretise them with `Tempo.IntervalSet.slots/3` (see [set operations](./set-operations.md) and [the cookbook](./cookbook.md)). `Tempo.Schedule` is for *dependency* scheduling, where constraints compose by conjunction.
+
 ## Putting it together
 
 A practical scheduling layer built on Tempo looks like:

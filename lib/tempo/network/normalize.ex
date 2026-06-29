@@ -109,11 +109,17 @@ defmodule Tempo.Network.Normalize do
   """
   @spec finest_unit(Network.t()) :: atom()
   def finest_unit(%Network{} = network) do
-    network.periods
-    |> Map.values()
-    |> Enum.flat_map(&date_bounds/1)
-    |> Enum.map(&unit_of/1)
-    |> Enum.max_by(&unit_rank/1, fn -> :year end)
+    periods = Map.values(network.periods)
+
+    date_units = periods |> Enum.flat_map(&date_bounds/1) |> Enum.map(&unit_of/1)
+
+    # A relative network may carry no dates at all — only durations and
+    # relations. Its durations then fix the axis, so a schedule of
+    # day-length tasks measures in days rather than collapsing onto the
+    # default year axis (where a `P1D` duration would round to zero).
+    duration_units = periods |> Enum.flat_map(&duration_units/1)
+
+    Enum.max_by(date_units ++ duration_units, &unit_rank/1, fn -> :year end)
   end
 
   # --- period → constraints --------------------------------------
@@ -203,6 +209,16 @@ defmodule Tempo.Network.Normalize do
   defp unit_of(%Tempo{} = value) do
     {unit, _factor} = Tempo.resolution(value)
     unit
+  end
+
+  # The finest unit present in a period's duration bounds (each a
+  # `Tempo.Duration` whose `time` keyword list names its components).
+  defp duration_units(period) do
+    [period.min_duration, period.max_duration]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.map(fn %Tempo.Duration{time: time} ->
+      Enum.find(Enum.reverse(@unit_order), :year, &Keyword.has_key?(time, &1))
+    end)
   end
 
   defp unit_rank(unit), do: Enum.find_index(@unit_order, &(&1 == unit)) || 0
