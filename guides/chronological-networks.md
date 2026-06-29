@@ -126,30 +126,41 @@ Tempo.Network.Solver.consistent?(hypothesis)
 
 The network says **no**: if S2 had begun during K1's reign, that reign would have had to contain the whole of S1 *and* the start of S2 — at least 20 years — which exceeds K1's 10-year maximum. A conclusion that was far from obvious by eye.
 
-## 6. A worked absolute chronology
+## 6. When you don't need a network
 
-When dates *are* known, the same machinery confirms them — and fills in any you left out. The Egyptian 26th dynasty (after Kitchen 2000) is six reigns in succession. Give only the anchor (Psammetichus I acceded in 664 BCE) and each reign's length, and Tempo derives every date:
+A network earns its keep when something is *uncertain* or the structure is *not a simple line*. When neither is true — one anchor, exact durations, plain succession — you don't need it at all. You can just chain intervals.
+
+The Egyptian 26th dynasty (after Kitchen 2000) is six reigns in succession with known lengths, anchored at Psammetichus I's accession in 664 BCE. Each reign runs from its accession to its accession plus its length, and the next begins where the last ended:
 
 ```elixir
 import Tempo.Sigils
-alias Tempo.Network
 
-dynasty =
-  Network.new()
-  |> Network.add_period(:psammetichus_i, start: ~o"-664Y", duration: ~o"P54Y")
-  |> Network.add_period(:necho_ii, duration: ~o"P15Y")
-  |> Network.add_period(:psammetichus_ii, duration: ~o"P6Y")
-  |> Network.add_period(:apries, duration: ~o"P19Y")
-  |> Network.add_period(:amasis_ii, duration: ~o"P44Y")
-  |> Network.add_period(:psammetichus_iii, duration: ~o"P1Y")
-  |> Network.add_sequence([:psammetichus_i, :necho_ii, :psammetichus_ii, :apries, :amasis_ii, :psammetichus_iii])
+reigns = [
+  {"Psammetichus I", ~o"P54Y"},
+  {"Necho II", ~o"P15Y"},
+  {"Psammetichus II", ~o"P6Y"},
+  {"Apries", ~o"P19Y"},
+  {"Amasis II", ~o"P44Y"},
+  {"Psammetichus III", ~o"P1Y"}
+]
 
-{:ok, solved} = Tempo.Network.Solver.tighten(dynasty)
-solved.periods[:amasis_ii].earliest_start
-#=> ~o"-570Y"
+{reign_spans, _dynasty_end} =
+  Enum.map_reduce(reigns, ~o"-664Y", fn {_name, length}, accession ->
+    abdication = Tempo.Math.add(accession, length)
+    {Tempo.Interval.new!(from: accession, to: abdication), abdication}
+  end)
 ```
 
-> *"Amasis II acceded in 570 BCE — not stated, but forced by the anchor and the five reigns before it."* Negative years are BCE throughout.
+`reign_spans` is now the six reigns as intervals (Psammetichus I is `~o"-664Y/-610Y"`, and so on). Because Tempo's intervals are half-open, the consecutive reigns abut exactly, so collapsing them yields the dynasty as one span:
+
+```elixir
+reign_spans |> Tempo.IntervalSet.new!() |> Tempo.IntervalSet.coalesce()
+#=> #Tempo.IntervalSet<[~o"-664Y/-525Y"]>
+```
+
+> *"Six reigns, each starting where the last ended, collapse to a single 139-year dynasty from 664 to 525 BCE."* No network, no solver — just addition and the half-open convention.
+
+A network would give the identical answer, but it adds nothing here. Reach for `Tempo.Network` the moment a length becomes a *range*, a relation is anything other than succession, or you need to propagate from an anchor that isn't first — exactly the ChronoLand case in §3–5.
 
 ## 7. Uncertainty, honestly
 
