@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.10.1] — 2026-06-30
+
+### Fixes
+
+* Links to guides in README.md
+
 ## [v0.10.0] — 2026-06-30
 
 ### Added
