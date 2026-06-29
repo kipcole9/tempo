@@ -16,6 +16,8 @@
 
 * IXDTF offset/zone consistency (RFC 9557 §4.2): `Tempo.validate_zone_offset/1` flags a numeric offset that disagrees with its IANA zone, and `Tempo.from_iso8601/2` accepts `strict: true` to reject such a value at parse time. A DST fall-back offset is treated as disambiguation, not disagreement.
 
+* A pure time-of-day group now materialises to a non-anchored interval (`[hour: 16, minute: {:group, 1..15}]` → `[16:01, 16:16)`) instead of erroring, when its upper bound stays within the day. Date groups and end-of-day carries still require anchoring.
+
 ### Fixed
 
 * iCal import no longer produces zero-extent intervals. A punctual event (RFC 5545 §3.6.1 zero-duration, or an explicit `DTEND == DTSTART`) now materialises as the one-unit implicit span of its start, tagged `metadata: %{punctual: true}`, upholding the domain's no-degenerate-interval invariant through set operations.

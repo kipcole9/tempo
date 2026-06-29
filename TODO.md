@@ -271,8 +271,14 @@
   DTSTART's implicit span + metadata tag" now that the `from_elixir`
   precision blocker is fixed.
 
-* **Non-anchored time-of-day groups — error vs. materialise as a
-  relative span.**
+* ~~**Non-anchored time-of-day groups — error vs. materialise as a
+  relative span.**~~ **Done.** A *pure* time-of-day group (no date
+  components) now materialises to a **non-anchored** interval — e.g.
+  `[hour: 16, minute: {:group, 1..15}]` → `[16:01, 16:16)` — provided
+  the upper bound's carry stays within the present time units. A carry
+  off the end of the day (`23:45..`, no day to carry into), a date
+  group (`5G10DU`), and a partially-dated value still error. The result
+  lives on the time-of-day axis until anchored. Analysis below.
 
   `Tempo.to_interval/1` materialises a group (`{:group, first..last}`)
   to its enclosing span only when the value carries the contiguous

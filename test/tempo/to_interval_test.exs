@@ -237,6 +237,60 @@ defmodule Tempo.ToInterval.Test do
     end
   end
 
+  describe "non-anchored time-of-day groups materialise to a relative interval" do
+    defp group(time), do: %Tempo{calendar: Calendrical.Gregorian, time: time}
+
+    test "a minute group materialises to its relative span" do
+      {:ok, interval} = Tempo.to_interval(group(hour: 16, minute: {:group, 1..15}))
+      assert interval.from.time == [hour: 16, minute: 1]
+      assert interval.to.time == [hour: 16, minute: 16]
+    end
+
+    test "the result is non-anchored (lives on the time-of-day axis)" do
+      {:ok, interval} = Tempo.to_interval(group(hour: 16, minute: {:group, 1..15}))
+      refute Tempo.anchored?(interval.from)
+      refute Tempo.anchored?(interval.to)
+    end
+
+    test "the upper bound carries into the next hour" do
+      {:ok, interval} = Tempo.to_interval(group(hour: 16, minute: {:group, 45..59}))
+      assert interval.from.time == [hour: 16, minute: 45]
+      assert interval.to.time == [hour: 17, minute: 0]
+    end
+
+    test "a second group materialises" do
+      {:ok, interval} = Tempo.to_interval(group(hour: 16, minute: 30, second: {:group, 1..15}))
+      assert interval.from.time == [hour: 16, minute: 30, second: 1]
+      assert interval.to.time == [hour: 16, minute: 30, second: 16]
+    end
+
+    test "a bare minute group (no hour) materialises" do
+      {:ok, interval} = Tempo.to_interval(group(minute: {:group, 1..15}))
+      assert interval.from.time == [minute: 1]
+      assert interval.to.time == [minute: 16]
+    end
+
+    test "a carry off the end of the day still errors (no absent day to carry into)" do
+      assert {:error, %Tempo.MaterialisationError{reason: :unanchored_group}} =
+               Tempo.to_interval(group(hour: 23, minute: {:group, 45..59}))
+    end
+
+    test "a partially-dated value still requires anchoring" do
+      # A month with no year/day is not a pure time-of-day value.
+      assert {:error, %Tempo.MaterialisationError{reason: :unanchored_group}} =
+               Tempo.to_interval(group(month: 6, hour: 16, minute: {:group, 1..15}))
+    end
+
+    test "a fully anchored time-of-day group still produces an anchored interval" do
+      {:ok, interval} =
+        Tempo.to_interval(group(year: 2026, month: 6, day: 15, hour: 16, minute: {:group, 1..15}))
+
+      assert interval.from.time == [year: 2026, month: 6, day: 15, hour: 16, minute: 1]
+      assert interval.to.time == [year: 2026, month: 6, day: 15, hour: 16, minute: 16]
+      assert Tempo.anchored?(interval.from)
+    end
+  end
+
   describe "week / ordinal date duration (UTC projection)" do
     # `Compare.to_utc_seconds/1` must resolve week and ordinal dates to
     # a real calendar date; otherwise both endpoints collapse to Jan 1

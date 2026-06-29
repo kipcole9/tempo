@@ -424,20 +424,74 @@ defmodule Tempo.Interval do
   defp group_boundary(tempo, time, unit, first, last, calendar) do
     prefix = List.delete_at(time, -1)
 
-    case group_required_units(unit) do
-      units when is_list(units) ->
-        if Enum.all?(units, &Keyword.has_key?(prefix, &1)) do
-          lower_time = prefix ++ [{unit, first}]
-          upper_time = Math.add_unit(prefix ++ [{unit, last}], unit, calendar)
-          {:ok, build_bounds(tempo, lower_time, upper_time)}
-        else
-          {:error, Tempo.MaterialisationError.exception(value: tempo, reason: :unanchored_group)}
-        end
+    cond do
+      group_required_units(unit) == :not_a_group_unit ->
+        group_error(tempo)
 
-      :not_a_group_unit ->
-        {:error, Tempo.MaterialisationError.exception(value: tempo, reason: :unanchored_group)}
+      # Fully anchored: the carry chain up to year is satisfied.
+      anchored_prefix?(prefix, unit) ->
+        materialise_group(tempo, prefix, unit, first, last, calendar)
+
+      # A *pure* time-of-day group (no date components) materialises to
+      # a **non-anchored** interval — the relative span it denotes on
+      # the time-of-day axis (`16:01..16:16`) — provided the upper
+      # bound's carry stays within the present time units and cannot
+      # overflow into an absent day. The result lives on the
+      # time-of-day axis until anchored (see `guides/interop.md`); it
+      # cannot project to UTC, so `duration/1`, Allen comparison, and
+      # set operations require anchoring it first. Date groups and
+      # partially-dated values still require anchoring.
+      time_of_day_unit?(unit) and pure_time_of_day?(prefix) and
+          carry_safe?(prefix ++ [{unit, last}], unit) ->
+        materialise_group(tempo, prefix, unit, first, last, calendar)
+
+      true ->
+        group_error(tempo)
     end
   end
+
+  defp materialise_group(tempo, prefix, unit, first, last, calendar) do
+    lower_time = prefix ++ [{unit, first}]
+    upper_time = Math.add_unit(prefix ++ [{unit, last}], unit, calendar)
+    {:ok, build_bounds(tempo, lower_time, upper_time)}
+  end
+
+  defp anchored_prefix?(prefix, unit) do
+    Enum.all?(group_required_units(unit), &Keyword.has_key?(prefix, &1))
+  end
+
+  defp group_error(tempo) do
+    {:error, Tempo.MaterialisationError.exception(value: tempo, reason: :unanchored_group)}
+  end
+
+  defp time_of_day_unit?(unit), do: unit in [:hour, :minute, :second]
+
+  defp pure_time_of_day?(prefix) do
+    not Enum.any?([:year, :month, :day, :week], &Keyword.has_key?(prefix, &1))
+  end
+
+  # `Math.add_unit` carries when a unit is at its maximum; the carry
+  # needs the next-coarser unit present, recursively. For a pure
+  # time-of-day value the chain tops out at `:hour` → `:day`, so a carry
+  # off the top of the day (no `:day` present) is unsafe.
+  defp carry_safe?(time, unit) do
+    if Keyword.get(time, unit) < unit_max(unit) do
+      true
+    else
+      case coarser_time_unit(unit) do
+        :day -> false
+        coarser -> Keyword.has_key?(time, coarser) and carry_safe?(time, coarser)
+      end
+    end
+  end
+
+  defp unit_max(:hour), do: 23
+  defp unit_max(:minute), do: 59
+  defp unit_max(:second), do: 59
+
+  defp coarser_time_unit(:second), do: :minute
+  defp coarser_time_unit(:minute), do: :hour
+  defp coarser_time_unit(:hour), do: :day
 
   # The coarser units `add_unit`'s carry can reach from each unit.
   # Their presence guarantees the carry chain is well-defined, so

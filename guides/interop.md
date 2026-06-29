@@ -76,6 +76,8 @@ Two notes:
 
 * **A bare `Time` materialises non-anchored.** `~T[14:30:00]` becomes `T14H30M0S/T14H30M1S` — a one-second span on the *time-of-day* axis with no date. Operations that need an absolute position (duration in wall-clock seconds, cross-zone comparison) require anchoring it to a date first.
 
+* **A pure time-of-day group materialises non-anchored too.** A grouped time value with no date — for example the first quarter-hour `[hour: 16, minute: {:group, 1..15}]` — becomes the relative span `[16:01, 16:16)` on the time-of-day axis. The same anchoring caveat applies. A group whose upper bound would carry off the end of the day (`23:45..`, with no date to carry into) or any group with a date component (`5G10DU`) needs anchoring first and returns a `Tempo.MaterialisationError` until then.
+
 ## 3. Why the width matters
 
 This is the whole point of the interval model, and the place stdlib intuition trips up. Because each "instant" is really a half-open one-unit span, **two timestamps one second apart do not overlap — they meet at the shared boundary.**
