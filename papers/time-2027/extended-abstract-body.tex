@@ -395,11 +395,18 @@ The wider goal is to demonstrate, by existence proof, that the
 theoretical structure of temporal reasoning translates into an
 ordinary application library --- one that an engineer writes
 \texttt{Tempo.overlaps?(a, b)} into without thinking of it as a
-research artefact. The talk would walk through the design, the
-choices made, the choices still open, and invite the symposium to
-sharpen them.
+research artefact. The same primitive reaches beyond set algebra: a
+thin constraint layer reduces a network of partially known intervals to
+a Simple Temporal Problem~\cite{dechter1991}, reproducing the
+chronological-network model of Levy et al.~\cite{levy2020} --- realised
+in the ChronoLog tool~\cite{chronolog} --- as a library feature rather
+than a bespoke application.\footnote{Developed in a companion paper,
+  \emph{Chronological Networks as a Library Primitive: ChronoLog over an
+  Interval-Native Date/Time Stack}.} The talk would walk through the
+design, the choices made, the choices still open, and invite the
+symposium to sharpen them.
 
-\begin{thebibliography}{9}
+\begin{thebibliography}{18}
 
 \bibitem{allen1983}
   James F. Allen.
@@ -507,6 +514,23 @@ sharpen them.
   \emph{LIPIcs}, pages 13:1--13:15. Schloss
   Dagstuhl -- Leibniz-Zentrum f\"ur Informatik, 2023.
   \newblock \doi{10.4230/LIPIcs.TIME.2023.13}
+
+\bibitem{dechter1991}
+  Rina Dechter, Itay Meiri, and Judea Pearl.
+  \newblock Temporal constraint networks.
+  \newblock \emph{Artificial Intelligence}, 49(1--3):61--95, 1991.
+  \newblock \doi{10.1016/0004-3702(91)90006-6}
+
+\bibitem{levy2020}
+  Eythan Levy, Gilles Geeraerts, Fr\'ed\'eric Pluquet, Eli Piasetzky,
+  and Alexander Fantalkin.
+  \newblock Chronological networks in archaeology: A formalised scheme.
+  \newblock \emph{Journal of Archaeological Science}, 124:105225, 2020.
+  \newblock \doi{10.1016/j.jas.2020.105225}
+
+\bibitem{chronolog}
+  ChronoLog.
+  \newblock \url{http://chrono.ulb.be}.
 
 \end{thebibliography}
 
