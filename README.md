@@ -210,21 +210,21 @@ Either [`:tzdata`](https://hex.pm/packages/tzdata) or [`:tz`](https://hex.pm/pac
 
 ## Guides
 
-* [Cookbook](https://github.com/kipcole9/tempo/blob/v0.10.0/guides/cookbook.md) — recipe-format answers to common temporal questions.
-* [When to use Tempo](https://github.com/kipcole9/tempo/blob/v0.10.0/guides/when-to-use-tempo.md) — where the interval model earns its keep (and where it doesn't).
-* [Set operations](https://github.com/kipcole9/tempo/blob/v0.10.0/guides/set-operations.md) — union, intersection, complement, difference, predicates.
-* [Scheduling](https://github.com/kipcole9/tempo/blob/v0.10.0/guides/scheduling.md) — recurrence, free-busy availability, and dependency (critical-path) scheduling.
-* [Workdays and weekends](https://github.com/kipcole9/tempo/blob/v0.10.0/guides/workdays-and-weekends.md) — territory-aware business-day arithmetic.
-* [Chronological networks](https://github.com/kipcole9/tempo/blob/v0.10.0/guides/chronological-networks.md) — constraint reasoning over partially-known dates (the ChronoLog scheme).
-* [Holidays](https://github.com/kipcole9/tempo/blob/v0.10.0/guides/holidays.md) — composing a real holiday calendar with workday logic.
-* [iCalendar integration](https://github.com/kipcole9/tempo/blob/v0.10.0/guides/ical-integration.md) — importing `.ics` schedules with metadata preserved.
-* [Enumeration semantics](https://github.com/kipcole9/tempo/blob/v0.10.0/guides/enumeration-semantics.md) — iterating across Tempo values and interval sets.
-* [Interop](https://github.com/kipcole9/tempo/blob/v0.10.0/guides/interop.md) — anchored vs non-anchored values, and bridging native Elixir types.
-* [Pattern matching with sigils](https://github.com/kipcole9/tempo/blob/v0.10.0/guides/pattern-matching-with-sigils.md) — destructuring Tempo values in function heads.
-* [ISO 8601 conformance](https://github.com/kipcole9/tempo/blob/v0.10.0/guides/iso8601-conformance.md) — what's supported from the standards.
-* [RFC 5545 RRULE conformance](https://github.com/kipcole9/tempo/blob/v0.10.0/guides/rfc5545_rrule_conformance.md) — recurrence-rule coverage, property by property.
-* [Shared AST for ISO 8601 and RRULE](https://github.com/kipcole9/tempo/blob/v0.10.0/guides/shared-ast-iso8601-and-rrule.md) — the internal representation that unifies both.
-* [Temporal formalisms](https://github.com/kipcole9/tempo/blob/v0.10.0/guides/temporal-formalisms.md) — how Tempo relates to Allen's algebra and the time-ontology literature.
+* [Cookbook](https://hexdocs.pm/ex_tempo/cookbook.html) — recipe-format answers to common temporal questions.
+* [When to use Tempo](https://hexdocs.pm/ex_tempo/when-to-use-tempo.html) — where the interval model earns its keep (and where it doesn't).
+* [Set operations](https://hexdocs.pm/ex_tempo/set-operations.html) — union, intersection, complement, difference, predicates.
+* [Scheduling](https://hexdocs.pm/ex_tempo/scheduling.html) — recurrence, free-busy availability, and dependency (critical-path) scheduling.
+* [Workdays and weekends](https://hexdocs.pm/ex_tempo/workdays-and-weekends.html) — territory-aware business-day arithmetic.
+* [Chronological networks](https://hexdocs.pm/ex_tempo/chronological-networks.html) — constraint reasoning over partially-known dates (the ChronoLog scheme).
+* [Holidays](https://hexdocs.pm/ex_tempo/holidays.html) — composing a real holiday calendar with workday logic.
+* [iCalendar integration](https://hexdocs.pm/ex_tempo/ical-integration.html) — importing `.ics` schedules with metadata preserved.
+* [Enumeration semantics](https://hexdocs.pm/ex_tempo/enumeration-semantics.html) — iterating across Tempo values and interval sets.
+* [Interop](https://hexdocs.pm/ex_tempo/interop.html) — anchored vs non-anchored values, and bridging native Elixir types.
+* [Pattern matching with sigils](https://hexdocs.pm/ex_tempo/pattern-matching-with-sigils.html) — destructuring Tempo values in function heads.
+* [ISO 8601 conformance](https://hexdocs.pm/ex_tempo/iso8601-conformance.html) — what's supported from the standards.
+* [RFC 5545 RRULE conformance](https://hexdocs.pm/ex_tempo/rfc5545_rrule_conformance.html) — recurrence-rule coverage, property by property.
+* [Shared AST for ISO 8601 and RRULE](https://hexdocs.pm/ex_tempo/shared-ast-iso8601-and-rrule.html) — the internal representation that unifies both.
+* [Temporal formalisms](https://hexdocs.pm/ex_tempo/temporal-formalisms.html) — how Tempo relates to Allen's algebra and the time-ontology literature.
 
 ## Related links
 
