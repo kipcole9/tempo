@@ -691,6 +691,16 @@ slots =
 
 > Ada's free time is the workday **minus** her busy periods. Grace's is the same. **Mutual** free time is the **intersection** of theirs. **Slots** are the mutual windows **at least an hour** long.
 
+### List every bookable 1-hour slot two people share
+
+```elixir
+mutual                                  # the mutual free time from above
+|> Tempo.IntervalSet.slots(~o"PT1H")    # cut into back-to-back 1-hour slots
+|> Tempo.IntervalSet.to_list()
+```
+
+> Where the recipe above gives the free **windows**, `slots/2` cuts each window into the discrete **1-hour slots** a booking page would actually offer. Pass `every: ~o"PT30M"` to start a slot on every half-hour (overlapping), or a larger `:every` to leave gaps between offered times.
+
 ### Which of these candidate meeting times can I book?
 
 ```elixir

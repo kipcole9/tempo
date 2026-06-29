@@ -166,6 +166,88 @@ defmodule Tempo.IntervalSet do
   def count(%__MODULE__{intervals: intervals}), do: length(intervals)
 
   @doc """
+  Cut each member into consecutive fixed-length bookable slots.
+
+  Turns a region of free time into the discrete slots you could actually
+  book within it. Within each member interval, slots of length
+  `duration` are emitted starting at the member's start and spaced by
+  `:every` (a slot every `duration` by default — back-to-back,
+  non-overlapping); a slot is kept only if it fits entirely inside the
+  member. The members stay distinct (the result is *not* coalesced).
+
+  This is the discretising counterpart to the set operations: where
+  `difference`/`intersection` give you the free *regions*,
+  `slots/3` chops those regions into the fixed windows a booking UI
+  offers.
+
+  ### Arguments
+
+  * `set` is a `t:t/0` or a single `t:Tempo.Interval.t/0` (as returned
+    by a set operation on a connected result).
+
+  * `duration` is the slot length, a `t:Tempo.Duration.t/0`.
+
+  ### Options
+
+  * `:every` is the spacing between slot starts, a
+    `t:Tempo.Duration.t/0`. Defaults to `duration` (adjacent slots).
+    A smaller value yields overlapping slots; a larger value leaves
+    gaps. Must be positive.
+
+  ### Returns
+
+  * a `t:t/0` of the fitting slots, in order.
+
+  ### Examples
+
+      iex> work = Tempo.Interval.new!(from: ~o"2026-06-15T09:00:00", to: ~o"2026-06-15T12:00:00")
+      iex> work |> Tempo.IntervalSet.slots(~o"PT1H") |> Tempo.IntervalSet.count()
+      3
+
+      iex> work = Tempo.Interval.new!(from: ~o"2026-06-15T09:00:00", to: ~o"2026-06-15T12:00:00")
+      iex> work |> Tempo.IntervalSet.slots(~o"PT1H", every: ~o"PT30M") |> Tempo.IntervalSet.count()
+      5
+
+  """
+  @spec slots(t() | Interval.t(), Tempo.Duration.t(), keyword()) :: t()
+  def slots(set, duration, options \\ [])
+
+  def slots(%Interval{} = interval, duration, options) do
+    slots(%__MODULE__{intervals: [interval]}, duration, options)
+  end
+
+  def slots(%__MODULE__{intervals: intervals}, %Tempo.Duration{} = duration, options) do
+    every = Keyword.get(options, :every, duration)
+
+    intervals
+    |> Enum.flat_map(&interval_slots(&1, duration, every))
+    |> new!()
+  end
+
+  defp interval_slots(%Interval{from: from, to: to}, duration, every) do
+    collect_slots(from, to, duration, every, [])
+  end
+
+  defp collect_slots(slot_start, to, duration, every, acc) do
+    slot_end = Tempo.shift(slot_start, duration)
+
+    if Tempo.Compare.compare_endpoints(slot_end, to) in [:earlier, :same] do
+      slot = Interval.new!(from: slot_start, to: slot_end)
+      next_start = Tempo.shift(slot_start, every)
+
+      # Strictly advancing guarantees termination even if `:every` is
+      # non-positive — at worst a single slot is emitted.
+      if Tempo.Compare.compare_endpoints(next_start, slot_start) == :later do
+        collect_slots(next_start, to, duration, every, [slot | acc])
+      else
+        Enum.reverse([slot | acc])
+      end
+    else
+      Enum.reverse(acc)
+    end
+  end
+
+  @doc """
   Apply `fun` to each member interval and return the results as
   a plain list.
 

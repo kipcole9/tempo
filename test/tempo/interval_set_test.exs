@@ -310,6 +310,60 @@ defmodule Tempo.IntervalSet.Test do
     end
   end
 
+  describe "slots/3" do
+    test "cuts a single interval into back-to-back fixed-length slots" do
+      work = ~o"2026-06-15T09:00:00/2026-06-15T12:00:00"
+      slots = Tempo.IntervalSet.slots(work, ~o"PT1H")
+
+      assert Tempo.IntervalSet.count(slots) == 3
+
+      assert slots |> Tempo.IntervalSet.to_list() |> Enum.map(& &1.from.time[:hour]) ==
+               [9, 10, 11]
+    end
+
+    test "slots stay distinct (back-to-back, not coalesced)" do
+      work = ~o"2026-06-15T09:00:00/2026-06-15T11:00:00"
+      slots = Tempo.IntervalSet.slots(work, ~o"PT1H")
+
+      assert Tempo.IntervalSet.count(slots) == 2
+      [first, second] = Tempo.IntervalSet.to_list(slots)
+      assert first.to.time == second.from.time
+    end
+
+    test ":every spaces overlapping slots" do
+      work = ~o"2026-06-15T09:00:00/2026-06-15T12:00:00"
+      slots = Tempo.IntervalSet.slots(work, ~o"PT1H", every: ~o"PT30M")
+
+      # 09:00, 09:30, 10:00, 10:30, 11:00 — each a 1-hour slot inside [09, 12).
+      assert Tempo.IntervalSet.count(slots) == 5
+    end
+
+    test "a partial tail that does not fit is dropped" do
+      # [09:00, 10:40) holds one 1-hour slot; the 10:00–11:00 slot overflows.
+      work = ~o"2026-06-15T09:00:00/2026-06-15T10:40:00"
+      assert Tempo.IntervalSet.count(Tempo.IntervalSet.slots(work, ~o"PT1H")) == 1
+    end
+
+    test "slots each member of a set independently" do
+      mutual =
+        Tempo.IntervalSet.new!([
+          ~o"2026-06-15T11:00:00/2026-06-15T14:00:00",
+          ~o"2026-06-15T15:00:00/2026-06-15T16:30:00"
+        ])
+
+      slots = Tempo.IntervalSet.slots(mutual, ~o"PT1H")
+
+      # 11–12, 12–13, 13–14 from the first window; 15–16 from the second
+      # (16–17 would overflow its 16:30 end).
+      assert Tempo.IntervalSet.count(slots) == 4
+    end
+
+    test "a window shorter than the slot yields nothing" do
+      work = ~o"2026-06-15T09:00:00/2026-06-15T09:30:00"
+      assert Tempo.IntervalSet.count(Tempo.IntervalSet.slots(work, ~o"PT1H")) == 0
+    end
+  end
+
   ## Helpers
 
   defp interval(tempo) do

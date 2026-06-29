@@ -18,6 +18,8 @@
 
 * A pure time-of-day group now materialises to a non-anchored interval (`[hour: 16, minute: {:group, 1..15}]` → `[16:01, 16:16)`) instead of erroring, when its upper bound stays within the day. Date groups and end-of-day carries still require anchoring.
 
+* `Tempo.IntervalSet.slots/3` cuts a free-time region into discrete fixed-length bookable slots (`slots(mutual_free, ~o"PT1H")`), with an `:every` spacing option. Complements the set operations: where `difference`/`intersection` give the free regions, `slots/3` discretises them into bookable windows.
+
 ### Fixed
 
 * iCal import no longer produces zero-extent intervals. A punctual event (RFC 5545 §3.6.1 zero-duration, or an explicit `DTEND == DTSTART`) now materialises as the one-unit implicit span of its start, tagged `metadata: %{punctual: true}`, upholding the domain's no-degenerate-interval invariant through set operations.
