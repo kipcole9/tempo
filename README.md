@@ -11,7 +11,7 @@ This conceptual shift — *time as interval, not instant* — removes a surprisi
 ```elixir
 def deps do
   [
-    {:ex_tempo, github: "kipcole9/tempo"},
+    {:ex_tempo, "~> 0.10.0"},
     # Optional but recommended - needed for iCalendar import
     {:ical, "~> 2.0"}
   ]

@@ -148,6 +148,7 @@ defmodule Tempo.MixProject do
       {:bandit, "~> 1.5", optional: true},
       {:ex_doc, "~> 0.38", only: [:dev, :test, :release], optional: true, runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:stream_data, "~> 1.0", only: [:dev, :test], runtime: false},
       # `tz` provides a `Calendar.TimeZoneDatabase` implementation used
       # only in dev/test so iCal 2.0 can resolve `DTSTART;TZID=...`
