@@ -1,0 +1,219 @@
+{
+  "chronolog-version": "3.0.0",
+  "synchronisms": [
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "Tutankhamun",
+      "period1": "Sennefer Tomb",
+      "type": "Starts after or at start of",
+      "polyLine": [
+        {
+          "x": 400,
+          "y": 640
+        },
+        {
+          "x": 180,
+          "y": 480
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "Horemheb",
+      "period1": "Sennefer Tomb",
+      "type": "Ends before or at start of",
+      "polyLine": [
+        {
+          "x": 400,
+          "y": 640
+        },
+        {
+          "x": 180,
+          "y": 640
+        }
+      ],
+      "tags": []
+    }
+  ],
+  "imports": [],
+  "C14StartDatesForExport": {
+    "Neferneferuaten": [],
+    "Horemheb": [],
+    "Amenhotep II": [],
+    "Amenhotep IV": [],
+    "Sennefer Tomb": [],
+    "Tutankhamun": [],
+    "Ay": [],
+    "Thutmoses IV": [],
+    "Amenhotep III": []
+  },
+  "C14EndDatesForExport": {
+    "Neferneferuaten": [],
+    "Horemheb": [],
+    "Amenhotep II": [],
+    "Amenhotep IV": [],
+    "Sennefer Tomb": [],
+    "Tutankhamun": [],
+    "Ay": [],
+    "Thutmoses IV": [],
+    "Amenhotep III": []
+  },
+  "name": "",
+  "sequences": [
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "name": "Dynasty 18",
+      "periods": [
+        {
+          "fillColor": -1315861,
+          "periodY": 40,
+          "comments": "",
+          "durationUB": 25,
+          "name": "Amenhotep II",
+          "width": 160,
+          "periodX": 20,
+          "durationLB": 22,
+          "height": 80
+        },
+        {
+          "fillColor": -1315861,
+          "periodY": 120,
+          "comments": "",
+          "durationUB": 10,
+          "name": "Thutmoses IV",
+          "width": 160,
+          "periodX": 20,
+          "durationLB": 9,
+          "height": 80
+        },
+        {
+          "fillColor": -1315861,
+          "periodY": 200,
+          "comments": "",
+          "durationUB": 38,
+          "name": "Amenhotep III",
+          "width": 160,
+          "periodX": 20,
+          "durationLB": 37,
+          "height": 80
+        },
+        {
+          "fillColor": -1315861,
+          "periodY": 280,
+          "comments": "",
+          "durationUB": 18,
+          "name": "Amenhotep IV",
+          "width": 160,
+          "periodX": 20,
+          "durationLB": 16,
+          "height": 80
+        },
+        {
+          "fillColor": -1315861,
+          "periodY": 360,
+          "comments": "",
+          "durationUB": 5,
+          "name": "Neferneferuaten",
+          "width": 160,
+          "periodX": 20,
+          "durationLB": 3,
+          "height": 80
+        },
+        {
+          "fillColor": -1315861,
+          "periodY": 440,
+          "comments": "",
+          "durationUB": 10,
+          "name": "Tutankhamun",
+          "width": 160,
+          "periodX": 20,
+          "durationLB": 9,
+          "height": 80
+        },
+        {
+          "fillColor": -1315861,
+          "periodY": 520,
+          "comments": "",
+          "durationUB": 4,
+          "name": "Ay",
+          "width": 160,
+          "periodX": 20,
+          "durationLB": 3,
+          "height": 80
+        },
+        {
+          "endDateUB": -1200,
+          "fillColor": -1315861,
+          "periodY": 600,
+          "comments": "",
+          "durationUB": 27,
+          "name": "Horemheb",
+          "width": 160,
+          "periodX": 20,
+          "durationLB": 13,
+          "height": 80
+        }
+      ],
+      "startY": 40,
+      "startX": 20,
+      "tags": []
+    }
+  ],
+  "lonePeriods": [
+    {
+      "fillColor": -1315861,
+      "periodY": 600,
+      "visible": true,
+      "comments": "",
+      "name": "Sennefer Tomb",
+      "width": 160,
+      "periodX": 400,
+      "height": 80,
+      "tags": []
+    }
+  ],
+  "C14PhaseDatesForExport": {
+    "Neferneferuaten": [],
+    "Horemheb": [],
+    "Amenhotep II": [
+      "R_Date(\"18507\",3165,32);"
+    ],
+    "Amenhotep IV": [
+      "R_Date(\"18057\",3082,29);",
+      "R_Date(\"18407\",3096,28);",
+      "R_Combine(\"Ahp IV Combine 1\")\n{\nR_Date(\"18512\",3051,27);\nR_Date(\"18412\",3064,28);\n};\n",
+      "R_Date(\"18953\",3092,27);",
+      "R_Combine(\"Ahp IV Combine 4\")\n{\nR_Date(\"18955\",3115,30);\nR_Date(\"VERA-4687\",3094,37);\nR_Date(\"VERA-4687B\",3070,37);\n};\n",
+      "R_Date(\"18956\",3028,27);",
+      "R_Combine(\"Ahp IV Combine 5\")\n{\nR_Date(\"VERA-4685\",3096,34);\nR_Date(\"VERA-4685B\",3116,35);\n};\n"
+    ],
+    "Sennefer Tomb": [
+      "R_Combine(\"Bouquet1\")\n{\nR_Date(3101,34);\nR_Date(3128,26);\nR_Date(3123,39);\nR_Date(3089,26);\nR_Date(3047,36);\nR_Date(3042,29);\n};\n"
+    ],
+    "Tutankhamun": [
+      "R_Date(\"17868\",3065,31);",
+      "R_Date(\"18950\",3138,28);",
+      "R_Date(\"18951\",3137,29);",
+      "R_Date(\"18952\",3117,29);",
+      "R_Date(\"19003\",3106,26);",
+      "R_Date(\"19132\",3133,29);"
+    ],
+    "Ay": [],
+    "Thutmoses IV": [
+      "R_Date(\"19549\",3084,26);"
+    ],
+    "Amenhotep III": [
+      "R_Date(\"18510\",3040,30);",
+      "R_Date(\"19548\",3118,27);"
+    ]
+  },
+  "events": [],
+  "C14EventDatesForExport": {}
+}

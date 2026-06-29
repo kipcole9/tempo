@@ -1,0 +1,1047 @@
+{
+  "chronolog-version": "3.0.0",
+  "synchronisms": [
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "Iron I",
+      "period1": "Late I1",
+      "type": "Ends with",
+      "polyLine": [
+        {
+          "x": 1140,
+          "y": 100
+        },
+        {
+          "x": 1140,
+          "y": 200
+        },
+        {
+          "x": 940,
+          "y": 200
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "Iron I",
+      "period1": "Meg K6",
+      "type": "Included in",
+      "polyLine": [
+        {
+          "x": 640,
+          "y": 200
+        },
+        {
+          "x": 780,
+          "y": 200
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "Iron I",
+      "period1": "Hazor XII_XI",
+      "type": "Included in",
+      "polyLine": [
+        {
+          "x": 640,
+          "y": 440
+        },
+        {
+          "x": 680,
+          "y": 440
+        },
+        {
+          "x": 680,
+          "y": 200
+        },
+        {
+          "x": 780,
+          "y": 200
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "Iron I",
+      "period1": "Miqne IV",
+      "type": "Included in",
+      "polyLine": [
+        {
+          "x": 640,
+          "y": 560
+        },
+        {
+          "x": 680,
+          "y": 560
+        },
+        {
+          "x": 680,
+          "y": 200
+        },
+        {
+          "x": 780,
+          "y": 200
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "Iron I",
+      "period1": "Rehov D4",
+      "type": "Included in",
+      "polyLine": [
+        {
+          "x": 640,
+          "y": 320
+        },
+        {
+          "x": 680,
+          "y": 320
+        },
+        {
+          "x": 680,
+          "y": 200
+        },
+        {
+          "x": 780,
+          "y": 200
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "Iron I",
+      "period1": "Shiloh V",
+      "type": "Included in",
+      "polyLine": [
+        {
+          "x": 640,
+          "y": 680
+        },
+        {
+          "x": 680,
+          "y": 680
+        },
+        {
+          "x": 680,
+          "y": 200
+        },
+        {
+          "x": 780,
+          "y": 200
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "Iron II",
+      "period1": "Rehov D2",
+      "type": "Included in",
+      "polyLine": [
+        {
+          "x": 1060,
+          "y": 380
+        },
+        {
+          "x": 1000,
+          "y": 380
+        },
+        {
+          "x": 1000,
+          "y": 280
+        },
+        {
+          "x": 940,
+          "y": 280
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "Iron II",
+      "period1": "Aphek X8",
+      "type": "Included in",
+      "polyLine": [
+        {
+          "x": 1060,
+          "y": 480
+        },
+        {
+          "x": 1000,
+          "y": 480
+        },
+        {
+          "x": 1000,
+          "y": 280
+        },
+        {
+          "x": 940,
+          "y": 280
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "Iron II",
+      "period1": "Rehov E1b",
+      "type": "Included in",
+      "polyLine": [
+        {
+          "x": 1060,
+          "y": 280
+        },
+        {
+          "x": 940,
+          "y": 280
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "Iron II",
+      "period1": "Dor D28bc",
+      "type": "Included in",
+      "polyLine": [
+        {
+          "x": 1060,
+          "y": 580
+        },
+        {
+          "x": 1000,
+          "y": 580
+        },
+        {
+          "x": 1000,
+          "y": 280
+        },
+        {
+          "x": 940,
+          "y": 280
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "Iron II",
+      "period1": "Meg H5",
+      "type": "Included in",
+      "polyLine": [
+        {
+          "x": 1060,
+          "y": 780
+        },
+        {
+          "x": 1000,
+          "y": 780
+        },
+        {
+          "x": 1000,
+          "y": 280
+        },
+        {
+          "x": 940,
+          "y": 280
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "Iron II",
+      "period1": "Zayit IIa",
+      "type": "Included in",
+      "polyLine": [
+        {
+          "x": 1060,
+          "y": 680
+        },
+        {
+          "x": 1000,
+          "y": 680
+        },
+        {
+          "x": 1000,
+          "y": 280
+        },
+        {
+          "x": 940,
+          "y": 280
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "Iron II",
+      "period1": "Bethsaida VI",
+      "type": "Included in",
+      "polyLine": [
+        {
+          "x": 1060,
+          "y": 980
+        },
+        {
+          "x": 1000,
+          "y": 980
+        },
+        {
+          "x": 1000,
+          "y": 280
+        },
+        {
+          "x": 940,
+          "y": 280
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "Iron II",
+      "period1": "Hazor IXA",
+      "type": "Included in",
+      "polyLine": [
+        {
+          "x": 1060,
+          "y": 880
+        },
+        {
+          "x": 1000,
+          "y": 880
+        },
+        {
+          "x": 1000,
+          "y": 280
+        },
+        {
+          "x": 940,
+          "y": 280
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "Iron II",
+      "period1": "el Hammah",
+      "type": "Included in",
+      "polyLine": [
+        {
+          "x": 1060,
+          "y": 1080
+        },
+        {
+          "x": 1000,
+          "y": 1080
+        },
+        {
+          "x": 1000,
+          "y": 280
+        },
+        {
+          "x": 940,
+          "y": 280
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "Iron II",
+      "period1": "Safi IV",
+      "type": "Included in",
+      "polyLine": [
+        {
+          "x": 1060,
+          "y": 1180
+        },
+        {
+          "x": 1000,
+          "y": 1180
+        },
+        {
+          "x": 1000,
+          "y": 280
+        },
+        {
+          "x": 940,
+          "y": 280
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "Late I1",
+      "period1": "Meg VIA pre",
+      "type": "Included in",
+      "polyLine": [
+        {
+          "x": 1440,
+          "y": 60
+        },
+        {
+          "x": 1220,
+          "y": 60
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "Late I1",
+      "period1": "Meg VIA destr",
+      "type": "Included in",
+      "polyLine": [
+        {
+          "x": 1440,
+          "y": 180
+        },
+        {
+          "x": 1320,
+          "y": 180
+        },
+        {
+          "x": 1320,
+          "y": 60
+        },
+        {
+          "x": 1220,
+          "y": 60
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "Late I1",
+      "period1": "Hadar IV",
+      "type": "Included in",
+      "polyLine": [
+        {
+          "x": 1440,
+          "y": 680
+        },
+        {
+          "x": 1320,
+          "y": 680
+        },
+        {
+          "x": 1320,
+          "y": 60
+        },
+        {
+          "x": 1220,
+          "y": 60
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "Late I1",
+      "period1": "Yoqneam XVII",
+      "type": "Included in",
+      "polyLine": [
+        {
+          "x": 1440,
+          "y": 480
+        },
+        {
+          "x": 1320,
+          "y": 480
+        },
+        {
+          "x": 1320,
+          "y": 60
+        },
+        {
+          "x": 1220,
+          "y": 60
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "Late I1",
+      "period1": "Qasile X",
+      "type": "Included in",
+      "polyLine": [
+        {
+          "x": 1440,
+          "y": 280
+        },
+        {
+          "x": 1320,
+          "y": 280
+        },
+        {
+          "x": 1320,
+          "y": 60
+        },
+        {
+          "x": 1220,
+          "y": 60
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "Late I1",
+      "period1": "Dor",
+      "type": "Included in",
+      "polyLine": [
+        {
+          "x": 1440,
+          "y": 580
+        },
+        {
+          "x": 1320,
+          "y": 580
+        },
+        {
+          "x": 1320,
+          "y": 60
+        },
+        {
+          "x": 1220,
+          "y": 60
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "Late I1",
+      "period1": "Rehov D3",
+      "type": "Included in",
+      "polyLine": [
+        {
+          "x": 1440,
+          "y": 380
+        },
+        {
+          "x": 1320,
+          "y": 380
+        },
+        {
+          "x": 1320,
+          "y": 60
+        },
+        {
+          "x": 1220,
+          "y": 60
+        }
+      ],
+      "tags": []
+    }
+  ],
+  "imports": [],
+  "C14StartDatesForExport": {
+    "Safi IV": [],
+    "Qasile X": [],
+    "Meg VIA destr": [],
+    "Bethsaida VI": [],
+    "Zayit IIa": [],
+    "Rehov E1b": [],
+    "Late I1": [],
+    "el Hammah": [],
+    "Dor D28bc": [],
+    "Miqne IV": [],
+    "Iron I": [],
+    "Meg H5": [],
+    "Yoqneam XVII": [],
+    "Aphek X8": [],
+    "Iron II": [],
+    "Dor": [],
+    "Hadar IV": [],
+    "Rehov D2": [],
+    "Rehov D3": [],
+    "Rehov D4": [],
+    "Shiloh V": [],
+    "Hazor XII_XI": [],
+    "Meg K6": [],
+    "Hazor IXA": [],
+    "Meg VIA pre": []
+  },
+  "C14EndDatesForExport": {
+    "Safi IV": [],
+    "Qasile X": [],
+    "Meg VIA destr": [],
+    "Bethsaida VI": [],
+    "Zayit IIa": [],
+    "Rehov E1b": [],
+    "Late I1": [],
+    "el Hammah": [],
+    "Dor D28bc": [],
+    "Miqne IV": [],
+    "Iron I": [],
+    "Meg H5": [],
+    "Yoqneam XVII": [],
+    "Aphek X8": [],
+    "Iron II": [],
+    "Dor": [],
+    "Hadar IV": [],
+    "Rehov D2": [],
+    "Rehov D3": [],
+    "Rehov D4": [],
+    "Shiloh V": [],
+    "Hazor XII_XI": [],
+    "Meg K6": [],
+    "Hazor IXA": [],
+    "Meg VIA pre": []
+  },
+  "name": "",
+  "sequences": [
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "name": "Main",
+      "periods": [
+        {
+          "fillColor": -1315861,
+          "periodY": 160,
+          "comments": "",
+          "name": "Iron I",
+          "width": 160,
+          "periodX": 780,
+          "height": 80
+        },
+        {
+          "fillColor": -1315861,
+          "periodY": 240,
+          "comments": "",
+          "name": "Iron II",
+          "width": 160,
+          "periodX": 780,
+          "height": 80
+        }
+      ],
+      "startY": 160,
+      "startX": 780,
+      "tags": []
+    }
+  ],
+  "lonePeriods": [
+    {
+      "fillColor": -1315861,
+      "periodY": 160,
+      "visible": true,
+      "comments": "",
+      "name": "Meg K6",
+      "width": 160,
+      "periodX": 480,
+      "height": 80,
+      "tags": []
+    },
+    {
+      "fillColor": -1315861,
+      "periodY": 280,
+      "visible": true,
+      "comments": "",
+      "name": "Rehov D4",
+      "width": 160,
+      "periodX": 480,
+      "height": 80,
+      "tags": []
+    },
+    {
+      "fillColor": -1315861,
+      "periodY": 400,
+      "visible": true,
+      "comments": "",
+      "name": "Hazor XII_XI",
+      "width": 160,
+      "periodX": 480,
+      "height": 80,
+      "tags": []
+    },
+    {
+      "fillColor": -1315861,
+      "periodY": 520,
+      "visible": true,
+      "comments": "",
+      "name": "Miqne IV",
+      "width": 160,
+      "periodX": 480,
+      "height": 80,
+      "tags": []
+    },
+    {
+      "fillColor": -1315861,
+      "periodY": 640,
+      "visible": true,
+      "comments": "",
+      "name": "Shiloh V",
+      "width": 160,
+      "periodX": 480,
+      "height": 80,
+      "tags": []
+    },
+    {
+      "fillColor": -1315861,
+      "periodY": 340,
+      "visible": true,
+      "comments": "",
+      "name": "Rehov D2",
+      "width": 160,
+      "periodX": 1060,
+      "height": 80,
+      "tags": []
+    },
+    {
+      "fillColor": -1315861,
+      "periodY": 440,
+      "visible": true,
+      "comments": "",
+      "name": "Aphek X8",
+      "width": 160,
+      "periodX": 1060,
+      "height": 80,
+      "tags": []
+    },
+    {
+      "fillColor": -1315861,
+      "periodY": 20,
+      "visible": true,
+      "comments": "",
+      "name": "Late I1",
+      "width": 160,
+      "periodX": 1060,
+      "height": 80,
+      "tags": []
+    },
+    {
+      "fillColor": -1315861,
+      "periodY": 240,
+      "visible": true,
+      "comments": "",
+      "name": "Rehov E1b",
+      "width": 160,
+      "periodX": 1060,
+      "height": 80,
+      "tags": []
+    },
+    {
+      "fillColor": -1315861,
+      "periodY": 540,
+      "visible": true,
+      "comments": "",
+      "name": "Dor D28bc",
+      "width": 160,
+      "periodX": 1060,
+      "height": 80,
+      "tags": []
+    },
+    {
+      "fillColor": -1315861,
+      "periodY": 640,
+      "visible": true,
+      "comments": "",
+      "name": "Zayit IIa",
+      "width": 160,
+      "periodX": 1060,
+      "height": 80,
+      "tags": []
+    },
+    {
+      "fillColor": -1315861,
+      "periodY": 740,
+      "visible": true,
+      "comments": "",
+      "name": "Meg H5",
+      "width": 160,
+      "periodX": 1060,
+      "height": 80,
+      "tags": []
+    },
+    {
+      "fillColor": -1315861,
+      "periodY": 940,
+      "visible": true,
+      "comments": "",
+      "name": "Bethsaida VI",
+      "width": 160,
+      "periodX": 1060,
+      "height": 80,
+      "tags": []
+    },
+    {
+      "fillColor": -1315861,
+      "periodY": 840,
+      "visible": true,
+      "comments": "",
+      "name": "Hazor IXA",
+      "width": 160,
+      "periodX": 1060,
+      "height": 80,
+      "tags": []
+    },
+    {
+      "fillColor": -1315861,
+      "periodY": 1140,
+      "visible": true,
+      "comments": "",
+      "name": "Safi IV",
+      "width": 160,
+      "periodX": 1060,
+      "height": 80,
+      "tags": []
+    },
+    {
+      "fillColor": -1315861,
+      "periodY": 1040,
+      "visible": true,
+      "comments": "",
+      "name": "el Hammah",
+      "width": 160,
+      "periodX": 1060,
+      "height": 80,
+      "tags": []
+    },
+    {
+      "fillColor": -1315861,
+      "periodY": 20,
+      "visible": true,
+      "comments": "",
+      "name": "Meg VIA pre",
+      "width": 160,
+      "periodX": 1440,
+      "height": 80,
+      "tags": []
+    },
+    {
+      "fillColor": -1315861,
+      "periodY": 140,
+      "visible": true,
+      "comments": "",
+      "name": "Meg VIA destr",
+      "width": 160,
+      "periodX": 1440,
+      "height": 80,
+      "tags": []
+    },
+    {
+      "fillColor": -1315861,
+      "periodY": 240,
+      "visible": true,
+      "comments": "",
+      "name": "Qasile X",
+      "width": 160,
+      "periodX": 1440,
+      "height": 80,
+      "tags": []
+    },
+    {
+      "fillColor": -1315861,
+      "periodY": 440,
+      "visible": true,
+      "comments": "",
+      "name": "Yoqneam XVII",
+      "width": 160,
+      "periodX": 1440,
+      "height": 80,
+      "tags": []
+    },
+    {
+      "fillColor": -1315861,
+      "periodY": 340,
+      "visible": true,
+      "comments": "",
+      "name": "Rehov D3",
+      "width": 160,
+      "periodX": 1440,
+      "height": 80,
+      "tags": []
+    },
+    {
+      "fillColor": -1315861,
+      "periodY": 640,
+      "visible": true,
+      "comments": "",
+      "name": "Hadar IV",
+      "width": 160,
+      "periodX": 1440,
+      "height": 80,
+      "tags": []
+    },
+    {
+      "fillColor": -1315861,
+      "periodY": 540,
+      "visible": true,
+      "comments": "",
+      "name": "Dor",
+      "width": 160,
+      "periodX": 1440,
+      "height": 80,
+      "tags": []
+    }
+  ],
+  "C14PhaseDatesForExport": {
+    "Safi IV": [
+      "R_Date(2661,30);",
+      "R_Date(2723,18);"
+    ],
+    "Qasile X": [
+      "R_Combine()\n{\nR_Date(2911,26);\nR_Date(2853,25);\nR_Date(2864,40);\nR_Date(2818,38);\nR_Date(2897,44);\n};\n",
+      "R_Date(2895,25);",
+      "R_Date(2800,25);",
+      "R_Date(2882,28);"
+    ],
+    "Meg VIA destr": [
+      "R_Combine()\n{\nR_Date(2925,25);\nR_Date(2864,40);\n};\n",
+      "R_Date(2760,26);",
+      "R_Date(2765,25);",
+      "R_Date(2845,25);",
+      "R_Date(2855,25);"
+    ],
+    "Bethsaida VI": [
+      "R_Combine()\n{\nR_Date(2820,35);\nR_Date(2786,25);\n};\n"
+    ],
+    "Zayit IIa": [
+      "R_Combine()\n{\nR_Date(2745,30);\nR_Date(2755,22);\nR_Date(2689,28);\n};\n",
+      "R_Combine()\n{\nR_Date(2745,30);\nR_Date(2729,37);\nR_Date(2692,31);\n};\n",
+      "R_Date(2709,15);"
+    ],
+    "Rehov E1b": [
+      "R_Combine()\n{\nR_Date(2685,25);\nR_Date(2678,20);\n};\n",
+      "R_Date(2754,24);"
+    ],
+    "Late I1": [],
+    "el Hammah": [
+      "R_Date(2675,23);",
+      "R_Date(2688,25);",
+      "R_Date(2687,20);",
+      "R_Date(2701,22);",
+      "R_Date(2609,21);",
+      "R_Date(2587,23);",
+      "R_Date(2634,23);",
+      "R_Date(2636,23);",
+      "R_Date(2722,24);",
+      "R_Date(2728,28);"
+    ],
+    "Dor D28bc": [
+      "R_Date(2757,18);",
+      "R_Date(2764,22);",
+      "R_Date(2779,24);",
+      "R_Date(2750,23);"
+    ],
+    "Miqne IV": [
+      "R_Combine()\n{\nR_Date(2883,26);\nR_Date(2872,27);\n};\n"
+    ],
+    "Iron I": [],
+    "Meg H5": [
+      "R_Combine()\n{\nR_Date(2783,32);\nR_Date(2859,34);\n};\n",
+      "R_Date(2695,50);"
+    ],
+    "Yoqneam XVII": [
+      "R_Combine()\n{\nR_Date(2866,15);\nR_Date(2866,33);\n};\n",
+      "R_Combine()\n{\nR_Date(2776,15);\nR_Date(2817,26);\nR_Date(2818,29);\n};\n",
+      "R_Combine()\n{\nR_Date(2926,30);\nR_Date(2824,30);\n};\n",
+      "R_Combine()\n{\nR_Date(2925,38);\nR_Date(2897,38);\nR_Date(2929,54);\n};\n"
+    ],
+    "Aphek X8": [
+      "R_Date(2667,20);"
+    ],
+    "Iron II": [],
+    "Dor": [
+      "R_Date(2803,16);",
+      "R_Date(2783,22);"
+    ],
+    "Hadar IV": [
+      "R_Date(2791,52);",
+      "R_Date(2853,13);"
+    ],
+    "Rehov D2": [
+      "R_Combine()\n{\nR_Date(2757,20);\nR_Date(2770,23);\nR_Date(2805,15);\n};\n"
+    ],
+    "Rehov D3": [
+      "R_Combine()\n{\nR_Date(2800,20);\nR_Date(2835,45);\nR_Date(2720,30);\n};\n"
+    ],
+    "Rehov D4": [
+      "R_Combine()\n{\nR_Date(2845,25);\nR_Date(2913,45);\nR_Date(2890,30);\nR_Date(2870,50);\n};\n"
+    ],
+    "Shiloh V": [
+      "R_Date(2868,20);",
+      "R_Date(2854,25);",
+      "R_Date(2897,23);",
+      "R_Date(2959,28);"
+    ],
+    "Hazor XII_XI": [
+      "R_Combine(\"HZ3 \u0026 8\")\n{\nR_Date(3060,50);\nR_Date(3060,30);\n};\n"
+    ],
+    "Meg K6": [
+      "R_Combine()\n{\nR_Date(2893,27);\nR_Date(2894,23);\n};\n",
+      "R_Combine()\n{\nR_Date(2968,30);\nR_Date(2918,22);\n};\n"
+    ],
+    "Hazor IXA": [
+      "R_Combine()\n{\nR_Date(2697,24);\nR_Date(2689,27);\n};\n"
+    ],
+    "Meg VIA pre": [
+      "R_Date(2880,30);",
+      "R_Date(2910,25);"
+    ]
+  },
+  "events": [],
+  "C14EventDatesForExport": {}
+}

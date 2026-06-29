@@ -1,0 +1,697 @@
+{
+  "chronolog-version": "3.0.0",
+  "synchronisms": [
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "Late LH IIIB",
+      "period1": "Megiddo K8",
+      "type": "Included in",
+      "polyLine": [
+        {
+          "x": 200,
+          "y": 80
+        },
+        {
+          "x": 580,
+          "y": 80
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "Late LH IIIB",
+      "period1": "Megiddo K7",
+      "type": "Included in",
+      "polyLine": [
+        {
+          "x": 200,
+          "y": 160
+        },
+        {
+          "x": 280,
+          "y": 160
+        },
+        {
+          "x": 280,
+          "y": 80
+        },
+        {
+          "x": 580,
+          "y": 80
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "Late LH IIIB",
+      "period1": "Maroni",
+      "type": "Included in",
+      "polyLine": [
+        {
+          "x": 200,
+          "y": 520
+        },
+        {
+          "x": 480,
+          "y": 520
+        },
+        {
+          "x": 480,
+          "y": 80
+        },
+        {
+          "x": 580,
+          "y": 80
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "LH IIIC E1",
+      "period1": "Tell Tweini",
+      "type": "Included in",
+      "polyLine": [
+        {
+          "x": 1060,
+          "y": 160
+        },
+        {
+          "x": 740,
+          "y": 160
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "LH IIIC E1",
+      "period1": "Apliki",
+      "type": "Included in",
+      "polyLine": [
+        {
+          "x": 1060,
+          "y": 320
+        },
+        {
+          "x": 880,
+          "y": 320
+        },
+        {
+          "x": 880,
+          "y": 160
+        },
+        {
+          "x": 740,
+          "y": 160
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "LH IIIC M2",
+      "period1": "Miqne VIIB",
+      "type": "Included in",
+      "polyLine": [
+        {
+          "x": 200,
+          "y": 660
+        },
+        {
+          "x": 540,
+          "y": 660
+        },
+        {
+          "x": 540,
+          "y": 320
+        },
+        {
+          "x": 580,
+          "y": 320
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "LH IIIC Late",
+      "period1": "Miqne VIB",
+      "type": "Included in",
+      "polyLine": [
+        {
+          "x": 1060,
+          "y": 840
+        },
+        {
+          "x": 840,
+          "y": 840
+        },
+        {
+          "x": 840,
+          "y": 400
+        },
+        {
+          "x": 740,
+          "y": 400
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "Late LH IIIB",
+      "period1": "Shean VII",
+      "type": "Included in",
+      "polyLine": [
+        {
+          "x": 200,
+          "y": 320
+        },
+        {
+          "x": 440,
+          "y": 320
+        },
+        {
+          "x": 440,
+          "y": 80
+        },
+        {
+          "x": 580,
+          "y": 80
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "LH IIIC E2M1",
+      "period1": "BS Lower VI",
+      "type": "Included in",
+      "polyLine": [
+        {
+          "x": 1060,
+          "y": 460
+        },
+        {
+          "x": 740,
+          "y": 240
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "LH IIIC Late",
+      "period1": "Shemesh 6",
+      "type": "Included in",
+      "polyLine": [
+        {
+          "x": 1060,
+          "y": 620
+        },
+        {
+          "x": 900,
+          "y": 620
+        },
+        {
+          "x": 900,
+          "y": 400
+        },
+        {
+          "x": 740,
+          "y": 400
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "LH IIIC Late",
+      "period1": "Shemesh 5",
+      "type": "Included in",
+      "polyLine": [
+        {
+          "x": 1060,
+          "y": 700
+        },
+        {
+          "x": 900,
+          "y": 700
+        },
+        {
+          "x": 900,
+          "y": 400
+        },
+        {
+          "x": 740,
+          "y": 400
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "EPG",
+      "period1": "Megiddo K4H9",
+      "type": "Included in",
+      "polyLine": [
+        {
+          "x": 200,
+          "y": 820
+        },
+        {
+          "x": 660,
+          "y": 820
+        },
+        {
+          "x": 660,
+          "y": 520
+        }
+      ],
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "period2": "LH IIIC Late",
+      "period1": "Miqne VB",
+      "type": "Included in",
+      "polyLine": [
+        {
+          "x": 1060,
+          "y": 1000
+        },
+        {
+          "x": 800,
+          "y": 1000
+        },
+        {
+          "x": 800,
+          "y": 400
+        },
+        {
+          "x": 740,
+          "y": 400
+        }
+      ],
+      "tags": []
+    }
+  ],
+  "imports": [],
+  "C14StartDatesForExport": {
+    "LH IIIC E1": [],
+    "Megiddo K7": [],
+    "LH IIIC E2M1": [],
+    "LH IIIC M2": [],
+    "Apliki": [],
+    "Tell Tweini": [],
+    "Late LH IIIB": [],
+    "Megiddo K8": [],
+    "Shean VII": [],
+    "LH IIIC Late": [],
+    "BS Lower VI": [],
+    "Shemesh 5": [],
+    "Shemesh 6": [],
+    "Miqne VB": [],
+    "EPG": [],
+    "Maroni": [],
+    "Miqne VIB": [],
+    "Megiddo K4H9": [],
+    "Miqne VIA": [],
+    "Miqne VIIB": []
+  },
+  "C14EndDatesForExport": {
+    "LH IIIC E1": [],
+    "Megiddo K7": [],
+    "LH IIIC E2M1": [],
+    "LH IIIC M2": [],
+    "Apliki": [],
+    "Tell Tweini": [],
+    "Late LH IIIB": [],
+    "Megiddo K8": [],
+    "Shean VII": [],
+    "LH IIIC Late": [],
+    "BS Lower VI": [],
+    "Shemesh 5": [],
+    "Shemesh 6": [],
+    "Miqne VB": [],
+    "EPG": [],
+    "Maroni": [],
+    "Miqne VIB": [],
+    "Megiddo K4H9": [],
+    "Miqne VIA": [],
+    "Miqne VIIB": []
+  },
+  "name": "",
+  "sequences": [
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "name": "Archaeological periods",
+      "periods": [
+        {
+          "fillColor": -1315861,
+          "periodY": 40,
+          "comments": "",
+          "name": "Late LH IIIB",
+          "width": 160,
+          "periodX": 580,
+          "height": 80
+        },
+        {
+          "fillColor": -1315861,
+          "periodY": 120,
+          "comments": "",
+          "name": "LH IIIC E1",
+          "width": 160,
+          "periodX": 580,
+          "height": 80
+        },
+        {
+          "fillColor": -1315861,
+          "periodY": 200,
+          "comments": "",
+          "name": "LH IIIC E2M1",
+          "width": 160,
+          "periodX": 580,
+          "height": 80
+        },
+        {
+          "fillColor": -1315861,
+          "periodY": 280,
+          "comments": "",
+          "name": "LH IIIC M2",
+          "width": 160,
+          "periodX": 580,
+          "height": 80
+        },
+        {
+          "fillColor": -1315861,
+          "periodY": 360,
+          "comments": "",
+          "name": "LH IIIC Late",
+          "width": 160,
+          "periodX": 580,
+          "height": 80
+        },
+        {
+          "fillColor": -1315861,
+          "periodY": 440,
+          "comments": "",
+          "name": "EPG",
+          "width": 160,
+          "periodX": 580,
+          "height": 80
+        }
+      ],
+      "startY": 40,
+      "startX": 580,
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "name": "Megiddo K8K7",
+      "periods": [
+        {
+          "fillColor": -1315861,
+          "periodY": 40,
+          "comments": "",
+          "name": "Megiddo K8",
+          "width": 160,
+          "periodX": 40,
+          "height": 80
+        },
+        {
+          "fillColor": -1315861,
+          "periodY": 120,
+          "comments": "",
+          "name": "Megiddo K7",
+          "width": 160,
+          "periodX": 40,
+          "height": 80
+        }
+      ],
+      "startY": 40,
+      "startX": 40,
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "name": "Beth Shemesh 6_5",
+      "periods": [
+        {
+          "fillColor": -1315861,
+          "periodY": 580,
+          "comments": "",
+          "name": "Shemesh 6",
+          "width": 160,
+          "periodX": 1060,
+          "height": 80
+        },
+        {
+          "fillColor": -1315861,
+          "periodY": 660,
+          "comments": "",
+          "name": "Shemesh 5",
+          "width": 160,
+          "periodX": 1060,
+          "height": 80
+        }
+      ],
+      "startY": 580,
+      "startX": 1060,
+      "tags": []
+    },
+    {
+      "visible": true,
+      "comments": "",
+      "hidden": false,
+      "name": "Miqne VIB_VB",
+      "periods": [
+        {
+          "fillColor": -1315861,
+          "periodY": 800,
+          "comments": "",
+          "name": "Miqne VIB",
+          "width": 160,
+          "periodX": 1060,
+          "height": 80
+        },
+        {
+          "fillColor": -1315861,
+          "periodY": 880,
+          "comments": "",
+          "name": "Miqne VIA",
+          "width": 160,
+          "periodX": 1060,
+          "height": 80
+        },
+        {
+          "fillColor": -1315861,
+          "periodY": 960,
+          "comments": "",
+          "name": "Miqne VB",
+          "width": 160,
+          "periodX": 1060,
+          "height": 80
+        }
+      ],
+      "startY": 800,
+      "startX": 1060,
+      "tags": []
+    }
+  ],
+  "lonePeriods": [
+    {
+      "fillColor": -1315861,
+      "periodY": 280,
+      "visible": true,
+      "comments": "",
+      "name": "Apliki",
+      "width": 160,
+      "periodX": 1060,
+      "height": 80,
+      "tags": []
+    },
+    {
+      "endDateUB": -1175,
+      "fillColor": -1315861,
+      "periodY": 120,
+      "visible": true,
+      "comments": "",
+      "name": "Tell Tweini",
+      "width": 160,
+      "periodX": 1060,
+      "height": 80,
+      "tags": []
+    },
+    {
+      "fillColor": -1315861,
+      "periodY": 480,
+      "visible": true,
+      "comments": "",
+      "name": "Maroni",
+      "width": 160,
+      "periodX": 40,
+      "height": 80,
+      "tags": []
+    },
+    {
+      "fillColor": -1315861,
+      "periodY": 620,
+      "visible": true,
+      "comments": "",
+      "name": "Miqne VIIB",
+      "width": 160,
+      "periodX": 40,
+      "height": 80,
+      "tags": []
+    },
+    {
+      "fillColor": -1315861,
+      "periodY": 780,
+      "visible": true,
+      "comments": "",
+      "name": "Megiddo K4H9",
+      "width": 160,
+      "periodX": 40,
+      "height": 80,
+      "tags": []
+    },
+    {
+      "fillColor": -1315861,
+      "periodY": 280,
+      "visible": true,
+      "comments": "",
+      "name": "Shean VII",
+      "width": 160,
+      "periodX": 40,
+      "height": 80,
+      "tags": []
+    },
+    {
+      "fillColor": -1315861,
+      "periodY": 420,
+      "visible": true,
+      "comments": "",
+      "name": "BS Lower VI",
+      "width": 160,
+      "endDateLB": -1150,
+      "periodX": 1060,
+      "height": 80,
+      "tags": []
+    }
+  ],
+  "C14PhaseDatesForExport": {
+    "LH IIIC E1": [],
+    "Megiddo K7": [
+      "R_Date(2935,40);",
+      "R_Date(2980,50);"
+    ],
+    "LH IIIC E2M1": [],
+    "LH IIIC M2": [],
+    "Apliki": [
+      "R_Date(2990,45);",
+      "R_Date(2960,45);",
+      "R_Date(2930,60);",
+      "R_Date(2945,50);",
+      "R_Date(2960,50);",
+      "R_Date(2955,65);"
+    ],
+    "Tell Tweini": [
+      "R_Date(3000,40);",
+      "R_Date(2990,40);",
+      "R_Date(2950,40);",
+      "R_Date(2950,40);",
+      "R_Date(2950,40);",
+      "R_Date(2910,40);"
+    ],
+    "Late LH IIIB": [],
+    "Megiddo K8": [
+      "R_Date(2920,40);",
+      "R_Date(2945,40);",
+      "R_Date(2980,40);",
+      "R_Date(2990,55);"
+    ],
+    "Shean VII": [
+      "R_Date(2985,25);",
+      "R_Date(2925,25);",
+      "R_Date(2910,50);"
+    ],
+    "LH IIIC Late": [],
+    "BS Lower VI": [
+      "R_Date(2900,45);",
+      "R_Date(2980,40);",
+      "R_Date(2920,25);",
+      "R_Date(2960,25);"
+    ],
+    "Shemesh 5": [
+      "R_Date(2835,32);"
+    ],
+    "Shemesh 6": [
+      "R_Combine(\"3934.3-5\")\n{\nR_Date(2830,50);\nR_Date(2925,50);\nR_Date(2810,50);\n};\n"
+    ],
+    "Miqne VB": [
+      "R_Date(2835,45);",
+      "R_Date(2830,45);"
+    ],
+    "EPG": [],
+    "Maroni": [
+      "R_Date(2969,40);",
+      "R_Date(2960,35);",
+      "R_Date(2985,35);",
+      "R_Date(2940,35);",
+      "R_Date(2930,40);"
+    ],
+    "Miqne VIB": [
+      "R_Combine(\"4283.3-5\")\n{\nR_Date(2915,45);\nR_Date(2960,45);\nR_Date(2880,45);\n};\n",
+      "R_Date(2883,26);",
+      "R_Date(2872,27);"
+    ],
+    "Megiddo K4H9": [
+      "R_Date(2880,30);",
+      "R_Date(2910,25);",
+      "R_Date(2881,26);",
+      "R_Date(2864,40);"
+    ],
+    "Miqne VIA": [],
+    "Miqne VIIB": [
+      "R_Combine(\"4286.3-5\")\n{\nR_Date(2950,55);\nR_Date(2900,40);\nR_Date(2870,60);\n};\n"
+    ]
+  },
+  "events": [],
+  "C14EventDatesForExport": {}
+}
