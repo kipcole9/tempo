@@ -90,6 +90,30 @@ The qualification is stored on the value's `:qualification` field; the span stay
 
 ---
 
+### How do I mark just *part* of a date as uncertain?
+
+The **position** of the `?` / `~` / `%` decides its scope, following ISO 8601-2 §8:
+
+```elixir
+# LEFT of a component → that component only (individual)
+iex> Tempo.from_iso8601!("2004-?06-11").qualifications
+%{month: :uncertain}
+
+# RIGHT of a component → that component AND every coarser one (group)
+iex> Tempo.from_iso8601!("2004-06~-11").qualifications
+%{year: :approximate, month: :approximate}
+
+# At the very END → the whole value (complete)
+iex> Tempo.from_iso8601!("2004-06-11~").qualification
+:approximate
+```
+
+So `2004-06~-11` reads as *"approximately June 2004, on the 11th"* — the `~` sits to the right of the month, so it covers the month **and the year it belongs to**, but not the day. Per-component qualifiers land on the `:qualifications` map (keyed by unit); a whole-value qualifier on `:qualification`. The span is unchanged either way — the marker is metadata, not a widening of the date.
+
+The full rule — group / individual / complete, the explicit `2004~Y6~M11D` form, and how it round-trips — is in the [ISO 8601 conformance guide](iso8601-conformance.md#component-qualification-iso-8601-2-8).
+
+---
+
 ## 2. Exploring a value
 
 ### How do I see what a value represents?
