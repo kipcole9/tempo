@@ -1,6 +1,7 @@
 defmodule Tempo.IntervalRegressionTest do
   use ExUnit.Case, async: true
   import Tempo.Sigils
+  alias Tempo.RRule
 
   # Regressions for two bugs surfaced by the RRule AST-validation
   # spike (see docs/rrule-ast-validation.md).
@@ -99,14 +100,14 @@ defmodule Tempo.IntervalRegressionTest do
       # an RRULE-only `:byday` selection of `{ordinal, day_of_week}` pairs,
       # which has no native ISO 8601 unit. It must render in the instance
       # (`I`) + day-of-week (`K`) notation rather than raising.
-      second_monday = Tempo.RRule.parse!("FREQ=MONTHLY;BYDAY=2MO", from: ~o"2025-01-01")
+      second_monday = RRule.parse!("FREQ=MONTHLY;BYDAY=2MO", from: ~o"2025-01-01")
       assert inspect(second_monday) == ~S|~o"R/2025Y1M1D/P1M/FL2I1KN"|
 
       # Negative and multi-entry ordinals render the same way.
-      last_friday = Tempo.RRule.parse!("FREQ=MONTHLY;BYDAY=-1FR", from: ~o"2025-01-01")
+      last_friday = RRule.parse!("FREQ=MONTHLY;BYDAY=-1FR", from: ~o"2025-01-01")
       assert inspect(last_friday) == ~S|~o"R/2025Y1M1D/P1M/FL-1I5KN"|
 
-      first_and_third = Tempo.RRule.parse!("FREQ=MONTHLY;BYDAY=1MO,3MO", from: ~o"2025-01-01")
+      first_and_third = RRule.parse!("FREQ=MONTHLY;BYDAY=1MO,3MO", from: ~o"2025-01-01")
       assert inspect(first_and_third) == ~S|~o"R/2025Y1M1D/P1M/FL1I1K3I1KN"|
     end
 
