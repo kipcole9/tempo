@@ -6,6 +6,8 @@ defmodule Tempo.CronTest do
   doctest Tempo.Cron
 
   alias Tempo.Cron
+  alias Tempo.IntervalSet
+  alias Tempo.RRule.Expander
   alias Tempo.RRule.Rule
 
   describe "pure-step shortcut (FREQ=unit, INTERVAL=n)" do
@@ -241,7 +243,7 @@ defmodule Tempo.CronTest do
 
     test "expansion keeps only the listed years, skipping the gaps" do
       {:ok, rule} = Cron.parse("0 0 0 1 1 * 2025,2027,2029")
-      {:ok, occurrences} = Tempo.RRule.Expander.expand(rule, ~o"2025-01-01T00:00:00")
+      {:ok, occurrences} = Expander.expand(rule, ~o"2025-01-01T00:00:00")
       assert Enum.map(occurrences, & &1.from.time[:year]) == [2025, 2027, 2029]
     end
   end
@@ -252,7 +254,7 @@ defmodule Tempo.CronTest do
       {:ok, rule} = Cron.parse(expression)
 
       {:ok, occurrences} =
-        Tempo.RRule.Expander.expand(rule, ~o"2026-01-01T09:00:00", bound: ~o"2027Y")
+        Expander.expand(rule, ~o"2026-01-01T09:00:00", bound: ~o"2027Y")
 
       Enum.map(occurrences, fn occurrence ->
         {occurrence.from.time[:month], occurrence.from.time[:day]}
@@ -307,7 +309,7 @@ defmodule Tempo.CronTest do
       {:ok, rule} = Cron.parse(expression)
 
       {:ok, occurrences} =
-        Tempo.RRule.Expander.expand(rule, ~o"2026-01-01T00:00:00", bound: ~o"2027Y")
+        Expander.expand(rule, ~o"2026-01-01T00:00:00", bound: ~o"2027Y")
 
       occurrences
       |> Enum.map(fn occurrence ->
@@ -415,7 +417,7 @@ defmodule Tempo.CronTest do
       {:ok, rule} = Cron.parse("*/15 * * * *")
 
       {:ok, ast} =
-        Tempo.RRule.Expander.to_ast(rule, Tempo.from_iso8601!("2026-06-15T10:00:00"))
+        Expander.to_ast(rule, Tempo.from_iso8601!("2026-06-15T10:00:00"))
 
       # Bound `~o"2026-06-15T10"` is the implicit one-hour span
       # `[10:00, 11:00)`; at 15-minute intervals that's 4 occurrences.
@@ -426,7 +428,7 @@ defmodule Tempo.CronTest do
         )
 
       # 10:00, 10:15, 10:30, 10:45.
-      assert Tempo.IntervalSet.count(set) == 4
+      assert IntervalSet.count(set) == 4
     end
   end
 end

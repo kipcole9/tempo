@@ -2,21 +2,23 @@ defmodule Tempo.Iso8601.Parser.Test do
   use ExUnit.Case, async: true
   import Tempo.Sigils
 
+  alias Tempo.Iso8601.AST
+
   test "Parsing centuries and decades resolves to a year group" do
     # The tokenizer emits group/range values as the component value;
     # these shapes go through the internal AST builder, not the
     # public `Tempo.new/1` (which validates for integer components).
     assert Tempo.from_iso8601("20C") ==
-             {:ok, Tempo.Iso8601.AST.build(year: {:group, 2000..2099})}
+             {:ok, AST.build(year: {:group, 2000..2099})}
 
     assert Tempo.from_iso8601("200J") ==
-             {:ok, Tempo.Iso8601.AST.build(year: {:group, 2000..2009})}
+             {:ok, AST.build(year: {:group, 2000..2009})}
 
     assert Tempo.from_iso8601("199J") ==
-             {:ok, Tempo.Iso8601.AST.build(year: {:group, 1990..1999})}
+             {:ok, AST.build(year: {:group, 1990..1999})}
 
     assert Tempo.from_iso8601("{1990..1999}Y") ==
-             {:ok, Tempo.Iso8601.AST.build(year: [1990..1999])}
+             {:ok, AST.build(year: [1990..1999])}
   end
 
   describe "ISO 8601-2 expanded year (±YYYYY)" do

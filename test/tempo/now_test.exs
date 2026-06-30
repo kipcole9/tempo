@@ -1,6 +1,8 @@
 defmodule Tempo.NowTest do
   use ExUnit.Case, async: true
 
+  alias Tempo.Clock.Test
+
   # Install `Tempo.Clock.Test` as the clock for this test process
   # only. Using `Process.put` (not `Application.put_env`) keeps the
   # swap process-local so it does not leak into other async tests
@@ -15,7 +17,7 @@ defmodule Tempo.NowTest do
 
   describe "Tempo.utc_now/0" do
     test "returns a second-resolution Tempo in Etc/UTC" do
-      Tempo.Clock.Test.put(~U[2026-06-15 14:30:00Z])
+      Test.put(~U[2026-06-15 14:30:00Z])
 
       tempo = Tempo.utc_now()
 
@@ -29,13 +31,13 @@ defmodule Tempo.NowTest do
 
   describe "Tempo.now/1" do
     test "defaults to Etc/UTC" do
-      Tempo.Clock.Test.put(~U[2026-06-15 14:30:00Z])
+      Test.put(~U[2026-06-15 14:30:00Z])
       assert Tempo.now().extended.zone_id == "Etc/UTC"
     end
 
     test "projects the UTC instant into the requested zone" do
       # 14:30 UTC on 2026-06-15 is 16:30 in Paris (UTC+2 during DST).
-      Tempo.Clock.Test.put(~U[2026-06-15 14:30:00Z])
+      Test.put(~U[2026-06-15 14:30:00Z])
 
       tempo = Tempo.now("Europe/Paris")
 
@@ -45,7 +47,7 @@ defmodule Tempo.NowTest do
 
     test "crosses the date line when the zone moves the wall date" do
       # 23:30 UTC on 2026-06-15 is 07:30 on the 16th in Tokyo (UTC+9).
-      Tempo.Clock.Test.put(~U[2026-06-15 23:30:00Z])
+      Test.put(~U[2026-06-15 23:30:00Z])
 
       tempo = Tempo.now("Asia/Tokyo")
 
@@ -56,7 +58,7 @@ defmodule Tempo.NowTest do
 
   describe "Tempo.utc_today/0" do
     test "returns a day-resolution Tempo" do
-      Tempo.Clock.Test.put(~U[2026-06-15 14:30:00Z])
+      Test.put(~U[2026-06-15 14:30:00Z])
 
       assert Tempo.utc_today() |> Tempo.resolution() == {:day, 1}
       assert Tempo.utc_today().time == [year: 2026, month: 6, day: 15]
@@ -66,7 +68,7 @@ defmodule Tempo.NowTest do
   describe "Tempo.today/1" do
     test "returns the date in the given zone" do
       # 23:30 UTC on 2026-06-15 is already the 16th in Tokyo.
-      Tempo.Clock.Test.put(~U[2026-06-15 23:30:00Z])
+      Test.put(~U[2026-06-15 23:30:00Z])
 
       tempo = Tempo.today("Asia/Tokyo")
 

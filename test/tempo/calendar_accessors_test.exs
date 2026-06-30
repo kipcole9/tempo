@@ -3,6 +3,8 @@ defmodule Tempo.CalendarAccessorsTest do
 
   import Tempo.Sigils
 
+  alias Tempo.Interval
+
   describe "Tempo.day_of_week/1,2" do
     test "2026-06-15 is a Monday (default ordering)" do
       assert Tempo.day_of_week(~o"2026-06-15") == 1
@@ -237,10 +239,10 @@ defmodule Tempo.CalendarAccessorsTest do
     end
 
     test "working_days_in counts working days in a half-open interval" do
-      {:ok, june} = Tempo.Interval.new(from: ~o"2026-06-01", to: ~o"2026-07-01")
+      {:ok, june} = Interval.new(from: ~o"2026-06-01", to: ~o"2026-07-01")
       assert Tempo.working_days_in(june, :US) == 22
       # A single work week is five working days.
-      {:ok, week} = Tempo.Interval.new(from: ~o"2026-06-15", to: ~o"2026-06-22")
+      {:ok, week} = Interval.new(from: ~o"2026-06-15", to: ~o"2026-06-22")
       assert Tempo.working_days_in(week, :US) == 5
     end
 

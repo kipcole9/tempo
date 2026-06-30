@@ -4,6 +4,8 @@ defmodule Tempo.Event.Easter do
   import Kernel, except: [floor: 1]
   import Astro.Math, only: [mod: 2, floor: 1]
 
+  alias Calendrical.Kday
+
   @doc """
   [epact](https://en.wikipedia.org/wiki/Epact)
 
@@ -23,7 +25,7 @@ defmodule Tempo.Event.Easter do
   def gregorian_easter(gregorian_year, calendar \\ Calendar.ISO)
       when is_integer(gregorian_year) do
     paschal_moon = gregorian_paschal_moon(gregorian_year, calendar)
-    Calendrical.Kday.kday_after(paschal_moon, Calendrical.sunday())
+    Kday.kday_after(paschal_moon, Calendrical.sunday())
   end
 
   defp gregorian_paschal_moon(gregorian_year, calendar)

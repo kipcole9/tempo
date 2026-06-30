@@ -1,6 +1,8 @@
 defmodule Tempo.Iso8601.LeapSecond.Test do
   use ExUnit.Case, async: true
 
+  alias Tempo.LeapSeconds
+
   # Policy: ISO 8601 permits `:60` syntactically as a positive
   # leap second. Tempo rejects it at parse regardless of date,
   # matching Elixir/OTP stdlib (`Calendar.ISO.valid_time?/4`,
@@ -56,21 +58,21 @@ defmodule Tempo.Iso8601.LeapSecond.Test do
 
   describe "Tempo.LeapSeconds — data remains available" do
     test "dates/0 still lists the 27 IERS insertions" do
-      assert length(Tempo.LeapSeconds.dates()) == 27
-      assert {2016, 12, 31} in Tempo.LeapSeconds.dates()
-      assert {1972, 6, 30} in Tempo.LeapSeconds.dates()
+      assert length(LeapSeconds.dates()) == 27
+      assert {2016, 12, 31} in LeapSeconds.dates()
+      assert {1972, 6, 30} in LeapSeconds.dates()
     end
 
     test "on_date?/3 remains a pure historical predicate" do
-      assert Tempo.LeapSeconds.on_date?(2016, 12, 31)
-      refute Tempo.LeapSeconds.on_date?(2026, 12, 31)
+      assert LeapSeconds.on_date?(2016, 12, 31)
+      refute LeapSeconds.on_date?(2026, 12, 31)
     end
 
     test "removals/0 is empty today (reserved for future negative leap seconds)" do
       # No negative leap second has ever been used. The CGPM 2022
       # agreement opens the door from ~2035; the list is the
       # extension point.
-      assert Tempo.LeapSeconds.removals() == []
+      assert LeapSeconds.removals() == []
     end
   end
 

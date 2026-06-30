@@ -53,6 +53,7 @@ if Code.ensure_loaded?(Plug.Router) and Code.ensure_loaded?(Bandit) do
     plug(Plug.Parsers, parsers: [:urlencoded], pass: ["text/*"])
     plug(:dispatch)
 
+    alias Plug.Conn
     alias Tempo.Visualizer.Assets
     alias Tempo.Visualizer.ParseView
 
@@ -63,9 +64,9 @@ if Code.ensure_loaded?(Plug.Router) and Code.ensure_loaded?(Bandit) do
 
     get "/assets/style.css" do
       conn
-      |> Plug.Conn.put_resp_content_type("text/css")
-      |> Plug.Conn.put_resp_header("cache-control", "public, max-age=31536000, immutable")
-      |> Plug.Conn.send_resp(200, Assets.css())
+      |> Conn.put_resp_content_type("text/css")
+      |> Conn.put_resp_header("cache-control", "public, max-age=31536000, immutable")
+      |> Conn.send_resp(200, Assets.css())
     end
 
     match _ do
@@ -76,8 +77,8 @@ if Code.ensure_loaded?(Plug.Router) and Code.ensure_loaded?(Bandit) do
 
     defp html(conn, iodata) do
       conn
-      |> Plug.Conn.put_resp_content_type("text/html")
-      |> Plug.Conn.send_resp(200, IO.iodata_to_binary(iodata))
+      |> Conn.put_resp_content_type("text/html")
+      |> Conn.send_resp(200, IO.iodata_to_binary(iodata))
     end
 
     # When mounted via `forward "/visualize", ...`, Plug sets

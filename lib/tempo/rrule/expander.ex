@@ -38,6 +38,7 @@ defmodule Tempo.RRule.Expander do
 
   alias Tempo.Interval
   alias Tempo.RRule.Rule
+  alias Tempo.RRuleError
 
   @doc """
   Expand a rule into a list of concrete `%Tempo.Interval{}`
@@ -329,7 +330,7 @@ defmodule Tempo.RRule.Expander do
 
         :error ->
           {:error,
-           Tempo.RRuleError.exception(
+           RRuleError.exception(
              reason: "Unsupported ical frequency: #{inspect(r.frequency)}",
              rule: r
            )}

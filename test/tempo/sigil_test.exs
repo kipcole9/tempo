@@ -2,6 +2,8 @@ defmodule Tempo.SigilMatchTest do
   use ExUnit.Case, async: true
   import Tempo.Sigils
 
+  alias Tempo.Duration
+
   # Phase ① behaviour of `~o[…]` used on the LHS of a match —
   # `match?/2`, `case`, function-head patterns. The sigil expands
   # to a `%Tempo{time: [{u1, v1}, …, {un, vn} | _]}` pattern,
@@ -287,17 +289,17 @@ defmodule Tempo.SigilMatchTest do
 
   describe "matching %Tempo.Duration{}" do
     test "prefix match on the duration's time list" do
-      duration = Tempo.Duration.new!(year: 1, month: 6)
+      duration = Duration.new!(year: 1, month: 6)
       assert match?(~o[P1Y6M], duration)
     end
 
     test "prefix allows extra finer components" do
-      duration = Tempo.Duration.new!(year: 1, month: 6, day: 15)
+      duration = Duration.new!(year: 1, month: 6, day: 15)
       assert match?(~o[P1Y6M], duration)
     end
 
     test "fails when values disagree" do
-      duration = Tempo.Duration.new!(year: 1, month: 6)
+      duration = Duration.new!(year: 1, month: 6)
       refute match?(~o[P2Y6M], duration)
     end
 
@@ -307,12 +309,12 @@ defmodule Tempo.SigilMatchTest do
     end
 
     test "does not cross-match a Duration against a Tempo sigil" do
-      duration = Tempo.Duration.new!(year: 1, month: 6)
+      duration = Duration.new!(year: 1, month: 6)
       refute match?(~o[1Y6M], duration)
     end
 
     test "modifier bindings work on Duration (same `time` shape as Tempo)" do
-      duration = Tempo.Duration.new!(year: 1, month: 6, day: 15)
+      duration = Duration.new!(year: 1, month: 6, day: 15)
 
       assert (case duration do
                 ~o[P1Y]D -> day

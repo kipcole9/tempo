@@ -1,6 +1,8 @@
 defmodule Tempo.IntervalExpansion.Test do
   use ExUnit.Case, async: true
 
+  alias Tempo.IntervalSet
+
   # Tests for the two expansion paths added alongside
   # `Tempo.Math` arithmetic:
   #
@@ -69,7 +71,7 @@ defmodule Tempo.IntervalExpansion.Test do
       assert length(set.intervals) == 3
       assert Enum.map(set.intervals, & &1.from.time[:month]) == [1, 2, 3]
 
-      coalesced = Tempo.IntervalSet.coalesce(set)
+      coalesced = IntervalSet.coalesce(set)
       [span] = coalesced.intervals
       assert span.from.time == [year: 1985, month: 1]
       assert span.to.time == [year: 1985, month: 4]
@@ -80,7 +82,7 @@ defmodule Tempo.IntervalExpansion.Test do
       {:ok, set} = Tempo.to_interval(interval)
       assert length(set.intervals) == 5
 
-      coalesced = Tempo.IntervalSet.coalesce(set)
+      coalesced = IntervalSet.coalesce(set)
       [span] = coalesced.intervals
       assert span.from.time == [year: 1985, month: 1, day: 1]
       assert span.to.time == [year: 1985, month: 1, day: 6]
@@ -91,7 +93,7 @@ defmodule Tempo.IntervalExpansion.Test do
       {:ok, set} = Tempo.to_interval(interval)
       assert length(set.intervals) == 2
 
-      coalesced = Tempo.IntervalSet.coalesce(set)
+      coalesced = IntervalSet.coalesce(set)
       [span] = coalesced.intervals
       assert span.from.time == [year: 1985, month: 1]
       assert span.to.time == [year: 1987, month: 1]

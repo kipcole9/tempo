@@ -3,6 +3,7 @@ defmodule Tempo.Interval.CompareTest do
   import Tempo.Sigils
 
   alias Tempo.Interval
+  alias Tempo.IntervalSet
 
   # Fixtures. Each interval is a day-resolution span. Anchor Y
   # around an arbitrary reference interval so every Allen
@@ -149,7 +150,7 @@ defmodule Tempo.Interval.CompareTest do
 
     test "single-member IntervalSet is accepted" do
       a =
-        Tempo.IntervalSet.new!([%Interval{from: ~o"2026-06-01", to: ~o"2026-06-10"}],
+        IntervalSet.new!([%Interval{from: ~o"2026-06-01", to: ~o"2026-06-10"}],
           coalesce: false
         )
 
@@ -160,7 +161,7 @@ defmodule Tempo.Interval.CompareTest do
 
     test "multi-member IntervalSet returns an explanatory error" do
       set =
-        Tempo.IntervalSet.new!(
+        IntervalSet.new!(
           [
             %Interval{from: ~o"2026-06-01", to: ~o"2026-06-03"},
             %Interval{from: ~o"2026-06-05", to: ~o"2026-06-07"}
@@ -188,7 +189,7 @@ defmodule Tempo.Interval.CompareTest do
   describe "Tempo.IntervalSet.relation_matrix/2" do
     test "full per-pair relation listing" do
       a =
-        Tempo.IntervalSet.new!(
+        IntervalSet.new!(
           [
             %Interval{from: ~o"2026-06-01", to: ~o"2026-06-03"},
             %Interval{from: ~o"2026-06-05", to: ~o"2026-06-07"}
@@ -197,30 +198,30 @@ defmodule Tempo.Interval.CompareTest do
         )
 
       b =
-        Tempo.IntervalSet.new!(
+        IntervalSet.new!(
           [
             %Interval{from: ~o"2026-06-04", to: ~o"2026-06-06"}
           ],
           coalesce: false
         )
 
-      assert Tempo.IntervalSet.relation_matrix(a, b) == [
+      assert IntervalSet.relation_matrix(a, b) == [
                {0, 0, :precedes},
                {1, 0, :overlapped_by}
              ]
     end
 
     test "empty sets yield an empty matrix" do
-      empty = Tempo.IntervalSet.new!([], coalesce: false)
+      empty = IntervalSet.new!([], coalesce: false)
 
-      assert Tempo.IntervalSet.relation_matrix(empty, empty) == []
+      assert IntervalSet.relation_matrix(empty, empty) == []
     end
 
     test "coerces a bare Interval to a single-member set" do
       a = %Interval{from: ~o"2026-06-01", to: ~o"2026-06-05"}
 
       b =
-        Tempo.IntervalSet.new!(
+        IntervalSet.new!(
           [
             %Interval{from: ~o"2026-06-03", to: ~o"2026-06-07"},
             %Interval{from: ~o"2026-06-10", to: ~o"2026-06-12"}
@@ -229,7 +230,7 @@ defmodule Tempo.Interval.CompareTest do
         )
 
       assert [{0, 0, :overlaps}, {0, 1, :precedes}] =
-               Tempo.IntervalSet.relation_matrix(a, b)
+               IntervalSet.relation_matrix(a, b)
     end
   end
 end

@@ -1,6 +1,8 @@
 defmodule Tempo.RRule.Encoder do
   @moduledoc false
 
+  alias Tempo.ConversionError
+
   # Converts a `%Tempo.Interval{}` back into an RFC 5545 RRULE
   # string. Pure AST → text; no parsing. Called via
   # `Tempo.to_rrule/1`.
@@ -28,7 +30,7 @@ defmodule Tempo.RRule.Encoder do
   @doc false
   def encode(%Tempo.Interval{duration: nil} = value) do
     {:error,
-     Tempo.ConversionError.exception(
+     ConversionError.exception(
        reason:
          "Cannot convert an interval without a duration to an RRULE. " <>
            "RFC 5545 requires a FREQ (recurrence cadence) on every rule.",
@@ -65,7 +67,7 @@ defmodule Tempo.RRule.Encoder do
 
   def encode(other) do
     {:error,
-     Tempo.ConversionError.exception(
+     ConversionError.exception(
        reason:
          "Only a %Tempo.Interval{} with a duration can be converted to an RRULE. " <>
            "Got: #{inspect(other)}",
@@ -80,7 +82,7 @@ defmodule Tempo.RRule.Encoder do
     case Map.get(@freq_for, unit) do
       nil ->
         {:error,
-         Tempo.ConversionError.exception(
+         ConversionError.exception(
            reason:
              "Duration unit #{inspect(unit)} has no RRULE equivalent. " <>
                "RRULE supports second/minute/hour/day/week/month/year.",
@@ -102,7 +104,7 @@ defmodule Tempo.RRule.Encoder do
 
   defp freq_and_interval(time, interval) do
     {:error,
-     Tempo.ConversionError.exception(
+     ConversionError.exception(
        reason:
          "An RRULE duration must be a single {unit, count} pair; " <>
            "got: #{inspect(time)}",
@@ -130,7 +132,7 @@ defmodule Tempo.RRule.Encoder do
 
   defp bound_part(%Tempo.Interval{recurrence: n, to: %Tempo{}} = v) when is_integer(n) do
     {:error,
-     Tempo.ConversionError.exception(
+     ConversionError.exception(
        reason:
          "RRULE cannot combine COUNT and UNTIL in the same rule " <>
            "(RFC 5545 §3.3.10 makes them mutually exclusive).",
@@ -141,7 +143,7 @@ defmodule Tempo.RRule.Encoder do
 
   defp bound_part(other) do
     {:error,
-     Tempo.ConversionError.exception(
+     ConversionError.exception(
        reason: "Interval bound shape is not expressible as an RRULE part.",
        value: other,
        target: :rrule
@@ -162,7 +164,7 @@ defmodule Tempo.RRule.Encoder do
 
       _ ->
         {:error,
-         Tempo.ConversionError.exception(
+         ConversionError.exception(
            reason:
              "RRULE UNTIL requires a bare date or UTC datetime; " <>
                "got #{inspect(time)}.",
@@ -186,7 +188,7 @@ defmodule Tempo.RRule.Encoder do
 
   defp by_parts(%Tempo{} = rule, interval) do
     {:error,
-     Tempo.ConversionError.exception(
+     ConversionError.exception(
        reason:
          "Interval repeat_rule shape is not expressible as RRULE BY* parts: " <>
            "#{inspect(rule.time)}",
@@ -197,7 +199,7 @@ defmodule Tempo.RRule.Encoder do
 
   defp by_parts(other, interval) do
     {:error,
-     Tempo.ConversionError.exception(
+     ConversionError.exception(
        reason:
          "Interval repeat_rule must be a %Tempo{} with a single :selection entry; " <>
            "got #{inspect(other)}",

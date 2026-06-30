@@ -1,6 +1,9 @@
 defmodule Tempo.ZoneValidationTest do
   use ExUnit.Case, async: true
 
+  alias Tempo.Compare
+  alias Tempo.Interval
+
   doctest Tempo.ZoneOffsetMismatchError
 
   # Parse-time validation of zoned wall times: during a DST
@@ -106,8 +109,8 @@ defmodule Tempo.ZoneValidationTest do
 
       # AEDT (+11) 02:00 ≡ 15:00 UTC; AEST (+10) 02:00 ≡ 16:00 UTC.
       # The second occurrence is exactly 3600 seconds after the first.
-      assert Tempo.Compare.to_utc_seconds(two_b) -
-               Tempo.Compare.to_utc_seconds(two_a) == 3600
+      assert Compare.to_utc_seconds(two_b) -
+               Compare.to_utc_seconds(two_a) == 3600
     end
 
     test "the fold occurrences round-trip through the sigil/parser" do
@@ -198,7 +201,7 @@ defmodule Tempo.ZoneValidationTest do
 
       # Same UTC instant as the no-offset default (which also
       # picks EDT as the first period).
-      assert Tempo.Compare.to_utc_seconds(pre_fb) == Tempo.Compare.to_utc_seconds(plain)
+      assert Compare.to_utc_seconds(pre_fb) == Compare.to_utc_seconds(plain)
     end
 
     test "explicit -05:00 picks the EST (post-fall-back) period" do
@@ -206,8 +209,8 @@ defmodule Tempo.ZoneValidationTest do
       pre_fb = Tempo.from_iso8601!("2024-11-03T01:30:00-04:00[America/New_York]")
 
       # One hour later in UTC — the repeated hour.
-      assert Tempo.Compare.to_utc_seconds(post_fb) -
-               Tempo.Compare.to_utc_seconds(pre_fb) == 3600
+      assert Compare.to_utc_seconds(post_fb) -
+               Compare.to_utc_seconds(pre_fb) == 3600
     end
 
     test "an offset that matches no period falls back to the first" do
@@ -216,8 +219,8 @@ defmodule Tempo.ZoneValidationTest do
       ambiguous = Tempo.from_iso8601!("2024-11-03T01:30:00+00:00[America/New_York]")
       default = Tempo.from_iso8601!("2024-11-03T01:30:00[America/New_York]")
 
-      assert Tempo.Compare.to_utc_seconds(ambiguous) ==
-               Tempo.Compare.to_utc_seconds(default)
+      assert Compare.to_utc_seconds(ambiguous) ==
+               Compare.to_utc_seconds(default)
     end
   end
 
@@ -256,7 +259,7 @@ defmodule Tempo.ZoneValidationTest do
       assert {:ok, tempo} = Tempo.from_iso8601("2024-06-15T12:00:00[US/Pacific]")
       assert tempo.extended.zone_id == "US/Pacific"
       # Offset matches America/Los_Angeles (the canonical zone).
-      assert is_integer(Tempo.Compare.to_utc_seconds(tempo))
+      assert is_integer(Compare.to_utc_seconds(tempo))
     end
 
     test "Asia/Calcutta (renamed to Asia/Kolkata) parses" do
@@ -279,7 +282,7 @@ defmodule Tempo.ZoneValidationTest do
 
       # London wall = UTC wall + 2h, so London's UTC projection
       # is 2h earlier than the same wall-clock at UTC.
-      diff = Tempo.Compare.to_utc_seconds(utc) - Tempo.Compare.to_utc_seconds(london)
+      diff = Compare.to_utc_seconds(utc) - Compare.to_utc_seconds(london)
       assert diff == 7200
     end
   end
@@ -371,7 +374,7 @@ defmodule Tempo.ZoneValidationTest do
       iv = %Tempo.Interval{from: from, to: to}
 
       # 23h = 82800s. The hour between 02:00 and 03:00 was skipped.
-      assert Tempo.Interval.duration(iv) == %Tempo.Duration{time: [second: 82_800]}
+      assert Interval.duration(iv) == %Tempo.Duration{time: [second: 82_800]}
     end
 
     test "24 wall-clock hours across fall-back = 25 real hours" do
@@ -380,7 +383,7 @@ defmodule Tempo.ZoneValidationTest do
       iv = %Tempo.Interval{from: from, to: to}
 
       # 25h = 90000s. The hour between 01:00 and 02:00 was repeated.
-      assert Tempo.Interval.duration(iv) == %Tempo.Duration{time: [second: 90_000]}
+      assert Interval.duration(iv) == %Tempo.Duration{time: [second: 90_000]}
     end
 
     test "24 wall-clock hours outside any transition = 24 real hours" do
@@ -388,7 +391,7 @@ defmodule Tempo.ZoneValidationTest do
       to = Tempo.from_iso8601!("2024-06-16T12:00:00[America/New_York]")
       iv = %Tempo.Interval{from: from, to: to}
 
-      assert Tempo.Interval.duration(iv) == %Tempo.Duration{time: [second: 86_400]}
+      assert Interval.duration(iv) == %Tempo.Duration{time: [second: 86_400]}
     end
 
     test "unzoned interval ignores zone math" do
@@ -397,7 +400,7 @@ defmodule Tempo.ZoneValidationTest do
       iv = %Tempo.Interval{from: from, to: to}
 
       # No zone → plain wall-clock delta of 24h.
-      assert Tempo.Interval.duration(iv) == %Tempo.Duration{time: [second: 86_400]}
+      assert Interval.duration(iv) == %Tempo.Duration{time: [second: 86_400]}
     end
   end
 

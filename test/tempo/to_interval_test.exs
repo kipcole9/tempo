@@ -1,6 +1,9 @@
 defmodule Tempo.ToInterval.Test do
   use ExUnit.Case, async: true
 
+  alias Tempo.Interval
+  alias Tempo.IntervalSet
+
   # Tests for `Tempo.to_interval/1` — implicit-to-explicit interval
   # materialisation. Covers the table of input-resolution rules from
   # `plans/implicit-to-explicit-interval-conversion.md` plus mask
@@ -190,7 +193,7 @@ defmodule Tempo.ToInterval.Test do
       assert interval.from.time == [year: 2000]
       assert interval.to.time == [year: 2100]
       # 100 years measured in seconds.
-      assert Tempo.Interval.duration(interval).time == [second: 3_155_760_000]
+      assert Interval.duration(interval).time == [second: 3_155_760_000]
     end
 
     test "decade `201J` → the 10-year span [2010, 2020)" do
@@ -298,7 +301,7 @@ defmodule Tempo.ToInterval.Test do
     test "a week spans seven days" do
       {:ok, tempo} = Tempo.from_iso8601("2022-W24")
       {:ok, interval} = Tempo.to_interval(tempo)
-      assert Tempo.Interval.duration(interval).time == [second: 604_800]
+      assert Interval.duration(interval).time == [second: 604_800]
     end
 
     test "adjacent weeks meet (not equal)" do
@@ -311,7 +314,7 @@ defmodule Tempo.ToInterval.Test do
     test "an ordinal date spans one day" do
       {:ok, tempo} = Tempo.from_iso8601("2022-166")
       {:ok, interval} = Tempo.to_interval(tempo)
-      assert Tempo.Interval.duration(interval).time == [second: 86_400]
+      assert Interval.duration(interval).time == [second: 86_400]
     end
   end
 
@@ -377,7 +380,7 @@ defmodule Tempo.ToInterval.Test do
       assert length(set.intervals) == 3
 
       # Coalesced: the touching years merge into a single 3-year span.
-      coalesced = Tempo.IntervalSet.coalesce(set)
+      coalesced = IntervalSet.coalesce(set)
       [interval] = coalesced.intervals
       assert interval.from.time == [year: 2020, month: 1]
       assert interval.to.time == [year: 2023, month: 1]

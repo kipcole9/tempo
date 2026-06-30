@@ -82,10 +82,22 @@
           # You can customize the priority of any check
           # Priority values are: `low, normal, high, higher`
           #
-          # Disabled: fully-qualified module names are frequently the
-          # clearer choice in this codebase, and the default threshold
-          # (alias after 2 uses) is too aggressive to be useful here.
-          {Credo.Check.Design.AliasUsage, false},
+          # Enabled: aliasing nested modules to collapse the namespace
+          # by the primary level (`Tempo.Foo.Bar` → `Bar`) is the house
+          # style — it keeps call sites reading as domain verbs rather
+          # than fully-qualified paths. `excluded_lastnames` keeps names
+          # that would shadow an Elixir/Erlang built-in fully qualified
+          # (e.g. `Localize.Calendar`, `Tempo.Inspect`) — aliasing those
+          # to the bare name silently captures the stdlib module.
+          {Credo.Check.Design.AliasUsage,
+           [
+             excluded_lastnames: ~w(
+               Calendar Inspect Date Time DateTime NaiveDateTime Range Stream
+               Map List Set Keyword Tuple Atom Integer Float String Process
+               Task Agent Node Port System IO File Path URI Version Regex
+               Module Macro Code Enum Access Base Exception Kernel
+             )
+           ]},
           # Disabled: TODO/FIXME work is tracked in TODO.md, the system
           # of record — inline tags are intentional pointers, not debt
           # for Credo to flag.

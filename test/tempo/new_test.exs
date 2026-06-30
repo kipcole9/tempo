@@ -2,6 +2,11 @@ defmodule Tempo.NewTest do
   use ExUnit.Case, async: true
   import Tempo.Sigils
 
+  alias Tempo.Duration
+  alias Tempo.Interval
+  alias Tempo.IntervalSet
+  alias Tempo.Math
+
   # `Tempo.new/1` is the developer-facing constructor for
   # `%Tempo{}`. Unlike the `~o` sigil (compile-time literal) and
   # `Tempo.from_iso8601/1` (string parsing), `new/1` accepts
@@ -175,30 +180,30 @@ defmodule Tempo.NewTest do
     end
 
     test "builds a closed interval from two Tempos", %{from: from, to: to} do
-      {:ok, iv} = Tempo.Interval.new(from: from, to: to)
+      {:ok, iv} = Interval.new(from: from, to: to)
       assert iv.from == from
       assert iv.to == to
     end
 
     test "open-ended to", %{from: from} do
-      {:ok, iv} = Tempo.Interval.new(from: from, to: :undefined)
+      {:ok, iv} = Interval.new(from: from, to: :undefined)
       assert iv.to == :undefined
     end
 
     test "open-ended from", %{to: to} do
-      {:ok, iv} = Tempo.Interval.new(from: :undefined, to: to)
+      {:ok, iv} = Interval.new(from: :undefined, to: to)
       assert iv.from == :undefined
     end
 
     test "from + duration (to is derived lazily)", %{from: from} do
-      {:ok, duration} = Tempo.Duration.new(hour: 8)
-      {:ok, iv} = Tempo.Interval.new(from: from, duration: duration)
+      {:ok, duration} = Duration.new(hour: 8)
+      {:ok, iv} = Interval.new(from: from, duration: duration)
       assert iv.from == from
       assert iv.duration == duration
     end
 
     test "recurrence and metadata", %{from: from, to: to} do
-      {:ok, iv} = Tempo.Interval.new(from: from, to: to, recurrence: 5, metadata: %{name: "demo"})
+      {:ok, iv} = Interval.new(from: from, to: to, recurrence: 5, metadata: %{name: "demo"})
       assert iv.recurrence == 5
       assert iv.metadata == %{name: "demo"}
     end
@@ -206,66 +211,66 @@ defmodule Tempo.NewTest do
     test "from > to is rejected", %{from: from, to: to} do
       # Swap them so from > to
       assert {:error, %Tempo.IntervalEndpointsError{}} =
-               Tempo.Interval.new(from: to, to: from)
+               Interval.new(from: to, to: from)
     end
 
     test "requires at least one of :from, :to, :duration" do
-      assert {:error, %ArgumentError{}} = Tempo.Interval.new([])
+      assert {:error, %ArgumentError{}} = Interval.new([])
     end
 
     test "rejects unknown option" do
-      assert {:error, %ArgumentError{message: msg}} = Tempo.Interval.new(from: nil, nope: 1)
+      assert {:error, %ArgumentError{message: msg}} = Interval.new(from: nil, nope: 1)
       assert msg =~ ":nope"
     end
 
     test "rejects non-Tempo :from" do
-      assert {:error, %ArgumentError{}} = Tempo.Interval.new(from: "yesterday")
+      assert {:error, %ArgumentError{}} = Interval.new(from: "yesterday")
     end
 
     test "new!/1 raises on invalid input", %{from: from, to: to} do
       assert_raise Tempo.IntervalEndpointsError, fn ->
-        Tempo.Interval.new!(from: to, to: from)
+        Interval.new!(from: to, to: from)
       end
     end
 
     test "new!/1 returns the bare struct on success", %{from: from, to: to} do
-      iv = Tempo.Interval.new!(from: from, to: to)
+      iv = Interval.new!(from: from, to: to)
       assert %Tempo.Interval{} = iv
     end
   end
 
   describe "Tempo.Duration.new/1" do
     test "basic duration" do
-      {:ok, d} = Tempo.Duration.new(year: 1, month: 6)
+      {:ok, d} = Duration.new(year: 1, month: 6)
       assert d.time == [year: 1, month: 6]
     end
 
     test "components reorder coarse-to-fine" do
-      {:ok, d} = Tempo.Duration.new(second: 30, year: 1, hour: 2)
+      {:ok, d} = Duration.new(second: 30, year: 1, hour: 2)
       assert d.time == [year: 1, hour: 2, second: 30]
     end
 
     test "negative components (reverse-direction duration)" do
-      {:ok, d} = Tempo.Duration.new(day: -3)
+      {:ok, d} = Duration.new(day: -3)
       assert d.time == [day: -3]
     end
 
     test "rejects unknown key" do
-      assert {:error, %ArgumentError{message: msg}} = Tempo.Duration.new(fortnight: 1)
+      assert {:error, %ArgumentError{message: msg}} = Duration.new(fortnight: 1)
       assert msg =~ ":fortnight"
     end
 
     test "rejects non-integer value" do
-      assert {:error, %ArgumentError{}} = Tempo.Duration.new(day: "3")
+      assert {:error, %ArgumentError{}} = Duration.new(day: "3")
     end
 
     test "rejects empty keyword list" do
-      assert {:error, %ArgumentError{}} = Tempo.Duration.new([])
+      assert {:error, %ArgumentError{}} = Duration.new([])
     end
 
     test "new!/1 raises on invalid input" do
       assert_raise ArgumentError, fn ->
-        Tempo.Duration.new!(fortnight: 1)
+        Duration.new!(fortnight: 1)
       end
     end
   end
@@ -280,25 +285,25 @@ defmodule Tempo.NewTest do
     test "constructed Tempo plugs into select/2" do
       base = Tempo.new!(year: 2026)
       {:ok, set} = Tempo.select(base, ~o"12-25")
-      [xmas] = Tempo.IntervalSet.to_list(set)
+      [xmas] = IntervalSet.to_list(set)
       assert xmas.from.time == [year: 2026, month: 12, day: 25]
     end
 
     test "constructed Interval plugs into intersection/2" do
       june =
-        Tempo.Interval.new!(
+        Interval.new!(
           from: Tempo.new!(year: 2026, month: 6, day: 1),
           to: Tempo.new!(year: 2026, month: 7, day: 1)
         )
 
       {:ok, set} = Tempo.intersection(june, ~o"2026-06-15")
-      assert Tempo.IntervalSet.count(set) == 1
+      assert IntervalSet.count(set) == 1
     end
 
     test "constructed Duration plugs into Math.add/2" do
       start = Tempo.new!(year: 2026, month: 6, day: 15)
-      {:ok, d} = Tempo.Duration.new(day: 7)
-      result = Tempo.Math.add(start, d)
+      {:ok, d} = Duration.new(day: 7)
+      result = Math.add(start, d)
       assert result.time[:day] == 22
     end
   end

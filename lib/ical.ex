@@ -46,7 +46,13 @@ if Code.ensure_loaded?(ICal) do
 
     """
 
-    alias Tempo.{Interval, IntervalSet}
+    alias Tempo.Compare
+    alias Tempo.ConversionError
+    alias Tempo.Interval
+    alias Tempo.IntervalSet
+    alias Tempo.Math
+    alias Tempo.RRule.Expander
+    alias Tempo.UnboundedRecurrenceError
 
     # A hard ceiling on how many occurrences any single RRULE can
     # materialise. Prevents a malformed rule or a very wide bound
@@ -266,7 +272,7 @@ if Code.ensure_loaded?(ICal) do
     defp expand_recurrence(event, %ICal.Recurrence{} = rule, opts) do
       if rule.count == nil and rule.until == nil and not Keyword.has_key?(opts, :bound) do
         {:error,
-         Tempo.UnboundedRecurrenceError.exception(
+         UnboundedRecurrenceError.exception(
            reason:
              "Event #{inspect(event.uid)} has an unbounded recurrence rule " <>
                "(no COUNT, no UNTIL). Provide a `:bound` option — a Tempo " <>
@@ -280,7 +286,7 @@ if Code.ensure_loaded?(ICal) do
             |> Keyword.put(:metadata, base.metadata)
             |> Keyword.put(:base_to, base.to)
 
-          case Tempo.RRule.Expander.expand(rule, base.from, expander_opts) do
+          case Expander.expand(rule, base.from, expander_opts) do
             {:ok, rrule_occurrences} ->
               capped = Enum.take(rrule_occurrences, @safety_cap)
 
@@ -366,12 +372,12 @@ if Code.ensure_loaded?(ICal) do
            metadata: metadata
          }) do
       duration = event_duration(base_from, base_to)
-      to_tempo = Tempo.Math.add(from_tempo, duration)
+      to_tempo = Math.add(from_tempo, duration)
       %Interval{from: from_tempo, to: to_tempo, metadata: metadata}
     end
 
     defp event_duration(%Tempo{} = from, %Tempo{} = to) do
-      seconds = Tempo.Compare.to_utc_seconds(to) - Tempo.Compare.to_utc_seconds(from)
+      seconds = Compare.to_utc_seconds(to) - Compare.to_utc_seconds(from)
       %Tempo.Duration{time: [second: seconds]}
     end
 
@@ -395,7 +401,7 @@ if Code.ensure_loaded?(ICal) do
     defp exdate_to_tempo(_other), do: nil
 
     defp same_moment?(%Tempo{} = a, %Tempo{} = b) do
-      Tempo.Compare.compare_endpoints(a, b) == :same
+      Compare.compare_endpoints(a, b) == :same
     end
 
     ## Sort the combined set so consumers see chronological order
@@ -445,10 +451,10 @@ if Code.ensure_loaded?(ICal) do
     # `punctual: true` so the instantaneous origin is not lost. This
     # covers both the no-DTEND case and an explicit `DTEND == DTSTART`.
     defp ensure_non_degenerate(from, to, metadata) do
-      case Tempo.Compare.compare_endpoints(from, to) do
+      case Compare.compare_endpoints(from, to) do
         :same ->
           {unit, _span} = Tempo.resolution(from)
-          widened = Tempo.Math.add_unit(from, unit, from.calendar)
+          widened = Math.add_unit(from, unit, from.calendar)
           {from, widened, Map.put(metadata, :punctual, true)}
 
         _earlier_or_later ->
@@ -473,7 +479,7 @@ if Code.ensure_loaded?(ICal) do
 
     defp dtstart_to_tempo(other) do
       {:error,
-       Tempo.ConversionError.exception(
+       ConversionError.exception(
          value: other,
          target: Tempo,
          reason: "Unsupported DTSTART type: #{inspect(other)}"
@@ -487,7 +493,7 @@ if Code.ensure_loaded?(ICal) do
       # resolution, which keeps the endpoint at day resolution so the
       # half-open span is exactly `[from, from + 1 day)`.
       {unit, _span} = Tempo.resolution(from)
-      {:ok, Tempo.Math.add_unit(from, unit, from.calendar)}
+      {:ok, Math.add_unit(from, unit, from.calendar)}
     end
 
     defp dtend_to_tempo(%ICal.Event{dtend: nil, duration: nil}, from) do
@@ -505,7 +511,7 @@ if Code.ensure_loaded?(ICal) do
       # `ical` library surfaces as a `Timex.Duration`-ish record.
       # Not in v1.
       {:error,
-       Tempo.ConversionError.exception(
+       ConversionError.exception(
          target: Tempo.Interval,
          reason: "Duration-only VEVENT (no DTEND) is not yet supported."
        )}
@@ -525,7 +531,7 @@ if Code.ensure_loaded?(ICal) do
 
     defp dtend_to_tempo(%ICal.Event{dtend: other}, _from) do
       {:error,
-       Tempo.ConversionError.exception(
+       ConversionError.exception(
          value: other,
          target: Tempo,
          reason: "Unsupported DTEND type: #{inspect(other)}"

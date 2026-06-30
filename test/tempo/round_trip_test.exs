@@ -1,6 +1,8 @@
 defmodule Tempo.RoundTripTest do
   use ExUnit.Case, async: true
 
+  alias Tempo.RRule
+
   # Round-trip tests validate that the Tempo AST can be encoded
   # back to either of the two input formats (ISO 8601, RRULE)
   # and re-parsed to an equivalent AST.
@@ -81,10 +83,10 @@ defmodule Tempo.RoundTripTest do
     for rrule <- @cases do
       test "#{rrule}" do
         input = unquote(rrule)
-        {:ok, ast} = Tempo.RRule.parse(input)
+        {:ok, ast} = RRule.parse(input)
         {:ok, encoded} = Tempo.to_rrule(ast)
 
-        {:ok, ast2} = Tempo.RRule.parse(encoded)
+        {:ok, ast2} = RRule.parse(encoded)
         assert ast == ast2, "AST changed after round-trip for #{inspect(input)}"
 
         # Fixed-point: encoding twice should match.
@@ -98,13 +100,13 @@ defmodule Tempo.RoundTripTest do
       # FREQ+INTERVAL (analog to duration), then BY* (analog to
       # /F<rule>).
       assert {:ok, "COUNT=10;FREQ=DAILY"} =
-               Tempo.RRule.parse!("FREQ=DAILY;COUNT=10") |> Tempo.to_rrule()
+               RRule.parse!("FREQ=DAILY;COUNT=10") |> Tempo.to_rrule()
 
       assert {:ok, "UNTIL=20221231;FREQ=WEEKLY"} =
-               Tempo.RRule.parse!("FREQ=WEEKLY;UNTIL=20221231") |> Tempo.to_rrule()
+               RRule.parse!("FREQ=WEEKLY;UNTIL=20221231") |> Tempo.to_rrule()
 
       assert {:ok, "UNTIL=20221231;FREQ=WEEKLY;BYDAY=MO,WE,FR"} =
-               Tempo.RRule.parse!("FREQ=WEEKLY;BYDAY=MO,WE,FR;UNTIL=20221231")
+               RRule.parse!("FREQ=WEEKLY;BYDAY=MO,WE,FR;UNTIL=20221231")
                |> Tempo.to_rrule()
     end
   end
@@ -129,7 +131,7 @@ defmodule Tempo.RoundTripTest do
   describe "cross-format: RRULE → ISO 8601 interval" do
     test "FREQ=DAILY with DTSTART round-trips through ISO" do
       {:ok, rrule_ast} =
-        Tempo.RRule.parse("FREQ=DAILY;COUNT=5", from: Tempo.from_iso8601!("2022-01-01"))
+        RRule.parse("FREQ=DAILY;COUNT=5", from: Tempo.from_iso8601!("2022-01-01"))
 
       # The ISO 8601 serialisation of an RRule-produced Interval
       # should match a hand-written R5/<from>/P1D.

@@ -43,7 +43,10 @@ defmodule Tempo.Schedule do
 
   """
 
+  alias Tempo.Compare
+  alias Tempo.Interval
   alias Tempo.Network
+  alias Tempo.Network.Solver
   alias Tempo.Schedule.Slot
 
   @typedoc "A schedule under construction."
@@ -149,7 +152,7 @@ defmodule Tempo.Schedule do
   """
   @spec solve(t()) :: {:ok, %{optional(term()) => Slot.t()}} | {:error, :infeasible}
   def solve(%__MODULE__{network: network}) do
-    case Network.Solver.tighten(network) do
+    case Solver.tighten(network) do
       {:ok, tightened} ->
         {:ok, Map.new(tightened.periods, fn {id, period} -> {id, to_slot(id, period)} end)}
 
@@ -223,9 +226,9 @@ defmodule Tempo.Schedule do
   @spec span(%{optional(term()) => Slot.t()}) :: Tempo.Interval.t()
   def span(plan) when is_map(plan) do
     slots = Map.values(plan)
-    from = slots |> Enum.map(& &1.start) |> Enum.min_by(&Tempo.Compare.to_utc_seconds/1)
-    to = slots |> Enum.map(& &1.finish) |> Enum.max_by(&Tempo.Compare.to_utc_seconds/1)
-    Tempo.Interval.new!(from: from, to: to)
+    from = slots |> Enum.map(& &1.start) |> Enum.min_by(&Compare.to_utc_seconds/1)
+    to = slots |> Enum.map(& &1.finish) |> Enum.max_by(&Compare.to_utc_seconds/1)
+    Interval.new!(from: from, to: to)
   end
 
   # --- task options → period bounds ------------------------------
@@ -298,12 +301,12 @@ defmodule Tempo.Schedule do
   # there is no deadline the late start is unbounded (`nil`) and
   # criticality is undetermined.
   defp critical?(%Tempo{} = earliest, %Tempo{} = latest) do
-    Tempo.Compare.compare_endpoints(earliest, latest) == :same
+    Compare.compare_endpoints(earliest, latest) == :same
   end
 
   defp critical?(_earliest, _latest), do: nil
 
   defp start_not_after?(a, b) do
-    Tempo.Compare.compare_endpoints(a, b) in [:earlier, :same]
+    Compare.compare_endpoints(a, b) in [:earlier, :same]
   end
 end

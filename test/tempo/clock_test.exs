@@ -1,56 +1,59 @@
 defmodule Tempo.ClockTest do
   use ExUnit.Case, async: true
 
+  alias Tempo.Clock
+  alias Tempo.Clock.Test
+
   doctest Tempo.Clock.Test
 
   describe "Tempo.Clock.Test" do
     test "put/1 and utc_now/0 round-trip a UTC DateTime" do
       fixed = ~U[2026-06-15 12:00:00Z]
-      assert :ok = Tempo.Clock.Test.put(fixed)
-      assert Tempo.Clock.Test.utc_now() == fixed
+      assert :ok = Test.put(fixed)
+      assert Test.utc_now() == fixed
     end
 
     test "put/1 converts a non-UTC DateTime to UTC before storing" do
       # 12:00 Paris (UTC+2 in June) is 10:00 UTC.
       paris = DateTime.new!(~D[2026-06-15], ~T[12:00:00], "Europe/Paris", Tzdata.TimeZoneDatabase)
-      assert :ok = Tempo.Clock.Test.put(paris)
-      assert Tempo.Clock.Test.utc_now() == ~U[2026-06-15 10:00:00Z]
+      assert :ok = Test.put(paris)
+      assert Test.utc_now() == ~U[2026-06-15 10:00:00Z]
     end
 
     test "advance/1 moves the clock forward" do
-      Tempo.Clock.Test.put(~U[2026-06-15 12:00:00Z])
-      assert :ok = Tempo.Clock.Test.advance(3600)
-      assert Tempo.Clock.Test.utc_now() == ~U[2026-06-15 13:00:00Z]
+      Test.put(~U[2026-06-15 12:00:00Z])
+      assert :ok = Test.advance(3600)
+      assert Test.utc_now() == ~U[2026-06-15 13:00:00Z]
     end
 
     test "advance/1 accepts negative seconds" do
-      Tempo.Clock.Test.put(~U[2026-06-15 12:00:00Z])
-      assert :ok = Tempo.Clock.Test.advance(-600)
-      assert Tempo.Clock.Test.utc_now() == ~U[2026-06-15 11:50:00Z]
+      Test.put(~U[2026-06-15 12:00:00Z])
+      assert :ok = Test.advance(-600)
+      assert Test.utc_now() == ~U[2026-06-15 11:50:00Z]
     end
 
     test "advance/1 raises without a prior put/1" do
-      Tempo.Clock.Test.reset()
+      Test.reset()
 
       assert_raise RuntimeError, ~r/before put\/1/, fn ->
-        Tempo.Clock.Test.advance(1)
+        Test.advance(1)
       end
     end
 
     test "reset/1 clears the pinned time" do
-      Tempo.Clock.Test.put(~U[2026-06-15 12:00:00Z])
-      assert :ok = Tempo.Clock.Test.reset()
+      Test.put(~U[2026-06-15 12:00:00Z])
+      assert :ok = Test.reset()
 
       assert_raise RuntimeError, ~r/no time pinned/, fn ->
-        Tempo.Clock.Test.utc_now()
+        Test.utc_now()
       end
     end
 
     test "utc_now/0 raises with a helpful error when unpinned" do
-      Tempo.Clock.Test.reset()
+      Test.reset()
 
       assert_raise RuntimeError, ~r/Tempo\.Clock\.Test\.put\/1/, fn ->
-        Tempo.Clock.Test.utc_now()
+        Test.utc_now()
       end
     end
 
@@ -60,17 +63,17 @@ defmodule Tempo.ClockTest do
 
       {:ok, task} =
         Task.start(fn ->
-          Tempo.Clock.Test.put(~U[2030-01-01 00:00:00Z])
-          send(parent, {:peer_pinned, Tempo.Clock.Test.utc_now()})
+          Test.put(~U[2030-01-01 00:00:00Z])
+          send(parent, {:peer_pinned, Test.utc_now()})
         end)
 
       assert_receive {:peer_pinned, ~U[2030-01-01 00:00:00Z]}
       _ = task
 
-      Tempo.Clock.Test.reset()
+      Test.reset()
 
       assert_raise RuntimeError, fn ->
-        Tempo.Clock.Test.utc_now()
+        Test.utc_now()
       end
     end
   end
@@ -89,7 +92,7 @@ defmodule Tempo.ClockTest do
       Application.delete_env(:ex_tempo, :clock)
 
       try do
-        assert Tempo.Clock.clock() == Tempo.Clock.System
+        assert Clock.clock() == Tempo.Clock.System
       after
         if previous do
           Application.put_env(:ex_tempo, :clock, previous)
@@ -104,14 +107,14 @@ defmodule Tempo.ClockTest do
       Process.put({Tempo.Clock, :clock}, Tempo.Clock.Test)
 
       try do
-        assert Tempo.Clock.clock() == Tempo.Clock.Test
+        assert Clock.clock() == Tempo.Clock.Test
       after
         Process.delete({Tempo.Clock, :clock})
       end
 
       # After delete, falls back to the app env / default.
-      assert Tempo.Clock.clock() in [Tempo.Clock.System, nil] or
-               is_atom(Tempo.Clock.clock())
+      assert Clock.clock() in [Tempo.Clock.System, nil] or
+               is_atom(Clock.clock())
     end
 
     test "process-local override does not leak to peer processes" do
@@ -123,7 +126,7 @@ defmodule Tempo.ClockTest do
       {:ok, _task} =
         Task.start(fn ->
           # Peer process starts with no override — sees the default.
-          send(parent, {:peer_clock, Tempo.Clock.clock()})
+          send(parent, {:peer_clock, Clock.clock()})
         end)
 
       assert_receive {:peer_clock, peer_clock}

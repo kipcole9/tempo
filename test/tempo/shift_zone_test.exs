@@ -1,6 +1,8 @@
 defmodule Tempo.ShiftZoneTest do
   use ExUnit.Case, async: true
 
+  alias Tempo.Compare
+
   describe "Tempo.shift_zone/2" do
     test "Paris 14:00 → New York is 08:00 EDT in June" do
       paris = Tempo.from_iso8601!("2026-06-15T14:00:00[Europe/Paris]")
@@ -27,8 +29,8 @@ defmodule Tempo.ShiftZoneTest do
       original = Tempo.from_iso8601!("2026-06-15T14:00:00[Europe/Paris]")
       {:ok, ny} = Tempo.shift_zone(original, "America/New_York")
 
-      assert Tempo.Compare.to_utc_seconds(original) ==
-               Tempo.Compare.to_utc_seconds(ny)
+      assert Compare.to_utc_seconds(original) ==
+               Compare.to_utc_seconds(ny)
     end
 
     test "crosses the date line: Tokyo 07:30 on the 16th is previous-day UTC" do

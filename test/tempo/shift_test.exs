@@ -3,6 +3,8 @@ defmodule Tempo.ShiftTest do
 
   import Tempo.Sigils
 
+  alias Tempo.Math
+
   describe "Tempo.shift/2" do
     test "mixed units apply largest-to-smallest" do
       assert Tempo.shift(~o"2026-06-15", month: 1, day: -5) == ~o"2026Y7M10D"
@@ -48,7 +50,7 @@ defmodule Tempo.ShiftTest do
 
     test "agrees with the keyword-list form and with Tempo.Math.add/2" do
       assert Tempo.shift(~o"2026-06-15", ~o"P1M") == Tempo.shift(~o"2026-06-15", month: 1)
-      assert Tempo.shift(~o"2026-06-15", ~o"P1M") == Tempo.Math.add(~o"2026-06-15", ~o"P1M")
+      assert Tempo.shift(~o"2026-06-15", ~o"P1M") == Math.add(~o"2026-06-15", ~o"P1M")
     end
 
     test "month-end clamping applies the same as the keyword form" do

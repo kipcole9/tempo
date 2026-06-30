@@ -26,6 +26,8 @@ defmodule Tempo.Interval.Steps do
 
   """
 
+  alias Tempo.Compare
+  alias Tempo.Enumeration.Zone
   alias Tempo.Iso8601.AST
 
   @seconds_per_minute 60
@@ -365,7 +367,7 @@ defmodule Tempo.Interval.Steps do
   @spec elapsed_seconds(Tempo.t(), Tempo.t(), module()) :: integer()
   defp elapsed_seconds(from, to, calendar) do
     if dst_correct?(from, to, calendar) do
-      trunc(Tempo.Compare.to_utc_seconds(to)) - trunc(Tempo.Compare.to_utc_seconds(from))
+      trunc(Compare.to_utc_seconds(to)) - trunc(Compare.to_utc_seconds(from))
     else
       wall_seconds(to.time, calendar) - wall_seconds(from.time, calendar)
     end
@@ -404,7 +406,7 @@ defmodule Tempo.Interval.Steps do
         tempo
 
       zoned_gregorian?(tempo, calendar) ->
-        new_utc = trunc(Tempo.Compare.to_utc_seconds(tempo)) + delta_seconds
+        new_utc = trunc(Compare.to_utc_seconds(tempo)) + delta_seconds
         new_offset = zone_offset_at_utc(tempo.extended.zone_id, new_utc)
         new_wall = new_utc + new_offset
         result = %{tempo | time: replace_date_time(time, new_wall, calendar)}
@@ -423,9 +425,9 @@ defmodule Tempo.Interval.Steps do
   # resolves to a single instant). `offset_seconds` already pins which
   # side of the fold this step landed on.
   defp disambiguate_fold(%Tempo{} = result, offset_seconds) do
-    case Tempo.Enumeration.Zone.zone_status(result) do
+    case Zone.zone_status(result) do
       {:ambiguous, _first, _second} ->
-        %{result | shift: Tempo.Enumeration.Zone.offset_to_shift(offset_seconds)}
+        %{result | shift: Zone.offset_to_shift(offset_seconds)}
 
       _ ->
         result

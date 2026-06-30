@@ -65,7 +65,9 @@ defmodule Tempo.Explain do
 
   """
 
-  alias Tempo.{Explanation, Iso8601.Unit}
+  alias Tempo.Explanation
+  alias Tempo.Iso8601.Unit
+  alias Tempo.Mask
 
   @doc """
   Return a structured `t:Tempo.Explanation.t/0` for any Tempo
@@ -495,7 +497,7 @@ defmodule Tempo.Explain do
   defp mask_range(mask) do
     mask
     |> Enum.reject(&(&1 == :negative))
-    |> Tempo.Mask.mask_bounds()
+    |> Mask.mask_bounds()
   end
 
   defp qualification_word(:uncertain), do: "uncertain"

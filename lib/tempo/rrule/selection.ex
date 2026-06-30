@@ -40,6 +40,7 @@ defmodule Tempo.RRule.Selection do
 
   """
 
+  alias Calendrical.Kday
   alias Tempo.Interval
 
   @doc """
@@ -995,7 +996,7 @@ defmodule Tempo.RRule.Selection do
        when is_integer(ordinal) do
     anchor = if ordinal >= 0, do: start_date, else: end_date
 
-    case Calendrical.Kday.nth_kday(anchor, ordinal, weekday) do
+    case Kday.nth_kday(anchor, ordinal, weekday) do
       %Date{year: y, month: m, day: d} = d_struct ->
         if date_in_period?(d_struct, start_date, end_date),
           do: [swap_date(candidate, y, m, d)],

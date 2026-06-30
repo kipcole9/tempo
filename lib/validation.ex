@@ -1,6 +1,17 @@
 defmodule Tempo.Validation do
   @moduledoc false
 
+  alias Calendrical.ISOWeek
+  alias Localize.Utils.Math
+  alias Tempo.Compare
+  alias Tempo.Interval
+  alias Tempo.IntervalEndpointsError
+  alias Tempo.InvalidDateError
+  alias Tempo.InvalidTimeError
+  alias Tempo.Microsecond
+  alias Tempo.ParseError
+  alias Tempo.ZoneGapError
+
   # This function performs two roles (and maybe should be split):
   #
   # 1. Expand groups into basic time units where there is enough information to do so and
@@ -87,10 +98,10 @@ defmodule Tempo.Validation do
   # exactly where 2026 begins).
   defp validate_endpoint_order(%Tempo{} = from, %Tempo{} = to) do
     with true <- orderable?(from) and orderable?(to),
-         {:ok, {_lower, to_upper}} <- Tempo.Interval.next_unit_boundary(to),
-         order when order != :earlier <- Tempo.Compare.compare_endpoints(from, to_upper) do
+         {:ok, {_lower, to_upper}} <- Interval.next_unit_boundary(to),
+         order when order != :earlier <- Compare.compare_endpoints(from, to_upper) do
       {:error,
-       Tempo.IntervalEndpointsError.exception(
+       IntervalEndpointsError.exception(
          interval: %Tempo.Interval{from: from, to: to},
          operation: :validate,
          reason: "interval :from endpoint is not earlier than its :to endpoint"
@@ -141,7 +152,7 @@ defmodule Tempo.Validation do
       resolve([{unit, [first..last//1]} | rest], calendar)
     else
       {:error,
-       Tempo.InvalidDateError.exception(
+       InvalidDateError.exception(
          unit: unit,
          value: first,
          valid_range: range1,
@@ -202,7 +213,7 @@ defmodule Tempo.Validation do
   #     week calendar so preserve it.
   def resolve([{:year, year}, {:week, week}, {:day_of_week, day} | rest], calendar)
       when is_integer(year) and is_integer(week) and is_integer(day) do
-    {weeks_in_year, _days_in_last_week} = Calendrical.ISOWeek.weeks_in_year(year)
+    {weeks_in_year, _days_in_last_week} = ISOWeek.weeks_in_year(year)
 
     with {:ok, week} <- conform(week, 1..weeks_in_year),
          [day_of_week: day] <- resolve([day_of_week: day], Calendrical.ISOWeek) do
@@ -239,7 +250,7 @@ defmodule Tempo.Validation do
       resolve([{:year, year}, {:month, month}, {:day, day} | rest], calendar)
     else
       {:error,
-       Tempo.InvalidDateError.exception(
+       InvalidDateError.exception(
          unit: :day_of_year,
          value: abs(day),
          valid_range: days_of_year,
@@ -392,7 +403,7 @@ defmodule Tempo.Validation do
     else
       {:ambiguous, _values} ->
         {:error,
-         Tempo.InvalidDateError.exception(
+         InvalidDateError.exception(
            month: month,
            reason: "Cannot resolve days in month #{month} without knowing the year"
          )}
@@ -413,7 +424,7 @@ defmodule Tempo.Validation do
     if fraction_of_year == 0 do
       resolve([{:year, int_year}], calendar)
     else
-      days = Localize.Utils.Math.round(days_in_year * fraction_of_year, @rounding_precision)
+      days = Math.round(days_in_year * fraction_of_year, @rounding_precision)
       days = if trunc(days) == days, do: trunc(days), else: days
       resolve([{:year, int_year}, {:day, days}], calendar)
     end
@@ -428,7 +439,7 @@ defmodule Tempo.Validation do
     if fraction_of_month == 0 do
       resolve([{:year, year}, {:month, int_month}], calendar)
     else
-      days = Localize.Utils.Math.round(days_in_month * fraction_of_month, @rounding_precision)
+      days = Math.round(days_in_month * fraction_of_month, @rounding_precision)
       days = if trunc(days) == days, do: trunc(days), else: days
       resolve([{:year, year}, {:month, int_month}, {:day, days}], calendar)
     end
@@ -442,7 +453,7 @@ defmodule Tempo.Validation do
     if fraction_of_day == 0 do
       resolve([{:year, year}, {:day, int_day}], calendar)
     else
-      hours = Localize.Utils.Math.round(@hours_per_day * fraction_of_day, @rounding_precision)
+      hours = Math.round(@hours_per_day * fraction_of_day, @rounding_precision)
       hours = if trunc(hours) == hours, do: trunc(hours), else: hours
       resolve([{:year, year}, {:day, int_day}, {:hour, hours}], calendar)
     end
@@ -455,7 +466,7 @@ defmodule Tempo.Validation do
     if fraction_of_day == 0 do
       [{:day, int_day}]
     else
-      hours = Localize.Utils.Math.round(@hours_per_day * fraction_of_day, @rounding_precision)
+      hours = Math.round(@hours_per_day * fraction_of_day, @rounding_precision)
       hours = if trunc(hours) == hours, do: trunc(hours), else: hours
       resolve([{:day, int_day}, {:hour, hours}], calendar)
     end
@@ -468,7 +479,7 @@ defmodule Tempo.Validation do
     if fraction_of_hour == 0 do
       [{:hour, int_hour}]
     else
-      minutes = Localize.Utils.Math.round(60 * fraction_of_hour, @rounding_precision)
+      minutes = Math.round(60 * fraction_of_hour, @rounding_precision)
       minutes = if trunc(minutes) == minutes, do: trunc(minutes), else: minutes
       [{:hour, int_hour}, {:minute, minutes}]
     end
@@ -481,7 +492,7 @@ defmodule Tempo.Validation do
     if fraction_of_minute == 0 do
       [{:minute, int_minute}]
     else
-      seconds = Localize.Utils.Math.round(60 * fraction_of_minute, @rounding_precision)
+      seconds = Math.round(60 * fraction_of_minute, @rounding_precision)
       seconds = if trunc(seconds) == seconds, do: trunc(seconds), else: seconds
       [{:minute, int_minute}, {:second, seconds}]
     end
@@ -501,7 +512,7 @@ defmodule Tempo.Validation do
   def resolve([{_unit, fraction}, {_unit_2, _value} | _rest], _calendar)
       when is_float(fraction) do
     {:error,
-     Tempo.ParseError.exception(
+     ParseError.exception(
        reason:
          "A fractional unit can only be used for the highest resolution unit (smallest time unit)"
      )}
@@ -542,7 +553,7 @@ defmodule Tempo.Validation do
   # resolution / interval width) is preserved; `.120` and `.12` differ.
   def resolve([{:second, second}, {:fraction, {digits, digit_count}} | rest], calendar)
       when is_integer(second) and is_integer(digits) do
-    microsecond = Tempo.Microsecond.from_fraction(digits, digit_count)
+    microsecond = Microsecond.from_fraction(digits, digit_count)
     resolve([{:second, second}, {:microsecond, microsecond} | rest], calendar)
   end
 
@@ -577,14 +588,13 @@ defmodule Tempo.Validation do
   # form produced by `Tempo.Enumeration.add_implicit_enumeration/1`
   # when a sub-second value is iterated — validate each element.
   def resolve([{:microsecond, list} | rest], calendar) when is_list(list) do
-    if Enum.all?(list, &Tempo.Microsecond.valid?/1) do
+    if Enum.all?(list, &Microsecond.valid?/1) do
       case resolve(rest, calendar) do
         {:error, reason} -> {:error, reason}
         resolved -> [{:microsecond, list} | resolved]
       end
     else
-      {:error,
-       Tempo.ParseError.exception(reason: "Invalid microsecond enumeration #{inspect(list)}")}
+      {:error, ParseError.exception(reason: "Invalid microsecond enumeration #{inspect(list)}")}
     end
   end
 
@@ -594,14 +604,14 @@ defmodule Tempo.Validation do
   # passes through unchanged.
   def resolve([{:microsecond, {value, precision}} | rest], calendar)
       when is_integer(value) and is_integer(precision) do
-    if Tempo.Microsecond.valid?({value, precision}) do
+    if Microsecond.valid?({value, precision}) do
       case resolve(rest, calendar) do
         {:error, reason} -> {:error, reason}
         resolved -> [{:microsecond, {value, precision}} | resolved]
       end
     else
       {:error,
-       Tempo.ParseError.exception(
+       ParseError.exception(
          reason: "Invalid microsecond component #{inspect({value, precision})}"
        )}
     end
@@ -629,7 +639,7 @@ defmodule Tempo.Validation do
     # starts-Jan-4 rollover after a 53-week year (2016, 2021, …).
     # `Calendrical.ISOWeek` handles both correctly, and
     # `Date.convert/2` brings the result into the caller's calendar.
-    {weeks_in_year, days_in_last_week} = Calendrical.ISOWeek.weeks_in_year(year)
+    {weeks_in_year, days_in_last_week} = ISOWeek.weeks_in_year(year)
 
     if day <= days_in_last_week do
       with {:ok, isoweek_date} <- Date.new(year, week, day, Calendrical.ISOWeek),
@@ -751,7 +761,7 @@ defmodule Tempo.Validation do
       end
 
     {:error,
-     Tempo.InvalidDateError.exception(
+     InvalidDateError.exception(
        value: from,
        valid_range: range,
        reason: "#{inspect(from)} is not valid. The valid values are #{inspect(to)}"
@@ -760,7 +770,7 @@ defmodule Tempo.Validation do
 
   defp normalized_error(value, normalized, range) do
     {:error,
-     Tempo.InvalidDateError.exception(
+     InvalidDateError.exception(
        value: value,
        valid_range: range,
        reason:
@@ -813,7 +823,7 @@ defmodule Tempo.Validation do
     case List.keyfind(units, :second, 0) do
       {:second, 60} ->
         {:error,
-         Tempo.InvalidTimeError.exception(
+         InvalidTimeError.exception(
            unit: :second,
            value: 60,
            valid_range: 0..59,
@@ -859,7 +869,7 @@ defmodule Tempo.Validation do
 
     if magnitude > @max_offset_minutes * 60 do
       {:error,
-       Tempo.ParseError.exception(
+       ParseError.exception(
          reason:
            "Time-zone offset out of range. Offsets must be within ±24h; " <>
              "got #{inspect(shift)}."
@@ -880,7 +890,7 @@ defmodule Tempo.Validation do
   def validate_ixdtf_offset_minutes(minutes) when is_integer(minutes) do
     if abs(minutes) > @max_offset_minutes do
       {:error,
-       Tempo.ParseError.exception(
+       ParseError.exception(
          reason:
            "Numeric zone offset out of range. Offsets must be within ±24h; " <>
              "got #{format_offset(minutes)}."
@@ -965,7 +975,7 @@ defmodule Tempo.Validation do
         case Tzdata.periods_for_time(zone, wall, :wall) do
           [] ->
             {:error,
-             Tempo.ZoneGapError.exception(
+             ZoneGapError.exception(
                wall_time:
                  "#{year}-#{pad2(month)}-#{pad2(day)}T#{pad2(hour)}:#{pad2(minute)}:#{pad2(second)}",
                zone_id: zone,

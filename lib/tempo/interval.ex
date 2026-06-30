@@ -52,8 +52,13 @@ defmodule Tempo.Interval do
 
   alias Tempo.Compare
   alias Tempo.Duration
+  alias Tempo.IntervalEndpointsError
   alias Tempo.IntervalSet
+  alias Tempo.Iso8601.AST
   alias Tempo.Iso8601.Unit
+  alias Tempo.LeapSeconds
+  alias Tempo.Mask
+  alias Tempo.MaterialisationError
   alias Tempo.Math
 
   @type t :: %__MODULE__{
@@ -255,7 +260,7 @@ defmodule Tempo.Interval do
 
       :same ->
         {:error,
-         Tempo.IntervalEndpointsError.exception(
+         IntervalEndpointsError.exception(
            interval: %__MODULE__{from: from, to: to},
            operation: :new,
            reason:
@@ -267,7 +272,7 @@ defmodule Tempo.Interval do
 
       :later ->
         {:error,
-         Tempo.IntervalEndpointsError.exception(
+         IntervalEndpointsError.exception(
            interval: %__MODULE__{from: from, to: to},
            operation: :new,
            reason: ":from endpoint is later than :to endpoint"
@@ -297,11 +302,11 @@ defmodule Tempo.Interval do
   end
 
   def build([{_from_tag, time}, :undefined]) do
-    %__MODULE__{from: Tempo.Iso8601.AST.build(time), to: :undefined}
+    %__MODULE__{from: AST.build(time), to: :undefined}
   end
 
   def build([:undefined, {_to_tag, time}]) do
-    %__MODULE__{from: :undefined, to: Tempo.Iso8601.AST.build(time)}
+    %__MODULE__{from: :undefined, to: AST.build(time)}
   end
 
   ## Two-element forms with a duration (must precede the
@@ -311,19 +316,19 @@ defmodule Tempo.Interval do
     %__MODULE__{
       from: :undefined,
       duration: Duration.build(duration),
-      to: Tempo.Iso8601.AST.build(time)
+      to: AST.build(time)
     }
   end
 
   def build([{_from_tag, time}, {:duration, duration}]) do
-    %__MODULE__{from: Tempo.Iso8601.AST.build(time), duration: Duration.build(duration)}
+    %__MODULE__{from: AST.build(time), duration: Duration.build(duration)}
   end
 
   ## Two-element date/date form (wildcard; must be last among
   ## two-element clauses).
 
   def build([{_from_tag, from}, {_to_tag, to}]) do
-    %__MODULE__{from: Tempo.Iso8601.AST.build(from), to: Tempo.Iso8601.AST.build(to)}
+    %__MODULE__{from: AST.build(from), to: AST.build(to)}
   end
 
   ## Three-element forms with a repeat_rule.
@@ -331,25 +336,25 @@ defmodule Tempo.Interval do
   def build([{:duration, duration}, {_to_tag, to}, {:repeat_rule, repeat_rule}]) do
     %__MODULE__{
       from: :undefined,
-      to: Tempo.Iso8601.AST.build(to),
+      to: AST.build(to),
       duration: Duration.build(duration),
-      repeat_rule: Tempo.Iso8601.AST.build(repeat_rule)
+      repeat_rule: AST.build(repeat_rule)
     }
   end
 
   def build([{_from_tag, from}, {:duration, duration}, {:repeat_rule, repeat_rule}]) do
     %__MODULE__{
-      from: Tempo.Iso8601.AST.build(from),
+      from: AST.build(from),
       duration: Duration.build(duration),
-      repeat_rule: Tempo.Iso8601.AST.build(repeat_rule)
+      repeat_rule: AST.build(repeat_rule)
     }
   end
 
   def build([{_from_tag, from}, {_to_tag, to}, {:repeat_rule, repeat_rule}]) do
     %__MODULE__{
-      from: Tempo.Iso8601.AST.build(from),
-      to: Tempo.Iso8601.AST.build(to),
-      repeat_rule: Tempo.Iso8601.AST.build(repeat_rule)
+      from: AST.build(from),
+      to: AST.build(to),
+      repeat_rule: AST.build(repeat_rule)
     }
   end
 
@@ -461,7 +466,7 @@ defmodule Tempo.Interval do
   end
 
   defp group_error(tempo) do
-    {:error, Tempo.MaterialisationError.exception(value: tempo, reason: :unanchored_group)}
+    {:error, MaterialisationError.exception(value: tempo, reason: :unanchored_group)}
   end
 
   defp time_of_day_unit?(unit), do: unit in [:hour, :minute, :second]
@@ -535,8 +540,7 @@ defmodule Tempo.Interval do
 
         case Unit.implicit_enumerator(unit, calendar) do
           nil ->
-            {:error,
-             Tempo.MaterialisationError.exception(value: tempo, reason: :finest_resolution)}
+            {:error, MaterialisationError.exception(value: tempo, reason: :finest_resolution)}
 
           {next_unit, range} ->
             lower_time = time ++ [{next_unit, range_first(range)}]
@@ -591,12 +595,12 @@ defmodule Tempo.Interval do
   #           signed values range from -1999 (most negative) to -1000
   #           (least negative), half-open upper = -999.
   defp year_mask_bounds([], [:negative | digits]) do
-    {mag_min, mag_max} = Tempo.Mask.mask_bounds(digits)
+    {mag_min, mag_max} = Mask.mask_bounds(digits)
     {:ok, {[year: -mag_max], [year: -mag_min + 1]}}
   end
 
   defp year_mask_bounds([], digits) do
-    {min, max} = Tempo.Mask.mask_bounds(digits)
+    {min, max} = Mask.mask_bounds(digits)
     {:ok, {[year: min], [year: max + 1]}}
   end
 
@@ -1252,7 +1256,7 @@ defmodule Tempo.Interval do
     from_s = Compare.to_utc_seconds(from)
     to_s = Compare.to_utc_seconds(to)
 
-    for {y, m, d} <- Tempo.LeapSeconds.dates(),
+    for {y, m, d} <- LeapSeconds.dates(),
         leap_second_in_interval?(y, m, d, from_s, to_s),
         do: {y, m, d}
   end
@@ -1262,7 +1266,7 @@ defmodule Tempo.Interval do
     from_s = Compare.to_utc_seconds(from)
     to_s = Compare.to_utc_seconds(to)
 
-    for {y, m, d} <- Tempo.LeapSeconds.removals(),
+    for {y, m, d} <- LeapSeconds.removals(),
         leap_second_in_interval?(y, m, d, from_s, to_s),
         do: {y, m, d}
   end

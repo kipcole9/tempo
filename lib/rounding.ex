@@ -1,6 +1,8 @@
 defmodule Tempo.Rounding do
   @moduledoc false
 
+  alias Tempo.RoundingError
+
   @hours_in_day 24
   @seconds_in_minute 60
   @minutes_in_hour 60
@@ -204,7 +206,7 @@ defmodule Tempo.Rounding do
   end
 
   defp rounding_error(time, resolution, time_unit) do
-    Tempo.RoundingError.exception(
+    RoundingError.exception(
       unit: time_unit,
       reason:
         "Time #{inspect(time)} resolution #{inspect(resolution)} cannot be rounded to #{inspect(time_unit)}"

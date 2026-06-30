@@ -47,6 +47,8 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
   import NimbleParsec
   import Tempo.Iso8601.Tokenizer.Helpers
 
+  alias Tempo.Microsecond
+
   def positive_number(combinator \\ empty(), opts)
 
   def positive_number(combinator, n) when is_integer(n) do
@@ -375,7 +377,7 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
   # comes from the digit count (leading zeros significant).
   def apply_fraction([{:second, value}, {:fraction, {fraction, digit_count}} | rest])
       when is_integer(value) do
-    microsecond = Tempo.Microsecond.from_fraction(fraction, digit_count)
+    microsecond = Microsecond.from_fraction(fraction, digit_count)
     [{:second, value}, {:microsecond, microsecond} | apply_fraction(rest)]
   end
 

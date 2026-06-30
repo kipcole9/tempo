@@ -2,6 +2,7 @@ defmodule Tempo.RRule.WkstAndEdgesTest do
   use ExUnit.Case, async: true
   import Tempo.Sigils
 
+  alias Tempo.RRule
   alias Tempo.RRule.Expander
   alias Tempo.RRule.Rule
 
@@ -120,7 +121,7 @@ defmodule Tempo.RRule.WkstAndEdgesTest do
 
   describe "WKST in the AST" do
     test "non-default WKST round-trips through parse/encode" do
-      {:ok, ast} = Tempo.RRule.parse("FREQ=WEEKLY;BYDAY=SU;WKST=SU;COUNT=3")
+      {:ok, ast} = RRule.parse("FREQ=WEEKLY;BYDAY=SU;WKST=SU;COUNT=3")
       assert ast.repeat_rule.time == [selection: [day_of_week: 7, wkst: 7]]
 
       # Re-emit and reparse to ensure round-trip stability.
@@ -128,14 +129,14 @@ defmodule Tempo.RRule.WkstAndEdgesTest do
       assert encoded =~ "WKST=SU"
       assert encoded =~ "BYDAY=SU"
 
-      {:ok, reparsed} = Tempo.RRule.parse(encoded)
+      {:ok, reparsed} = RRule.parse(encoded)
       assert reparsed.repeat_rule.time == ast.repeat_rule.time
     end
 
     test "default WKST=MO is elided from the AST" do
       # Explicit WKST=MO is redundant with the default; we don't
       # emit the token since it would bloat every AST.
-      {:ok, ast} = Tempo.RRule.parse("FREQ=WEEKLY;BYDAY=SU;WKST=MO;COUNT=1")
+      {:ok, ast} = RRule.parse("FREQ=WEEKLY;BYDAY=SU;WKST=MO;COUNT=1")
       refute Keyword.has_key?(ast.repeat_rule.time[:selection] || [], :wkst)
     end
   end

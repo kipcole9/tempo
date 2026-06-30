@@ -28,6 +28,11 @@ defmodule Tempo.Iso8601.Tokenizer.Extended do
   import NimbleParsec
   import Tempo.Iso8601.Tokenizer.Helpers, only: [digit: 0, colon: 0]
 
+  alias Tempo.DuplicateZoneError
+  alias Tempo.ParseError
+  alias Tempo.UnknownZoneError
+  alias Tempo.Validation
+
   ## Combinators
 
   @doc """
@@ -283,7 +288,7 @@ defmodule Tempo.Iso8601.Tokenizer.Extended do
 
   # First segment: numeric offset is the time zone.
   defp apply_payload({:offset, offset}, _critical, acc, 0) do
-    case Tempo.Validation.validate_ixdtf_offset_minutes(offset) do
+    case Validation.validate_ixdtf_offset_minutes(offset) do
       :ok -> {:ok, %{acc | zone_offset: offset}}
       {:error, _} = err -> err
     end
@@ -298,7 +303,7 @@ defmodule Tempo.Iso8601.Tokenizer.Extended do
   # IXDTF construction.  We reject critical duplicates and ignore
   # elective ones.
   defp apply_payload({:zone, zone}, true, _acc, _index) do
-    {:error, Tempo.DuplicateZoneError.exception(zones: [zone])}
+    {:error, DuplicateZoneError.exception(zones: [zone])}
   end
 
   defp apply_payload({:zone, _zone}, false, acc, _index) do
@@ -306,7 +311,7 @@ defmodule Tempo.Iso8601.Tokenizer.Extended do
   end
 
   defp apply_payload({:offset, _}, true, _acc, _index) do
-    {:error, Tempo.DuplicateZoneError.exception(zones: [])}
+    {:error, DuplicateZoneError.exception(zones: [])}
   end
 
   defp apply_payload({:offset, _}, false, acc, _index) do
@@ -318,7 +323,7 @@ defmodule Tempo.Iso8601.Tokenizer.Extended do
       {:ok, %{acc | zone_id: zone}}
     else
       if critical do
-        {:error, Tempo.UnknownZoneError.exception(zone_id: zone)}
+        {:error, UnknownZoneError.exception(zone_id: zone)}
       else
         # Retain the string verbatim so callers can round-trip it,
         # but leave `:zone_id` signalled as unknown via the tags map.
@@ -347,7 +352,7 @@ defmodule Tempo.Iso8601.Tokenizer.Extended do
 
       {:error, _} when critical ->
         {:error,
-         Tempo.ParseError.exception(
+         ParseError.exception(
            input: raw,
            reason: "Unknown calendar identifier #{inspect(raw)} in extended suffix"
          )}
@@ -358,7 +363,7 @@ defmodule Tempo.Iso8601.Tokenizer.Extended do
   end
 
   defp apply_tag(_key, _values, true, _acc) do
-    {:error, Tempo.ParseError.exception(reason: "Unrecognised critical extended suffix")}
+    {:error, ParseError.exception(reason: "Unrecognised critical extended suffix")}
   end
 
   defp apply_tag(key, values, false, acc) do

@@ -2,6 +2,7 @@ defmodule Tempo.RRule.ExpanderTest do
   use ExUnit.Case, async: true
   import Tempo.Sigils
 
+  alias Tempo.RRule
   alias Tempo.RRule.Expander
   alias Tempo.RRule.Rule
 
@@ -155,7 +156,7 @@ defmodule Tempo.RRule.ExpanderTest do
     test "COUNT-only rule" do
       rule = %Rule{freq: :day, count: 10}
       {:ok, ast_from_expander} = Expander.to_ast(rule, ~o"2022-06-01")
-      {:ok, ast_from_parser} = Tempo.RRule.parse("FREQ=DAILY;COUNT=10", from: ~o"2022-06-01")
+      {:ok, ast_from_parser} = RRule.parse("FREQ=DAILY;COUNT=10", from: ~o"2022-06-01")
 
       assert ast_from_expander.recurrence == ast_from_parser.recurrence
       assert ast_from_expander.duration == ast_from_parser.duration
@@ -166,7 +167,7 @@ defmodule Tempo.RRule.ExpanderTest do
     test "BYMONTH selection shape" do
       rule = %Rule{freq: :year, bymonth: [6]}
       {:ok, from_expander} = Expander.to_ast(rule, ~o"2022-06-01")
-      {:ok, from_parser} = Tempo.RRule.parse("FREQ=YEARLY;BYMONTH=6", from: ~o"2022-06-01")
+      {:ok, from_parser} = RRule.parse("FREQ=YEARLY;BYMONTH=6", from: ~o"2022-06-01")
 
       assert from_expander.repeat_rule.time == from_parser.repeat_rule.time
     end
@@ -174,7 +175,7 @@ defmodule Tempo.RRule.ExpanderTest do
     test "BYDAY with ordinal selection shape" do
       rule = %Rule{freq: :month, byday: [{-1, 5}]}
       {:ok, from_expander} = Expander.to_ast(rule, ~o"2022-06-24")
-      {:ok, from_parser} = Tempo.RRule.parse("FREQ=MONTHLY;BYDAY=-1FR", from: ~o"2022-06-24")
+      {:ok, from_parser} = RRule.parse("FREQ=MONTHLY;BYDAY=-1FR", from: ~o"2022-06-24")
 
       assert from_expander.repeat_rule.time == from_parser.repeat_rule.time
     end

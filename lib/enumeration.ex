@@ -1,6 +1,7 @@
 defmodule Tempo.Enumeration do
   @moduledoc false
   alias Tempo.Iso8601.Unit
+  alias Tempo.Mask
   alias Tempo.Validation
 
   defguard is_continuation(unit, fun) when is_atom(unit) and is_function(fun)
@@ -56,12 +57,12 @@ defmodule Tempo.Enumeration do
   # acceptable candidate values.
 
   def do_next([{unit, {:mask, mask}} | t], calendar, previous) do
-    value = Tempo.Mask.fill_unspecified(unit, mask, calendar, previous)
+    value = Mask.fill_unspecified(unit, mask, calendar, previous)
     do_next([{unit, value} | t], calendar, previous)
   end
 
   def do_next([{unit, :any = mask} | t], calendar, previous) do
-    value = Tempo.Mask.fill_unspecified(unit, mask, calendar, previous)
+    value = Mask.fill_unspecified(unit, mask, calendar, previous)
     do_next([{unit, value} | t], calendar, previous)
   end
 

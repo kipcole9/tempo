@@ -36,6 +36,7 @@ defmodule Tempo.AllenAxiomsTest do
   use ExUnitProperties
 
   alias Tempo.Interval
+  alias Tempo.IntervalSet
 
   @relations [
     :precedes,
@@ -112,7 +113,7 @@ defmodule Tempo.AllenAxiomsTest do
         # meets(a, n) ∧ meets(n, d). In Tempo, the canonical
         # (coalesced) form realises this: four chain-meeting
         # intervals collapse to [t0, t4).
-        {:ok, set} = Tempo.IntervalSet.new([a, b, c, d], coalesce: true)
+        {:ok, set} = IntervalSet.new([a, b, c, d], coalesce: true)
         assert length(set.intervals) == 1
 
         [coalesced] = set.intervals

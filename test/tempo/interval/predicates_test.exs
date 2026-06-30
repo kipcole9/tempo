@@ -3,6 +3,7 @@ defmodule Tempo.Interval.PredicatesTest do
   import Tempo.Sigils
 
   alias Tempo.Interval
+  alias Tempo.IntervalSet
 
   describe "bounded?/1" do
     test "both endpoints concrete" do
@@ -153,7 +154,7 @@ defmodule Tempo.Interval.PredicatesTest do
 
     test "relation predicates return false on error (e.g. multi-member set)" do
       multi =
-        Tempo.IntervalSet.new!(
+        IntervalSet.new!(
           [
             %Interval{from: ~o"2026-06-01", to: ~o"2026-06-03"},
             %Interval{from: ~o"2026-06-05", to: ~o"2026-06-07"}
@@ -222,7 +223,7 @@ defmodule Tempo.Interval.PredicatesTest do
 
       one_hour_slots =
         mutual
-        |> Tempo.IntervalSet.to_list()
+        |> IntervalSet.to_list()
         |> Enum.filter(&Tempo.at_least?(&1, ~o"PT1H"))
 
       assert length(one_hour_slots) == 3
@@ -247,17 +248,17 @@ defmodule Tempo.Interval.PredicatesTest do
     test "returns {from, to} as a named accessor" do
       iv = %Interval{from: ~o"2026-06-15", to: ~o"2026-06-20"}
 
-      {from, to} = Tempo.Interval.endpoints(iv)
+      {from, to} = Interval.endpoints(iv)
       assert Tempo.day(from) == 15
       assert Tempo.day(to) == 20
     end
 
     test "preserves :undefined endpoints" do
       assert {:undefined, _} =
-               Tempo.Interval.endpoints(%Interval{from: :undefined, to: ~o"2026-06-20"})
+               Interval.endpoints(%Interval{from: :undefined, to: ~o"2026-06-20"})
 
       assert {_, :undefined} =
-               Tempo.Interval.endpoints(%Interval{from: ~o"2026-06-15", to: :undefined})
+               Interval.endpoints(%Interval{from: ~o"2026-06-15", to: :undefined})
     end
   end
 
@@ -307,7 +308,7 @@ defmodule Tempo.Interval.PredicatesTest do
       iv = %Interval{from: hebrew, to: gregorian}
 
       assert_raise ArgumentError, ~r/same calendar/, fn ->
-        Tempo.Interval.duration(iv)
+        Interval.duration(iv)
       end
     end
 
@@ -316,7 +317,7 @@ defmodule Tempo.Interval.PredicatesTest do
       iv = %Interval{from: hebrew, to: ~o"2026-06-15"}
 
       try do
-        Tempo.Interval.duration(iv)
+        Interval.duration(iv)
         flunk("expected ArgumentError")
       rescue
         e in ArgumentError ->
@@ -327,36 +328,36 @@ defmodule Tempo.Interval.PredicatesTest do
 
     test "same-calendar intervals still compute duration normally" do
       iv = %Interval{from: ~o"2026-06-15", to: ~o"2026-06-20"}
-      assert %Tempo.Duration{} = Tempo.Interval.duration(iv)
+      assert %Tempo.Duration{} = Interval.duration(iv)
     end
   end
 
   describe "resolution/1" do
     test "day-spanning interval has :day resolution" do
       iv = %Interval{from: ~o"2026-06-15", to: ~o"2026-06-16"}
-      assert Tempo.Interval.resolution(iv) == :day
+      assert Interval.resolution(iv) == :day
     end
 
     test "month-spanning interval has :month resolution" do
       {:ok, iv} = Tempo.to_interval(~o"2026-06")
-      assert Tempo.Interval.resolution(iv) == :month
+      assert Interval.resolution(iv) == :month
     end
 
     test "year-spanning interval has :year resolution" do
       {:ok, iv} = Tempo.to_interval(~o"2026")
-      assert Tempo.Interval.resolution(iv) == :year
+      assert Interval.resolution(iv) == :year
     end
 
     test "sub-day interval has :hour resolution" do
       iv = %Interval{from: ~o"2026-06-15T10", to: ~o"2026-06-15T11"}
-      assert Tempo.Interval.resolution(iv) == :hour
+      assert Interval.resolution(iv) == :hour
     end
 
     test "unbounded interval returns :undefined" do
-      assert Tempo.Interval.resolution(%Interval{from: :undefined, to: ~o"2026-06-20"}) ==
+      assert Interval.resolution(%Interval{from: :undefined, to: ~o"2026-06-20"}) ==
                :undefined
 
-      assert Tempo.Interval.resolution(%Interval{from: ~o"2026-06-15", to: :undefined}) ==
+      assert Interval.resolution(%Interval{from: ~o"2026-06-15", to: :undefined}) ==
                :undefined
     end
   end

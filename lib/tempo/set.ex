@@ -11,6 +11,8 @@ defmodule Tempo.Set do
   the user's intent.
   """
 
+  alias Tempo.Iso8601.AST
+
   @type t :: %__MODULE__{
           type: :all | :one,
           set: [Tempo.t()]
@@ -19,7 +21,7 @@ defmodule Tempo.Set do
   defstruct [:type, :set]
 
   def new(tokens, type, calendar \\ Calendrical.Gregorian) do
-    tokens = Enum.map(tokens, &Tempo.Iso8601.AST.build(&1, calendar))
+    tokens = Enum.map(tokens, &AST.build(&1, calendar))
     %__MODULE__{type: type, set: tokens}
   end
 end

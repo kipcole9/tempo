@@ -96,6 +96,7 @@ defmodule Tempo.Cron do
 
   """
 
+  alias Tempo.CronError
   alias Tempo.RRule.Rule
 
   @aliases %{
@@ -232,7 +233,7 @@ defmodule Tempo.Cron do
 
       _other ->
         {:error,
-         Tempo.CronError.exception(
+         CronError.exception(
            input: original,
            reason:
              "Cron expression must have 5, 6, or 7 fields (or be a supported @alias). " <>
@@ -521,7 +522,7 @@ defmodule Tempo.Cron do
 
       String.contains?(string, "W") ->
         {:error,
-         Tempo.CronError.exception(
+         CronError.exception(
            field: :day_of_month,
            value: string,
            reason: :unsupported_w
@@ -557,7 +558,7 @@ defmodule Tempo.Cron do
     end)
     |> case do
       {:ok, []} ->
-        {:error, Tempo.CronError.exception(field: field, value: string, reason: "empty field")}
+        {:error, CronError.exception(field: field, value: string, reason: "empty field")}
 
       {:ok, list} ->
         {:ok, list |> Enum.uniq() |> Enum.sort()}
@@ -629,7 +630,7 @@ defmodule Tempo.Cron do
 
       _other ->
         {:error,
-         Tempo.CronError.exception(
+         CronError.exception(
            field: field,
            value: part,
            reason: "Malformed field (multiple `/`): #{inspect(part)}"
@@ -674,7 +675,7 @@ defmodule Tempo.Cron do
           {:ok, int}
         else
           {:error,
-           Tempo.CronError.exception(
+           CronError.exception(
              field: field,
              value: string,
              reason: "Value #{int} is outside the valid range #{inspect(range)} for #{field}"
@@ -683,7 +684,7 @@ defmodule Tempo.Cron do
 
       _ ->
         {:error,
-         Tempo.CronError.exception(
+         CronError.exception(
            field: field,
            value: string,
            reason: "Expected an integer for #{field}, got #{inspect(string)}"
@@ -725,7 +726,7 @@ defmodule Tempo.Cron do
 
           _ ->
             {:error,
-             Tempo.CronError.exception(
+             CronError.exception(
                field: :day_of_week,
                value: part,
                reason: "Malformed `#`: #{inspect(part)}"
@@ -802,7 +803,7 @@ defmodule Tempo.Cron do
 
         _ ->
           {:error,
-           Tempo.CronError.exception(
+           CronError.exception(
              field: :day_of_week,
              value: orig,
              reason: "Invalid day-of-week: #{inspect(orig)}"
@@ -825,7 +826,7 @@ defmodule Tempo.Cron do
 
         _ ->
           {:error,
-           Tempo.CronError.exception(
+           CronError.exception(
              field: :day_of_week,
              value: orig,
              reason: "Invalid day-of-week: #{inspect(orig)}"

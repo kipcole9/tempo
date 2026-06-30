@@ -9,6 +9,8 @@ defmodule Tempo.Visualizer.ParseViewTest do
 
   use ExUnit.Case, async: true
 
+  alias Tempo.Visualizer.ParseView
+
   # Only meaningful when Plug + Bandit are available — the
   # ParseView module is only compiled in that configuration.
   @moduletag skip: not Code.ensure_loaded?(Tempo.Visualizer.ParseView)
@@ -41,7 +43,7 @@ defmodule Tempo.Visualizer.ParseViewTest do
       @tag input: input
       test "input #{inspect(input)} renders segments whose glyphs rejoin to the input",
            %{input: input} do
-        html = Tempo.Visualizer.ParseView.render(%{input: input}, "")
+        html = ParseView.render(%{input: input}, "")
         segments_html = IO.iodata_to_binary(html)
 
         # Extract every `<div class="vz-glyph">…</div>` body,

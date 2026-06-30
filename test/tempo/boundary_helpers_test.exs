@@ -3,6 +3,8 @@ defmodule Tempo.BoundaryHelpersTest do
 
   import Tempo.Sigils
 
+  alias Tempo.Interval
+
   describe "Tempo.beginning_of_day/1" do
     test "pulls a datetime back to 00:00:00 on the same day" do
       assert Tempo.beginning_of_day(~o"2026-06-15T14:30:45") ==
@@ -34,7 +36,7 @@ defmodule Tempo.BoundaryHelpersTest do
       # beginning .. end is exactly one day (86_400 seconds) when no DST
       # transition intervenes on a floating value.
       iv = %Tempo.Interval{from: start, to: stop}
-      assert Tempo.Interval.duration(iv) == ~o"PT86400S"
+      assert Interval.duration(iv) == ~o"PT86400S"
     end
   end
 

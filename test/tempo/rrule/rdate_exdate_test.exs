@@ -1,6 +1,8 @@
 defmodule Tempo.RRule.RdateExdateTest do
   use ExUnit.Case, async: true
 
+  alias Tempo.ICal
+
   # Phase D — RDATE and EXDATE semantics.
   #
   # RFC 5545 §3.8.5.2 (RDATE) / §3.8.5.1 (EXDATE):
@@ -29,7 +31,7 @@ defmodule Tempo.RRule.RdateExdateTest do
       END:VCALENDAR
       """
 
-      {:ok, set} = Tempo.ICal.from_ical(ics)
+      {:ok, set} = ICal.from_ical(ics)
 
       # 2 RRULE occurrences (Jun 1, Jun 8) + 1 RDATE (Jun 18 14:00).
       assert length(set.intervals) == 3
@@ -59,7 +61,7 @@ defmodule Tempo.RRule.RdateExdateTest do
       END:VCALENDAR
       """
 
-      {:ok, set} = Tempo.ICal.from_ical(ics)
+      {:ok, set} = ICal.from_ical(ics)
       rdate_iv = Enum.find(set.intervals, fn iv -> iv.from.time[:day] == 18 end)
 
       # 14:00 + 1 hour = 15:00.
@@ -84,7 +86,7 @@ defmodule Tempo.RRule.RdateExdateTest do
       END:VCALENDAR
       """
 
-      {:ok, set} = Tempo.ICal.from_ical(ics)
+      {:ok, set} = ICal.from_ical(ics)
       # 1 RRULE + 3 RDATEs.
       assert length(set.intervals) == 4
     end
@@ -107,7 +109,7 @@ defmodule Tempo.RRule.RdateExdateTest do
       END:VCALENDAR
       """
 
-      {:ok, set} = Tempo.ICal.from_ical(ics)
+      {:ok, set} = ICal.from_ical(ics)
 
       # Both occurrences carry the same event-level metadata.
       assert Enum.all?(set.intervals, fn iv ->
@@ -135,7 +137,7 @@ defmodule Tempo.RRule.RdateExdateTest do
       END:VCALENDAR
       """
 
-      {:ok, set} = Tempo.ICal.from_ical(ics)
+      {:ok, set} = ICal.from_ical(ics)
 
       # 3 RRULE occurrences, Jun 8 removed → 2 remain (Jun 1, Jun 15).
       assert length(set.intervals) == 2
@@ -160,7 +162,7 @@ defmodule Tempo.RRule.RdateExdateTest do
       END:VCALENDAR
       """
 
-      {:ok, set} = Tempo.ICal.from_ical(ics)
+      {:ok, set} = ICal.from_ical(ics)
       # No match → all 3 occurrences survive.
       assert length(set.intervals) == 3
     end
@@ -189,7 +191,7 @@ defmodule Tempo.RRule.RdateExdateTest do
       END:VCALENDAR
       """
 
-      {:ok, set} = Tempo.ICal.from_ical(ics)
+      {:ok, set} = ICal.from_ical(ics)
 
       # 4 RRULE occurrences minus Jun 8 and Jun 22 → Jun 1, Jun 15.
       assert length(set.intervals) == 2
@@ -215,7 +217,7 @@ defmodule Tempo.RRule.RdateExdateTest do
       END:VCALENDAR
       """
 
-      {:ok, set} = Tempo.ICal.from_ical(ics)
+      {:ok, set} = ICal.from_ical(ics)
 
       # RRULE=Jun 1; RDATE=Jun 18 14:00; EXDATE removes the
       # RDATE. Result: just Jun 1.
@@ -244,7 +246,7 @@ defmodule Tempo.RRule.RdateExdateTest do
       END:VCALENDAR
       """
 
-      {:ok, set} = Tempo.ICal.from_ical(ics)
+      {:ok, set} = ICal.from_ical(ics)
 
       # RRULE: Jun 1, Jun 8, Jun 15.
       # RDATE: + Jun 4 10:00, + Jun 19 12:00.
@@ -277,7 +279,7 @@ defmodule Tempo.RRule.RdateExdateTest do
       END:VCALENDAR
       """
 
-      {:ok, set} = Tempo.ICal.from_ical(ics)
+      {:ok, set} = ICal.from_ical(ics)
 
       days = Enum.map(set.intervals, & &1.from.time[:day])
       assert days == Enum.sort(days)

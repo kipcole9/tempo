@@ -50,6 +50,12 @@ defmodule Tempo.Format do
 
   """
 
+  alias Localize.DateTime.Relative
+  alias Tempo.Compare
+  alias Tempo.IntervalSet
+  alias Tempo.Math
+  alias Tempo.NonAnchoredError
+
   @doc """
   Format a Tempo, Interval, or IntervalSet as a locale-aware
   string.
@@ -89,7 +95,7 @@ defmodule Tempo.Format do
     # CLDR "list separator" formatting could replace the simple
     # ", " join; deferred until Localize exposes a listPattern API.
     set
-    |> Tempo.IntervalSet.to_list()
+    |> IntervalSet.to_list()
     |> Enum.map_join(", ", &to_string(&1, options))
   end
 
@@ -150,14 +156,14 @@ defmodule Tempo.Format do
 
   defp render_relative(%Tempo{} = tempo, options) do
     unless Tempo.anchored?(tempo) do
-      raise Tempo.NonAnchoredError.exception(
+      raise NonAnchoredError.exception(
               operation: :to_relative_string,
               value: tempo
             )
     end
 
     {from_tempo, options} = Keyword.pop_lazy(options, :from, &Tempo.utc_now/0)
-    delta_seconds = Tempo.Compare.to_utc_seconds(tempo) - Tempo.Compare.to_utc_seconds(from_tempo)
+    delta_seconds = Compare.to_utc_seconds(tempo) - Compare.to_utc_seconds(from_tempo)
 
     # Localize's `:unit` option tells it what unit the integer
     # is *in* (not the output unit). If the caller supplied a
@@ -168,7 +174,7 @@ defmodule Tempo.Format do
         unit -> scale_to_unit(delta_seconds, unit)
       end
 
-    case Localize.DateTime.Relative.to_string(relative_value, options) do
+    case Relative.to_string(relative_value, options) do
       {:ok, string} -> string
       {:error, exception} -> raise exception
     end
@@ -223,7 +229,7 @@ defmodule Tempo.Format do
 
         closed_last =
           to
-          |> Tempo.Math.subtract(Tempo.Duration.build([{iter_unit, 1}]))
+          |> Math.subtract(Tempo.Duration.build([{iter_unit, 1}]))
           |> Tempo.trunc(iter_unit)
 
         options = with_default_interval_options(options, first, closed_last)
@@ -334,7 +340,7 @@ defmodule Tempo.Format do
   # note in CLAUDE.md).
   defp closed_last_for_interval(%Tempo{} = from, %Tempo{} = to) do
     {iter_unit, _} = Tempo.resolution(from)
-    Tempo.Math.subtract(to, Tempo.Duration.build([{iter_unit, 1}]))
+    Math.subtract(to, Tempo.Duration.build([{iter_unit, 1}]))
   end
 
   # When an interval's endpoints carry time-of-day components that

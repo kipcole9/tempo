@@ -1,6 +1,8 @@
 defmodule Tempo.Iso8601.Parser do
   @moduledoc false
 
+  alias Tempo.Duration
+  alias Tempo.Iso8601.AST
   alias Tempo.Iso8601.Unit
 
   def parse(tokens, calendar) do
@@ -99,13 +101,13 @@ defmodule Tempo.Iso8601.Parser do
 
   def parse([{type, tokens}]) when type in [:date, :time_of_day, :datetime] do
     with parsed <- parse_date(tokens) do
-      Tempo.Iso8601.AST.build(parsed)
+      AST.build(parsed)
     end
   end
 
   def parse(interval: tokens) do
     with parsed <- parse_date(tokens) do
-      Tempo.Iso8601.AST.build_interval(parsed)
+      AST.build_interval(parsed)
     end
   end
 
@@ -113,7 +115,7 @@ defmodule Tempo.Iso8601.Parser do
     with parsed <- parse_date(tokens) do
       parsed
       |> adjust_for_direction()
-      |> Tempo.Duration.build()
+      |> Duration.build()
     end
   end
 

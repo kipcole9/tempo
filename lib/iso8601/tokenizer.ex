@@ -18,6 +18,7 @@ defmodule Tempo.Iso8601.Tokenizer do
   import Tempo.Iso8601.Tokenizer.Helpers
 
   alias Tempo.Iso8601.Tokenizer.Extended
+  alias Tempo.ParseError
 
   @doc """
   Tokenize an ISO 8601 or IXDTF string.
@@ -52,14 +53,14 @@ defmodule Tempo.Iso8601.Tokenizer do
 
       {:ok, _tokens, remaining, _, {_line, _}, _char} ->
         {:error,
-         Tempo.ParseError.exception(
+         ParseError.exception(
            input: string,
            reason: "Could not parse #{inspect(string)}. Error detected at #{inspect(remaining)}"
          )}
 
       {:error, message, detected_at, _, _, _} ->
         {:error,
-         Tempo.ParseError.exception(
+         ParseError.exception(
            input: string,
            reason: String.capitalize(message) <> ". Error detected at #{inspect(detected_at)}"
          )}

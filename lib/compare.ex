@@ -19,6 +19,8 @@ defmodule Tempo.Compare do
 
   """
 
+  alias Tempo.ZoneOffsetMismatchError
+
   @doc """
   Compare two time keyword lists as start-moments on the time
   line.
@@ -315,7 +317,7 @@ defmodule Tempo.Compare do
       :ok
     else
       {:error,
-       Tempo.ZoneOffsetMismatchError.exception(
+       ZoneOffsetMismatchError.exception(
          zone_id: zone_id,
          stated_offset: stated,
          zone_offsets: offsets,

@@ -1,13 +1,16 @@
 defmodule Tempo.VisualizerTest do
   use ExUnit.Case, async: true
 
+  alias Plug.Conn
+  alias Plug.Test
   alias Tempo.Visualizer
+  alias Tempo.Visualizer.ParseView
 
   describe "Plug router" do
     test "root with no input returns 200 and the editable input + examples" do
       conn =
         :get
-        |> Plug.Test.conn("/")
+        |> Test.conn("/")
         |> Visualizer.call(Visualizer.init([]))
 
       assert conn.status == 200
@@ -15,13 +18,13 @@ defmodule Tempo.VisualizerTest do
       # the examples card is always visible below.
       assert conn.resp_body =~ "vz-input-card"
       assert conn.resp_body =~ ~s|<h2>Examples</h2>|
-      assert Plug.Conn.get_resp_header(conn, "content-type") |> hd() =~ "text/html"
+      assert Conn.get_resp_header(conn, "content-type") |> hd() =~ "text/html"
     end
 
     test "root with a valid iso parses and renders segment boxes" do
       conn =
         :get
-        |> Plug.Test.conn("/?iso=2022-06-15")
+        |> Test.conn("/?iso=2022-06-15")
         |> Visualizer.call(Visualizer.init([]))
 
       assert conn.status == 200
@@ -37,7 +40,7 @@ defmodule Tempo.VisualizerTest do
     test "root with a qualified date emits a qualification segment" do
       conn =
         :get
-        |> Plug.Test.conn("/?iso=2022-06-15%3F")
+        |> Test.conn("/?iso=2022-06-15%3F")
         |> Visualizer.call(Visualizer.init([]))
 
       assert conn.status == 200
@@ -51,7 +54,7 @@ defmodule Tempo.VisualizerTest do
       # Details card below the grid.
       conn =
         :get
-        |> Plug.Test.conn("/?iso=2022-06-15%5BEurope%2FParis%5D%5Bu-ca%3Dhebrew%5D")
+        |> Test.conn("/?iso=2022-06-15%5BEurope%2FParis%5D%5Bu-ca%3Dhebrew%5D")
         |> Visualizer.call(Visualizer.init([]))
 
       assert conn.status == 200
@@ -66,7 +69,7 @@ defmodule Tempo.VisualizerTest do
     test "root with an invalid iso shows the error card" do
       conn =
         :get
-        |> Plug.Test.conn("/?iso=bogus")
+        |> Test.conn("/?iso=bogus")
         |> Visualizer.call(Visualizer.init([]))
 
       assert conn.status == 200
@@ -77,7 +80,7 @@ defmodule Tempo.VisualizerTest do
     test "interval input is visualised with both endpoints" do
       conn =
         :get
-        |> Plug.Test.conn("/?iso=1984%3F%2F2004~")
+        |> Test.conn("/?iso=1984%3F%2F2004~")
         |> Visualizer.call(Visualizer.init([]))
 
       assert conn.status == 200
@@ -90,19 +93,19 @@ defmodule Tempo.VisualizerTest do
     test "style.css is served with caching headers" do
       conn =
         :get
-        |> Plug.Test.conn("/assets/style.css")
+        |> Test.conn("/assets/style.css")
         |> Visualizer.call(Visualizer.init([]))
 
       assert conn.status == 200
-      assert Plug.Conn.get_resp_header(conn, "content-type") |> hd() =~ "text/css"
-      assert Plug.Conn.get_resp_header(conn, "cache-control") |> hd() =~ "immutable"
+      assert Conn.get_resp_header(conn, "content-type") |> hd() =~ "text/css"
+      assert Conn.get_resp_header(conn, "cache-control") |> hd() =~ "immutable"
       assert conn.resp_body =~ ".vz-segment"
     end
 
     test "unknown path returns 404" do
       conn =
         :get
-        |> Plug.Test.conn("/does-not-exist")
+        |> Test.conn("/does-not-exist")
         |> Visualizer.call(Visualizer.init([]))
 
       assert conn.status == 404
@@ -117,7 +120,7 @@ defmodule Tempo.VisualizerTest do
       # rather than the bare "25" month code.
       html =
         %{input: "2022-25"}
-        |> Tempo.Visualizer.ParseView.render("")
+        |> ParseView.render("")
         |> IO.iodata_to_binary()
 
       # March equinox → June solstice of 2022
@@ -129,7 +132,7 @@ defmodule Tempo.VisualizerTest do
     test "renders unspecified digits as a mask glyph" do
       html =
         %{input: "156X"}
-        |> Tempo.Visualizer.ParseView.render("")
+        |> ParseView.render("")
         |> IO.iodata_to_binary()
 
       # `156X` splits into a number run (`156`) and a literal `X`.
@@ -141,7 +144,7 @@ defmodule Tempo.VisualizerTest do
     test "renders a negative year with its sign" do
       html =
         %{input: "-1XXX-XX"}
-        |> Tempo.Visualizer.ParseView.render("")
+        |> ParseView.render("")
         |> IO.iodata_to_binary()
 
       assert html =~ "-1XXX"
@@ -153,7 +156,7 @@ defmodule Tempo.VisualizerTest do
       # fact shows up in the parsed-value card below the grid.
       html =
         %{input: "1985/.."}
-        |> Tempo.Visualizer.ParseView.render("")
+        |> ParseView.render("")
         |> IO.iodata_to_binary()
 
       assert html =~ ~s|<span class="vz-token vz-token--number">1985</span>|

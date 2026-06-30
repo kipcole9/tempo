@@ -1,6 +1,10 @@
 defmodule Tempo.Iso8601.Group do
   @moduledoc false
 
+  alias Tempo.Iso8601.Group
+  alias Tempo.Iso8601.Parser
+  alias Tempo.ParseError
+
   # This module expands groups into base time units.
   # For example, it exapands:
   #  * quarters
@@ -128,8 +132,8 @@ defmodule Tempo.Iso8601.Group do
           datetime: [{:year, year}, {:month, 2} | rest]
         ]
       ]
-      |> Tempo.Iso8601.Parser.parse()
-      |> Tempo.Iso8601.Group.expand_groups(calendar)
+      |> Parser.parse()
+      |> Group.expand_groups(calendar)
 
     interval
   end
@@ -201,9 +205,7 @@ defmodule Tempo.Iso8601.Group do
   # TODO implement complex groups
   def expand_groups([{:group, group} | _rest], _calendar) do
     {:error,
-     Tempo.ParseError.exception(
-       reason: "Complex groupings not yet supported. Found #{inspect(group)}"
-     )}
+     ParseError.exception(reason: "Complex groupings not yet supported. Found #{inspect(group)}")}
   end
 
   def expand_groups([first | rest], calendar) do
@@ -263,8 +265,8 @@ defmodule Tempo.Iso8601.Group do
           ]
         ]
       ]
-      |> Tempo.Iso8601.Parser.parse()
-      |> Tempo.Iso8601.Group.expand_groups(calendar)
+      |> Parser.parse()
+      |> Group.expand_groups(calendar)
 
     interval
   end
@@ -277,8 +279,8 @@ defmodule Tempo.Iso8601.Group do
           datetime: [{:year, year}, {:month, end_month} | rest]
         ]
       ]
-      |> Tempo.Iso8601.Parser.parse()
-      |> Tempo.Iso8601.Group.expand_groups(calendar)
+      |> Parser.parse()
+      |> Group.expand_groups(calendar)
 
     interval
   end

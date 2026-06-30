@@ -3,6 +3,8 @@ defmodule Tempo.Inspect do
 
   import Kernel, except: [inspect: 1]
 
+  alias Tempo.Microsecond
+
   @from_iso8601 "Tempo.from_iso8601!(\""
   @sigil_o "~o\""
 
@@ -551,7 +553,7 @@ defmodule Tempo.Inspect do
     [
       inspect_list(second),
       ?.,
-      Tempo.Microsecond.to_digits_string(microsecond),
+      Microsecond.to_digits_string(microsecond),
       inspect_qualification(qualifier),
       ?S
     ]
@@ -569,7 +571,7 @@ defmodule Tempo.Inspect do
   defp inspect_value({:minute, minute}), do: [inspect_list(minute), ?M]
 
   defp inspect_value({:second, {:micro, second, microsecond}}),
-    do: [inspect_list(second), ?., Tempo.Microsecond.to_digits_string(microsecond), ?S]
+    do: [inspect_list(second), ?., Microsecond.to_digits_string(microsecond), ?S]
 
   defp inspect_value({:second, second}), do: [inspect_list(second), ?S]
   defp inspect_value({:day_of_week, day}), do: [inspect_list(day), ?K]

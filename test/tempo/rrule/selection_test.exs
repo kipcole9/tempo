@@ -2,6 +2,7 @@ defmodule Tempo.RRule.SelectionTest do
   use ExUnit.Case, async: true
   import Tempo.Sigils
 
+  alias Tempo.ICal
   alias Tempo.RRule.Expander
   alias Tempo.RRule.Rule
   alias Tempo.RRule.Selection
@@ -321,7 +322,7 @@ defmodule Tempo.RRule.SelectionTest do
       END:VCALENDAR
       """
 
-      {:ok, set} = Tempo.ICal.from_ical(ics)
+      {:ok, set} = ICal.from_ical(ics)
       assert length(set.intervals) == 6
 
       # No event has the fallback marker — all are real
@@ -354,7 +355,7 @@ defmodule Tempo.RRule.SelectionTest do
       END:VCALENDAR
       """
 
-      {:ok, set} = Tempo.ICal.from_ical(ics)
+      {:ok, set} = ICal.from_ical(ics)
       assert length(set.intervals) == 10
 
       assert Enum.all?(set.intervals, fn iv ->
@@ -378,7 +379,7 @@ defmodule Tempo.RRule.SelectionTest do
       END:VCALENDAR
       """
 
-      {:ok, set} = Tempo.ICal.from_ical(ics)
+      {:ok, set} = ICal.from_ical(ics)
       assert length(set.intervals) == 3
 
       assert Enum.all?(set.intervals, fn iv ->
@@ -552,7 +553,7 @@ defmodule Tempo.RRule.SelectionTest do
       END:VCALENDAR
       """
 
-      {:ok, set} = Tempo.ICal.from_ical(ics)
+      {:ok, set} = ICal.from_ical(ics)
       assert length(set.intervals) == 3
 
       assert Enum.all?(set.intervals, fn iv ->

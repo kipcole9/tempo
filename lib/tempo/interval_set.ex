@@ -36,7 +36,11 @@ defmodule Tempo.IntervalSet do
 
   """
 
+  alias Tempo.Compare
+  alias Tempo.ConversionError
+  alias Tempo.Duration
   alias Tempo.Interval
+  alias Tempo.IntervalEndpointsError
 
   @type t :: %__MODULE__{
           intervals: [Interval.t()],
@@ -231,13 +235,13 @@ defmodule Tempo.IntervalSet do
   defp collect_slots(slot_start, to, duration, every, acc) do
     slot_end = Tempo.shift(slot_start, duration)
 
-    if Tempo.Compare.compare_endpoints(slot_end, to) in [:earlier, :same] do
+    if Compare.compare_endpoints(slot_end, to) in [:earlier, :same] do
       slot = Interval.new!(from: slot_start, to: slot_end)
       next_start = Tempo.shift(slot_start, every)
 
       # Strictly advancing guarantees termination even if `:every` is
       # non-positive — at worst a single slot is emitted.
-      if Tempo.Compare.compare_endpoints(next_start, slot_start) == :later do
+      if Compare.compare_endpoints(next_start, slot_start) == :later do
         collect_slots(next_start, to, duration, every, [slot | acc])
       else
         Enum.reverse([slot | acc])
@@ -383,7 +387,7 @@ defmodule Tempo.IntervalSet do
   defp coerce(%Tempo{} = point), do: Tempo.to_interval_set(point)
 
   defp coerce(other) do
-    {:error, Tempo.ConversionError.exception(value: other, target: Tempo.IntervalSet)}
+    {:error, ConversionError.exception(value: other, target: Tempo.IntervalSet)}
   end
 
   ## Validation
@@ -397,7 +401,7 @@ defmodule Tempo.IntervalSet do
         false ->
           {:halt,
            {:error,
-            Tempo.IntervalEndpointsError.exception(
+            IntervalEndpointsError.exception(
               interval: interval,
               operation: "include open-ended interval in a set"
             )}}
@@ -559,7 +563,7 @@ defmodule Tempo.IntervalSet do
   """
   @spec covered?(t(), Tempo.t()) :: boolean()
   def covered?(%__MODULE__{intervals: intervals}, %Tempo{} = point) do
-    Enum.any?(intervals, fn interval -> Tempo.Interval.within?(point, interval) end)
+    Enum.any?(intervals, fn interval -> Interval.within?(point, interval) end)
   end
 
   @doc """
@@ -596,8 +600,8 @@ defmodule Tempo.IntervalSet do
     set
     |> coalesce()
     |> Map.fetch!(:intervals)
-    |> Enum.reduce(Tempo.Duration.build([]), fn interval, acc ->
-      add_durations(acc, Tempo.Interval.duration(interval))
+    |> Enum.reduce(Duration.build([]), fn interval, acc ->
+      add_durations(acc, Interval.duration(interval))
     end)
   end
 
@@ -605,7 +609,7 @@ defmodule Tempo.IntervalSet do
     merged =
       Keyword.merge(a, b, fn _key, v1, v2 -> v1 + v2 end)
 
-    Tempo.Duration.build(merged)
+    Duration.build(merged)
   end
 
   # Single forward pass. At each step, decide whether the next

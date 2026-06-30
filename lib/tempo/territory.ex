@@ -41,6 +41,9 @@ defmodule Tempo.Territory do
 
   """
 
+  alias Localize.Territory
+  alias Localize.Validity.U
+
   @type input ::
           atom()
           | String.t()
@@ -74,7 +77,7 @@ defmodule Tempo.Territory do
   def resolve(value)
 
   def resolve(%Localize.LanguageTag{} = tag) do
-    Localize.Territory.territory_from_locale(tag)
+    Territory.territory_from_locale(tag)
   end
 
   def resolve(nil) do
@@ -99,7 +102,7 @@ defmodule Tempo.Territory do
     # against CLDR data, so no untrusted string reaches
     # `String.to_atom/1`.
     with {:error, _} <- Localize.validate_territory(value),
-         {:error, _} <- Localize.Territory.territory_from_locale(value),
+         {:error, _} <- Territory.territory_from_locale(value),
          {:error, _} <- decode_region_override(value) do
       {:error,
        ArgumentError.exception(
@@ -124,7 +127,7 @@ defmodule Tempo.Territory do
 
   defp resolve_from_ambient_locale do
     Localize.get_locale()
-    |> Localize.Territory.territory_from_locale()
+    |> Territory.territory_from_locale()
   end
 
   # A bare BCP 47 `u-rg` region-override value (`"sazzzz"` → `:SA`),
@@ -132,7 +135,7 @@ defmodule Tempo.Territory do
   # `zzzz` padding and validates the territory against CLDR data, so
   # Tempo never has to recognise the `u-rg` shape itself.
   defp decode_region_override(value) do
-    case Localize.Validity.U.decode("rg", value) do
+    case U.decode("rg", value) do
       {:ok, {:rg, territory}} -> {:ok, territory}
       {:error, _} = error -> error
     end

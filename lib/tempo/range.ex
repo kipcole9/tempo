@@ -9,6 +9,8 @@ defmodule Tempo.Range do
   endpoint (`../2024`, `2022/..`, `../..`).
   """
 
+  alias Tempo.Iso8601.AST
+
   @type endpoint :: Tempo.t() | :undefined
 
   @type t :: %__MODULE__{
@@ -20,8 +22,8 @@ defmodule Tempo.Range do
 
   @doc false
   def new(first, last, calendar \\ Calendrical.Gregorian) do
-    first = Tempo.Iso8601.AST.build(first, calendar)
-    last = Tempo.Iso8601.AST.build(last, calendar)
+    first = AST.build(first, calendar)
+    last = AST.build(last, calendar)
     %__MODULE__{first: first, last: last}
   end
 end

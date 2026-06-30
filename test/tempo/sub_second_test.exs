@@ -10,6 +10,10 @@ defmodule Tempo.SubSecondTest do
 
   import Tempo.Sigils
 
+  alias Tempo.Compare
+  alias Tempo.Interval
+  alias Tempo.Math
+
   defp time(iso) do
     {:ok, tempo} = Tempo.from_iso8601(iso)
     tempo.time
@@ -103,7 +107,7 @@ defmodule Tempo.SubSecondTest do
 
   describe "comparison and Allen relations" do
     test "sub-second values order by microsecond value" do
-      assert Tempo.Compare.compare_endpoints(
+      assert Compare.compare_endpoints(
                ~o"2026Y6M15DT10H30M45.123S",
                ~o"2026Y6M15DT10H30M45.124S"
              ) == :earlier
@@ -111,7 +115,7 @@ defmodule Tempo.SubSecondTest do
 
     test "precision does not affect instant ordering (.12 == .120)" do
       # Same start moment, different interval width — equal as instants.
-      assert Tempo.Compare.compare_endpoints(
+      assert Compare.compare_endpoints(
                ~o"2026Y6M15DT10H30M45.12S",
                ~o"2026Y6M15DT10H30M45.120S"
              ) == :same
@@ -120,14 +124,14 @@ defmodule Tempo.SubSecondTest do
     test "adjacent sub-second intervals meet" do
       {:ok, a} = Tempo.to_interval(~o"2026Y6M15DT10H30M45.123S")
       {:ok, b} = Tempo.to_interval(~o"2026Y6M15DT10H30M45.124S")
-      assert Tempo.Interval.relation(a, b) == :meets
+      assert Interval.relation(a, b) == :meets
     end
 
     test "cross-zone comparison breaks ties on the sub-second value" do
       # Same UTC second (10:30:45 UTC), microseconds 100000 vs 200000.
       utc = Tempo.from_iso8601!("2026-06-15T10:30:45.100+00:00")
       syd = Tempo.from_iso8601!("2026-06-15T20:30:45.200+10:00")
-      assert Tempo.Compare.compare_endpoints(utc, syd) == :earlier
+      assert Compare.compare_endpoints(utc, syd) == :earlier
     end
   end
 
@@ -139,7 +143,7 @@ defmodule Tempo.SubSecondTest do
 
     test "adding a sub-second duration carries into the second" do
       result =
-        Tempo.Math.add(
+        Math.add(
           Tempo.from_iso8601!("2026-06-15T10:30:45.900"),
           Tempo.from_iso8601!("PT0.2S")
         )
@@ -149,7 +153,7 @@ defmodule Tempo.SubSecondTest do
 
     test "subtracting a sub-second duration borrows from the second" do
       result =
-        Tempo.Math.subtract(
+        Math.subtract(
           Tempo.from_iso8601!("2026-06-15T10:30:46.100"),
           Tempo.from_iso8601!("PT0.2S")
         )
@@ -159,7 +163,7 @@ defmodule Tempo.SubSecondTest do
 
     test "adding a sub-second duration to a second-resolution value introduces sub-second" do
       result =
-        Tempo.Math.add(
+        Math.add(
           Tempo.from_iso8601!("2026-06-15T10:30:45"),
           Tempo.from_iso8601!("PT0.5S")
         )

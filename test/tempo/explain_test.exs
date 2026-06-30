@@ -2,6 +2,10 @@ defmodule Tempo.Explain.Test do
   use ExUnit.Case, async: true
   import Tempo.Sigils
 
+  alias Tempo.Explain
+  alias Tempo.ICal
+  alias Tempo.IntervalSet
+
   # Tests for `Tempo.Explain.explain/1` — structured prose
   # descriptions of Tempo values. Three formatters (`to_string`,
   # `to_ansi`, `to_iodata`) are exercised for the same structured
@@ -14,7 +18,7 @@ defmodule Tempo.Explain.Test do
 
   describe "scalar Tempo" do
     test "a year is classified :anchored with headline, span, enumeration, hint" do
-      exp = Tempo.Explain.explain(~o"2022Y")
+      exp = Explain.explain(~o"2022Y")
       assert exp.kind == :anchored
       tags = exp.parts |> Enum.map(&elem(&1, 0))
       assert :headline in tags
@@ -36,7 +40,7 @@ defmodule Tempo.Explain.Test do
     end
 
     test "a qualified year mentions the qualifier" do
-      exp = Tempo.Explain.explain(~o"2022Y?")
+      exp = Explain.explain(~o"2022Y?")
       tags = exp.parts |> Enum.map(&elem(&1, 0))
       assert :qualification in tags
 
@@ -46,7 +50,7 @@ defmodule Tempo.Explain.Test do
 
   describe "masked Tempo" do
     test "156X is classified :masked" do
-      assert Tempo.Explain.explain(~o"156X").kind == :masked
+      assert Explain.explain(~o"156X").kind == :masked
     end
 
     test "156X names the decade" do
@@ -60,7 +64,7 @@ defmodule Tempo.Explain.Test do
 
   describe "time-of-day" do
     test "T10:30 is classified :time_of_day" do
-      assert Tempo.Explain.explain(~o"T10:30").kind == :time_of_day
+      assert Explain.explain(~o"T10:30").kind == :time_of_day
     end
 
     test "mentions the non-anchored nature" do
@@ -77,7 +81,7 @@ defmodule Tempo.Explain.Test do
 
   describe "Tempo.Duration" do
     test "classified :duration with no anchor hint" do
-      exp = Tempo.Explain.explain(~o"P1Y2M")
+      exp = Explain.explain(~o"P1Y2M")
       assert exp.kind == :duration
       assert Tempo.explain(~o"P1Y2M") =~ "no anchor"
     end
@@ -90,17 +94,17 @@ defmodule Tempo.Explain.Test do
   describe "Tempo.Interval" do
     test "closed interval is classified :closed_interval" do
       {:ok, iv} = Tempo.to_interval(~o"2026-06-15")
-      assert Tempo.Explain.explain(iv).kind == :closed_interval
+      assert Explain.explain(iv).kind == :closed_interval
     end
 
     test "open-upper interval is classified :open_upper_interval" do
       {:ok, iv} = Tempo.from_iso8601("1985/..")
-      assert Tempo.Explain.explain(iv).kind == :open_upper_interval
+      assert Explain.explain(iv).kind == :open_upper_interval
     end
 
     test "fully open is classified :fully_open_interval" do
       {:ok, iv} = Tempo.from_iso8601("../..")
-      assert Tempo.Explain.explain(iv).kind == :fully_open_interval
+      assert Explain.explain(iv).kind == :fully_open_interval
     end
 
     test "interval with metadata mentions the event summary" do
@@ -113,8 +117,8 @@ defmodule Tempo.Explain.Test do
 
   describe "Tempo.IntervalSet" do
     test "empty set is classified :empty_interval_set" do
-      {:ok, set} = Tempo.IntervalSet.new([])
-      assert Tempo.Explain.explain(set).kind == :empty_interval_set
+      {:ok, set} = IntervalSet.new([])
+      assert Explain.explain(set).kind == :empty_interval_set
     end
 
     test "non-empty set previews first 3 intervals" do
@@ -133,7 +137,7 @@ defmodule Tempo.Explain.Test do
       END:VCALENDAR
       """
 
-      {:ok, set} = Tempo.ICal.from_ical(ics)
+      {:ok, set} = ICal.from_ical(ics)
       text = Tempo.explain(set)
       assert text =~ "IntervalSet with 1 interval"
       assert text =~ "Standup"
@@ -144,36 +148,36 @@ defmodule Tempo.Explain.Test do
   describe "Tempo.Set" do
     test "one-of set mentions epistemic disjunction" do
       {:ok, s} = Tempo.from_iso8601("[2020Y,2021Y,2022Y]")
-      assert Tempo.Explain.explain(s).kind == :one_of_set
+      assert Explain.explain(s).kind == :one_of_set
       assert Tempo.explain(s) =~ "one of"
     end
   end
 
   describe "formatters" do
     test "to_string produces a multi-line string" do
-      exp = Tempo.Explain.explain(~o"2022Y")
-      text = Tempo.Explain.to_string(exp)
+      exp = Explain.explain(~o"2022Y")
+      text = Explain.to_string(exp)
       assert is_binary(text)
       assert String.contains?(text, "\n")
     end
 
     test "to_ansi produces a string with ANSI escape codes" do
-      exp = Tempo.Explain.explain(~o"2022Y")
-      text = Tempo.Explain.to_ansi(exp)
+      exp = Explain.explain(~o"2022Y")
+      text = Explain.to_ansi(exp)
       # ANSI codes start with the escape sequence \e[ (or \x1B[).
       assert String.contains?(text, "\e[")
     end
 
     test "to_iodata produces tagged {atom, string} pairs" do
-      exp = Tempo.Explain.explain(~o"2022Y")
-      parts = Tempo.Explain.to_iodata(exp)
+      exp = Explain.explain(~o"2022Y")
+      parts = Explain.to_iodata(exp)
       assert Enum.all?(parts, fn {tag, text} -> is_atom(tag) and is_binary(text) end)
     end
   end
 
   describe "Tempo.explain/1 (top-level delegation)" do
     test "returns the string form" do
-      assert Tempo.explain(~o"2022Y") == Tempo.Explain.to_string(Tempo.Explain.explain(~o"2022Y"))
+      assert Tempo.explain(~o"2022Y") == Explain.to_string(Explain.explain(~o"2022Y"))
     end
   end
 end

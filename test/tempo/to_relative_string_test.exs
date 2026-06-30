@@ -3,6 +3,8 @@ defmodule Tempo.ToRelativeStringTest do
 
   import Tempo.Sigils
 
+  alias Tempo.Clock.Test
+
   # Install Tempo.Clock.Test for this test process only. Using
   # `Process.put` (not `Application.put_env`) keeps the swap
   # process-local so it doesn't leak into other async tests or
@@ -116,7 +118,7 @@ defmodule Tempo.ToRelativeStringTest do
 
   describe "default :from reads Tempo.Clock" do
     test "uses Tempo.Clock.Test when configured" do
-      Tempo.Clock.Test.put(~U[2026-06-15 12:00:00Z])
+      Test.put(~U[2026-06-15 12:00:00Z])
 
       # No :from supplied — uses Tempo.utc_now() which goes through
       # the configured clock.

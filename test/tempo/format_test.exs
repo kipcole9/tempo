@@ -3,6 +3,8 @@ defmodule Tempo.FormatTest do
 
   import Tempo.Sigils
 
+  alias Tempo.IntervalSet
+
   doctest Tempo, only: [to_string: 2]
 
   # The CLDR range separator is a thin-space + en-dash + thin-space.
@@ -88,7 +90,7 @@ defmodule Tempo.FormatTest do
       # the "Jan 2022 – Dec 2023" single-span rendering, coalesce
       # explicitly first.
       {:ok, yr_iv} = Tempo.union(~o"2022", ~o"2023")
-      coalesced = Tempo.IntervalSet.coalesce(yr_iv)
+      coalesced = IntervalSet.coalesce(yr_iv)
 
       assert Tempo.to_string(coalesced) == "Jan 2022#{@en_dash_sep}Dec 2023"
     end

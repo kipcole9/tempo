@@ -6,6 +6,8 @@ defmodule Tempo.Duration do
   cadence), and arithmetic helpers in `Tempo.Math`.
   """
 
+  alias Tempo.Microsecond
+
   @type unit ::
           :year
           | :month
@@ -141,7 +143,7 @@ defmodule Tempo.Duration do
   defp lift_microsecond([{:second, second}, {:fraction, {digits, count}} | rest]) do
     [
       {:second, second},
-      {:microsecond, Tempo.Microsecond.from_fraction(digits, count)}
+      {:microsecond, Microsecond.from_fraction(digits, count)}
       | lift_microsecond(rest)
     ]
   end
@@ -175,7 +177,7 @@ defmodule Tempo.Duration do
                 "Valid components: #{inspect(@valid_units)}"
             )}}
 
-        unit == :microsecond and not Tempo.Microsecond.valid?(value) ->
+        unit == :microsecond and not Microsecond.valid?(value) ->
           {:halt,
            {:error,
             ArgumentError.exception(

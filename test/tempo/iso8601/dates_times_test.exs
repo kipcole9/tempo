@@ -116,7 +116,7 @@ defmodule Tempo.Parser.DatesTimes.Test do
   # easier to understand
 
   test "Quarters in the month position" do
-    assert Tempo.Iso8601.Tokenizer.tokenize("13X{0..9}Y1Q") ==
+    assert Tokenizer.tokenize("13X{0..9}Y1Q") ==
              {:ok, {[date: [year: {:mask, [1, 3, :X, [0..9]]}, month: 33]], nil}}
   end
 

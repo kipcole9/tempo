@@ -2,6 +2,11 @@ defmodule Tempo.Operations.Test do
   use ExUnit.Case, async: true
   import Tempo.Sigils
 
+  alias Tempo.Compare
+  alias Tempo.Interval
+  alias Tempo.IntervalSet
+  alias Tempo.Operations
+
   # Tests for `Tempo.Operations` — the set-operations module.
   # Organised by concern:
   #
@@ -23,7 +28,7 @@ defmodule Tempo.Operations.Test do
       {:ok, d} = Tempo.from_iso8601("P3M")
 
       assert {:error, %Tempo.MaterialisationError{reason: :bare_duration} = e} =
-               Tempo.Operations.align(~o"2022Y", d)
+               Operations.align(~o"2022Y", d)
 
       assert Exception.message(e) =~ "Duration"
     end
@@ -32,14 +37,14 @@ defmodule Tempo.Operations.Test do
       {:ok, s} = Tempo.from_iso8601("[2020Y,2021Y,2022Y]")
 
       assert {:error, %Tempo.MaterialisationError{reason: :one_of_set} = e} =
-               Tempo.Operations.align(~o"2023Y", s)
+               Operations.align(~o"2023Y", s)
 
       assert Exception.message(e) =~ "one-of"
     end
 
     test "accepts Tempo.IntervalSet passthrough" do
       {:ok, set} = Tempo.to_interval_set(~o"2022Y")
-      assert {:ok, {a, b}} = Tempo.Operations.align(set, ~o"2023Y")
+      assert {:ok, {a, b}} = Operations.align(set, ~o"2023Y")
       assert a.intervals != []
       assert b.intervals != []
     end
@@ -47,16 +52,16 @@ defmodule Tempo.Operations.Test do
 
   describe "align/2,3 — anchor class compatibility" do
     test "two anchored operands — OK" do
-      assert {:ok, _} = Tempo.Operations.align(~o"2022Y", ~o"2023Y")
+      assert {:ok, _} = Operations.align(~o"2022Y", ~o"2023Y")
     end
 
     test "two non-anchored operands — OK" do
-      assert {:ok, _} = Tempo.Operations.align(~o"T10:00", ~o"T14:30")
+      assert {:ok, _} = Operations.align(~o"T10:00", ~o"T14:30")
     end
 
     test "anchored + non-anchored without bound — error" do
       assert {:error, %Tempo.NonAnchoredError{} = e} =
-               Tempo.Operations.align(~o"2022Y", ~o"T10:30")
+               Operations.align(~o"2022Y", ~o"T10:30")
 
       assert Exception.message(e) =~ ":bound"
       assert Exception.message(e) =~ "anchor/2"
@@ -64,13 +69,13 @@ defmodule Tempo.Operations.Test do
 
     test "anchored + non-anchored WITH bound — OK" do
       assert {:ok, _} =
-               Tempo.Operations.align(~o"2026-01-04", ~o"T10:30", bound: ~o"2026-01-04")
+               Operations.align(~o"2026-01-04", ~o"T10:30", bound: ~o"2026-01-04")
     end
   end
 
   describe "align/2,3 — resolution" do
     test "aligns to the finer resolution" do
-      {:ok, {a, b}} = Tempo.Operations.align(~o"2022Y", ~o"2022-06-15")
+      {:ok, {a, b}} = Operations.align(~o"2022Y", ~o"2022-06-15")
       [a_iv] = a.intervals
       [b_iv] = b.intervals
 
@@ -93,7 +98,7 @@ defmodule Tempo.Operations.Test do
       {:ok, r} = Tempo.union(~o"2022Y", ~o"2023Y")
       assert length(r.intervals) == 2
 
-      coalesced = Tempo.IntervalSet.coalesce(r)
+      coalesced = IntervalSet.coalesce(r)
       assert length(coalesced.intervals) == 1
       [iv] = coalesced.intervals
       assert iv.from.time == [year: 2022, month: 1]
@@ -106,12 +111,12 @@ defmodule Tempo.Operations.Test do
       {:ok, r} = Tempo.union(a, b)
       assert length(r.intervals) == 2
 
-      coalesced = Tempo.IntervalSet.coalesce(r)
+      coalesced = IntervalSet.coalesce(r)
       assert length(coalesced.intervals) == 1
     end
 
     test "identity with empty set: ∅ ∪ A = A" do
-      {:ok, empty} = Tempo.IntervalSet.new([])
+      {:ok, empty} = IntervalSet.new([])
       {:ok, r} = Tempo.union(empty, ~o"2022Y")
       assert length(r.intervals) == 1
     end
@@ -152,7 +157,7 @@ defmodule Tempo.Operations.Test do
     end
 
     test "identity with empty set: ∅ ∩ A = ∅" do
-      {:ok, empty} = Tempo.IntervalSet.new([])
+      {:ok, empty} = IntervalSet.new([])
       {:ok, r} = Tempo.intersection(empty, ~o"2022Y")
       assert r.intervals == []
     end
@@ -189,7 +194,7 @@ defmodule Tempo.Operations.Test do
     end
 
     test "identity with empty set" do
-      {:ok, empty} = Tempo.IntervalSet.new([])
+      {:ok, empty} = IntervalSet.new([])
       {:ok, r} = Tempo.members_overlapping(empty, ~o"2022Y")
       assert r.intervals == []
     end
@@ -215,7 +220,7 @@ defmodule Tempo.Operations.Test do
     test "multi-member A — filters to members overlapping any B member" do
       # A: two-member set; B: one member overlapping only the second.
       a =
-        Tempo.IntervalSet.new!([
+        IntervalSet.new!([
           %Tempo.Interval{from: ~o"2022-01", to: ~o"2022-03"},
           %Tempo.Interval{from: ~o"2022-06", to: ~o"2022-09"}
         ])
@@ -248,7 +253,7 @@ defmodule Tempo.Operations.Test do
     end
 
     test "complement of ∅ within U = U" do
-      {:ok, empty} = Tempo.IntervalSet.new([])
+      {:ok, empty} = IntervalSet.new([])
       {:ok, r} = Tempo.complement(empty, bound: ~o"2022Y")
       assert length(r.intervals) == 1
     end
@@ -266,13 +271,13 @@ defmodule Tempo.Operations.Test do
     end
 
     test "A ∖ ∅ = A" do
-      {:ok, empty} = Tempo.IntervalSet.new([])
+      {:ok, empty} = IntervalSet.new([])
       {:ok, r} = Tempo.difference(~o"2022Y", empty)
       assert length(r.intervals) == 1
     end
 
     test "∅ ∖ A = ∅" do
-      {:ok, empty} = Tempo.IntervalSet.new([])
+      {:ok, empty} = IntervalSet.new([])
       {:ok, r} = Tempo.difference(empty, ~o"2022Y")
       assert r.intervals == []
     end
@@ -298,13 +303,13 @@ defmodule Tempo.Operations.Test do
       # later holidays still in B, used to emit a zero-width
       # interval at the trailing endpoint of the consumed A.
       a =
-        Tempo.IntervalSet.new!([
+        IntervalSet.new!([
           %Tempo.Interval{from: ~o"2026-07-03", to: ~o"2026-07-04"},
           %Tempo.Interval{from: ~o"2026-09-08", to: ~o"2026-09-09"}
         ])
 
       b =
-        Tempo.IntervalSet.new!([
+        IntervalSet.new!([
           %Tempo.Interval{from: ~o"2026-07-03", to: ~o"2026-07-04"},
           %Tempo.Interval{from: ~o"2026-09-07", to: ~o"2026-09-08"}
         ])
@@ -314,7 +319,7 @@ defmodule Tempo.Operations.Test do
       assert length(r.intervals) == 1
 
       [iv] = r.intervals
-      assert Tempo.Interval.from(iv) == ~o"2026-09-08"
+      assert Interval.from(iv) == ~o"2026-09-08"
 
       refute Enum.any?(r.intervals, fn iv ->
                Tempo.equal?(iv.from, iv.to)
@@ -335,7 +340,7 @@ defmodule Tempo.Operations.Test do
     test "multi-member A — drops only members that overlap B" do
       # Three month-members; B overlaps only the middle one.
       a =
-        Tempo.IntervalSet.new!([
+        IntervalSet.new!([
           %Tempo.Interval{from: ~o"2022-01", to: ~o"2022-02"},
           %Tempo.Interval{from: ~o"2022-06", to: ~o"2022-07"},
           %Tempo.Interval{from: ~o"2022-12", to: ~o"2023-01"}
@@ -454,7 +459,7 @@ defmodule Tempo.Operations.Test do
 
     test "non-anchored bound is rejected" do
       assert {:error, %Tempo.NonAnchoredError{} = e} =
-               Tempo.Operations.align(~o"2026-01-04", ~o"T10:30", bound: ~o"T00:00")
+               Operations.align(~o"2026-01-04", ~o"T10:30", bound: ~o"T00:00")
 
       assert Exception.message(e) =~ "bound"
       assert Exception.message(e) =~ "anchored"
@@ -681,14 +686,14 @@ defmodule Tempo.Operations.Test do
   # logic runs, so representation must never change the result.
   describe "cross-type invariance — Interval, IntervalSet, and mixed operands" do
     setup do
-      a_i = Tempo.Interval.new!(from: ~o"2026-06-15T09:00:00", to: ~o"2026-06-15T12:00:00")
-      b_i = Tempo.Interval.new!(from: ~o"2026-06-15T10:00:00", to: ~o"2026-06-15T14:00:00")
+      a_i = Interval.new!(from: ~o"2026-06-15T09:00:00", to: ~o"2026-06-15T12:00:00")
+      b_i = Interval.new!(from: ~o"2026-06-15T10:00:00", to: ~o"2026-06-15T14:00:00")
 
       %{
         a_i: a_i,
         b_i: b_i,
-        a_s: Tempo.IntervalSet.new!([a_i]),
-        b_s: Tempo.IntervalSet.new!([b_i])
+        a_s: IntervalSet.new!([a_i]),
+        b_s: IntervalSet.new!([b_i])
       }
     end
 
@@ -712,13 +717,13 @@ defmodule Tempo.Operations.Test do
 
     test "multi-member set vs single-interval operand agree (incl. member-preserving ops)" do
       a =
-        Tempo.IntervalSet.new!([
-          Tempo.Interval.new!(from: ~o"2026-06-15T09:00:00", to: ~o"2026-06-15T11:00:00"),
-          Tempo.Interval.new!(from: ~o"2026-06-15T13:00:00", to: ~o"2026-06-15T16:00:00")
+        IntervalSet.new!([
+          Interval.new!(from: ~o"2026-06-15T09:00:00", to: ~o"2026-06-15T11:00:00"),
+          Interval.new!(from: ~o"2026-06-15T13:00:00", to: ~o"2026-06-15T16:00:00")
         ])
 
-      b_i = Tempo.Interval.new!(from: ~o"2026-06-15T10:00:00", to: ~o"2026-06-15T14:00:00")
-      b_s = Tempo.IntervalSet.new!([b_i])
+      b_i = Interval.new!(from: ~o"2026-06-15T10:00:00", to: ~o"2026-06-15T14:00:00")
+      b_s = IntervalSet.new!([b_i])
 
       ops = [
         :union,
@@ -749,8 +754,8 @@ defmodule Tempo.Operations.Test do
     {:ok, set} = Tempo.to_interval_set(result)
 
     set
-    |> Tempo.IntervalSet.to_list()
-    |> Enum.map(&{Tempo.Compare.to_utc_seconds(&1.from), Tempo.Compare.to_utc_seconds(&1.to)})
+    |> IntervalSet.to_list()
+    |> Enum.map(&{Compare.to_utc_seconds(&1.from), Compare.to_utc_seconds(&1.to)})
     |> Enum.sort()
   end
 end

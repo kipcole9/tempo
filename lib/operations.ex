@@ -28,7 +28,14 @@ defmodule Tempo.Operations do
 
   """
 
-  alias Tempo.{Compare, Interval, IntervalSet}
+  alias Tempo.Compare
+  alias Tempo.Interval
+  alias Tempo.IntervalSet
+  alias Tempo.Iso8601.Unit
+  alias Tempo.MaterialisationError
+  alias Tempo.Math
+  alias Tempo.NonAnchoredError
+  alias Tempo.UnboundedRecurrenceError
 
   ## ---------------------------------------------------------------
   ## Preflight — `align/2,3`
@@ -161,7 +168,7 @@ defmodule Tempo.Operations do
     with {:ok, bound_set} <- Tempo.to_interval_set(bound) do
       if anchor_class(bound_set) != :anchored do
         {:error,
-         Tempo.NonAnchoredError.exception(
+         NonAnchoredError.exception(
            operation: "use as :bound",
            value: bound
          )}
@@ -201,7 +208,7 @@ defmodule Tempo.Operations do
 
     Stream.unfold(from_day, fn day ->
       if Compare.compare_time(day.time, to_day.time) == :lt do
-        next_time = Tempo.Math.add_unit(day.time, :day, calendar)
+        next_time = Math.add_unit(day.time, :day, calendar)
         {day, %{day | time: next_time}}
       else
         nil
@@ -224,7 +231,7 @@ defmodule Tempo.Operations do
     if crosses_midnight?(na_from, na_to) do
       # Non-anchored interval like `T23:30/T01:00` anchored to
       # day D → `[D T23:30, (D+1) T01:00)`. Advance `to`'s day.
-      next_day_time = Tempo.Math.add_unit(day_time, :day, calendar)
+      next_day_time = Math.add_unit(day_time, :day, calendar)
       new_from = %{na_from | time: day_time ++ na_from.time}
       new_to = %{na_to | time: next_day_time ++ na_to.time}
       %Interval{from: new_from, to: new_to}
@@ -247,7 +254,7 @@ defmodule Tempo.Operations do
 
   defp validate_operand(%Tempo.Duration{} = value) do
     {:error,
-     Tempo.MaterialisationError.exception(
+     MaterialisationError.exception(
        value: value,
        reason: :bare_duration
      )}
@@ -255,7 +262,7 @@ defmodule Tempo.Operations do
 
   defp validate_operand(%Tempo.Set{type: :one} = value) do
     {:error,
-     Tempo.MaterialisationError.exception(
+     MaterialisationError.exception(
        value: value,
        reason: :one_of_set
      )}
@@ -285,7 +292,7 @@ defmodule Tempo.Operations do
 
       true ->
         {:error,
-         Tempo.NonAnchoredError.exception(
+         NonAnchoredError.exception(
            operation:
              "combine a #{class_a} operand with a #{class_b} operand " <>
                "in a set operation (use a `:bound` option, or anchor the " <>
@@ -424,7 +431,7 @@ defmodule Tempo.Operations do
     b_res = finest_resolution(b_set)
 
     target =
-      case Tempo.Iso8601.Unit.compare(a_res, b_res) do
+      case Unit.compare(a_res, b_res) do
         :lt -> a_res
         _ -> b_res
       end
@@ -441,7 +448,7 @@ defmodule Tempo.Operations do
       [Tempo.resolution(from), Tempo.resolution(to)]
     end)
     |> Enum.map(fn {unit, _span} -> unit end)
-    |> Enum.min_by(&Tempo.Iso8601.Unit.sort_key/1, fn -> :day end)
+    |> Enum.min_by(&Unit.sort_key/1, fn -> :day end)
   end
 
   defp apply_resolution(%IntervalSet{intervals: intervals} = set, target) do
@@ -460,7 +467,7 @@ defmodule Tempo.Operations do
   defp extend_or_pass(%Tempo{} = tempo, target) do
     {current, _} = Tempo.resolution(tempo)
 
-    case Tempo.Iso8601.Unit.compare(target, current) do
+    case Unit.compare(target, current) do
       :eq -> tempo
       :gt -> tempo
       :lt -> Tempo.extend_resolution(tempo, target)
@@ -624,7 +631,7 @@ defmodule Tempo.Operations do
     case Keyword.get(opts, :bound) do
       nil ->
         {:error,
-         Tempo.UnboundedRecurrenceError.exception(
+         UnboundedRecurrenceError.exception(
            reason:
              "`complement/2` requires an explicit `:bound` option. " <>
                "An unbounded complement is infinite; supply the universe to " <>

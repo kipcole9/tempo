@@ -97,8 +97,11 @@ defmodule Tempo.Select do
 
   """
 
+  alias Tempo.Compare
   alias Tempo.Interval
+  alias Tempo.IntervalEndpointsError
   alias Tempo.IntervalSet
+  alias Tempo.Iso8601.Unit
 
   @type selector ::
           [integer()]
@@ -298,7 +301,7 @@ defmodule Tempo.Select do
 
   defp filter_by_weekdays(%Interval{} = interval, _weekdays) do
     {:error,
-     Tempo.IntervalEndpointsError.exception(
+     IntervalEndpointsError.exception(
        interval: interval,
        operation: :select_weekdays,
        reason: "Cannot select weekdays across an open-ended interval."
@@ -384,7 +387,7 @@ defmodule Tempo.Select do
   end
 
   defp select_indices_at(%Tempo{calendar: calendar} = source, base_time, base_unit, indices) do
-    case Tempo.Iso8601.Unit.implicit_enumerator(base_unit, calendar) do
+    case Unit.implicit_enumerator(base_unit, calendar) do
       nil ->
         {:error,
          "Cannot select indices under #{inspect(base_unit)} — no finer unit is " <>
@@ -792,12 +795,12 @@ defmodule Tempo.Select do
          from: %Tempo{} = bf,
          to: %Tempo{} = bt
        }) do
-    case Tempo.Compare.compare_endpoints(from, bf) do
+    case Compare.compare_endpoints(from, bf) do
       :earlier ->
         nil
 
       _ ->
-        case Tempo.Compare.compare_endpoints(from, bt) do
+        case Compare.compare_endpoints(from, bt) do
           r when r in [:earlier, :same] -> iv
           _ -> nil
         end

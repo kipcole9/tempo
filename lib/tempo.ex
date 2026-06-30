@@ -103,9 +103,34 @@ defmodule Tempo do
 
   """
 
+  alias Tempo.Clock
+  alias Tempo.Compare
+  alias Tempo.ConversionError
+  alias Tempo.Duration
   alias Tempo.Enumeration
-  alias Tempo.Iso8601.{Group, Parser, Tokenizer, Unit}
+  alias Tempo.Explain
+  alias Tempo.FloatingTempoError
+  alias Tempo.Interval
+  alias Tempo.IntervalSet
+  alias Tempo.InvalidDateError
+  alias Tempo.InvalidUnitError
+  alias Tempo.Iso8601.AST
+  alias Tempo.Iso8601.Group
+  alias Tempo.Iso8601.Parser
+  alias Tempo.Iso8601.Tokenizer
+  alias Tempo.Iso8601.Unit
+  alias Tempo.Mask
+  alias Tempo.MaterialisationError
+  alias Tempo.Math
+  alias Tempo.NonAnchoredError
+  alias Tempo.ResolutionError
   alias Tempo.Rounding
+  alias Tempo.RRule.Encoder
+  alias Tempo.RRule.Selection
+  alias Tempo.Split
+  alias Tempo.Territory
+  alias Tempo.UnboundedRecurrenceError
+  alias Tempo.UnknownZoneError
   alias Tempo.Validation
 
   defstruct [:time, :shift, :calendar, :extended, :qualification, :qualifications]
@@ -435,7 +460,7 @@ defmodule Tempo do
         not is_integer(value) ->
           {:halt,
            {:error,
-            Tempo.InvalidDateError.exception(
+            InvalidDateError.exception(
               unit: unit,
               value: value,
               reason: "must be an integer"
@@ -520,7 +545,7 @@ defmodule Tempo do
   # Feb 29, etc.). Validation may return an `InvalidDateError` with
   # rich context.
   defp validate_against_calendar(%__MODULE__{calendar: calendar} = tempo) do
-    case Tempo.Validation.validate(tempo, calendar) do
+    case Validation.validate(tempo, calendar) do
       {:ok, _validated} -> {:ok, tempo}
       {:error, _} = err -> err
     end
@@ -761,7 +786,7 @@ defmodule Tempo do
   # requested; otherwise the value passes through unchanged.
   defp enforce_strict(%Tempo{} = tempo, options) do
     if Keyword.get(options, :strict, false) do
-      case Tempo.Compare.validate_zone_offset(tempo) do
+      case Compare.validate_zone_offset(tempo) do
         :ok -> {:ok, tempo}
         {:error, _exception} = error -> error
       end
@@ -869,7 +894,7 @@ defmodule Tempo do
   defp parsed_to_tempo({%{} = from_map, %{} = to_map}) do
     with {:ok, from} <- new(sanitise_parsed_map(from_map)),
          {:ok, to} <- new(sanitise_parsed_map(to_map)) do
-      Tempo.Interval.new(from: from, to: to)
+      Interval.new(from: from, to: to)
     end
   end
 
@@ -986,12 +1011,12 @@ defmodule Tempo do
   @spec to_rrule(Tempo.Interval.t() | term()) ::
           {:ok, String.t()} | {:error, Tempo.ConversionError.t()}
   def to_rrule(%Tempo.Interval{} = interval) do
-    Tempo.RRule.Encoder.encode(interval)
+    Encoder.encode(interval)
   end
 
   def to_rrule(other) do
     {:error,
-     Tempo.ConversionError.exception(
+     ConversionError.exception(
        reason:
          "Only a %Tempo.Interval{} can be converted to an RRULE. " <>
            "RRULE is a recurrence rule; got: #{inspect(other)}",
@@ -1045,15 +1070,15 @@ defmodule Tempo do
 
   @spec from_date(date :: Date.t()) :: t()
   def from_date(%{year: year, month: month, day: day, calendar: Calendar.ISO}) do
-    Tempo.Iso8601.AST.build(year: year, month: month, day: day)
+    AST.build(year: year, month: month, day: day)
   end
 
   def from_date(%{year: year, month: month, day: day, calendar: Calendrical.Gregorian}) do
-    Tempo.Iso8601.AST.build(year: year, month: month, day: day)
+    AST.build(year: year, month: month, day: day)
   end
 
   def from_date(%{year: year, month: month, day: day, calendar: calendar}) do
-    Tempo.Iso8601.AST.build([year: year, month: month, day: day], calendar)
+    AST.build([year: year, month: month, day: day], calendar)
   end
 
   @doc """
@@ -1077,9 +1102,7 @@ defmodule Tempo do
   """
   @spec from_time(time :: Time.t()) :: t()
   def from_time(%{hour: hour, minute: minute, second: second} = time) do
-    Tempo.Iso8601.AST.build(
-      [hour: hour, minute: minute, second: second] ++ microsecond_component(time)
-    )
+    AST.build([hour: hour, minute: minute, second: second] ++ microsecond_component(time))
   end
 
   @doc """
@@ -1113,7 +1136,7 @@ defmodule Tempo do
           calendar: Calendar.ISO
         } = naive
       ) do
-    Tempo.Iso8601.AST.build(
+    AST.build(
       [year: year, month: month, day: day, hour: hour, minute: minute, second: second] ++
         microsecond_component(naive)
     )
@@ -1130,7 +1153,7 @@ defmodule Tempo do
           calendar: Calendrical.Gregorian
         } = naive
       ) do
-    Tempo.Iso8601.AST.build(
+    AST.build(
       [year: year, month: month, day: day, hour: hour, minute: minute, second: second] ++
         microsecond_component(naive)
     )
@@ -1147,7 +1170,7 @@ defmodule Tempo do
           calendar: calendar
         } = naive
       ) do
-    Tempo.Iso8601.AST.build(
+    AST.build(
       [year: year, month: month, day: day, hour: hour, minute: minute, second: second] ++
         microsecond_component(naive),
       calendar
@@ -1402,7 +1425,7 @@ defmodule Tempo do
   end
 
   defp component(%Tempo.Interval{from: %__MODULE__{time: from_time}} = interval, unit) do
-    span_res = Tempo.Interval.resolution(interval)
+    span_res = Interval.resolution(interval)
 
     cond do
       span_res == :undefined ->
@@ -1535,7 +1558,7 @@ defmodule Tempo do
       case Enum.take_while(time, &(Unit.compare(&1, truncate_to) in [:gt, :eq])) do
         [] ->
           {:error,
-           Tempo.ResolutionError.exception(
+           ResolutionError.exception(
              operation: :trunc,
              target: truncate_to,
              current: resolution(tempo) |> elem(0),
@@ -1594,7 +1617,7 @@ defmodule Tempo do
 
   """
   def split(%__MODULE__{time: time, calendar: calendar}) do
-    case Tempo.Split.split(time) do
+    case Split.split(time) do
       {date, []} ->
         {%Tempo{time: date, calendar: calendar}, nil}
 
@@ -1877,7 +1900,7 @@ defmodule Tempo do
 
         :gt ->
           {:error,
-           Tempo.ResolutionError.exception(
+           ResolutionError.exception(
              operation: :extend,
              current: current_unit,
              target: target_unit
@@ -1905,7 +1928,7 @@ defmodule Tempo do
     case Unit.implicit_enumerator(current_unit, calendar) do
       nil ->
         {:error,
-         Tempo.ResolutionError.exception(
+         ResolutionError.exception(
            operation: :extend,
            current: current_unit,
            target: target_unit,
@@ -2023,7 +2046,7 @@ defmodule Tempo do
         {:ok, result}
       else
         {:error,
-         Tempo.InvalidDateError.exception(
+         InvalidDateError.exception(
            unit: :day_of_year,
            value: day_of_year,
            year: year,
@@ -2048,7 +2071,7 @@ defmodule Tempo do
   end
 
   def to_date(%Tempo{} = value) do
-    {:error, Tempo.ConversionError.exception(value: value, target: Date)}
+    {:error, ConversionError.exception(value: value, target: Date)}
   end
 
   @doc """
@@ -2064,7 +2087,7 @@ defmodule Tempo do
   end
 
   def to_time(%Tempo{} = value) do
-    {:error, Tempo.ConversionError.exception(value: value, target: Time)}
+    {:error, ConversionError.exception(value: value, target: Time)}
   end
 
   @doc """
@@ -2120,7 +2143,7 @@ defmodule Tempo do
   end
 
   def to_naive_date_time(%Tempo{} = value) do
-    {:error, Tempo.ConversionError.exception(value: value, target: NaiveDateTime)}
+    {:error, ConversionError.exception(value: value, target: NaiveDateTime)}
   end
 
   @doc """
@@ -2166,7 +2189,7 @@ defmodule Tempo do
   end
 
   def to_date_time(%Tempo{} = value) do
-    {:error, Tempo.ConversionError.exception(value: value, target: DateTime)}
+    {:error, ConversionError.exception(value: value, target: DateTime)}
   end
 
   # Rebuild a `DateTime` from a wall-clock `NaiveDateTime` and a
@@ -2184,7 +2207,7 @@ defmodule Tempo do
 
       {:gap, _just_before, _just_after} ->
         {:error,
-         Tempo.ConversionError.exception(
+         ConversionError.exception(
            value: tempo,
            target: DateTime,
            reason:
@@ -2193,7 +2216,7 @@ defmodule Tempo do
          )}
 
       {:error, _reason} ->
-        {:error, Tempo.UnknownZoneError.exception(zone_id: zone_id)}
+        {:error, UnknownZoneError.exception(zone_id: zone_id)}
     end
   end
 
@@ -2220,7 +2243,7 @@ defmodule Tempo do
   end
 
   def to_calendar(%Tempo{} = value) do
-    {:error, Tempo.ConversionError.exception(value: value, target: DateTime)}
+    {:error, ConversionError.exception(value: value, target: DateTime)}
   end
 
   ## ---------------------------------------------------------
@@ -2255,7 +2278,7 @@ defmodule Tempo do
     # Truncate the clock's microsecond so the result honours the
     # documented second resolution. For a sub-second reading, use
     # `Tempo.from_elixir(DateTime.utc_now())`.
-    Tempo.Clock.utc_now() |> DateTime.truncate(:second) |> from_date_time()
+    Clock.utc_now() |> DateTime.truncate(:second) |> from_date_time()
   end
 
   @doc """
@@ -2289,7 +2312,7 @@ defmodule Tempo do
   @spec now(String.t()) :: t()
   def now(zone \\ "Etc/UTC") when is_binary(zone) do
     # Second resolution per the contract — see `utc_now/0`.
-    utc = Tempo.Clock.utc_now() |> DateTime.truncate(:second)
+    utc = Clock.utc_now() |> DateTime.truncate(:second)
 
     case zone do
       "Etc/UTC" ->
@@ -2393,10 +2416,10 @@ defmodule Tempo do
   def shift_zone(%Tempo{} = tempo, target_zone) when is_binary(target_zone) do
     cond do
       not anchored?(tempo) ->
-        {:error, Tempo.NonAnchoredError.exception(operation: :shift_zone, value: tempo)}
+        {:error, NonAnchoredError.exception(operation: :shift_zone, value: tempo)}
 
       floating?(tempo) ->
-        {:error, Tempo.FloatingTempoError.exception(operation: :shift_zone, value: tempo)}
+        {:error, FloatingTempoError.exception(operation: :shift_zone, value: tempo)}
 
       true ->
         do_shift_zone(tempo, target_zone)
@@ -2408,7 +2431,7 @@ defmodule Tempo do
   defp floating?(%Tempo{}), do: false
 
   defp do_shift_zone(%Tempo{calendar: calendar} = tempo, "Etc/UTC") do
-    utc_seconds = Tempo.Compare.to_utc_seconds(tempo)
+    utc_seconds = Compare.to_utc_seconds(tempo)
 
     {{year, month, day}, {hour, minute, second}} =
       :calendar.gregorian_seconds_to_datetime(utc_seconds)
@@ -2430,7 +2453,7 @@ defmodule Tempo do
   end
 
   defp do_shift_zone(%Tempo{calendar: calendar} = tempo, target_zone) do
-    utc_seconds = Tempo.Compare.to_utc_seconds(tempo)
+    utc_seconds = Compare.to_utc_seconds(tempo)
 
     case Tzdata.periods_for_time(target_zone, utc_seconds, :utc) do
       [period | _] ->
@@ -2461,7 +2484,7 @@ defmodule Tempo do
          }}
 
       [] ->
-        {:error, Tempo.UnknownZoneError.exception(zone_id: target_zone)}
+        {:error, UnknownZoneError.exception(zone_id: target_zone)}
     end
   end
 
@@ -2743,7 +2766,7 @@ defmodule Tempo do
   def end_of_day(%Tempo{} = tempo) do
     case beginning_of_day(tempo) do
       {:error, _} = err -> err
-      %Tempo{} = start -> Tempo.Math.add(start, Tempo.Duration.build(day: 1))
+      %Tempo{} = start -> Math.add(start, Duration.build(day: 1))
     end
   end
 
@@ -2803,7 +2826,7 @@ defmodule Tempo do
   def end_of_month(%Tempo{} = tempo) do
     case beginning_of_month(tempo) do
       {:error, _} = err -> err
-      %Tempo{} = start -> Tempo.Math.add(start, Tempo.Duration.build(month: 1))
+      %Tempo{} = start -> Math.add(start, Duration.build(month: 1))
     end
   end
 
@@ -2863,11 +2886,11 @@ defmodule Tempo do
   """
   @spec shift(t(), Tempo.Duration.t() | keyword()) :: t()
   def shift(%Tempo{} = tempo, %Tempo.Duration{} = duration) do
-    Tempo.Math.add(tempo, duration)
+    Math.add(tempo, duration)
   end
 
   def shift(%Tempo{} = tempo, units) when is_list(units) do
-    Tempo.Math.add(tempo, Tempo.Duration.build(units))
+    Math.add(tempo, Duration.build(units))
   end
 
   ## ---------------------------------------------------------
@@ -3123,7 +3146,7 @@ defmodule Tempo do
         n
       )
 
-    Tempo.IntervalSet.new(intervals, coalesce: coalesce_opt(opts))
+    IntervalSet.new(intervals, coalesce: coalesce_opt(opts))
   end
 
   # An unbounded recurrence with UNTIL: `recurrence: :infinity`
@@ -3149,7 +3172,7 @@ defmodule Tempo do
         interval.metadata
       )
 
-    Tempo.IntervalSet.new(intervals, coalesce: coalesce_opt(opts))
+    IntervalSet.new(intervals, coalesce: coalesce_opt(opts))
   end
 
   # An unbounded recurrence with `:bound` option: `recurrence:
@@ -3169,7 +3192,7 @@ defmodule Tempo do
       when to in [nil, :undefined] do
     case Keyword.get(opts, :bound) do
       nil ->
-        {:error, Tempo.UnboundedRecurrenceError.exception(interval: interval)}
+        {:error, UnboundedRecurrenceError.exception(interval: interval)}
 
       bound ->
         case bound_upper(bound) do
@@ -3184,7 +3207,7 @@ defmodule Tempo do
                 interval.metadata
               )
 
-            Tempo.IntervalSet.new(intervals, coalesce: coalesce_opt(opts))
+            IntervalSet.new(intervals, coalesce: coalesce_opt(opts))
 
           {:error, _} = err ->
             err
@@ -3208,7 +3231,7 @@ defmodule Tempo do
         _opts
       )
       when to in [nil, :undefined] do
-    to_tempo = Tempo.Math.add(from, duration)
+    to_tempo = Math.add(from, duration)
     {:ok, %Tempo.Interval{from: from, to: to_tempo, metadata: metadata}}
   end
 
@@ -3224,7 +3247,7 @@ defmodule Tempo do
         },
         _opts
       ) do
-    from_tempo = Tempo.Math.subtract(to, duration)
+    from_tempo = Math.subtract(to, duration)
     {:ok, %Tempo.Interval{from: from_tempo, to: to, metadata: metadata}}
   end
 
@@ -3253,7 +3276,7 @@ defmodule Tempo do
     if multi_tempo?(tempo) do
       materialise_multi(tempo)
     else
-      case Tempo.Interval.next_unit_boundary(tempo) do
+      case Interval.next_unit_boundary(tempo) do
         {:ok, {lower, upper}} -> {:ok, %Tempo.Interval{from: lower, to: upper}}
         {:error, _} = err -> err
       end
@@ -3272,11 +3295,11 @@ defmodule Tempo do
   end
 
   def to_interval(%Tempo.Set{type: :one} = value, _opts) do
-    {:error, Tempo.MaterialisationError.exception(value: value, reason: :one_of_set)}
+    {:error, MaterialisationError.exception(value: value, reason: :one_of_set)}
   end
 
   def to_interval(%Tempo.Duration{} = value, _opts) do
-    {:error, Tempo.MaterialisationError.exception(value: value, reason: :bare_duration)}
+    {:error, MaterialisationError.exception(value: value, reason: :bare_duration)}
   end
 
   # Apply a duration N times as a single scalar-multiplied step:
@@ -3300,7 +3323,7 @@ defmodule Tempo do
 
   defp add_n_durations(tempo, %Tempo.Duration{time: time}, n) when n > 0 do
     scaled = Enum.map(time, fn {unit, amount} -> {unit, amount * n} end)
-    Tempo.Math.add(tempo, %Tempo.Duration{time: scaled})
+    Math.add(tempo, %Tempo.Duration{time: scaled})
   end
 
   defp negate_duration(%Tempo.Duration{time: time}) do
@@ -3390,7 +3413,7 @@ defmodule Tempo do
   end
 
   defp before_dtstart?(%Tempo{} = candidate_from, %Tempo{} = dtstart) do
-    Tempo.Compare.compare_endpoints(candidate_from, dtstart) == :earlier
+    Compare.compare_endpoints(candidate_from, dtstart) == :earlier
   end
 
   # Build the per-candidate selection filter/expand function. When
@@ -3403,7 +3426,7 @@ defmodule Tempo do
 
   defp selection_fn(%Tempo.Interval{repeat_rule: %Tempo{} = rule}, %Tempo.Duration{} = cadence) do
     freq = freq_of(cadence)
-    fn candidate -> Tempo.RRule.Selection.apply(candidate, rule, freq) end
+    fn candidate -> Selection.apply(candidate, rule, freq) end
   end
 
   # The FREQ of a recurrence is the primary unit of its cadence —
@@ -3437,20 +3460,20 @@ defmodule Tempo do
 
       match?(%{occurrence_duration: %Tempo.Duration{}}, metadata) ->
         span = metadata.occurrence_duration
-        fn start, _i -> Tempo.Math.add(start, span) end
+        fn start, _i -> Math.add(start, span) end
 
       true ->
-        fn start, _i -> Tempo.Math.add(start, duration) end
+        fn start, _i -> Math.add(start, duration) end
     end
   end
 
   # Termination predicates for the recurrence loop.
   defp under_until?(%Tempo{} = from, %Tempo{} = until) do
-    Tempo.Compare.compare_endpoints(from, until) in [:earlier, :same]
+    Compare.compare_endpoints(from, until) in [:earlier, :same]
   end
 
   defp under_bound?(%Tempo{} = from, %Tempo{} = bound_to) do
-    Tempo.Compare.compare_endpoints(from, bound_to) == :earlier
+    Compare.compare_endpoints(from, bound_to) == :earlier
   end
 
   # Compute the upper endpoint of a `:bound` option. Accepts any
@@ -3464,14 +3487,14 @@ defmodule Tempo do
           intervals
           |> Enum.map(& &1.to)
           |> Enum.reduce(fn a, b ->
-            if Tempo.Compare.compare_endpoints(a, b) == :later, do: a, else: b
+            if Compare.compare_endpoints(a, b) == :later, do: a, else: b
           end)
 
         {:ok, upper}
 
       {:ok, _} ->
         {:error,
-         Tempo.UnboundedRecurrenceError.exception(
+         UnboundedRecurrenceError.exception(
            reason: "Empty `:bound` — nothing to terminate the recurrence against."
          )}
 
@@ -3508,7 +3531,7 @@ defmodule Tempo do
       # Use a scalar when exactly one candidate survives the
       # calendar constraint; otherwise a list (which the multi
       # path expands via Enumerable).
-      candidates = Tempo.Mask.valid_values(unit, mask, Enum.reverse(previous), calendar)
+      candidates = Mask.valid_values(unit, mask, Enum.reverse(previous), calendar)
       prefix = Enum.reverse(previous)
 
       value =
@@ -3575,7 +3598,7 @@ defmodule Tempo do
       nil ->
         intervals
         |> Enum.map(fn {:ok, i} -> i end)
-        |> Tempo.IntervalSet.new()
+        |> IntervalSet.new()
 
       {:error, _} = err ->
         err
@@ -3599,7 +3622,7 @@ defmodule Tempo do
 
     case intervals do
       {:ok, reversed} ->
-        reversed |> Enum.reverse() |> Tempo.IntervalSet.new()
+        reversed |> Enum.reverse() |> IntervalSet.new()
 
       {:error, _} = err ->
         err
@@ -3644,7 +3667,7 @@ defmodule Tempo do
   def to_interval_set(value) do
     case to_interval(value) do
       {:ok, %Tempo.IntervalSet{} = set} -> {:ok, set}
-      {:ok, %Tempo.Interval{} = interval} -> Tempo.IntervalSet.new([interval])
+      {:ok, %Tempo.Interval{} = interval} -> IntervalSet.new([interval])
       {:error, _} = err -> err
     end
   end
@@ -3950,7 +3973,7 @@ defmodule Tempo do
   """
   @spec workdays(Tempo.Territory.input()) :: Tempo.t()
   def workdays(territory \\ nil) do
-    {:ok, resolved} = Tempo.Territory.resolve(territory)
+    {:ok, resolved} = Territory.resolve(territory)
     day_of_week_tempo(Localize.Calendar.weekdays(resolved))
   end
 
@@ -3987,7 +4010,7 @@ defmodule Tempo do
   """
   @spec weekend(Tempo.Territory.input()) :: Tempo.t()
   def weekend(territory \\ nil) do
-    {:ok, resolved} = Tempo.Territory.resolve(territory)
+    {:ok, resolved} = Territory.resolve(territory)
     day_of_week_tempo(Localize.Calendar.weekend(resolved))
   end
 
@@ -4041,7 +4064,7 @@ defmodule Tempo do
   """
   @spec weekend?(t(), Tempo.Territory.input()) :: boolean()
   def weekend?(%Tempo{} = tempo, territory \\ nil) do
-    {:ok, resolved} = Tempo.Territory.resolve(territory)
+    {:ok, resolved} = Territory.resolve(territory)
     day_of_week_iso(tempo, :weekend?) in Localize.Calendar.weekend(resolved)
   end
 
@@ -4247,7 +4270,7 @@ defmodule Tempo do
   """
   @spec explain(term()) :: String.t()
   def explain(value) do
-    value |> Tempo.Explain.explain() |> Tempo.Explain.to_string()
+    value |> Explain.explain() |> Explain.to_string()
   end
 
   @valid_units Unit.units()
@@ -4258,6 +4281,6 @@ defmodule Tempo do
   end
 
   def validate_unit(unit) do
-    {:error, Tempo.InvalidUnitError.exception(unit: unit, valid_units: @valid_units)}
+    {:error, InvalidUnitError.exception(unit: unit, valid_units: @valid_units)}
   end
 end
