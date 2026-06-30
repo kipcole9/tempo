@@ -43,9 +43,9 @@ defmodule Tempo.MixProject do
   end
 
   def description do
-    "Time as an interval, not an instant — ISO 8601 and IXDTF-compliant " <>
-      "date, time, interval, duration, recurrence, and set-algebra library " <>
-      "for Elixir. Calendar- and timezone-aware."
+    "Time as an interval, not an instant — ISO 8601 / IXDTF date, time, " <>
+      "interval, duration, recurrence, set-algebra, scheduling, and " <>
+      "constraint-network library for Elixir. Calendar- and timezone-aware."
   end
 
   def package do

@@ -179,10 +179,10 @@ defmodule Tempo.IntervalSet do
   non-overlapping); a slot is kept only if it fits entirely inside the
   member. The members stay distinct (the result is *not* coalesced).
 
-  This is the discretising counterpart to the set operations: where
+  This is the slicing counterpart to the set operations: where
   `difference`/`intersection` give you the free *regions*,
-  `slots/3` chops those regions into the fixed windows a booking UI
-  offers.
+  `slots/3` cuts those regions into the fixed-length windows a
+  booking UI offers.
 
   ### Arguments
 

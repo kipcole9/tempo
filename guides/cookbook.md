@@ -26,8 +26,10 @@ The import adds only `sigil_o/2` and `sigil_TEMPO/2` to the caller's namespace; 
 8. [iCalendar import](#8-icalendar-import)
 9. [Cross-calendar and cross-timezone](#9-cross-calendar-and-cross-timezone)
 10. [Archaeological / approximate dates](#10-archaeological-approximate-dates)
-11. [Real-world scenarios](#11-real-world-scenarios)
-12. [Famous moments in time](#12-famous-moments-in-time)
+11. [Chronological networks](#11-chronological-networks)
+12. [Scheduling](#12-scheduling)
+13. [Real-world scenarios](#13-real-world-scenarios)
+14. [Famous moments in time](#14-famous-moments-in-time)
 
 ---
 
@@ -675,7 +677,84 @@ Each endpoint carries its own `:qualification` in addition to any expression-lev
 
 ---
 
-## 11. Real-world scenarios
+## 11. Chronological networks
+
+`Tempo.Network` reasons over periods whose start, end, and duration are only partly known: give each its bounds (exact, ranged, or one-sided), link them with sequences and relations like `:starts_during` or `:overlaps`, and the solver returns the tightest dates consistent with everything — or flags a contradiction. The [Chronological networks guide](chronological-networks.md) covers it in full, including traces that explain each derived bound.
+
+### How do I derive dates from partial constraints?
+
+```elixir
+iex> network =
+...>   Tempo.Network.new()
+...>   |> Tempo.Network.add_period(:reign, start: {:not_before, ~o"1200Y"}, duration: {:at_most, ~o"P10Y"})
+...>   |> Tempo.Network.add_period(:stratum, duration: {:at_least, ~o"P20Y"})
+...>   |> Tempo.Network.add_relation(:starts_during, :stratum, :reign)
+iex> {:ok, solved} = Tempo.Network.Solver.tighten(network)
+iex> solved.periods[:stratum].earliest_end
+~o"1220Y"
+```
+
+The stratum has no dates of its own, but *"it began during a reign that started no earlier than 1200, and it lasted at least 20 years"* forces it to end no earlier than 1220. Every bound comes back as a Tempo value.
+
+### How do I check a chronology for contradictions?
+
+```elixir
+iex> Tempo.Network.new()
+...> |> Tempo.Network.add_period(:k, start: ~o"1200Y", end: ~o"1180Y")
+...> |> Tempo.Network.Solver.consistent?()
+false
+```
+
+`consistent?/1` is `true` when at least one assignment of dates satisfies every constraint at once — here it's `false`, since a period can't end before it starts.
+
+---
+
+## 12. Scheduling
+
+`Tempo.Schedule` is critical-path project planning built on `Tempo.Network`: declare tasks with durations and finish-to-start dependencies (plus optional anchors and deadlines), then `solve/1` for each task's earliest/latest position and its critical-path flag. See the [Scheduling guide](scheduling.md).
+
+### How do I schedule tasks with dependencies?
+
+```elixir
+iex> {:ok, plan} =
+...>   Tempo.Schedule.new()
+...>   |> Tempo.Schedule.task(:design, duration: ~o"P2D", start: ~o"2026-06-01")
+...>   |> Tempo.Schedule.task(:build,  duration: ~o"P3D", after: :design)
+...>   |> Tempo.Schedule.task(:docs,   duration: ~o"P1D", after: :design)
+...>   |> Tempo.Schedule.task(:ship,   duration: ~o"P2D", after: [:build, :docs])
+...>   |> Tempo.Schedule.solve()
+iex> plan[:ship].start
+~o"2026Y6M6D"
+```
+
+Each task lands at its earliest feasible position. `ship` waits for both `build` and `docs`, so it can't begin until `build` finishes on the 6th — even though `docs` was done on the 4th.
+
+### How do I find the critical path?
+
+```elixir
+iex> Tempo.Schedule.critical_path(plan)
+[:design, :build, :ship]
+iex> plan[:docs].critical?
+false
+```
+
+The critical path is the zero-slack chain — delay any of those tasks and the whole project slips. `docs` has slack, so it sits off the path.
+
+### How do I catch an impossible deadline?
+
+```elixir
+iex> Tempo.Schedule.new()
+...> |> Tempo.Schedule.task(:a, duration: ~o"P5D", start: ~o"2026-06-01")
+...> |> Tempo.Schedule.task(:b, duration: ~o"P5D", after: :a, deadline: ~o"2026-06-08")
+...> |> Tempo.Schedule.solve()
+{:error, :infeasible}
+```
+
+`a` then `b` need ten days from June 1 but `b` is due the 8th, so `solve/1` returns `{:error, :infeasible}` (a dependency cycle is reported the same way).
+
+---
+
+## 13. Real-world scenarios
 
 ### Find every Friday the 13th this century
 
@@ -812,7 +891,7 @@ month = ~o"2026-06"
 
 ---
 
-## 12. Famous moments in time
+## 14. Famous moments in time
 
 A small collection of historically awkward dates — the kind that break naive date libraries. Each recipe demonstrates a specific Tempo capability against a real artefact of history.
 

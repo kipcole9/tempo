@@ -236,7 +236,7 @@ Each task carries a `:duration` (exact or a `{min, max}` range) and optional `:a
 
 ### What this is not
 
-Scheduling *around* a busy calendar — "drop this task into the first free gap" — is a disjunctive problem (before *or* after each existing meeting) that the Simple Temporal Problem can't express. For that, compute the free regions with the set operations (`Tempo.difference/2`) and discretise them with `Tempo.IntervalSet.slots/3` (see [set operations](./set-operations.md) and [the cookbook](./cookbook.md)). `Tempo.Schedule` is for *dependency* scheduling, where constraints compose by conjunction.
+Scheduling *around* a busy calendar — "drop this task into the first free gap" — is a disjunctive problem (before *or* after each existing meeting) that the Simple Temporal Problem can't express. For that, subtract the busy periods to find the free regions (`Tempo.difference/2`), then cut those regions into fixed-length bookable slots with `Tempo.IntervalSet.slots/3` (see [set operations](./set-operations.md) and [the cookbook](./cookbook.md)). `Tempo.Schedule` is for *dependency* scheduling, where constraints compose by conjunction.
 
 ## Putting it together
 
@@ -245,15 +245,9 @@ A practical scheduling layer built on Tempo looks like:
 ```elixir
 defmodule Schedule do
   def weekly_meeting(name, %Date{} = date, %Time{} = time, zone) do
-    dtstart =
-      Tempo.new!(
-        year: date.year,
-        month: date.month,
-        day: date.day,
-        hour: time.hour,
-        minute: time.minute,
-        zone: zone
-      )
+    {:ok, datetime} = DateTime.new(date, time, zone)
+    # A meeting is a to-the-minute thing, so drop the source's seconds.
+    dtstart = Tempo.from_elixir(datetime, resolution: :minute)
 
     rule = %Tempo.RRule.Rule{freq: :week, interval: 1}
     {:ok, ast} = Tempo.RRule.Expander.to_ast(rule, dtstart)
@@ -275,7 +269,7 @@ Schedule.occurrences_in(retrospective, ~o"2025-07-01", ~o"2025-10-01")
 # 18 weekly occurrences, each with wall time 14:00 in Europe/London
 ```
 
-> **`Tempo.new/1` is the runtime companion to the `~o` sigil.** The sigil is for literal values in source; `new/1` takes keyword components that can come from anywhere — function arguments, database rows, API payloads, form inputs. String interpolation to assemble an ISO 8601 value and then parse it back is always the wrong move: it round-trips through formatting twice and bypasses the type-level validation that component construction gives you.
+> **`Tempo.from_elixir/2` converts native Elixir date/time structs.** When a value arrives as a `Date`, `Time`, `NaiveDateTime`, or `DateTime` — from a database row, an API payload, a form — convert it with `from_elixir/2` rather than picking its fields apart by hand or re-formatting it to an ISO 8601 string and parsing it back. The time zone carries across faithfully, and the `:resolution` option lets you say how precise the value really is: a `DateTime` is second-precise, but a weekly meeting is a *to-the-minute* thing, so `resolution: :minute` makes the value — and every occurrence derived from it — a one-minute span rather than a one-second one. (For a value you are assembling from loose components rather than a struct, `Tempo.new/1` is the runtime companion to the `~o` sigil.)
 
 > **Store** the rule as an AST (with zoned wall time). **Materialise** into an IntervalSet only when you need concrete occurrences, bounded to the query window. **Display** by projecting each endpoint's wall time through the viewer's preferred zone. Nothing about the stored rule changes when Tzdata does.
 
