@@ -235,7 +235,7 @@ defmodule Tempo.Network.Solver do
         {{from, to}, if(from == to, do: 0, else: :inf)}
       end
 
-    {seeded, next} =
+    seeded =
       Enum.reduce(edges, {distances, %{}}, fn {from, to, weight, _source}, {dist, next} ->
         if less?(weight, dist[{from, to}]) do
           {%{dist | {from, to} => weight}, Map.put(next, {from, to}, to)}
@@ -244,9 +244,9 @@ defmodule Tempo.Network.Solver do
         end
       end)
 
-    Enum.reduce(nodes, {seeded, next}, fn k, acc_k ->
-      Enum.reduce(nodes, acc_k, fn i, acc_i ->
-        Enum.reduce(nodes, acc_i, fn j, {dist, next} ->
+    {dist, next} =
+      for k <- nodes, i <- nodes, j <- nodes, reduce: seeded do
+        {dist, next} ->
           via = add_weight(dist[{i, k}], dist[{k, j}])
 
           if less?(via, dist[{i, j}]) do
@@ -254,10 +254,9 @@ defmodule Tempo.Network.Solver do
           else
             {dist, next}
           end
-        end)
-      end)
-    end)
-    |> then(fn {dist, next} -> %{dist: dist, next: next} end)
+      end
+
+    %{dist: dist, next: next}
   end
 
   defp negative_cycle?(distances) do

@@ -512,36 +512,7 @@ defmodule Tempo.Explain do
   # padding missing trailing units with their minimum so the
   # output reads as a concrete moment rather than a span.
   defp render_endpoint(%Tempo{time: time}) do
-    y = Keyword.get(time, :year)
-    m = Keyword.get(time, :month)
-    d = Keyword.get(time, :day)
-    h = Keyword.get(time, :hour)
-    mi = Keyword.get(time, :minute)
-
-    date_part =
-      cond do
-        is_integer(y) and is_integer(m) and is_integer(d) ->
-          "#{y}-#{two_digit(m)}-#{two_digit(d)}"
-
-        is_integer(y) and is_integer(m) ->
-          "#{y}-#{two_digit(m)}-01"
-
-        is_integer(y) ->
-          "#{y}-01-01"
-
-        true ->
-          nil
-      end
-
-    time_part =
-      cond do
-        is_integer(h) and is_integer(mi) -> "#{two_digit(h)}:#{two_digit(mi)}"
-        is_integer(h) -> "#{two_digit(h)}:00"
-        is_integer(Keyword.get(time, :minute)) -> "00:#{two_digit(mi)}"
-        true -> nil
-      end
-
-    case {date_part, time_part} do
+    case {render_date_part(time), render_time_part(time)} do
       {nil, nil} -> "?"
       {date, nil} -> date
       {nil, time} -> "T#{time}"
@@ -550,6 +521,31 @@ defmodule Tempo.Explain do
   end
 
   defp render_endpoint(other), do: inspect(other)
+
+  defp render_date_part(time) do
+    y = Keyword.get(time, :year)
+    m = Keyword.get(time, :month)
+    d = Keyword.get(time, :day)
+
+    cond do
+      is_integer(y) and is_integer(m) and is_integer(d) -> "#{y}-#{two_digit(m)}-#{two_digit(d)}"
+      is_integer(y) and is_integer(m) -> "#{y}-#{two_digit(m)}-01"
+      is_integer(y) -> "#{y}-01-01"
+      true -> nil
+    end
+  end
+
+  defp render_time_part(time) do
+    h = Keyword.get(time, :hour)
+    mi = Keyword.get(time, :minute)
+
+    cond do
+      is_integer(h) and is_integer(mi) -> "#{two_digit(h)}:#{two_digit(mi)}"
+      is_integer(h) -> "#{two_digit(h)}:00"
+      is_integer(mi) -> "00:#{two_digit(mi)}"
+      true -> nil
+    end
+  end
 
   defp duration_prose(time) do
     Enum.map_join(time, ", ", fn {unit, n} -> "#{n} #{pluralise(unit, n)}" end)

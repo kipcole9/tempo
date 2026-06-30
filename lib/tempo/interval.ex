@@ -753,7 +753,9 @@ defmodule Tempo.Interval do
   # `a.from vs b.from`, `a.to vs b.to`, and the "seam" checks
   # `a.to vs b.from` / `a.from vs b.to` which disambiguate
   # disjoint (meets/precedes and their inverses) from
-  # overlapping cases.
+  # overlapping cases. The branch count is the size of Allen's
+  # 13-relation algebra, not tangled logic — a flat dispatch table.
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp classify(%__MODULE__{from: a_from, to: a_to}, %__MODULE__{from: b_from, to: b_to}) do
     s = Compare.compare_endpoints(a_from, b_from)
     e = Compare.compare_endpoints(a_to, b_to)

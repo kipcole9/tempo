@@ -199,6 +199,9 @@ defmodule Tempo.Network.Relation do
 
   """
   @spec to_atomic(t()) :: [atomic()]
+  # A flat dispatch over the relation vocabulary — its cyclomatic
+  # complexity is the number of relation types, not branching logic.
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def to_atomic(%__MODULE__{type: type, from: a, to: b}) do
     start_a = {:start, a}
     end_a = {:end, a}

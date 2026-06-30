@@ -122,7 +122,10 @@
           #
           {Credo.Check.Refactor.Apply, []},
           {Credo.Check.Refactor.CondStatements, []},
-          {Credo.Check.Refactor.CyclomaticComplexity, []},
+          # 15 (vs. default 9): a date/time library has inherently
+          # branchy tokenizing, calendar, and recurrence code. Genuine
+          # outliers above this are handled per-function.
+          {Credo.Check.Refactor.CyclomaticComplexity, [max_complexity: 15]},
           {Credo.Check.Refactor.FilterCount, []},
           {Credo.Check.Refactor.FilterFilter, []},
           {Credo.Check.Refactor.FunctionArity, []},
@@ -131,7 +134,9 @@
           {Credo.Check.Refactor.MatchInCondition, []},
           {Credo.Check.Refactor.NegatedConditionsInUnless, []},
           {Credo.Check.Refactor.NegatedConditionsWithElse, []},
-          {Credo.Check.Refactor.Nesting, []},
+          # depth 3 (vs. default 2): one level of with/case/if inside a
+          # parsing clause is normal here; depth 4+ still flags.
+          {Credo.Check.Refactor.Nesting, [max_nesting: 3]},
           {Credo.Check.Refactor.RedundantWithClauseResult, []},
           {Credo.Check.Refactor.RejectReject, []},
           {Credo.Check.Refactor.UnlessWithElse, []},
