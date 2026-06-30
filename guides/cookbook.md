@@ -21,11 +21,11 @@ The import adds only `sigil_o/2` and `sigil_TEMPO/2` to the caller's namespace; 
 3. [Iteration](#3-iteration)
 4. [Comparison and predicates](#4-comparison-and-predicates)
 5. [Set operations](#5-set-operations)
-6. [Selecting sub-spans with `Tempo.select/3`](#6-selecting-sub-spans-with-temposelect3)
+6. [Selecting sub-spans with `Tempo.select/2`](#6-selecting-sub-spans-with-tempo-select-2)
 7. [Recurring events (RRULE)](#7-recurring-events-rrule)
 8. [iCalendar import](#8-icalendar-import)
 9. [Cross-calendar and cross-timezone](#9-cross-calendar-and-cross-timezone)
-10. [Archaeological / approximate dates](#10-archaeological--approximate-dates)
+10. [Archaeological / approximate dates](#10-archaeological-approximate-dates)
 11. [Real-world scenarios](#11-real-world-scenarios)
 12. [Famous moments in time](#12-famous-moments-in-time)
 
@@ -785,7 +785,7 @@ iex> Tempo.IntervalSet.count(workdays)
 22
 ```
 
-> **Workdays** of **June 2026** are Monday through Friday — 22 day-resolution intervals, locale-aware via `Localize.Calendar`. See [§6](#6-selecting-sub-spans-with-temposelect3) for the full selector vocabulary and territory-resolution chain.
+> **Workdays** of **June 2026** are Monday through Friday — 22 day-resolution intervals, locale-aware via `Localize.Calendar`. See [§6](#6-selecting-sub-spans-with-tempo-select-2) for the full selector vocabulary and territory-resolution chain.
 
 An RRULE equivalent is available when you need the full rule machinery (byday counts, bymonth filters, intervals greater than 1):
 
