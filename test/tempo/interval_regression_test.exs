@@ -94,6 +94,22 @@ defmodule Tempo.IntervalRegressionTest do
       assert rendered =~ "K"
     end
 
+    test "recurring interval with an ordinal BYDAY repeat rule inspects without crashing" do
+      # `FREQ=MONTHLY;BYDAY=2MO` ("the 2nd Monday") carries the ordinal as
+      # an RRULE-only `:byday` selection of `{ordinal, day_of_week}` pairs,
+      # which has no native ISO 8601 unit. It must render in the instance
+      # (`I`) + day-of-week (`K`) notation rather than raising.
+      second_monday = Tempo.RRule.parse!("FREQ=MONTHLY;BYDAY=2MO", from: ~o"2025-01-01")
+      assert inspect(second_monday) == ~S|~o"R/2025Y1M1D/P1M/FL2I1KN"|
+
+      # Negative and multi-entry ordinals render the same way.
+      last_friday = Tempo.RRule.parse!("FREQ=MONTHLY;BYDAY=-1FR", from: ~o"2025-01-01")
+      assert inspect(last_friday) == ~S|~o"R/2025Y1M1D/P1M/FL-1I5KN"|
+
+      first_and_third = Tempo.RRule.parse!("FREQ=MONTHLY;BYDAY=1MO,3MO", from: ~o"2025-01-01")
+      assert inspect(first_and_third) == ~S|~o"R/2025Y1M1D/P1M/FL1I1K3I1KN"|
+    end
+
     test "open-ended interval (existing behaviour) still renders as ../.." do
       assert {:ok, interval} = Tempo.from_iso8601("../..")
       assert inspect(interval) == ~S|~o"../.."|

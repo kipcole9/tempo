@@ -577,6 +577,21 @@ defmodule Tempo.Inspect do
   defp inspect_value({:day_of_week, day}), do: [inspect_list(day), ?K]
   defp inspect_value({:week, week}), do: [inspect_list(week), ?W]
   defp inspect_value({:instance, instance}), do: [inspect_value(instance), ?I]
+
+  # RRULE BYDAY carrying an ordinal (`2MO` = the 2nd Monday, `-1FR` = the
+  # last Friday, `1MO,3MO` = the 1st and 3rd) has no native ISO 8601 unit,
+  # so it is held as a `:byday` selection of `{ordinal, day_of_week}`
+  # pairs. Render each pair in the instance (`I`) + day-of-week (`K`)
+  # notation the selection grammar already uses; a `nil` ordinal is a
+  # plain day-of-week. Like the other `:selection` filters this is a
+  # readable inspection form, not a round-trippable one.
+  defp inspect_value({:byday, entries}) when is_list(entries) do
+    Enum.map(entries, fn
+      {nil, day} -> [inspect_list(day), ?K]
+      {ordinal, day} -> [inspect_value(ordinal), ?I, inspect_list(day), ?K]
+    end)
+  end
+
   defp inspect_value({:interval, interval}), do: inspect_value(interval)
   defp inspect_value({:duration, duration}), do: inspect_value(duration)
   defp inspect_value(:undefined), do: ".."

@@ -10,6 +10,8 @@
 
 * `Tempo.Interval.new/1` returned an un-inspectable, non-canonical `to: :undefined` for any interval built from a `:duration`. It now derives the endpoint as `to: nil`, so duration and recurring intervals inspect and round-trip as `~o"2020Y/P1D"` and `~o"R/…/P1W"`; open-ended intervals (no `:duration`) are unchanged.
 
+* Inspecting a recurring interval whose `BYDAY` filter carries an ordinal (`FREQ=MONTHLY;BYDAY=2MO`, `-1FR`, `1MO,3MO`) raised a `FunctionClauseError`. The `:byday` selection now renders in the instance/day-of-week notation (`~o"R/2025Y1M1D/P1M/FL2I1KN"`).
+
 ## [v0.10.2] — 2026-06-30
 
 ### Added
