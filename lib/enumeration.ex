@@ -150,37 +150,44 @@ defmodule Tempo.Enumeration do
     cycle(List.wrap(source), List.wrap(source), unit, calendar, previous)
   end
 
-  def cycle(source, list, unit, calendar, previous) do
-    case list do
-      [] ->
-        rollover(source, unit, calendar, previous)
+  def cycle(source, [], unit, calendar, previous) do
+    rollover(source, unit, calendar, previous)
+  end
 
-      [%Range{first: first, last: last} = range | rest] when first > 0 and last < 0 ->
-        reset(source, range, unit, calendar, previous, rest)
+  def cycle(source, [%Range{first: first, last: last} = range | rest], unit, calendar, previous)
+      when first > 0 and last < 0 do
+    reset(source, range, unit, calendar, previous, rest)
+  end
 
-      [%Range{first: first, last: last, step: step} = range | rest]
-      when first <= last and step > 0 ->
-        increment(source, range, unit, rest)
+  def cycle(
+        source,
+        [%Range{first: first, last: last, step: step} = range | rest],
+        unit,
+        _calendar,
+        _previous
+      )
+      when (first <= last and step > 0) or (first >= last and step < 0) do
+    increment(source, range, unit, rest)
+  end
 
-      [%Range{first: first, last: last, step: step} = range | rest]
-      when first >= last and step < 0 ->
-        increment(source, range, unit, rest)
+  def cycle(source, [%Range{}], unit, calendar, previous) do
+    rollover(source, unit, calendar, previous)
+  end
 
-      [%Range{}] ->
-        rollover(source, unit, calendar, previous)
+  def cycle(source, [%Range{}, %Range{} = range | rest], unit, calendar, previous) do
+    cycle(source, [range | rest], unit, calendar, previous)
+  end
 
-      [%Range{}, %Range{} = range | rest] ->
-        cycle(source, [range | rest], unit, calendar, previous)
+  def cycle(source, [%Range{}, next | rest], unit, _calendar, _previous) do
+    {next, continuation(source, rest, unit)}
+  end
 
-      [%Range{}, next | rest] ->
-        {next, continuation(source, rest, unit)}
+  def cycle(source, [next | rest], unit, _calendar, _previous) do
+    {next, continuation(source, rest, unit)}
+  end
 
-      [next | rest] ->
-        {next, continuation(source, rest, unit)}
-
-      value ->
-        value
-    end
+  def cycle(_source, value, _unit, _calendar, _previous) do
+    value
   end
 
   defp increment(source, %Range{first: first, last: last, step: step}, unit, rest) do

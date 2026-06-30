@@ -202,95 +202,80 @@ defmodule Tempo.Network.Relation do
   # A flat dispatch over the relation vocabulary — its cyclomatic
   # complexity is the number of relation types, not branching logic.
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
-  def to_atomic(%__MODULE__{type: type, from: a, to: b}) do
-    start_a = {:start, a}
-    end_a = {:end, a}
-    start_b = {:start, b}
-    end_b = {:end, b}
+  def to_atomic(%__MODULE__{type: type, from: a, to: b}), do: atomic_for(type, a, b)
 
-    case type do
-      # end(A) ≥ start(B) ∧ end(B) ≥ start(A) — non-empty overlap.
-      :contemporary ->
-        [le(start_b, end_a, 0), le(start_a, end_b, 0)]
+  # end(A) ≥ start(B) ∧ end(B) ≥ start(A) — non-empty overlap.
+  defp atomic_for(:contemporary, a, b),
+    do: [le(start(b), finish(a), 0), le(start(a), finish(b), 0)]
 
-      # start(A) ≤ start(B) ∧ end(B) ≤ end(A).
-      :includes ->
-        [le(start_a, start_b, 0), le(end_b, end_a, 0)]
+  # start(A) ≤ start(B) ∧ end(B) ≤ end(A).
+  defp atomic_for(:includes, a, b),
+    do: [le(start(a), start(b), 0), le(finish(b), finish(a), 0)]
 
-      # start(B) ≤ start(A) ∧ end(A) ≤ end(B).
-      :included_in ->
-        [le(start_b, start_a, 0), le(end_a, end_b, 0)]
+  # start(B) ≤ start(A) ∧ end(A) ≤ end(B).
+  defp atomic_for(:included_in, a, b),
+    do: [le(start(b), start(a), 0), le(finish(a), finish(b), 0)]
 
-      # Overlaps succeeding (Table 2): start(A) ≤ start(B) ≤ end(A) ≤ end(B).
-      :overlaps ->
-        [le(start_a, start_b, 0), le(start_b, end_a, 0), le(end_a, end_b, 0)]
+  # Overlaps succeeding (Table 2): start(A) ≤ start(B) ≤ end(A) ≤ end(B).
+  defp atomic_for(:overlaps, a, b),
+    do: [le(start(a), start(b), 0), le(start(b), finish(a), 0), le(finish(a), finish(b), 0)]
 
-      # Overlaps preceding: start(B) ≤ start(A) ≤ end(B) ≤ end(A).
-      :overlapped_by ->
-        [le(start_b, start_a, 0), le(start_a, end_b, 0), le(end_b, end_a, 0)]
+  # Overlaps preceding: start(B) ≤ start(A) ≤ end(B) ≤ end(A).
+  defp atomic_for(:overlapped_by, a, b),
+    do: [le(start(b), start(a), 0), le(start(a), finish(b), 0), le(finish(b), finish(a), 0)]
 
-      # A starts during B: start(B) ≤ start(A) ≤ end(B).
-      :starts_during ->
-        [le(start_b, start_a, 0), le(start_a, end_b, 0)]
+  # A starts during B: start(B) ≤ start(A) ≤ end(B).
+  defp atomic_for(:starts_during, a, b),
+    do: [le(start(b), start(a), 0), le(start(a), finish(b), 0)]
 
-      # A includes the start of B: start(A) ≤ start(B) ≤ end(A).
-      :includes_start ->
-        [le(start_a, start_b, 0), le(start_b, end_a, 0)]
+  # A includes the start of B: start(A) ≤ start(B) ≤ end(A).
+  defp atomic_for(:includes_start, a, b),
+    do: [le(start(a), start(b), 0), le(start(b), finish(a), 0)]
 
-      # A ends during B: start(B) ≤ end(A) ≤ end(B).
-      :ends_during ->
-        [le(start_b, end_a, 0), le(end_a, end_b, 0)]
+  # A ends during B: start(B) ≤ end(A) ≤ end(B).
+  defp atomic_for(:ends_during, a, b),
+    do: [le(start(b), finish(a), 0), le(finish(a), finish(b), 0)]
 
-      # A includes the end of B: start(A) ≤ end(B) ≤ end(A).
-      :includes_end ->
-        [le(start_a, end_b, 0), le(end_b, end_a, 0)]
+  # A includes the end of B: start(A) ≤ end(B) ≤ end(A).
+  defp atomic_for(:includes_end, a, b),
+    do: [le(start(a), finish(b), 0), le(finish(b), finish(a), 0)]
 
-      :before ->
-        [lt(end_a, start_b)]
+  defp atomic_for(:before, a, b), do: [lt(finish(a), start(b))]
 
-      :after ->
-        [lt(end_b, start_a)]
+  defp atomic_for(:after, a, b), do: [lt(finish(b), start(a))]
 
-      :immediately_precedes ->
-        eq(end_a, start_b)
+  defp atomic_for(:immediately_precedes, a, b), do: eq(finish(a), start(b))
 
-      :immediately_follows ->
-        eq(start_a, end_b)
+  defp atomic_for(:immediately_follows, a, b), do: eq(start(a), finish(b))
 
-      :synchronous_start ->
-        eq(start_a, start_b)
+  defp atomic_for(:synchronous_start, a, b), do: eq(start(a), start(b))
 
-      :synchronous_end ->
-        eq(end_a, end_b)
+  defp atomic_for(:synchronous_end, a, b), do: eq(finish(a), finish(b))
 
-      :equals ->
-        eq(start_a, start_b) ++ eq(end_a, end_b)
+  defp atomic_for(:equals, a, b), do: eq(start(a), start(b)) ++ eq(finish(a), finish(b))
 
-      # Shared start, A ends no later / no earlier than B (Allen starts / started_by).
-      :starts ->
-        eq(start_a, start_b) ++ [le(end_a, end_b, 0)]
+  # Shared start, A ends no later / no earlier than B (Allen starts / started_by).
+  defp atomic_for(:starts, a, b), do: eq(start(a), start(b)) ++ [le(finish(a), finish(b), 0)]
 
-      :started_by ->
-        eq(start_a, start_b) ++ [le(end_b, end_a, 0)]
+  defp atomic_for(:started_by, a, b), do: eq(start(a), start(b)) ++ [le(finish(b), finish(a), 0)]
 
-      # Shared end, A starts no earlier / no later than B (Allen finishes / finished_by).
-      :finishes ->
-        eq(end_a, end_b) ++ [le(start_b, start_a, 0)]
+  # Shared end, A starts no earlier / no later than B (Allen finishes / finished_by).
+  defp atomic_for(:finishes, a, b), do: eq(finish(a), finish(b)) ++ [le(start(b), start(a), 0)]
 
-      :finished_by ->
-        eq(end_a, end_b) ++ [le(start_a, start_b, 0)]
+  defp atomic_for(:finished_by, a, b), do: eq(finish(a), finish(b)) ++ [le(start(a), start(b), 0)]
 
-      # Non-empty interior overlap: start(B) < end(A) ∧ start(A) < end(B).
-      :strictly_contemporary ->
-        [lt(start_b, end_a), lt(start_a, end_b)]
+  # Non-empty interior overlap: start(B) < end(A) ∧ start(A) < end(B).
+  defp atomic_for(:strictly_contemporary, a, b),
+    do: [lt(start(b), finish(a)), lt(start(a), finish(b))]
 
-      {:delay, edge_a, edge_b, comparison, duration} ->
-        delay_atomic(boundary(edge_a, a), boundary(edge_b, b), comparison, duration)
+  defp atomic_for({:delay, edge_a, edge_b, comparison, duration}, a, b),
+    do: delay_atomic(boundary(edge_a, a), boundary(edge_b, b), comparison, duration)
 
-      {:boundary, edge_a, comparison, edge_b} ->
-        boundary_atomic(boundary(edge_a, a), comparison, boundary(edge_b, b))
-    end
-  end
+  defp atomic_for({:boundary, edge_a, comparison, edge_b}, a, b),
+    do: boundary_atomic(boundary(edge_a, a), comparison, boundary(edge_b, b))
+
+  defp start(id), do: {:start, id}
+  defp finish(id), do: {:end, id}
 
   # from − to ≤ k.
   defp le(from, to, k), do: {from, to, k}

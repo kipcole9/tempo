@@ -757,31 +757,35 @@ defmodule Tempo.Interval do
   # `a.from vs b.from`, `a.to vs b.to`, and the "seam" checks
   # `a.to vs b.from` / `a.from vs b.to` which disambiguate
   # disjoint (meets/precedes and their inverses) from
-  # overlapping cases. The branch count is the size of Allen's
-  # 13-relation algebra, not tangled logic — a flat dispatch table.
-  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
+  # overlapping cases. Dispatched as a multi-head table on the four
+  # comparisons — the head count is the size of Allen's 13-relation
+  # algebra.
   defp classify(%__MODULE__{from: a_from, to: a_to}, %__MODULE__{from: b_from, to: b_to}) do
-    s = Compare.compare_endpoints(a_from, b_from)
-    e = Compare.compare_endpoints(a_to, b_to)
-    e_vs_bs = Compare.compare_endpoints(a_to, b_from)
-    s_vs_be = Compare.compare_endpoints(a_from, b_to)
-
-    cond do
-      e_vs_bs == :earlier -> :precedes
-      e_vs_bs == :same -> :meets
-      s_vs_be == :later -> :preceded_by
-      s_vs_be == :same -> :met_by
-      s == :earlier and e == :earlier -> :overlaps
-      s == :earlier and e == :same -> :finished_by
-      s == :earlier and e == :later -> :contains
-      s == :same and e == :earlier -> :starts
-      s == :same and e == :same -> :equals
-      s == :same and e == :later -> :started_by
-      s == :later and e == :earlier -> :during
-      s == :later and e == :same -> :finishes
-      s == :later and e == :later -> :overlapped_by
-    end
+    classify_relation(
+      Compare.compare_endpoints(a_to, b_from),
+      Compare.compare_endpoints(a_from, b_to),
+      Compare.compare_endpoints(a_from, b_from),
+      Compare.compare_endpoints(a_to, b_to)
+    )
   end
+
+  # Disjoint first: the end-to-start seams settle precedes/meets and
+  # their inverses before the start/end positions are consulted.
+  defp classify_relation(:earlier, _s_vs_be, _s, _e), do: :precedes
+  defp classify_relation(:same, _s_vs_be, _s, _e), do: :meets
+  defp classify_relation(_e_vs_bs, :later, _s, _e), do: :preceded_by
+  defp classify_relation(_e_vs_bs, :same, _s, _e), do: :met_by
+
+  # Overlapping: start (s = a.from vs b.from) and end (e = a.to vs b.to).
+  defp classify_relation(_, _, :earlier, :earlier), do: :overlaps
+  defp classify_relation(_, _, :earlier, :same), do: :finished_by
+  defp classify_relation(_, _, :earlier, :later), do: :contains
+  defp classify_relation(_, _, :same, :earlier), do: :starts
+  defp classify_relation(_, _, :same, :same), do: :equals
+  defp classify_relation(_, _, :same, :later), do: :started_by
+  defp classify_relation(_, _, :later, :earlier), do: :during
+  defp classify_relation(_, _, :later, :same), do: :finishes
+  defp classify_relation(_, _, :later, :later), do: :overlapped_by
 
   defp to_single_interval(%__MODULE__{from: %Tempo{}, to: %Tempo{}} = iv, _label), do: {:ok, iv}
 

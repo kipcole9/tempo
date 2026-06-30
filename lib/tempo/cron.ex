@@ -134,6 +134,10 @@ defmodule Tempo.Cron do
     "sat" => 6
   }
 
+  # Coarsest-to-finest cascade priority; the first specified field
+  # sets FREQ, everything finer becomes a BY rule.
+  @cascade_order [:year, :month, :day_of_week, :day_of_month, :hour, :minute, :second]
+
   @doc """
   Parse a cron expression into a `t:Tempo.RRule.Rule.t/0`.
 
@@ -361,45 +365,49 @@ defmodule Tempo.Cron do
   # Cascade: pick FREQ from coarsest specified field; everything
   # finer becomes a BY rule list.
   defp cascade(fields) do
-    cond do
-      not nil?(fields.year) ->
-        rule = %Rule{freq: :year, interval: 1}
-        rule |> put_by_list(:bymonth, fields.month) |> add_finer_by(fields, :month)
-
-      not nil?(fields.month) ->
-        rule = %Rule{freq: :year, interval: 1}
-        rule |> put_by_list(:bymonth, fields.month) |> add_finer_by(fields, :month)
-
-      not nil?(fields.day_of_week) ->
-        rule = %Rule{freq: :week, interval: 1}
-        rule = rule |> put_by_list(:byday, fields.day_of_week)
-        rule = maybe_add_bymonthday(rule, fields.day_of_month)
-        rule |> add_finer_by(fields, :day_of_week)
-
-      not nil?(fields.day_of_month) ->
-        rule = %Rule{freq: :month, interval: 1}
-
-        rule
-        |> put_by_list(:bymonthday, fields.day_of_month)
-        |> add_finer_by(fields, :day_of_month)
-
-      not nil?(fields.hour) ->
-        rule = %Rule{freq: :day, interval: 1}
-        rule |> put_by_list(:byhour, fields.hour) |> add_finer_by(fields, :hour)
-
-      not nil?(fields.minute) ->
-        rule = %Rule{freq: :hour, interval: 1}
-        rule |> put_by_list(:byminute, fields.minute) |> add_finer_by(fields, :minute)
-
-      not nil?(fields.second) ->
-        rule = %Rule{freq: :minute, interval: 1}
-        rule |> put_by_list(:bysecond, fields.second)
-
-      true ->
-        if fields.has_seconds?,
-          do: %Rule{freq: :second, interval: 1},
-          else: %Rule{freq: :minute, interval: 1}
+    case Enum.find(@cascade_order, fn field -> not nil?(Map.fetch!(fields, field)) end) do
+      nil -> default_cascade(fields)
+      field -> build_cascade(field, fields)
     end
+  end
+
+  defp default_cascade(%{has_seconds?: true}), do: %Rule{freq: :second, interval: 1}
+  defp default_cascade(_fields), do: %Rule{freq: :minute, interval: 1}
+
+  defp build_cascade(field, fields) when field in [:year, :month] do
+    %Rule{freq: :year, interval: 1}
+    |> put_by_list(:bymonth, fields.month)
+    |> add_finer_by(fields, :month)
+  end
+
+  defp build_cascade(:day_of_week, fields) do
+    %Rule{freq: :week, interval: 1}
+    |> put_by_list(:byday, fields.day_of_week)
+    |> maybe_add_bymonthday(fields.day_of_month)
+    |> add_finer_by(fields, :day_of_week)
+  end
+
+  defp build_cascade(:day_of_month, fields) do
+    %Rule{freq: :month, interval: 1}
+    |> put_by_list(:bymonthday, fields.day_of_month)
+    |> add_finer_by(fields, :day_of_month)
+  end
+
+  defp build_cascade(:hour, fields) do
+    %Rule{freq: :day, interval: 1}
+    |> put_by_list(:byhour, fields.hour)
+    |> add_finer_by(fields, :hour)
+  end
+
+  defp build_cascade(:minute, fields) do
+    %Rule{freq: :hour, interval: 1}
+    |> put_by_list(:byminute, fields.minute)
+    |> add_finer_by(fields, :minute)
+  end
+
+  defp build_cascade(:second, fields) do
+    %Rule{freq: :minute, interval: 1}
+    |> put_by_list(:bysecond, fields.second)
   end
 
   defp nil?(nil), do: true

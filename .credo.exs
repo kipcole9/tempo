@@ -134,10 +134,10 @@
           #
           {Credo.Check.Refactor.Apply, []},
           {Credo.Check.Refactor.CondStatements, []},
-          # 15 (vs. default 9): a date/time library has inherently
-          # branchy tokenizing, calendar, and recurrence code. Genuine
-          # outliers above this are handled per-function.
-          {Credo.Check.Refactor.CyclomaticComplexity, [max_complexity: 15]},
+          # Default (9). Vocabulary dispatch (Allen relations, cron
+          # cascade, iteration shapes) is expressed as multi-head
+          # function clauses rather than one branchy function.
+          {Credo.Check.Refactor.CyclomaticComplexity, []},
           {Credo.Check.Refactor.FilterCount, []},
           {Credo.Check.Refactor.FilterFilter, []},
           {Credo.Check.Refactor.FunctionArity, []},

@@ -208,23 +208,26 @@ defmodule Tempo.Explain do
     h = Keyword.get(time, :hour)
     mi = Keyword.get(time, :minute)
 
-    cond do
-      is_integer(y) and is_integer(m) and is_integer(d) and is_integer(h) ->
-        "#{month_name(m)} #{d}, #{y} at #{two_digit(h)}:#{two_digit(mi || 0)}."
-
-      is_integer(y) and is_integer(m) and is_integer(d) ->
-        "#{month_name(m)} #{d}, #{y}."
-
-      is_integer(y) and is_integer(m) ->
-        "#{month_name(m)} #{y}."
-
-      is_integer(y) ->
-        "The year #{y}."
-
-      true ->
-        "An anchored Tempo value."
+    case anchored_precision(time) do
+      :datetime -> "#{month_name(m)} #{d}, #{y} at #{two_digit(h)}:#{two_digit(mi || 0)}."
+      :date -> "#{month_name(m)} #{d}, #{y}."
+      :month -> "#{month_name(m)} #{y}."
+      :year -> "The year #{y}."
+      :none -> "An anchored Tempo value."
     end
   end
+
+  defp anchored_precision(time) do
+    cond do
+      all_present?(time, [:year, :month, :day, :hour]) -> :datetime
+      all_present?(time, [:year, :month, :day]) -> :date
+      all_present?(time, [:year, :month]) -> :month
+      all_present?(time, [:year]) -> :year
+      true -> :none
+    end
+  end
+
+  defp all_present?(time, keys), do: Enum.all?(keys, &is_integer(Keyword.get(time, &1)))
 
   defp time_of_day_headline(time) do
     h = Keyword.get(time, :hour, 0)
