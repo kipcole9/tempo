@@ -168,6 +168,18 @@ The correct sequence is:
 
 The exception is when the user explicitly says "work around it in Tempo for now" — in which case, implement the workaround **and** add a TODO.md entry flagging the upstream fix and what to remove in Tempo once it lands.
 
+## Definition of done — Credo
+
+This library adds a sixth gate to the global definition of done: `mix credo --strict` must report **no issues** before a change is complete. Run it alongside the other five gates (`mix format --check-formatted`, `mix compile --warnings-as-errors`, `mix test`, `mix dialyzer`, `MIX_ENV=release mix docs`).
+
+The `.credo.exs` config runs every check at its **default threshold** — there are no elevated `max_complexity` or `max_nesting` overrides, and there are no inline `# credo:disable` suppressions anywhere in the codebase. This is deliberate: when Credo flags new code, the fix is to **refactor the code**, not loosen the config. The two established idioms for the things Credo most often flags here:
+
+* A `case`/`cond` dispatching over a vocabulary (Allen relations, cron cascade fields, iteration shapes) becomes **multi-head function clauses**. Credo scores cyclomatic complexity per head, so the giant branch collapses to many trivial heads — and the pattern-matched table reads better than the `case`.
+
+* A `case`/`with` nested inside another `with`/`if` is extracted to a **multi-head helper** with pattern matching, never tolerated as depth-3 nesting.
+
+The only standing config deviations are disables with concrete, documented reasons in `.credo.exs`: `Design.AliasUsage` is **enabled** (nested `Tempo.*` modules are aliased to collapse the namespace by the primary level — `Tempo.Foo.Bar` → `Bar`) but carries an `excluded_lastnames` list so an alias never shadows an Elixir/Erlang built-in (`Calendar`, `Inspect`, `Duration`, `Range`, …); `Design.TagTODO` and `Design.TagFIXME` are off because inline tags are intentional pointers. Changing a threshold or adding a new disable is itself a change that needs its own justification — refactor first.
+
 ## Reference documents
 
 The following documents are **critical** when working on this project. Consult them whenever behaviour, syntax, or semantics need to be verified — do not guess.
