@@ -116,8 +116,17 @@ defmodule Tempo.Iso8601.Parser do
   end
 
   def parse(interval: tokens) do
-    with parsed <- parse_date(tokens) do
-      AST.build_interval(parsed)
+    if interval_has_one_of?(tokens) do
+      # A one-of in an endpoint (`2020Y[1,2]M/2021Y`) distributes to a
+      # one-of set of intervals (one of `2020Y1M/2021Y`, `2020Y2M/2021Y`).
+      tokens
+      |> distribute_interval_one_of()
+      |> Enum.map(&{:interval, &1})
+      |> then(&parse(one_of: &1))
+    else
+      with parsed <- parse_date(tokens) do
+        AST.build_interval(parsed)
+      end
     end
   end
 
@@ -165,6 +174,27 @@ defmodule Tempo.Iso8601.Parser do
   defp expand_one_of_choice(%Range{} = range), do: Enum.to_list(range)
   defp expand_one_of_choice(value), do: [value]
 
+  defp interval_has_one_of?(tokens) do
+    Enum.any?(tokens, fn
+      {_kind, components} when is_list(components) -> has_one_of_component?(components)
+      _other -> false
+    end)
+  end
+
+  # Distribute a one-of within any endpoint across the whole interval:
+  # the cartesian product of each endpoint's combinations, yielding a
+  # list of concrete interval token lists.
+  defp distribute_interval_one_of(tokens) do
+    Enum.reduce(tokens, [[]], fn
+      {kind, components}, combos when is_list(components) ->
+        endpoints = distribute_one_of(components)
+        for combo <- combos, endpoint <- endpoints, do: combo ++ [{kind, endpoint}]
+
+      entry, combos ->
+        for combo <- combos, do: combo ++ [entry]
+    end)
+  end
+
   def parse_set(set) do
     Enum.map(set, fn
       {:range, [{_, from}, {_, to}]} ->
@@ -180,6 +210,11 @@ defmodule Tempo.Iso8601.Parser do
 
       {unit, %Range{first: first, last: last}} ->
         {:range, [[{unit, first}], [{unit, last}]]}
+
+      # An interval member keeps its tag so `Tempo.Set.new/3` builds it
+      # with `build_interval/1` rather than as a plain `Tempo`.
+      {:interval, tokens} ->
+        {:interval, parse_date(tokens)}
 
       tempo ->
         tempo

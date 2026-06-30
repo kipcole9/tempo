@@ -40,6 +40,35 @@ defmodule Tempo.Iso8601.OneOfComponentTest do
     end
   end
 
+  describe "one-of inside intervals" do
+    test "an explicit one-of set of intervals builds interval members" do
+      assert {:ok, set} = Tempo.from_iso8601("[2020Y/2021Y,2022Y/2023Y]")
+      assert %Tempo.Set{type: :one, set: [%Tempo.Interval{}, %Tempo.Interval{}]} = set
+      assert inspect(set) == ~s|~o"[2020Y/2021Y,2022Y/2023Y]"|
+    end
+
+    test "a one-of in the start endpoint distributes to a set of intervals" do
+      assert {:ok, set} = Tempo.from_iso8601("2020Y[1,2]M/2021Y")
+      assert inspect(set) == ~s|~o"[2020Y1M/2021Y,2020Y2M/2021Y]"|
+    end
+
+    test "a one-of in the end endpoint distributes too" do
+      assert {:ok, set} = Tempo.from_iso8601("2020Y/2021Y[3,6]M")
+      assert inspect(set) == ~s|~o"[2020Y/2021Y3M,2020Y/2021Y6M]"|
+    end
+
+    test "one-of in both endpoints forms the cartesian product" do
+      assert {:ok, set} = Tempo.from_iso8601("2020Y[1,2]M/2021Y[3,6]M")
+
+      assert inspect(set) ==
+               ~s|~o"[2020Y1M/2021Y3M,2020Y1M/2021Y6M,2020Y2M/2021Y3M,2020Y2M/2021Y6M]"|
+    end
+
+    test "a plain interval is unchanged" do
+      assert {:ok, %Tempo.Interval{}} = Tempo.from_iso8601("2020Y6M/2021Y")
+    end
+  end
+
   describe "regressions: the sibling forms are unchanged" do
     test "all-of {…} stays a multi-valued single Tempo, not a set" do
       assert {:ok, %Tempo{}} = Tempo.from_iso8601("{1,2,3}M")

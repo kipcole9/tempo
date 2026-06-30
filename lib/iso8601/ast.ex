@@ -41,6 +41,11 @@ defmodule Tempo.Iso8601.AST do
     :undefined
   end
 
+  # A set member that is itself an interval (`[2020Y/2021Y,…]`).
+  def build({:interval, tokens}, _calendar) do
+    build_interval(tokens)
+  end
+
   def build(tokens, calendar) when is_list(tokens) do
     {shift, tokens} = Keyword.pop(tokens, :time_shift)
     {qualification, tokens} = Keyword.pop(tokens, :qualification)
