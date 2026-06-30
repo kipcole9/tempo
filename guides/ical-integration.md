@@ -168,17 +168,17 @@ Tempo.IntervalSet.map(free, &Tempo.Interval.endpoints/1)
 Events with an `RRULE` materialise through a single pipeline:
 
 ```
-%ICal.Recurrence{}  ─┐
-                     ├──► Tempo.RRule.Expander.to_ast/3 ──► %Tempo.Interval{}
-RRULE string ────────┘                                         │
-                                                               ▼
-                                                     Tempo.to_interval/2
-                                                               │
-                                                               ▼
-                                                    Tempo.RRule.Selection
-                                                               │
-                                                               ▼
-                                                     [%Tempo.Interval{}]
+RRULE string ──────────► Tempo.RRule.parse/2 ──┐
+                                                ├──► %Tempo.Interval{}
+%ICal.Recurrence{} ─► %Tempo.RRule.Rule{} ──────┘            │
+                                                             ▼
+                                                   Tempo.to_interval/2
+                                                             │
+                                                             ▼
+                                                  Tempo.RRule.Selection
+                                                             │
+                                                             ▼
+                                                   [%Tempo.Interval{}]
 ```
 
 Every RFC 5545 BY-rule flows through one interpreter — there is no "simple core" and no "full expander" split. Each occurrence is a distinct `%Tempo.Interval{}` with the event's metadata attached.

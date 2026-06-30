@@ -464,20 +464,13 @@ See `Tempo.Select` for the full selector vocabulary.
 
 ## 7. Recurring events (RRULE)
 
+An RRULE parses into a recurring `%Tempo.Interval{}` with `Tempo.RRule.parse!/2`; you materialise it into occurrences with `Tempo.to_interval/2`, limited by a `:bound` window or by the rule's own `COUNT`/`UNTIL`. (A plain periodic cadence with no calendar filter needs no RRULE at all — build it directly with `Tempo.Interval.new!(from: ~o"2026-06-01", duration: ~o"P1W", recurrence: 10)`; see the [scheduling guide](./scheduling.md).)
+
 ### How do I express "every Monday for 10 weeks"?
 
 ```elixir
-iex> rule = %Tempo.RRule.Rule{freq: :week, interval: 1, byday: [{nil, 1}], count: 10}
-iex> {:ok, occurrences} = Tempo.RRule.Expander.expand(rule, ~o"2026-06-01")
-iex> length(occurrences)
-10
-```
-
-### How do I parse an RRULE string?
-
-```elixir
-iex> {:ok, ast} = Tempo.RRule.parse("FREQ=WEEKLY;BYDAY=MO;COUNT=10", from: ~o"2026-06-01")
-iex> {:ok, set} = Tempo.to_interval(ast)
+iex> recurrence = Tempo.RRule.parse!("FREQ=WEEKLY;BYDAY=MO;COUNT=10", from: ~o"2026-06-01")
+iex> {:ok, set} = Tempo.to_interval(recurrence)
 iex> Tempo.IntervalSet.count(set)
 10
 ```
@@ -485,13 +478,9 @@ iex> Tempo.IntervalSet.count(set)
 ### How do I express "the 4th Thursday of November" (Thanksgiving)?
 
 ```elixir
-iex> rule = %Tempo.RRule.Rule{
-...>   freq: :year, interval: 1,
-...>   bymonth: [11], byday: [{4, 4}],
-...>   count: 5
-...> }
-iex> {:ok, occurrences} = Tempo.RRule.Expander.expand(rule, ~o"2022-11-24")
-iex> Enum.map(occurrences, &Tempo.day(Tempo.Interval.from(&1)))
+iex> recurrence = Tempo.RRule.parse!("FREQ=YEARLY;BYMONTH=11;BYDAY=4TH;COUNT=5", from: ~o"2022-11-24")
+iex> {:ok, set} = Tempo.to_interval(recurrence)
+iex> Enum.map(Tempo.IntervalSet.to_list(set), &Tempo.day(Tempo.Interval.from(&1)))
 [24, 23, 28, 27, 26]
 ```
 
@@ -500,12 +489,10 @@ Positive ordinals count from the start of the period; negatives count from the e
 ### How do I express "every Friday the 13th"?
 
 ```elixir
-iex> rule = %Tempo.RRule.Rule{
-...>   freq: :month, interval: 1,
-...>   byday: [{nil, 5}], bymonthday: [13],
-...>   count: 10
-...> }
-iex> {:ok, occurrences} = Tempo.RRule.Expander.expand(rule, ~o"1998-02-13")
+iex> recurrence = Tempo.RRule.parse!("FREQ=MONTHLY;BYMONTHDAY=13;BYDAY=FR;COUNT=10", from: ~o"1998-02-13")
+iex> {:ok, set} = Tempo.to_interval(recurrence)
+iex> Tempo.IntervalSet.count(set)
+10
 ```
 
 When `BYMONTHDAY` is co-present, `BYDAY` becomes a filter (per RFC Note 1) — `BYMONTHDAY=13` picks day 13 of each month, then `BYDAY=FR` keeps only the Fridays.
@@ -515,14 +502,13 @@ When `BYMONTHDAY` is co-present, `BYDAY` becomes a filter (per RFC Note 1) — `
 "Every four years, the first Tuesday after a Monday in November":
 
 ```elixir
-iex> rule = %Tempo.RRule.Rule{
-...>   freq: :year, interval: 4,
-...>   bymonth: [11], byday: [{nil, 2}],
-...>   bymonthday: [2, 3, 4, 5, 6, 7, 8],
-...>   count: 3
-...> }
-iex> {:ok, occurrences} = Tempo.RRule.Expander.expand(rule, ~o"1996-11-05")
-iex> Enum.map(occurrences, fn iv ->
+iex> recurrence =
+...>   Tempo.RRule.parse!(
+...>     "FREQ=YEARLY;INTERVAL=4;BYMONTH=11;BYDAY=TU;BYMONTHDAY=2,3,4,5,6,7,8;COUNT=3",
+...>     from: ~o"1996-11-05"
+...>   )
+iex> {:ok, set} = Tempo.to_interval(recurrence)
+iex> Enum.map(Tempo.IntervalSet.to_list(set), fn iv ->
 ...>   start = Tempo.Interval.from(iv)
 ...>   {Tempo.year(start), Tempo.day(start)}
 ...> end)
@@ -532,25 +518,22 @@ iex> Enum.map(occurrences, fn iv ->
 ### How do I express "last weekday of every month"?
 
 ```elixir
-iex> rule = %Tempo.RRule.Rule{
-...>   freq: :month, interval: 1,
-...>   byday: [{nil, 1}, {nil, 2}, {nil, 3}, {nil, 4}, {nil, 5}],
-...>   bysetpos: [-1],
-...>   count: 3
-...> }
-iex> {:ok, occurrences} = Tempo.RRule.Expander.expand(rule, ~o"2026-06-01")
+iex> recurrence = Tempo.RRule.parse!("FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1;COUNT=3", from: ~o"2026-06-01")
+iex> {:ok, set} = Tempo.to_interval(recurrence)
+iex> Tempo.IntervalSet.count(set)
+3
 ```
 
-`BYDAY=MO..FR` expands each month to all weekdays; `BYSETPOS=-1` picks the last.
+`BYDAY=MO,TU,WE,TH,FR` expands each month to all weekdays; `BYSETPOS=-1` picks the last.
 
 ### How do I handle an unbounded rule?
 
 Supply `:bound`:
 
 ```elixir
-iex> rule = %Tempo.RRule.Rule{freq: :day, interval: 1}  # No COUNT, no UNTIL
-iex> {:ok, occurrences} = Tempo.RRule.Expander.expand(rule, ~o"2026-06-01", bound: ~o"2026-07-01")
-iex> length(occurrences)
+iex> recurrence = Tempo.RRule.parse!("FREQ=DAILY", from: ~o"2026-06-01")  # No COUNT, no UNTIL
+iex> {:ok, set} = Tempo.to_interval(recurrence, bound: ~o"2026-06")
+iex> Tempo.IntervalSet.count(set)
 30
 ```
 
@@ -759,17 +742,12 @@ iex> Tempo.Schedule.new()
 ### Find every Friday the 13th this century
 
 ```elixir
-friday_the_13th = %Tempo.RRule.Rule{
-  freq: :month,
-  interval: 1,
-  byday: [{nil, 5}],
-  bymonthday: [13]
-}
+friday_the_13th =
+  Tempo.RRule.parse!("FREQ=MONTHLY;BYMONTHDAY=13;BYDAY=FR", from: ~o"2000-01-01")
 
 century = ~o"2000-01-01/2100-01-01"
 
-{:ok, occurrences} =
-  Tempo.RRule.Expander.expand(friday_the_13th, ~o"2000-01-01", bound: century)
+{:ok, occurrences} = Tempo.to_interval(friday_the_13th, bound: century)
 ```
 
 > **Friday the 13th** is a monthly rule — Fridays whose day-of-month is 13. **Expanding** the rule across the **century** gives every occurrence.
@@ -869,13 +847,10 @@ iex> Tempo.IntervalSet.count(workdays)
 An RRULE equivalent is available when you need the full rule machinery (byday counts, bymonth filters, intervals greater than 1):
 
 ```elixir
-weekdays = %Tempo.RRule.Rule{
-  freq: :day,
-  interval: 1,
-  byday: [{nil, 1}, {nil, 2}, {nil, 3}, {nil, 4}, {nil, 5}]
-}
+weekdays =
+  Tempo.RRule.parse!("FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR", from: ~o"2026-06-01")
 
-{:ok, days} = Tempo.RRule.Expander.expand(weekdays, ~o"2026-06-01", bound: ~o"2026-06")
+{:ok, days} = Tempo.to_interval(weekdays, bound: ~o"2026-06")
 ```
 
 ### Every free minute in a month

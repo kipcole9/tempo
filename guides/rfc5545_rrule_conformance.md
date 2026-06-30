@@ -1,6 +1,6 @@
 # RFC 5545 RRULE Conformance
 
-Tempo treats RFC 5545 RRULE as a first-class recurrence vocabulary. Every rule that [section 3.3.10 of the standard](https://datatracker.ietf.org/doc/html/rfc5545#section-3.3.10) defines can be parsed into Tempo's typed AST (`%Tempo.RRule.Rule{}`), materialised into a `%Tempo.IntervalSet{}` over any bounded window, and composed with the rest of Tempo's set algebra — `union`, `intersection`, `difference`, and friends. This guide catalogues precisely what that means, what's supported, and what isn't.
+Tempo treats RFC 5545 RRULE as a first-class recurrence vocabulary. Every rule that [section 3.3.10 of the standard](https://datatracker.ietf.org/doc/html/rfc5545#section-3.3.10) defines can be parsed into a recurring `%Tempo.Interval{}` (modelled internally by Tempo's typed RRULE AST, `%Tempo.RRule.Rule{}`), materialised into a `%Tempo.IntervalSet{}` over any bounded window, and composed with the rest of Tempo's set algebra — `union`, `intersection`, `difference`, and friends. This guide catalogues precisely what that means, what's supported, and what isn't.
 
 Tempo's RRULE parsing is its own implementation; it does not delegate to a third-party library for the string-to-AST step. For full iCalendar (`.ics`) files with events, RDATEs, and EXDATEs, Tempo delegates to the excellent [`ical`](https://hex.pm/packages/ical) library and converts its `%ICal.Recurrence{}` into the same Tempo AST — giving you a single materialisation path regardless of whether the rule came from a hand-written string or a parsed iCalendar feed.
 
@@ -10,9 +10,9 @@ The reference is [RFC 5545 §3.3.10](https://datatracker.ietf.org/doc/html/rfc55
 
 Given an RRULE, Tempo will:
 
-* **Parse** the string into `%Tempo.RRule.Rule{}` via `Tempo.RRule.parse/2`.
+* **Parse** the string into a recurring `%Tempo.Interval{}` via `Tempo.RRule.parse/2` — its recurrence is described by the typed `%Tempo.RRule.Rule{}` field vocabulary catalogued below.
 
-* **Expand** the rule into an explicit `%Tempo.IntervalSet{}` of occurrences via `Tempo.RRule.Expander.to_ast/2` followed by `Tempo.to_interval/2`.
+* **Expand** that recurring interval into an explicit `%Tempo.IntervalSet{}` of occurrences via `Tempo.to_interval/2`.
 
 * **Apply set operations**: occurrences compose with every operation (`Tempo.union/2`, `Tempo.intersection/2`, `Tempo.difference/2`, `Tempo.symmetric_difference/2`, `Tempo.complement/2`, `Tempo.members_overlapping/2`, `Tempo.members_outside/2`, `Tempo.members_in_exactly_one/2`) and with the predicates (`overlaps?/2`, `disjoint?/2`, `contains?/2`, `equal?/2`, `subset?/2`).
 
