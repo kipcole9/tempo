@@ -100,8 +100,18 @@ defmodule Tempo.Iso8601.Parser do
   defp combine_qualification(_a, _b), do: :uncertain_and_approximate
 
   def parse([{type, tokens}]) when type in [:date, :time_of_day, :datetime] do
-    with parsed <- parse_date(tokens) do
-      AST.build(parsed)
+    if has_one_of_component?(tokens) do
+      # A component-level one-of (`[1,2,3]M`) distributes across the
+      # whole value: each alternative becomes a member of a one-of
+      # `Tempo.Set` (`[1,2,3]M` → one of `1M`, `2M`, `3M`).
+      tokens
+      |> distribute_one_of()
+      |> Enum.map(&parse_date/1)
+      |> Tempo.Set.new(:one)
+    else
+      with parsed <- parse_date(tokens) do
+        AST.build(parsed)
+      end
     end
   end
 
@@ -130,6 +140,30 @@ defmodule Tempo.Iso8601.Parser do
     |> parse_set
     |> Tempo.Set.new(:one)
   end
+
+  defp has_one_of_component?(tokens) when is_list(tokens) do
+    Enum.any?(tokens, &match?({_component, {:one_of, _choices}}, &1))
+  end
+
+  defp has_one_of_component?(_tokens), do: false
+
+  # Cartesian product of every component's choices. A `{:one_of, …}`
+  # component contributes its alternatives (ranges expanded to their
+  # members); every other component is carried unchanged. Returns a
+  # list of concrete token lists, one per combination.
+  defp distribute_one_of(tokens) do
+    Enum.reduce(tokens, [[]], fn
+      {component, {:one_of, choices}}, combos ->
+        values = Enum.flat_map(choices, &expand_one_of_choice/1)
+        for combo <- combos, value <- values, do: combo ++ [{component, value}]
+
+      entry, combos ->
+        for combo <- combos, do: combo ++ [entry]
+    end)
+  end
+
+  defp expand_one_of_choice(%Range{} = range), do: Enum.to_list(range)
+  defp expand_one_of_choice(value), do: [value]
 
   def parse_set(set) do
     Enum.map(set, fn

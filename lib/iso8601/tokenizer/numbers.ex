@@ -156,12 +156,16 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
   def positive_number_or_integer_set(indicator, tag, opts) do
     choice([
       parsec(:integer_set_all),
+      parsec(:integer_set_one),
       positive_number(opts)
     ])
     |> ignore(string(indicator))
     |> unwrap_and_tag(tag)
   end
 
+  # No indicator: a bare `[...]` here would be ambiguous with a
+  # top-level one-of set (`[1984,1986,1988]`), so only `{...}`
+  # (all-of) is accepted in the designator-less position.
   def positive_number_or_integer_set(tag, opts) do
     choice([
       parsec(:integer_set_all),
@@ -173,6 +177,7 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
   def maybe_negative_number_or_integer_set(indicator, tag, opts) do
     choice([
       parsec(:integer_set_all),
+      parsec(:integer_set_one),
       maybe_negative_number(opts)
     ])
     |> ignore(string(indicator))
@@ -188,6 +193,7 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
   def qualified_number_or_integer_set(indicator, tag, opts) do
     choice([
       parsec(:integer_set_all),
+      parsec(:integer_set_one),
       maybe_negative_number(opts)
     ])
     |> unwrap_and_tag(tag)
@@ -215,6 +221,7 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
   def explicit_second_or_integer_set(indicator, opts) do
     choice([
       parsec(:integer_set_all),
+      parsec(:integer_set_one),
       maybe_negative_integer(opts)
     ])
     |> unwrap_and_tag(:second)
@@ -233,6 +240,7 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
   def positive_integer_or_integer_set(indicator, tag, opts) do
     choice([
       parsec(:integer_set_all),
+      parsec(:integer_set_one),
       positive_integer(opts)
     ])
     |> ignore(string(indicator))
@@ -242,6 +250,7 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
   def maybe_negative_integer_or_integer_set(indicator, tag, opts) do
     choice([
       parsec(:integer_set_all),
+      parsec(:integer_set_one),
       maybe_negative_integer(opts)
     ])
     |> ignore(string(indicator))
