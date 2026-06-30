@@ -32,31 +32,30 @@ The import adds only `sigil_o/2` and `sigil_TEMPO/2` to the caller's namespace; 
 
 An RRULE like `FREQ=MONTHLY;BYDAY=2MO` ("the second Monday of every month") is **infinite** — occurrences continue forever. You cannot call `Enum.to_list/1` on an infinite sequence.
 
-Tempo splits the two operations: building the recurrence **AST** is cheap and always bounded-free, but **materialising** the AST into a concrete `%Tempo.IntervalSet{}` requires a bound.
+Tempo splits the two operations: parsing the rule into a recurring interval is cheap and always bounded-free, but **materialising** it into a concrete `%Tempo.IntervalSet{}` requires a bound.
 
 ```elixir
-rule = %Tempo.RRule.Rule{freq: :month, interval: 1, byday: [{2, 1}]}
-{:ok, ast} = Tempo.RRule.Expander.to_ast(rule, ~o"2025-01-01")
+recurrence = Tempo.RRule.parse!("FREQ=MONTHLY;BYDAY=2MO", from: ~o"2025-01-01")
 
-# `ast` is a %Tempo.Interval{recurrence: :infinity, ...} — not an error.
+# `recurrence` is a %Tempo.Interval{recurrence: :infinity, ...} — not an error.
 # Materialising it requires a bound:
 
-{:ok, set} = Tempo.to_interval(ast, bound: ~o"2025-07-01")
+{:ok, set} = Tempo.to_interval(recurrence, bound: ~o"2025-07-01")
 Tempo.IntervalSet.count(set)
 #=> 7
 ```
 
-> The **AST** is the recurrence *rule*; the **IntervalSet** is its *occurrences* inside a window. `:bound` is always supplied at materialisation, never at the rule. Tempo's default member-preserving semantics keep each occurrence as a distinct member of the IntervalSet — which is what you want for scheduling. For the covered-instant form (individual occurrences merged into contiguous spans), pipe through `Tempo.IntervalSet.coalesce/1` — useful for free/busy questions but not for "list the events."
+> The **recurring interval** is the recurrence *rule*; the **IntervalSet** is its *occurrences* inside a window. `:bound` is always supplied at materialisation, never at the rule. Tempo's default member-preserving semantics keep each occurrence as a distinct member of the IntervalSet — which is what you want for scheduling. For the covered-instant form (individual occurrences merged into contiguous spans), pipe through `Tempo.IntervalSet.coalesce/1` — useful for free/busy questions but not for "list the events."
 
-For ad-hoc use, `Stream.take/2` and `Enum.take/2` work directly on the AST — it's enumerable, lazily:
+For ad-hoc use, `Stream.take/2` and `Enum.take/2` work directly on the recurring interval — it's enumerable, lazily:
 
 ```elixir
-ast |> Stream.take(10) |> Enum.to_list()
+recurrence |> Stream.take(10) |> Enum.to_list()
 ```
 
 ### Pitfall
 
-Forgetting the bound and calling `Tempo.to_interval(ast)`:
+Forgetting the bound and calling `Tempo.to_interval(recurrence)`:
 
 ```elixir
 {:error,
@@ -249,14 +248,14 @@ defmodule Schedule do
     # A meeting is a to-the-minute thing, so drop the source's seconds.
     dtstart = Tempo.from_elixir(datetime, resolution: :minute)
 
-    rule = %Tempo.RRule.Rule{freq: :week, interval: 1}
-    {:ok, ast} = Tempo.RRule.Expander.to_ast(rule, dtstart)
-    %{name: name, rule: ast}
+    # "Every week from `dtstart`, forever" is just a recurring interval.
+    recurrence = Tempo.Interval.new!(from: dtstart, duration: ~o"P1W", recurrence: :infinity)
+    %{name: name, recurrence: recurrence}
   end
 
-  def occurrences_in(%{rule: ast}, from, to) do
+  def occurrences_in(%{recurrence: recurrence}, from, to) do
     bound = Tempo.Interval.new!(from: from, to: to)
-    {:ok, set} = Tempo.to_interval(ast, bound: bound)
+    {:ok, set} = Tempo.to_interval(recurrence, bound: bound)
     Tempo.IntervalSet.to_list(set)
   end
 end
@@ -271,7 +270,7 @@ Schedule.occurrences_in(retrospective, ~o"2025-07-01", ~o"2025-10-01")
 
 > **`Tempo.from_elixir/2` converts native Elixir date/time structs.** When a value arrives as a `Date`, `Time`, `NaiveDateTime`, or `DateTime` — from a database row, an API payload, a form — convert it with `from_elixir/2` rather than picking its fields apart by hand or re-formatting it to an ISO 8601 string and parsing it back. The time zone carries across faithfully, and the `:resolution` option lets you say how precise the value really is: a `DateTime` is second-precise, but a weekly meeting is a *to-the-minute* thing, so `resolution: :minute` makes the value — and every occurrence derived from it — a one-minute span rather than a one-second one. (For a value you are assembling from loose components rather than a struct, `Tempo.new/1` is the runtime companion to the `~o` sigil.)
 
-> **Store** the rule as an AST (with zoned wall time). **Materialise** into an IntervalSet only when you need concrete occurrences, bounded to the query window. **Display** by projecting each endpoint's wall time through the viewer's preferred zone. Nothing about the stored rule changes when Tzdata does.
+> **Store** the recurrence as a value — a zoned repeating interval, `~o"R/2025Y6M1DT14H0MZ+1H[Europe/London]/P1W"`. **Materialise** into an IntervalSet only when you need concrete occurrences, bounded to the query window. **Display** by projecting each endpoint's wall time through the viewer's preferred zone. Nothing about the stored value changes when Tzdata does.
 
 ## Related reading
 

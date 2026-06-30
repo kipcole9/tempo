@@ -1,5 +1,15 @@
 # Changelog
 
+## [v0.11.0] — 2026-07-01
+
+### Changed
+
+* Recurrences are now constructed and documented as first-class interval values rather than the internal RRULE AST builder. A simple periodic recurrence is `Tempo.Interval.new!(from: dtstart, duration: ~o"P1W", recurrence: :infinity)` (or the `~o"R/…/P1W"` literal), and a calendar rule is `Tempo.RRule.parse!("FREQ=MONTHLY;BYDAY=2MO", from: …)`, which returns a recurring `%Tempo.Interval{}`; both materialise with `Tempo.to_interval(value, bound: …)`.
+
+### Fixed
+
+* `Tempo.Interval.new/1` returned an un-inspectable, non-canonical `to: :undefined` for any interval built from a `:duration`. It now derives the endpoint as `to: nil`, so duration and recurring intervals inspect and round-trip as `~o"2020Y/P1D"` and `~o"R/…/P1W"`; open-ended intervals (no `:duration`) are unchanged.
+
 ## [v0.10.2] — 2026-06-30
 
 ### Added

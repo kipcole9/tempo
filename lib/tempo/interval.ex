@@ -180,7 +180,7 @@ defmodule Tempo.Interval do
       {:ok,
        %__MODULE__{
          from: from || :undefined,
-         to: to || :undefined,
+         to: closing_endpoint(to, duration),
          duration: duration,
          recurrence: recurrence,
          repeat_rule: repeat_rule,
@@ -188,6 +188,16 @@ defmodule Tempo.Interval do
        }}
     end
   end
+
+  # The closing endpoint of an interval. When a `:duration` is supplied
+  # and `:to` is omitted, the endpoint is *derived* from the duration, so
+  # it is left as `nil` — the canonical shape the parser and `to_iso8601/1`
+  # render as `from/duration` (or `R<n>/from/duration` when recurring). An
+  # omitted `:to` with no duration is an explicitly *open* endpoint
+  # (`2020/..`), represented as `:undefined`.
+  defp closing_endpoint(nil, %Duration{}), do: nil
+  defp closing_endpoint(nil, _no_duration), do: :undefined
+  defp closing_endpoint(to, _duration), do: to
 
   @doc """
   Bang variant of `new/1`. Raises on invalid input.
