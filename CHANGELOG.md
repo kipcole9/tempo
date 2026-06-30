@@ -1,5 +1,17 @@
 # Changelog
 
+## [v0.10.2] — 2026-06-30
+
+### Added
+
+* Component-level "one of a set" (ISO 8601-2 / EDTF): `~o"[1,2,3]M"` is the one-of counterpart of the all-of `~o"{1,2,3}M"`, distributing across the value to a one-of `Tempo.Set` (`2020Y[1,2]M` → one of `2020Y1M`, `2020Y2M`); ranges expand and multiple one-of components form the cartesian product.
+
+* One-of sets work in interval endpoints too: `2020Y[1,2]M/2021Y` distributes to a one-of set of intervals, and an explicit one-of set of intervals (`~o"[2020Y/2021Y,2022Y/2023Y]"`) now builds its interval members correctly.
+
+### Fixed
+
+* Rounding a time of day to the hour or minute always rounded up — `Tempo.round(~o"T10H10M", :hour)` returned `~o"T11H"` instead of `~o"T10H"`. It now rounds to nearest (≤ half down, > half up).
+
 ## [v0.10.1] — 2026-06-30
 
 ### Fixes
