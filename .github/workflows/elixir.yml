@@ -97,6 +97,21 @@ jobs:
         if: matrix.lint
         run: mix format --check-formatted
 
+      - name: Run Credo
+        if: matrix.lint
+        run: mix credo --strict
+
+      - name: Docs (no warnings)
+        if: matrix.lint
+        env:
+          MIX_ENV: release
+        run: |
+          mix docs 2>&1 | tee docs.log
+          if grep -qiE "warning:" docs.log; then
+            echo "::error::ex_doc emitted documentation warnings"
+            exit 1
+          fi
+
       - name: Compile (warnings as errors)
         run: mix compile --warnings-as-errors
 

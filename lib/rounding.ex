@@ -128,7 +128,7 @@ defmodule Tempo.Rounding do
   end
 
   defp round([{:hour, hour}, {:minute, minute}], calendar, :minute, :hour) do
-    if minute <= div(@minutes_in_hour - 1, minute) do
+    if minute <= div(@minutes_in_hour, 2) do
       [hour: hour]
     else
       round([hour: hour + 1], calendar, :hour, :hour)
@@ -146,7 +146,7 @@ defmodule Tempo.Rounding do
   # Round to minute
 
   defp round([{:hour, hour}, {:minute, minute}, {:second, second}], calendar, :second, :minute) do
-    if second <= div(@seconds_in_minute - 1, second) do
+    if second <= div(@seconds_in_minute, 2) do
       [hour: hour, minute: minute]
     else
       round([hour: hour, minute: minute + 1], calendar, :minute, :minute)

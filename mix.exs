@@ -16,6 +16,19 @@ defmodule Tempo.MixProject do
       elixir: "~> 1.17",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
+      # Excluded from coverage:
+      #  * `~r/Error$/` — exception structs, whose uncovered lines are
+      #    `message/1` formatting on rare error paths, not logic.
+      #  * the tokenizer grammar modules — their functions are NimbleParsec
+      #    combinator builders that run at *compile* time to assemble the
+      #    parser, so runtime line-coverage cannot see them execute.
+      test_coverage: [
+        ignore_modules: [
+          ~r/Error$/,
+          Tempo.Iso8601.Tokenizer.Numbers,
+          Tempo.Iso8601.Tokenizer.Grammar
+        ]
+      ],
       dialyzer: [
         flags: [
           :error_handling,
