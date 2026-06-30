@@ -26,7 +26,8 @@ defmodule Tempo.MixProject do
         ignore_modules: [
           ~r/Error$/,
           Tempo.Iso8601.Tokenizer.Numbers,
-          Tempo.Iso8601.Tokenizer.Grammar
+          Tempo.Iso8601.Tokenizer.Grammar,
+          Tempo.Iso8601.Tokenizer.Helpers
         ]
       ],
       dialyzer: [
