@@ -1907,13 +1907,13 @@ defmodule Tempo do
            )}
 
         :lt ->
-          case fill_to_resolution(time, current_unit, target_unit, calendar) do
-            {:ok, new_time} -> %{tempo | time: new_time}
-            {:error, _} = err -> err
-          end
+          apply_filled_time(tempo, fill_to_resolution(time, current_unit, target_unit, calendar))
       end
     end
   end
+
+  defp apply_filled_time(tempo, {:ok, new_time}), do: %{tempo | time: new_time}
+  defp apply_filled_time(_tempo, {:error, _} = err), do: err
 
   # Walk the standard unit-successor chain, appending one
   # `{next_unit, unit_minimum}` at each step until `target_unit` is
@@ -3486,9 +3486,7 @@ defmodule Tempo do
         upper =
           intervals
           |> Enum.map(& &1.to)
-          |> Enum.reduce(fn a, b ->
-            if Compare.compare_endpoints(a, b) == :later, do: a, else: b
-          end)
+          |> Enum.reduce(&later_endpoint/2)
 
         {:ok, upper}
 
@@ -3501,6 +3499,10 @@ defmodule Tempo do
       {:error, _} = err ->
         err
     end
+  end
+
+  defp later_endpoint(a, b) do
+    if Compare.compare_endpoints(a, b) == :later, do: a, else: b
   end
 
   # A "non-contiguous mask" is a mask at some unit followed by

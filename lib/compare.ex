@@ -386,17 +386,10 @@ defmodule Tempo.Compare do
        when is_binary(zone_id) and zone_id != "" do
     case Tzdata.periods_for_time(zone_id, wall_seconds, :wall) do
       [only] ->
-        only.utc_off + only.std_off
+        period_offset(only)
 
       [_, _ | _] = periods ->
-        # Ambiguous wall time (DST fall-back). Prefer the period
-        # whose offset matches the explicit disambiguator, if any.
-        preferred = explicit_offset_seconds(extended, shift)
-
-        case Enum.find(periods, fn p -> p.utc_off + p.std_off == preferred end) do
-          nil -> hd(periods).utc_off + hd(periods).std_off
-          p -> p.utc_off + p.std_off
-        end
+        ambiguous_offset(periods, explicit_offset_seconds(extended, shift))
 
       [] ->
         # Gap (spring-forward) or missing period. Fall back to
@@ -416,6 +409,17 @@ defmodule Tempo.Compare do
   end
 
   defp resolve_offset_seconds(_extended, _shift, _wall), do: 0
+
+  # Ambiguous wall time (DST fall-back): prefer the period whose
+  # offset matches the explicit disambiguator, else the first period.
+  defp ambiguous_offset(periods, preferred) do
+    case Enum.find(periods, &(period_offset(&1) == preferred)) do
+      nil -> period_offset(hd(periods))
+      period -> period_offset(period)
+    end
+  end
+
+  defp period_offset(period), do: period.utc_off + period.std_off
 
   # Extract an explicit offset in seconds from either the extended
   # `zone_offset` (minutes) or the ISO 8601 `shift` (keyword list).

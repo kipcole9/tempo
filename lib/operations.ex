@@ -165,24 +165,26 @@ defmodule Tempo.Operations do
   defp maybe_anchor_to_bound(a, b, class_a, class_b, opts) do
     bound = Keyword.fetch!(opts, :bound)
 
-    with {:ok, bound_set} <- Tempo.to_interval_set(bound) do
-      if anchor_class(bound_set) != :anchored do
-        {:error,
-         NonAnchoredError.exception(
-           operation: "use as :bound",
-           value: bound
-         )}
-      else
-        a_anchored = if class_a == :non_anchored, do: anchor_to_days(a, bound_set), else: {:ok, a}
-        b_anchored = if class_b == :non_anchored, do: anchor_to_days(b, bound_set), else: {:ok, b}
-
-        with {:ok, a2} <- a_anchored,
-             {:ok, b2} <- b_anchored do
-          {:ok, a2, b2}
-        end
-      end
+    with {:ok, bound_set} <- Tempo.to_interval_set(bound),
+         :ok <- ensure_anchored_bound(bound_set, bound),
+         {:ok, a2} <- anchor_if_non_anchored(class_a, a, bound_set),
+         {:ok, b2} <- anchor_if_non_anchored(class_b, b, bound_set) do
+      {:ok, a2, b2}
     end
   end
+
+  defp ensure_anchored_bound(bound_set, bound) do
+    if anchor_class(bound_set) == :anchored do
+      :ok
+    else
+      {:error, NonAnchoredError.exception(operation: "use as :bound", value: bound)}
+    end
+  end
+
+  defp anchor_if_non_anchored(:non_anchored, value, bound_set),
+    do: anchor_to_days(value, bound_set)
+
+  defp anchor_if_non_anchored(_class, value, _bound_set), do: {:ok, value}
 
   # For each interval in the bound, walk each day, and anchor
   # every non-anchored interval to that day. Returns {:ok,

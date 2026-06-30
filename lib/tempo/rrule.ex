@@ -365,19 +365,17 @@ defmodule Tempo.RRule do
   #   can pick "the 4th Thursday of November" (a paired
   #   `nth_kday` operation), not "all Thursdays AND the 4th
   #   instance" (two unrelated filters).
-  defp push_byday(acc, parts) do
-    case Keyword.get(parts, :byday) do
-      nil ->
-        acc
+  defp push_byday(acc, parts), do: push_byday_entries(acc, Keyword.get(parts, :byday))
 
-      entries ->
-        if Enum.all?(entries, fn {ord, _day} -> is_nil(ord) end) do
-          push_simple_byday(acc, entries)
-        else
-          [{:byday, entries} | acc]
-        end
-    end
+  defp push_byday_entries(acc, nil), do: acc
+
+  defp push_byday_entries(acc, entries) do
+    if all_unordered?(entries),
+      do: push_simple_byday(acc, entries),
+      else: [{:byday, entries} | acc]
   end
+
+  defp all_unordered?(entries), do: Enum.all?(entries, fn {ord, _day} -> is_nil(ord) end)
 
   defp push_simple_byday(acc, entries) do
     days = Enum.map(entries, fn {_nil, day} -> day end)

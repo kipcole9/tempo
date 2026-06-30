@@ -331,19 +331,17 @@ defmodule Tempo.Cron do
         if fields.has_seconds?, do: {:ok, :second, 1}, else: {:ok, :minute, 1}
 
       finest ->
-        case Map.get(fields, finest) do
-          {:step, n} ->
-            if coarser_all_nil?(fields, finest, order) do
-              {:ok, field_to_freq(finest), n}
-            else
-              :no
-            end
-
-          _ ->
-            :no
-        end
+        finest_step_freq(Map.get(fields, finest), finest, fields, order)
     end
   end
+
+  defp finest_step_freq({:step, n}, finest, fields, order) do
+    if coarser_all_nil?(fields, finest, order),
+      do: {:ok, field_to_freq(finest), n},
+      else: :no
+  end
+
+  defp finest_step_freq(_value, _finest, _fields, _order), do: :no
 
   defp coarser_all_nil?(fields, finest, order) do
     order
@@ -589,18 +587,22 @@ defmodule Tempo.Cron do
         {:ok, [Map.fetch!(names, String.downcase(part))]}
 
       String.contains?(part, "-") and not step?(part) ->
-        case String.split(part, "-", parts: 2) do
-          [a, b] ->
-            with {:ok, from} <- name_or_int(a, names, field, range),
-                 {:ok, to} <- name_or_int(b, names, field, range) do
-              {:ok, Enum.to_list(from..to)}
-            end
-
-          _ ->
-            parse_part(part, field, range)
-        end
+        parse_named_range(part, field, range, names)
 
       true ->
+        parse_part(part, field, range)
+    end
+  end
+
+  defp parse_named_range(part, field, range, names) do
+    case String.split(part, "-", parts: 2) do
+      [a, b] ->
+        with {:ok, from} <- name_or_int(a, names, field, range),
+             {:ok, to} <- name_or_int(b, names, field, range) do
+          {:ok, Enum.to_list(from..to)}
+        end
+
+      _ ->
         parse_part(part, field, range)
     end
   end
@@ -658,15 +660,16 @@ defmodule Tempo.Cron do
       [a, b] ->
         with {:ok, from} <- parse_int(a, field, range),
              {:ok, to} <- parse_int(b, field, range) do
-          if from <= to do
-            {:ok, Enum.to_list(from..to)}
-          else
-            # Wrap-around range — common cron dialect.
-            {:ok, Enum.to_list(from..range.last) ++ Enum.to_list(range.first..to)}
-          end
+          {:ok, range_values(from, to, range)}
         end
     end
   end
+
+  defp range_values(from, to, _range) when from <= to, do: Enum.to_list(from..to)
+
+  # Wrap-around range — common cron dialect.
+  defp range_values(from, to, range),
+    do: Enum.to_list(from..range.last) ++ Enum.to_list(range.first..to)
 
   defp parse_int(string, field, range) do
     case Integer.parse(string) do
@@ -717,21 +720,7 @@ defmodule Tempo.Cron do
 
       # `5#2` → second Friday
       String.contains?(part, "#") ->
-        case String.split(part, "#") do
-          [day_str, ord_str] ->
-            with {:ok, day} <- dow_to_rfc(day_str, part),
-                 {:ok, ordinal} <- parse_int(ord_str, :day_of_week, -53..53) do
-              {:ok, [{ordinal, day}]}
-            end
-
-          _ ->
-            {:error,
-             CronError.exception(
-               field: :day_of_week,
-               value: part,
-               reason: "Malformed `#`: #{inspect(part)}"
-             )}
-        end
+        parse_dow_nth(part)
 
       # Step on day-of-week, e.g. `MON-FRI/2`, `5/2`, `0/3`, `*/2`.
       # The step iterates in *cron* numbering (Sunday = 0, the week
@@ -756,16 +745,41 @@ defmodule Tempo.Cron do
 
       # Range: `MON-FRI` or `1-5`
       String.contains?(part, "-") ->
-        [a, b] = String.split(part, "-", parts: 2)
-
-        with {:ok, from} <- dow_to_rfc(a, part),
-             {:ok, to} <- dow_to_rfc(b, part) do
-          days = if from <= to, do: Enum.to_list(from..to), else: Enum.to_list(from..7)
-          {:ok, Enum.map(days, &{nil, &1})}
-        end
+        parse_dow_range(part)
 
       true ->
         with {:ok, day} <- dow_to_rfc(part, part), do: {:ok, [{nil, day}]}
+    end
+  end
+
+  defp parse_dow_range(part) do
+    [a, b] = String.split(part, "-", parts: 2)
+
+    with {:ok, from} <- dow_to_rfc(a, part),
+         {:ok, to} <- dow_to_rfc(b, part) do
+      {:ok, Enum.map(dow_range_days(from, to), &{nil, &1})}
+    end
+  end
+
+  defp dow_range_days(from, to) when from <= to, do: Enum.to_list(from..to)
+  defp dow_range_days(from, _to), do: Enum.to_list(from..7)
+
+  # `5#2` → the 2nd Friday: a {day, ordinal} pair.
+  defp parse_dow_nth(part) do
+    case String.split(part, "#") do
+      [day_str, ord_str] ->
+        with {:ok, day} <- dow_to_rfc(day_str, part),
+             {:ok, ordinal} <- parse_int(ord_str, :day_of_week, -53..53) do
+          {:ok, [{ordinal, day}]}
+        end
+
+      _ ->
+        {:error,
+         CronError.exception(
+           field: :day_of_week,
+           value: part,
+           reason: "Malformed `#`: #{inspect(part)}"
+         )}
     end
   end
 

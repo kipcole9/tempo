@@ -834,16 +834,18 @@ defmodule Tempo.RRule.Selection do
     year = candidate.from.time[:year]
     wiy = weeks_in_year(calendar, year)
 
-    Enum.flat_map(weeks, fn wk ->
-      resolved = signed_index_to_value(wk, wiy)
+    Enum.flat_map(weeks, fn wk -> week_candidate_dates(wk, candidate, calendar, year, wiy) end)
+  end
 
-      if is_integer(resolved) and resolved >= 1 and resolved <= wiy do
-        week_dates_in_year(calendar, year, resolved)
-        |> Enum.map(fn {m, day} -> swap_date(candidate, year, m, day) end)
-      else
-        []
-      end
-    end)
+  defp week_candidate_dates(wk, candidate, calendar, year, wiy) do
+    resolved = signed_index_to_value(wk, wiy)
+
+    if is_integer(resolved) and resolved >= 1 and resolved <= wiy do
+      week_dates_in_year(calendar, year, resolved)
+      |> Enum.map(fn {m, day} -> swap_date(candidate, year, m, day) end)
+    else
+      []
+    end
   end
 
   # Map a {month, day} pair back from a day-of-year ordinal by
@@ -1031,15 +1033,17 @@ defmodule Tempo.RRule.Selection do
     indexed = Enum.with_index(candidates, 1)
 
     positions
-    |> Enum.map(fn pos ->
-      target = if pos > 0, do: pos, else: total + pos + 1
-
-      case Enum.find(indexed, fn {_c, i} -> i == target end) do
-        {candidate, _i} -> candidate
-        nil -> nil
-      end
-    end)
+    |> Enum.map(fn pos -> nth_candidate(indexed, total, pos) end)
     |> Enum.reject(&is_nil/1)
+  end
+
+  defp nth_candidate(indexed, total, pos) do
+    target = if pos > 0, do: pos, else: total + pos + 1
+
+    case Enum.find(indexed, fn {_c, i} -> i == target end) do
+      {candidate, _i} -> candidate
+      nil -> nil
+    end
   end
 
   ## ------------------------------------------------------------
@@ -1062,15 +1066,23 @@ defmodule Tempo.RRule.Selection do
 
   defp expand_or_limit_time(candidates, unit, values, freq) do
     if Map.get(@unit_weight, freq, 0) < Map.get(@unit_weight, unit, 0) do
-      Enum.flat_map(candidates, fn candidate ->
-        Enum.map(values, fn value -> set_time_unit(candidate, unit, value) end)
-      end)
+      expand_time(candidates, unit, values)
     else
-      Enum.filter(candidates, fn candidate ->
-        current = get_time_unit(candidate, unit)
-        is_integer(current) and current in values
-      end)
+      limit_time(candidates, unit, values)
     end
+  end
+
+  defp expand_time(candidates, unit, values) do
+    Enum.flat_map(candidates, fn candidate ->
+      Enum.map(values, fn value -> set_time_unit(candidate, unit, value) end)
+    end)
+  end
+
+  defp limit_time(candidates, unit, values) do
+    Enum.filter(candidates, fn candidate ->
+      current = get_time_unit(candidate, unit)
+      is_integer(current) and current in values
+    end)
   end
 
   defp get_time_unit(%Interval{from: %Tempo{time: time}}, unit), do: Keyword.get(time, unit)

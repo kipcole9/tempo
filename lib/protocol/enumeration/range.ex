@@ -67,13 +67,7 @@ defimpl Enumerable, for: Tempo.Interval do
 
     case Tempo.Interval.Steps.count_steps(from, to, unit, calendar) do
       n when is_integer(n) and n >= 0 ->
-        slicing =
-          fn start, length, step ->
-            for i <- start..(start + length - 1)//step,
-                do: Tempo.Interval.Steps.nth_step(from, i, unit, calendar)
-          end
-
-        {:ok, n, slicing}
+        {:ok, n, slicer(from, unit, calendar)}
 
       _ ->
         {:error, __MODULE__}
@@ -81,6 +75,13 @@ defimpl Enumerable, for: Tempo.Interval do
   end
 
   def slice(_interval), do: {:error, __MODULE__}
+
+  defp slicer(from, unit, calendar) do
+    fn start, length, step ->
+      for i <- start..(start + length - 1)//step,
+          do: Tempo.Interval.Steps.nth_step(from, i, unit, calendar)
+    end
+  end
 
   @impl Enumerable
   def reduce(%Tempo.Interval{from: :undefined, to: :undefined}, _acc, _fun) do

@@ -279,30 +279,26 @@ if Code.ensure_loaded?(ICal) do
                "value within which the recurrence will be materialised."
          )}
       else
-        with {:ok, base} <- single_event_to_interval(event) do
-          expander_opts =
-            []
-            |> maybe_put(:bound, Keyword.get(opts, :bound))
-            |> Keyword.put(:metadata, base.metadata)
-            |> Keyword.put(:base_to, base.to)
-
-          case Expander.expand(rule, base.from, expander_opts) do
-            {:ok, rrule_occurrences} ->
-              capped = Enum.take(rrule_occurrences, @safety_cap)
-
-              combined =
-                capped
-                |> apply_rdates(event, base)
-                |> apply_exdates(event)
-                |> sort_by_from()
-
-              {:ok, combined}
-
-            {:error, _} = err ->
-              err
-          end
+        with {:ok, base} <- single_event_to_interval(event),
+             {:ok, occurrences} <- Expander.expand(rule, base.from, expander_opts(opts, base)) do
+          {:ok, combine_occurrences(occurrences, event, base)}
         end
       end
+    end
+
+    defp expander_opts(opts, base) do
+      []
+      |> maybe_put(:bound, Keyword.get(opts, :bound))
+      |> Keyword.put(:metadata, base.metadata)
+      |> Keyword.put(:base_to, base.to)
+    end
+
+    defp combine_occurrences(occurrences, event, base) do
+      occurrences
+      |> Enum.take(@safety_cap)
+      |> apply_rdates(event, base)
+      |> apply_exdates(event)
+      |> sort_by_from()
     end
 
     defp maybe_put(keyword, _key, nil), do: keyword

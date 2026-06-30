@@ -349,10 +349,7 @@ defmodule Tempo.Validation do
       days_in_month = calendar.days_in_month(year, month)
 
       with {:ok, day} <- conform(day, 1..days_in_month) do
-        case resolve([{:day, day} | rest], calendar) do
-          {:error, reason} -> {:error, reason}
-          resolved -> [{:year, year}, {:month, month} | resolved]
-        end
+        prepend_year_month(year, month, resolve([{:day, day} | rest], calendar))
       end
     end
   end
@@ -630,6 +627,11 @@ defmodule Tempo.Validation do
 
   ### Helpers
 
+  defp prepend_year_month(_year, _month, {:error, reason}), do: {:error, reason}
+
+  defp prepend_year_month(year, month, resolved),
+    do: [{:year, year}, {:month, month} | resolved]
+
   def year_week_day(year, week, day, rest, :month, calendar) do
     # The week → date lookup must happen under ISOWeek semantics
     # regardless of the caller's month-based calendar. Under
@@ -644,10 +646,10 @@ defmodule Tempo.Validation do
     if day <= days_in_last_week do
       with {:ok, isoweek_date} <- Date.new(year, week, day, Calendrical.ISOWeek),
            {:ok, out_date} <- Date.convert(isoweek_date, calendar) do
-        case resolve([{:month, out_date.month}, {:day, out_date.day} | rest], calendar) do
-          {:error, reason} -> {:error, reason}
-          resolved -> [{:year, out_date.year} | resolved]
-        end
+        prepend_year(
+          out_date.year,
+          resolve([{:month, out_date.month}, {:day, out_date.day} | rest], calendar)
+        )
       end
     else
       {:error,
@@ -657,11 +659,11 @@ defmodule Tempo.Validation do
   end
 
   def year_week_day(year, week, day, rest, :week, calendar) do
-    case resolve([{:week, week}, {:day, day} | rest], calendar) do
-      {:error, reason} -> {:error, reason}
-      resolved -> [{:year, year} | resolved]
-    end
+    prepend_year(year, resolve([{:week, week}, {:day, day} | rest], calendar))
   end
+
+  defp prepend_year(_year, {:error, reason}), do: {:error, reason}
+  defp prepend_year(year, resolved), do: [{:year, year} | resolved]
 
   def year_and_month(years, month, calendar) do
     return =

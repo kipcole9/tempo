@@ -312,18 +312,17 @@ defmodule Tempo.Select do
     with {:ok, start_date} <- tempo_to_date(from, calendar),
          {:ok, end_date} <- tempo_to_date(to, calendar) do
       total = Date.diff(end_date, start_date)
-
-      Stream.unfold(0, fn i ->
-        if i < total do
-          d = Date.add(start_date, i)
-          {{d.year, d.month, d.day}, i + 1}
-        else
-          nil
-        end
-      end)
+      Stream.unfold(0, fn i -> next_day(i, total, start_date) end)
     else
       _ -> []
     end
+  end
+
+  defp next_day(i, total, _start_date) when i >= total, do: nil
+
+  defp next_day(i, _total, start_date) do
+    d = Date.add(start_date, i)
+    {{d.year, d.month, d.day}, i + 1}
   end
 
   defp tempo_to_date(%Tempo{time: time, calendar: calendar}, calendar) do

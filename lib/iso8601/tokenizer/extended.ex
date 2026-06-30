@@ -175,17 +175,17 @@ defmodule Tempo.Iso8601.Tokenizer.Extended do
   """
   def split_extended(tokens) do
     with {:ok, tokens} <- validate_embedded_extended(tokens) do
-      case List.pop_at(tokens, -1) do
-        {{:extended, segments}, rest} ->
-          with {:ok, extended} <- build_extended(segments) do
-            {:ok, {rest, extended}}
-          end
-
-        _ ->
-          {:ok, {tokens, nil}}
-      end
+      pop_trailing_extended(List.pop_at(tokens, -1), tokens)
     end
   end
+
+  defp pop_trailing_extended({{:extended, segments}, rest}, _tokens) do
+    with {:ok, extended} <- build_extended(segments) do
+      {:ok, {rest, extended}}
+    end
+  end
+
+  defp pop_trailing_extended(_popped, tokens), do: {:ok, {tokens, nil}}
 
   # Interval endpoints produced by `qualified_endpoint` may carry
   # per-endpoint `{:extended, raw_segments}` entries embedded in

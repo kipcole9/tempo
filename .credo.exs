@@ -146,9 +146,10 @@
           {Credo.Check.Refactor.MatchInCondition, []},
           {Credo.Check.Refactor.NegatedConditionsInUnless, []},
           {Credo.Check.Refactor.NegatedConditionsWithElse, []},
-          # depth 3 (vs. default 2): one level of with/case/if inside a
-          # parsing clause is normal here; depth 4+ still flags.
-          {Credo.Check.Refactor.Nesting, [max_nesting: 3]},
+          # Default depth (2). A `case`/`with` nested inside another
+          # `with`/`if` is extracted to a multi-head helper rather than
+          # tolerated — depth 3+ flags.
+          {Credo.Check.Refactor.Nesting, []},
           {Credo.Check.Refactor.RedundantWithClauseResult, []},
           {Credo.Check.Refactor.RejectReject, []},
           {Credo.Check.Refactor.UnlessWithElse, []},
