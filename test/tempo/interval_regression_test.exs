@@ -152,4 +152,31 @@ defmodule Tempo.IntervalRegressionTest do
       assert ~o"2018±2Y".time == [year: {2018, [margin_of_error: 2]}]
     end
   end
+
+  describe "significant digits (S) materialise as the value block, not a crash" do
+    # `1950S3` ("3 significant digits") denotes the block of values
+    # sharing those leading digits — the decade 1950..1959, exactly the
+    # mask `195X`. Before the fix it crashed the crisp machinery with an
+    # ArithmeticError; it now rewrites to the equivalent mask for crisp
+    # materialisation, and the `S` annotation is preserved on the value.
+    test "materialises to the same block interval as the equivalent mask" do
+      assert {:ok, block} = Tempo.to_interval(~o"1950S3")
+      assert {:ok, mask} = Tempo.to_interval(~o"195X")
+      assert block == mask
+      assert inspect(block) == ~S|~o"1950Y/1960Y"|
+    end
+
+    test "non-terminal significant digits widen to the block without crashing" do
+      assert Tempo.to_interval(~o"1950S2-06") == Tempo.to_interval(~o"19XX")
+    end
+
+    test "relation matches the equivalent mask" do
+      assert Tempo.relation(~o"1950S3", ~o"1965Y") ==
+               Tempo.relation(~o"195X", ~o"1965Y")
+    end
+
+    test "the S annotation is preserved on the value" do
+      assert ~o"1950S3".time == [year: {1950, [significant_digits: 3]}]
+    end
+  end
 end

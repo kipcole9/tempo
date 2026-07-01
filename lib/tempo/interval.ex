@@ -393,6 +393,8 @@ defmodule Tempo.Interval do
 
   """
   def next_unit_boundary(%Tempo{time: time, calendar: calendar} = tempo) do
+    time = significant_digits_as_mask(time)
+
     case List.last(time) do
       # A group at the finest unit — `20C` (century =
       # `{:group, 2000..2099}` on year), `201J` (decade), `1G6M`
@@ -565,6 +567,38 @@ defmodule Tempo.Interval do
   # A `Range` supplied by `Unit.implicit_enumerator/2` — we take
   # its first value as the unit's start-of-span.
   defp range_first(%Range{first: first}), do: first
+
+  # ISO 8601-2 significant digits (`1950S3`) denote the block of values
+  # sharing the leading `n` digits — `1950S3` is the decade `1950..1959`,
+  # exactly the mask `195X`. For crisp materialisation the annotation is
+  # rewritten to its equivalent mask so the existing mask-widening path
+  # (terminal, non-terminal, and negative alike) produces the enclosing
+  # span. The annotation is preserved on the original value — only this
+  # materialisation copy is rewritten. `n` covering every digit is a
+  # no-op (the value is already exact); other annotations are left as-is.
+  defp significant_digits_as_mask(time) do
+    Enum.map(time, fn
+      {unit, {value, options}} when is_list(options) and is_integer(value) ->
+        case Keyword.get(options, :significant_digits) do
+          n when is_integer(n) and n > 0 -> {unit, significant_digits_mask(value, n)}
+          _ -> {unit, {value, options}}
+        end
+
+      other ->
+        other
+    end)
+  end
+
+  defp significant_digits_mask(value, n) do
+    digits = Integer.digits(abs(value))
+
+    if n >= length(digits) do
+      value
+    else
+      masked = Enum.take(digits, n) ++ List.duplicate(:X, length(digits) - n)
+      if value < 0, do: {:mask, [:negative | masked]}, else: {:mask, masked}
+    end
+  end
 
   # Mask path: scan the time list for the first masked unit.
   # The rule:

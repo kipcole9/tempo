@@ -6,6 +6,8 @@
 
 * A margin-of-error value (`~o"2018±2Y"`) crashed `Tempo.relation/2`, `Tempo.to_interval/2`, and endpoint comparison with an `ArithmeticError`. The `±` annotation is now crisp-inert — dropped for materialisation and comparison, preserved on the value — so a `±`-bearing value behaves identically to its crisp core (margin-aware graded relations are a future step).
 
+* A significant-digits value (`~o"1950S3"`) crashed `Tempo.to_interval/2` and `Tempo.relation/2` with an `ArithmeticError`. It now materialises to the block of values sharing its leading digits — `1950S3` spans `~o"1950Y/1960Y"`, identical to the equivalent mask `195X` — and the `S` annotation is preserved on the value.
+
 ## [v0.11.0] — 2026-07-01
 
 ### Changed
