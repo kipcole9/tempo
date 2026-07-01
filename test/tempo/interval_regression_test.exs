@@ -124,4 +124,32 @@ defmodule Tempo.IntervalRegressionTest do
       assert inspect(interval) == ~S|~o"P1D/2022Y1M1D"|
     end
   end
+
+  describe "margin of error (±) is crisp-inert, not a crash" do
+    # Before the fix, a validly-parsed `±` value crashed the crisp
+    # machinery with an ArithmeticError (the boundary/comparison
+    # primitives did arithmetic on the `{value, [margin_of_error: n]}`
+    # tuple). The margin is dropped for crisp materialisation and
+    # comparison, and preserved on the value. See
+    # plans/uncertainty-roadmap.md.
+    test "to_interval materialises a ±-bearing value to its crisp span" do
+      assert {:ok, iv} = Tempo.to_interval(~o"2018±2Y")
+      assert {:ok, crisp} = Tempo.to_interval(~o"2018Y")
+      assert iv == crisp
+    end
+
+    test "relation ignores ± on bare values and on interval endpoints" do
+      assert Tempo.relation(~o"2018±2Y", ~o"2019Y") == :meets
+
+      assert Tempo.relation(~o"2018±2Y", ~o"2019Y") ==
+               Tempo.relation(~o"2018Y", ~o"2019Y")
+
+      assert Tempo.relation(~o"2018±2Y/2020±2Y", ~o"2019Y") ==
+               Tempo.relation(~o"2018Y/2020Y", ~o"2019Y")
+    end
+
+    test "the ± annotation is preserved on the value" do
+      assert ~o"2018±2Y".time == [year: {2018, [margin_of_error: 2]}]
+    end
+  end
 end

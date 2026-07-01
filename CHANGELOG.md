@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.11.1] — 2026-07-01
+
+### Fixed
+
+* A margin-of-error value (`~o"2018±2Y"`) crashed `Tempo.relation/2`, `Tempo.to_interval/2`, and endpoint comparison with an `ArithmeticError`. The `±` annotation is now crisp-inert — dropped for materialisation and comparison, preserved on the value — so a `±`-bearing value behaves identically to its crisp core (margin-aware graded relations are a future step).
+
 ## [v0.11.0] — 2026-07-01
 
 ### Changed

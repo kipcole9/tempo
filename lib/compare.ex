@@ -152,6 +152,9 @@ defmodule Tempo.Compare do
   """
   @spec compare_endpoints(Tempo.t(), Tempo.t()) :: :earlier | :later | :same
   def compare_endpoints(%Tempo{} = a, %Tempo{} = b) do
+    a = %{a | time: drop_margin_of_error(a.time)}
+    b = %{b | time: drop_margin_of_error(b.time)}
+
     if zones_compatible?(a, b) do
       case compare_time(a.time, b.time) do
         :lt -> :earlier
@@ -161,6 +164,31 @@ defmodule Tempo.Compare do
     else
       compare_via_utc(a, b)
     end
+  end
+
+  @doc """
+  Drop the `margin_of_error` annotation from every component of a time
+  keyword list.
+
+  A margin of error (`2018±2`) is a crisp-inert uncertainty annotation
+  stored as `{value, [margin_of_error: n]}`. Crisp comparison and
+  materialisation operate on plain integers, so the annotation is dropped
+  before those operations (leaving any other annotation, e.g.
+  `significant_digits`, untouched). The margin is preserved on the caller's
+  original value — only the comparison/materialisation copy is reduced to
+  its crisp core. Graded, margin-aware relations are a future step.
+  """
+  def drop_margin_of_error(time) do
+    Enum.map(time, fn
+      {unit, {value, options}} when is_list(options) ->
+        case Keyword.delete(options, :margin_of_error) do
+          [] -> {unit, value}
+          remaining -> {unit, {value, remaining}}
+        end
+
+      other ->
+        other
+    end)
   end
 
   # Two Tempos are zone-compatible when they carry the same

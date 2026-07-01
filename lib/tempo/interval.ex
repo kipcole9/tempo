@@ -525,6 +525,8 @@ defmodule Tempo.Interval do
   # for the upper bound.
 
   defp concrete_boundary(%Tempo{time: time, calendar: calendar} = tempo, calendar) do
+    time = Compare.drop_margin_of_error(time)
+
     case List.last(time) do
       # Sub-second resolution is the finest unit and cannot drill into a
       # finer one, so the lower bound is the value as-is and the upper
