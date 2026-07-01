@@ -1379,7 +1379,6 @@ defmodule Tempo.Interval do
       iex> iv = %Tempo.Interval{from: ~o"2026-06-15T09", to: ~o"2026-06-15T11"}
       iex> Tempo.Interval.at_least?(iv, ~o"PT1H")
       true
-
       iex> Tempo.Interval.at_least?(iv, ~o"PT3H")
       false
 
@@ -1404,7 +1403,6 @@ defmodule Tempo.Interval do
       iex> iv = %Tempo.Interval{from: ~o"2026-06-15T09", to: ~o"2026-06-15T10"}
       iex> Tempo.Interval.at_most?(iv, ~o"PT1H")
       true
-
       iex> Tempo.Interval.at_most?(iv, ~o"PT30M")
       false
 
@@ -1428,7 +1426,6 @@ defmodule Tempo.Interval do
       iex> iv = %Tempo.Interval{from: ~o"2026-06-15T09", to: ~o"2026-06-15T10"}
       iex> Tempo.Interval.exactly?(iv, ~o"PT1H")
       true
-
       iex> Tempo.Interval.exactly?(iv, ~o"PT2H")
       false
 
@@ -1450,7 +1447,6 @@ defmodule Tempo.Interval do
       iex> iv = %Tempo.Interval{from: ~o"2026-06-15T09", to: ~o"2026-06-15T11"}
       iex> Tempo.Interval.longer_than?(iv, ~o"PT1H")
       true
-
       iex> Tempo.Interval.longer_than?(iv, ~o"PT2H")
       false
 
@@ -1472,7 +1468,6 @@ defmodule Tempo.Interval do
       iex> iv = %Tempo.Interval{from: ~o"2026-06-15T09", to: ~o"2026-06-15T10"}
       iex> Tempo.Interval.shorter_than?(iv, ~o"PT2H")
       true
-
       iex> Tempo.Interval.shorter_than?(iv, ~o"PT1H")
       false
 
@@ -1551,7 +1546,6 @@ defmodule Tempo.Interval do
       iex> window = %Tempo.Interval{from: ~o"2026-06-15T09", to: ~o"2026-06-15T17"}
       iex> Tempo.Interval.within?(a, window)
       true
-
       iex> # Candidate shares the window's start — still inside
       iex> a2 = %Tempo.Interval{from: ~o"2026-06-15T09", to: ~o"2026-06-15T10"}
       iex> Tempo.Interval.within?(a2, window)
@@ -1566,5 +1560,300 @@ defmodule Tempo.Interval do
       r when is_atom(r) -> r in allowed_relations
       _ -> false
     end
+  end
+
+  # ------------------------------------------------------------------
+  # Graded relations over ±-bearing intervals (ISO 8601-2 margin-of-error)
+  #
+  # A margin widens each endpoint into a range; comparing two ranges
+  # yields the *set* of orderings (:earlier/:same/:later) they could
+  # stand in, and running the crisp `classify_relation/4` table over the
+  # cartesian product yields every Allen relation the two values could
+  # satisfy. A concept (overlaps, within, …) is a set of relations, and
+  # its certainty is set containment: possible ⊆ concept → :certain;
+  # possible ∩ concept = ∅ → :impossible; otherwise → :possible.
+  #
+  # Endpoints are treated independently, which for a rigidly-shifting ±
+  # value is a *sound over-approximation*: `:certain`/`:impossible` are
+  # never wrong; the verdict only ever errs toward `:possible`. Crisp
+  # operands widen to points, so every concept degrades exactly to its
+  # boolean predicate (`certainly_within?/2 == within?/2`).
+
+  @intersecting_relations MapSet.new([
+                            :overlaps,
+                            :overlapped_by,
+                            :starts,
+                            :started_by,
+                            :during,
+                            :contains,
+                            :finishes,
+                            :finished_by,
+                            :equals
+                          ])
+
+  @within_relations MapSet.new([:equals, :starts, :during, :finishes])
+
+  @typedoc "A three-valued relation certainty."
+  @type certainty :: :certain | :possible | :impossible
+
+  @doc """
+  The certainty that `a` and `b` intersect, given their `±` margins.
+
+  The three-valued counterpart of `overlaps?/2`. Each margin-bearing
+  endpoint is widened into a range, and the result reports whether
+  intersection holds for every consistent placement (`:certain`), some
+  (`:possible`), or none (`:impossible`). Crisp operands degrade exactly
+  to `overlaps?/2` (only `:certain`/`:impossible` occur).
+
+  ### Arguments
+
+  * `a` and `b` are each a bounded `t:Tempo.t/0`, `t:Tempo.Interval.t/0`,
+    or single-member `t:Tempo.IntervalSet.t/0`.
+
+  ### Returns
+
+  * `:certain`, `:possible`, or `:impossible`.
+
+  * `{:error, reason}` when either operand is open-ended or a
+    multi-member set.
+
+  ### Examples
+
+      iex> Tempo.Interval.overlap_certainty(~o"2000±1Y", ~o"2010±1Y")
+      :impossible
+
+      iex> Tempo.Interval.overlap_certainty(~o"2000±1Y", ~o"2001±1Y")
+      :possible
+
+      iex> Tempo.Interval.overlap_certainty(~o"2000Y", ~o"2000Y")
+      :certain
+
+  """
+  @spec overlap_certainty(interval_like(), interval_like()) :: certainty() | {:error, term()}
+  def overlap_certainty(a, b), do: concept_certainty(a, b, @intersecting_relations)
+
+  @doc """
+  The certainty that `a` falls within `b`, given their `±` margins.
+
+  The three-valued counterpart of `within?/2` (Allen `:equals | :starts
+  | :during | :finishes`). Crisp operands degrade exactly to `within?/2`.
+
+  ### Arguments
+
+  * `a` and `b` are each a bounded `t:Tempo.t/0`, `t:Tempo.Interval.t/0`,
+    or single-member `t:Tempo.IntervalSet.t/0`.
+
+  ### Returns
+
+  * `:certain`, `:possible`, or `:impossible`.
+
+  * `{:error, reason}` for open-ended or multi-member operands.
+
+  ### Examples
+
+      iex> Tempo.Interval.within_certainty(~o"2000Y6M", ~o"2000Y")
+      :certain
+
+      iex> Tempo.Interval.within_certainty(~o"2000±1Y", ~o"2000Y")
+      :possible
+
+  """
+  @spec within_certainty(interval_like(), interval_like()) :: certainty() | {:error, term()}
+  def within_certainty(a, b), do: concept_certainty(a, b, @within_relations)
+
+  @doc """
+  The certainty that `relation(a, b)` is (one of) `target`.
+
+  Certainty is containment of the possible relations in `target`.
+
+  ### Arguments
+
+  * `a` and `b` are bounded interval-like values.
+
+  * `target` is a single Allen relation atom (e.g. `:during`) or a list
+    of relation atoms.
+
+  ### Returns
+
+  * `:certain`, `:possible`, or `:impossible`.
+
+  * `{:error, reason}` for open-ended or multi-member operands.
+
+  ### Examples
+
+      iex> Tempo.Interval.relation_certainty(~o"2000±1Y", ~o"2010±1Y", :precedes)
+      :certain
+
+      iex> Tempo.Interval.relation_certainty(~o"2000Y", ~o"2000Y", :equals)
+      :certain
+
+  """
+  @spec relation_certainty(interval_like(), interval_like(), relation() | [relation()]) ::
+          certainty() | {:error, term()}
+  def relation_certainty(a, b, target) when is_atom(target),
+    do: concept_certainty(a, b, MapSet.new([target]))
+
+  def relation_certainty(a, b, target) when is_list(target),
+    do: concept_certainty(a, b, MapSet.new(target))
+
+  @doc """
+  `true` when `a` and `b` intersect for *every* placement of their `±`
+  margins — `overlap_certainty(a, b) == :certain`. Crisp counterpart:
+  `overlaps?/2`.
+
+  ### Examples
+
+      iex> Tempo.Interval.certainly_overlaps?(~o"2000Y", ~o"2000Y")
+      true
+
+      iex> Tempo.Interval.certainly_overlaps?(~o"2000±1Y", ~o"2001±1Y")
+      false
+
+  """
+  @spec certainly_overlaps?(interval_like(), interval_like()) :: boolean()
+  def certainly_overlaps?(a, b), do: overlap_certainty(a, b) == :certain
+
+  @doc """
+  `true` when `a` and `b` *could* intersect for some placement of their
+  `±` margins — `overlap_certainty/2` is `:certain` or `:possible`.
+
+  ### Examples
+
+      iex> Tempo.Interval.possibly_overlaps?(~o"2000±1Y", ~o"2001±1Y")
+      true
+
+      iex> Tempo.Interval.possibly_overlaps?(~o"2000±1Y", ~o"2010±1Y")
+      false
+
+  """
+  @spec possibly_overlaps?(interval_like(), interval_like()) :: boolean()
+  def possibly_overlaps?(a, b), do: overlap_certainty(a, b) in [:certain, :possible]
+
+  @doc """
+  `true` when `a` falls within `b` for *every* placement of their `±`
+  margins. Crisp counterpart: `within?/2`.
+
+  ### Examples
+
+      iex> Tempo.Interval.certainly_within?(~o"2000Y6M", ~o"2000Y")
+      true
+
+  """
+  @spec certainly_within?(interval_like(), interval_like()) :: boolean()
+  def certainly_within?(a, b), do: within_certainty(a, b) == :certain
+
+  @doc """
+  `true` when `a` *could* fall within `b` for some placement of their
+  `±` margins.
+
+  ### Examples
+
+      iex> Tempo.Interval.possibly_within?(~o"2000±1Y", ~o"2000Y")
+      true
+
+  """
+  @spec possibly_within?(interval_like(), interval_like()) :: boolean()
+  def possibly_within?(a, b), do: within_certainty(a, b) in [:certain, :possible]
+
+  ## Graded-relation internals
+
+  defp concept_certainty(a, b, concept) do
+    case possible_relations(a, b) do
+      {:error, _} = error -> error
+      possible -> certainty(possible, concept)
+    end
+  end
+
+  defp certainty(possible, concept) do
+    cond do
+      MapSet.subset?(possible, concept) -> :certain
+      MapSet.disjoint?(possible, concept) -> :impossible
+      true -> :possible
+    end
+  end
+
+  # The set of Allen relations the two values could satisfy once their
+  # margins are taken into account. Internal: a sound over-approximation,
+  # not a tight conceptual neighbourhood.
+  defp possible_relations(a, b) do
+    with {:ok, {a_from, a_to}} <- endpoint_envelopes(a),
+         {:ok, {b_from, b_to}} <- endpoint_envelopes(b) do
+      end_to_start = compare_ranges(a_to, b_from)
+      start_to_end = compare_ranges(a_from, b_to)
+      starts = compare_ranges(a_from, b_from)
+      ends = compare_ranges(a_to, b_to)
+
+      for e_bs <- end_to_start,
+          s_be <- start_to_end,
+          s <- starts,
+          e <- ends,
+          into: MapSet.new(),
+          do: classify_relation(e_bs, s_be, s, e)
+    end
+  end
+
+  # value -> {from_range, to_range}, each a {lo, hi} of endpoint Tempos.
+  defp endpoint_envelopes(operand) do
+    case to_single_interval(operand, :graded) do
+      {:ok, %__MODULE__{from: from_endpoint, to: to_endpoint}} ->
+        {from_margin, to_margin} = endpoint_margins(operand)
+        {:ok, {widen(from_endpoint, from_margin), widen(to_endpoint, to_margin)}}
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  # A single ±-value's margin applies to both endpoints; an explicit
+  # interval carries a margin per endpoint.
+  defp endpoint_margins(%Tempo{} = value) do
+    margin = margin_duration(value)
+    {margin, margin}
+  end
+
+  defp endpoint_margins(%__MODULE__{from: from_endpoint, to: to_endpoint}) do
+    {margin_duration(from_endpoint), margin_duration(to_endpoint)}
+  end
+
+  defp endpoint_margins(%IntervalSet{intervals: [interval]}), do: endpoint_margins(interval)
+
+  defp endpoint_margins(_operand), do: {nil, nil}
+
+  # The ± margin of a value as a Duration, or nil when crisp.
+  defp margin_duration(%Tempo{time: time}) do
+    Enum.find_value(time, fn
+      {unit, {value, options}} when is_integer(value) and is_list(options) ->
+        case Keyword.get(options, :margin_of_error) do
+          nil -> nil
+          margin -> Duration.new!([{unit, margin}])
+        end
+
+      _ ->
+        nil
+    end)
+  end
+
+  defp margin_duration(_endpoint), do: nil
+
+  defp widen(endpoint, nil), do: {endpoint, endpoint}
+
+  defp widen(endpoint, %Duration{} = margin) do
+    {Math.subtract(endpoint, margin), Math.add(endpoint, margin)}
+  end
+
+  # Which of :earlier/:same/:later two endpoint ranges could stand in:
+  # earlier possible when a_lo < b_hi, later when a_hi > b_lo, same when
+  # the ranges intersect.
+  defp compare_ranges({a_lo, a_hi}, {b_lo, b_hi}) do
+    lo_vs_hi = Compare.compare_endpoints(a_lo, b_hi)
+
+    earlier? = lo_vs_hi == :earlier
+    later? = Compare.compare_endpoints(a_hi, b_lo) == :later
+    same? = lo_vs_hi != :later and Compare.compare_endpoints(b_lo, a_hi) != :later
+
+    for {possible?, ordering} <- [{earlier?, :earlier}, {same?, :same}, {later?, :later}],
+        possible?,
+        into: MapSet.new(),
+        do: ordering
   end
 end

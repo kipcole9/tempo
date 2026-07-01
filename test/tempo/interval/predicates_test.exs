@@ -361,4 +361,58 @@ defmodule Tempo.Interval.PredicatesTest do
                :undefined
     end
   end
+
+  describe "graded relations over ±-bearing intervals" do
+    test "overlap_certainty is three-valued (the step-0 oracle)" do
+      # Disjoint even at closest drift, overlapping regardless, and the
+      # borderline where the margins make overlap possible-but-not-sure.
+      assert Interval.overlap_certainty(~o"2000±1Y", ~o"2010±1Y") == :impossible
+      assert Interval.overlap_certainty(~o"2000±1Y", ~o"2001±1Y") == :possible
+
+      wide = Interval.new!(from: ~o"1990", to: ~o"2010")
+      assert Interval.overlap_certainty(~o"2000±1Y", wide) == :certain
+    end
+
+    test "within_certainty is three-valued" do
+      assert Interval.within_certainty(~o"2000Y6M", ~o"2000Y") == :certain
+      assert Interval.within_certainty(~o"2000±1Y", ~o"2000Y") == :possible
+      assert Interval.within_certainty(~o"2000±1Y", ~o"2010Y") == :impossible
+    end
+
+    test "relation_certainty accepts an atom or a list of relations" do
+      assert Interval.relation_certainty(~o"2000±1Y", ~o"2010±1Y", :precedes) == :certain
+      assert Interval.relation_certainty(~o"2000Y", ~o"2000Y", :equals) == :certain
+      assert Interval.relation_certainty(~o"2000Y", ~o"2000Y", [:equals, :during]) == :certain
+    end
+
+    test "modal predicates read off the certainty" do
+      assert Interval.certainly_overlaps?(~o"2000Y", ~o"2000Y")
+      refute Interval.certainly_overlaps?(~o"2000±1Y", ~o"2001±1Y")
+      assert Interval.possibly_overlaps?(~o"2000±1Y", ~o"2001±1Y")
+      refute Interval.possibly_overlaps?(~o"2000±1Y", ~o"2010±1Y")
+    end
+
+    test "crisp operands degrade exactly to the boolean predicates" do
+      crisp_pairs = [
+        {~o"2000Y", ~o"2000Y"},
+        {~o"2000Y", ~o"2001Y"},
+        {~o"2000Y6M", ~o"2000Y"},
+        {~o"2005Y", ~o"2000Y"},
+        {~o"2000Y", ~o"2000Y6M"}
+      ]
+
+      for {a, b} <- crisp_pairs do
+        assert Interval.certainly_overlaps?(a, b) == Tempo.overlaps?(a, b)
+        assert Interval.certainly_within?(a, b) == Tempo.within?(a, b)
+        # A crisp verdict is never merely :possible.
+        assert Interval.overlap_certainty(a, b) in [:certain, :impossible]
+      end
+    end
+
+    test "open-ended and multi-member operands return an error" do
+      open = %Interval{from: ~o"2000", to: :undefined}
+      assert {:error, _} = Interval.overlap_certainty(open, ~o"2000Y")
+      refute Interval.certainly_overlaps?(open, ~o"2000Y")
+    end
+  end
 end

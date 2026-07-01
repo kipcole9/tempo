@@ -1,5 +1,15 @@
 # Changelog
 
+## [v0.12.0] — 2026-07-02
+
+### Added
+
+* Graded relations over `±` margin-of-error intervals: `Tempo.overlap_certainty/2`, `within_certainty/2`, and modal predicate pairs (`certainly_overlaps?/2`, `possibly_overlaps?/2`, …) answer Allen-relation queries three-valued (`:certain | :possible | :impossible`). Crisp intervals degrade exactly to the existing boolean predicates.
+
+### Fixed
+
+* `Tempo.shift/2` and `Tempo.Math.add/2` / `subtract/2` no longer crash on margin-of-error (`±`) or significant-digits (`S`) values; the annotation now rides along with the shifted component (`Tempo.shift(~o"2018±2Y", ~o"P1Y") == ~o"2019±2Y"`), completing the crisp-inert treatment begun in 0.11.1.
+
 ## [v0.11.1] — 2026-07-01
 
 ### Fixed

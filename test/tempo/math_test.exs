@@ -172,5 +172,14 @@ defmodule Tempo.Math.Test do
       result = Math.add(source, ~o"PT1H")
       assert result.extended == source.extended
     end
+
+    test "margin-of-error (±) rides along with the shifted component (formerly crashed)" do
+      assert Math.add(~o"2018±2Y", ~o"P1Y") == ~o"2019±2Y"
+      assert Math.subtract(~o"2000±1Y", ~o"P1Y") == ~o"1999±1Y"
+    end
+
+    test "significant-digits (S) is preserved across arithmetic (formerly crashed)" do
+      assert Math.add(~o"1950S3", ~o"P1Y") == ~o"1951S3"
+    end
   end
 end

@@ -3919,6 +3919,48 @@ defmodule Tempo do
   defdelegate within?(a, b), to: Tempo.Interval
 
   @doc """
+  The three-valued certainty that `a` and `b` intersect, given their
+  `±` margins. See `Tempo.Interval.overlap_certainty/2`.
+  """
+  defdelegate overlap_certainty(a, b), to: Tempo.Interval
+
+  @doc """
+  The three-valued certainty that `a` falls within `b`, given their
+  `±` margins. See `Tempo.Interval.within_certainty/2`.
+  """
+  defdelegate within_certainty(a, b), to: Tempo.Interval
+
+  @doc """
+  The three-valued certainty that `relation(a, b)` is (one of) `target`.
+  See `Tempo.Interval.relation_certainty/3`.
+  """
+  defdelegate relation_certainty(a, b, target), to: Tempo.Interval
+
+  @doc """
+  `true` when `a` and `b` intersect for *every* placement of their `±`
+  margins. See `Tempo.Interval.certainly_overlaps?/2`.
+  """
+  defdelegate certainly_overlaps?(a, b), to: Tempo.Interval
+
+  @doc """
+  `true` when `a` and `b` *could* intersect for some placement of their
+  `±` margins. See `Tempo.Interval.possibly_overlaps?/2`.
+  """
+  defdelegate possibly_overlaps?(a, b), to: Tempo.Interval
+
+  @doc """
+  `true` when `a` falls within `b` for *every* placement of their `±`
+  margins. See `Tempo.Interval.certainly_within?/2`.
+  """
+  defdelegate certainly_within?(a, b), to: Tempo.Interval
+
+  @doc """
+  `true` when `a` *could* fall within `b` for some placement of their
+  `±` margins. See `Tempo.Interval.possibly_within?/2`.
+  """
+  defdelegate possibly_within?(a, b), to: Tempo.Interval
+
+  @doc """
   Narrow a Tempo span by a selector — the composition primitive
   for "workdays of June", "the 15th of every month", and similar
   queries.

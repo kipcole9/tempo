@@ -430,12 +430,53 @@ defmodule Tempo.Math do
   """
   @spec add(Tempo.t(), Tempo.Duration.t()) :: Tempo.t()
   def add(%Tempo{} = tempo, %Tempo.Duration{time: duration_time}) do
+    # ISO 8601-2 margin-of-error (`±`) and significant-digits (`S`)
+    # annotations ride on a component value as `{integer, keyword}`.
+    # They are crisp-inert for arithmetic, so peel them off before the
+    # duration is applied and re-attach each to its (shifted) component
+    # afterwards — `Tempo.shift(~o"2018±2Y", ~o"P1Y") == ~o"2019±2Y"`
+    # rather than crashing the integer arithmetic on the tuple.
+    {crisp_time, annotations} = strip_component_annotations(tempo.time)
+
     tempo =
-      tempo
+      %{tempo | time: crisp_time}
       |> ensure_resolution_for_duration(duration_time)
 
     duration_time = normalise_duration(duration_time)
-    apply_duration(tempo, duration_time)
+
+    tempo
+    |> apply_duration(duration_time)
+    |> Map.update!(:time, &reapply_component_annotations(&1, annotations))
+  end
+
+  # Peel `{integer, keyword}` value annotations (margin-of-error,
+  # significant-digits) into a `%{unit => keyword}` map, leaving the
+  # crisp integer in the time. Masks (`{:mask, list}`) and microsecond
+  # `{value, precision}` values are untouched — only an integer value
+  # with a keyword-list tail is an annotation.
+  defp strip_component_annotations(time) do
+    Enum.map_reduce(time, %{}, fn
+      {unit, {value, opts}}, annotations when is_integer(value) and is_list(opts) ->
+        {{unit, value}, Map.put(annotations, unit, opts)}
+
+      entry, annotations ->
+        {entry, annotations}
+    end)
+  end
+
+  defp reapply_component_annotations(time, annotations) when annotations == %{}, do: time
+
+  defp reapply_component_annotations(time, annotations) do
+    Enum.map(time, fn
+      {unit, value} = entry when is_integer(value) ->
+        case annotations do
+          %{^unit => opts} -> {unit, {value, opts}}
+          _ -> entry
+        end
+
+      entry ->
+        entry
+    end)
   end
 
   @doc """
