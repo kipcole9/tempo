@@ -57,7 +57,7 @@ Tempo.explain(rule)                 #=> "An unbounded recurrence. … Selects: o
 Tempo.IntervalSet.to_list(months)   #=> the 12 second-Mondays
 ```
 
-> *"Parse the calendar rule into a recurring interval — `explain/1` reads it back in plain English so you can confirm the pattern — then **materialise** it bounded to 2025."* For a simple period (no BY-rules) skip RRULE entirely: `Tempo.Interval.new!(from: dtstart, duration: ~o"P1W", recurrence: :infinity)`. Prefer RRULE (or `Cron.parse!/2`) over hand-writing the native `~o"R/…/FL…N"` selection — it's easier to read and always round-trips.
+> *"Parse the calendar rule into a recurring interval — `explain/1` reads it back in plain English so you can confirm the pattern — then **materialise** it bounded to 2025."* For a simple period (no BY-rules) skip RRULE entirely: `Tempo.Interval.new!(from: dtstart, duration: ~o"P1W", recurrence: :infinity)`. RRULE and `Cron.parse!/2` are convenient front-doors; each compiles to a native ISO 8601 recurring interval — `inspect/1` shows the canonical `~o"R/…/FL…N"` form, which parses straight back.
 
 ---
 

@@ -22,6 +22,8 @@
 
 * A recurrence selection written with an index range — e.g. `~o"R/2024-11-01/P1Y/FL11M{2..8}D2KN"` (US Election Day: the Tuesday on the 2nd–8th of November) — now materialises correctly instead of raising, so an inspected recurrence round-trips through the `~o` sigil. Range and explicit-list selections (`{2..8}` and `{2,3,4,5,6,7,8}`) are equivalent.
 
+* An ordinal `BYDAY` recurrence — "the 2nd Monday of the month" (`FREQ=MONTHLY;BYDAY=2MO`), including multi-weekday (`2MO,WE`) and negative-ordinal (`-1FR`, the last Friday) forms — now round-trips through its native ISO 8601-2 selection form: the parser folds the inspected `2I1K` instance-and-weekday notation back into the `:byday` selection, so re-parsing yields the identical value instead of one that selected *every* Monday.
+
 * `Tempo.explain/1` describes recurring intervals in plain English — the recurrence, its cadence, and its BY-rule selection rendered as prose (e.g. "in November, on the 2nd–8th, on a Tuesday") — instead of "a `Tempo.Interval` with an unusual shape".
 
 ## [v0.14.0] — 2026-07-02

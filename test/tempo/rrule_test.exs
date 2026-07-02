@@ -176,6 +176,27 @@ defmodule Tempo.RRuleTest do
       {:ok, rrule_ast} = RRule.parse("FREQ=YEARLY;BYMONTH=6")
       assert rrule_ast.repeat_rule.time == [selection: [month: 6]]
     end
+
+    test "an ordinal BYDAY round-trips through its native ISO 8601-2 form" do
+      # `inspect/1` renders `byday: [{2, 1}]` as `R/…/FL2I1KN`; the parser
+      # must fold `2I1K` back into the same `:byday` token — not leave it as
+      # raw `instance`/`day_of_week` tokens (which would select *every*
+      # Monday, not the *2nd*).
+      rrule = RRule.parse!("FREQ=MONTHLY;BYDAY=2MO", from: ~o"2025-01-01")
+
+      assert inspect(rrule) == ~s(~o"R/2025Y1M1D/P1M/FL2I1KN")
+      assert Tempo.from_iso8601("R/2025Y1M1D/P1M/FL2I1KN") == {:ok, rrule}
+      assert rrule.repeat_rule.time == [selection: [byday: [{2, 1}]]]
+    end
+
+    test "multi-weekday and multi-ordinal BYDAY round-trip too" do
+      for rule <- ["FREQ=MONTHLY;BYDAY=1MO,3MO", "FREQ=MONTHLY;BYDAY=2MO,WE"] do
+        rrule = RRule.parse!(rule, from: ~o"2025-01-01")
+        iso = inspect(rrule) |> String.replace(~s(~o"), "") |> String.trim_trailing(~s("))
+
+        assert Tempo.from_iso8601(iso) == {:ok, rrule}
+      end
+    end
   end
 
   describe "occurrence span matches the selection's resolution" do

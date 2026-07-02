@@ -112,38 +112,58 @@ defmodule Tempo.Iso8601.Unit do
     compare(unit1, unit2)
   end
 
-  # Returns a boolean depending on whether the units are
-  # in an appropriate order of increasing resolution
-
-  def ordered?([unit, :group | rest]) when is_atom(unit) do
-    ordered?([unit | rest])
+  # Returns a boolean depending on whether the units are in an appropriate
+  # order of increasing resolution. Two selection shapes need normalising
+  # first: `:instance` (the "Nth of" selector — `2I1K` is "the 2nd Monday")
+  # is not a time-scale unit but selects the weekday that follows it, so it
+  # is stripped; and a multi-weekday `BYDAY` (`2I1K3K` = "the 2nd Monday and
+  # every Wednesday") lands as consecutive `:day_of_week` entries at one
+  # resolution, so the run is collapsed to a single unit before the check.
+  def ordered?(units) when is_list(units) do
+    units
+    |> Enum.reject(&instance?/1)
+    |> collapse_weekday_run()
+    |> ordered_units?()
   end
 
-  def ordered?([unit, :select | rest]) when is_atom(unit) do
-    ordered?([unit | rest])
+  defp instance?(:instance), do: true
+  defp instance?({:instance, _value}), do: true
+  defp instance?(_other), do: false
+
+  defp collapse_weekday_run([{:day_of_week, _} = weekday, {:day_of_week, _} | rest]),
+    do: collapse_weekday_run([weekday | rest])
+
+  defp collapse_weekday_run([entry | rest]), do: [entry | collapse_weekday_run(rest)]
+  defp collapse_weekday_run([]), do: []
+
+  defp ordered_units?([unit, :group | rest]) when is_atom(unit) do
+    ordered_units?([unit | rest])
   end
 
-  def ordered?([unit, {:group, _value} | rest]) do
-    ordered?([unit | rest])
+  defp ordered_units?([unit, :select | rest]) when is_atom(unit) do
+    ordered_units?([unit | rest])
   end
 
-  def ordered?([unit, {:select, _value} | rest]) do
-    ordered?([unit | rest])
+  defp ordered_units?([unit, {:group, _value} | rest]) do
+    ordered_units?([unit | rest])
   end
 
-  def ordered?([unit_1, unit_2 | rest]) when is_atom(unit_1) and is_atom(unit_2) do
-    if compare(unit_1, unit_2) == :gt, do: ordered?([unit_2 | rest]), else: false
+  defp ordered_units?([unit, {:select, _value} | rest]) do
+    ordered_units?([unit | rest])
   end
 
-  def ordered?([{unit_1, _value_1}, {unit_2, _value_2} | rest]) do
-    if compare(unit_1, unit_2) == :gt, do: ordered?([unit_2 | rest]), else: false
+  defp ordered_units?([unit_1, unit_2 | rest]) when is_atom(unit_1) and is_atom(unit_2) do
+    if compare(unit_1, unit_2) == :gt, do: ordered_units?([unit_2 | rest]), else: false
   end
 
-  def ordered?([unit_1, {unit_2, _value_2} | rest]) when is_atom(unit_1) do
-    if compare(unit_1, unit_2) == :gt, do: ordered?([unit_2 | rest]), else: false
+  defp ordered_units?([{unit_1, _value_1}, {unit_2, _value_2} | rest]) do
+    if compare(unit_1, unit_2) == :gt, do: ordered_units?([unit_2 | rest]), else: false
   end
 
-  def ordered?([_unit]) do
-    true
+  defp ordered_units?([unit_1, {unit_2, _value_2} | rest]) when is_atom(unit_1) do
+    if compare(unit_1, unit_2) == :gt, do: ordered_units?([unit_2 | rest]), else: false
   end
+
+  defp ordered_units?([_unit]), do: true
+  defp ordered_units?([]), do: true
 end

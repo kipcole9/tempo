@@ -583,8 +583,8 @@ defmodule Tempo.Inspect do
   # so it is held as a `:byday` selection of `{ordinal, day_of_week}`
   # pairs. Render each pair in the instance (`I`) + day-of-week (`K`)
   # notation the selection grammar already uses; a `nil` ordinal is a
-  # plain day-of-week. Like the other `:selection` filters this is a
-  # readable inspection form, not a round-trippable one.
+  # plain day-of-week. The parser folds that same notation back into a
+  # `:byday` selection, so this inspection form round-trips.
   defp inspect_value({:byday, entries}) when is_list(entries) do
     Enum.map(entries, fn
       {nil, day} -> [inspect_list(day), ?K]
