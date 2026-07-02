@@ -520,19 +520,35 @@ defmodule Tempo.Iso8601.Parser do
     [reduce_list(first) | reduce_list(rest)]
   end
 
-  # Number or range list
+  # Number or range list. Sort ascending before consolidating so consecutive
+  # values merge into ranges — but only when every member is non-negative. A
+  # negative member is a sentinel (`BYMONTHDAY=1,-1` = the first and *last* day)
+  # or a BCE year, where position carries meaning, so the list is left in source
+  # order; sorting it would reorder occurrences and break round-tripping.
   def reduce_list(list) when is_list(list) do
     list
-    |> Enum.sort_by(fn
-      a when is_integer(a) -> a
-      %Range{} = a -> a.first
-    end)
+    |> sort_unless_signed()
     |> consolidate_ranges()
   end
 
   def reduce_list(other) do
     other
   end
+
+  defp sort_unless_signed(list) do
+    if Enum.any?(list, &signed_member?/1) do
+      list
+    else
+      Enum.sort_by(list, fn
+        a when is_integer(a) -> a
+        %Range{} = a -> a.first
+      end)
+    end
+  end
+
+  defp signed_member?(member) when is_integer(member), do: member < 0
+  defp signed_member?(%Range{first: first, last: last}), do: first < 0 or last < 0
+  defp signed_member?(_other), do: false
 
   # A repeat-rule selection built from RRULE/cron `BY…` parts holds raw integer
   # lists (`BYDAY=MO,TU,WE,TH,FR` → `[1, 2, 3, 4, 5]`). Parsing the same

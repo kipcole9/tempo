@@ -216,12 +216,14 @@ defmodule Tempo.RRuleTest do
       # BYYEARDAY uses the ISO `O` designator; BYSETPOS (`V`) and WKST (`Q`) are
       # Tempo project-specific designators — RFC 5545 features with no ISO form,
       # which previously crashed `to_iso8601/1`. Consecutive values consolidate
-      # to ranges and still round-trip.
+      # to ranges; a negative sentinel mixed with a positive (`BYMONTHDAY=1,-1`)
+      # keeps its source order rather than sorting. All still round-trip.
       rules = [
         "FREQ=YEARLY;BYYEARDAY=100",
         "FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1",
         "FREQ=WEEKLY;BYDAY=MO;WKST=SU",
-        "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR"
+        "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",
+        "FREQ=MONTHLY;BYMONTHDAY=1,-1"
       ]
 
       for rule <- rules do
