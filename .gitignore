@@ -28,9 +28,8 @@ tempo-*.tar
 # Mac artifact
 .DS_Store
 
-# Claude — ignore local settings/state, but track the distributable skill
-/.claude/*
-!/.claude/skills/
+# Claude (local settings/state; the distributable skill lives in skills/)
+.claude
 plans/
 
 # Mise and asdf

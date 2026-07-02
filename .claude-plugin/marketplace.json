@@ -1,0 +1,19 @@
+{
+  "name": "tempo-plugins",
+  "owner": {
+    "name": "Kip Cole",
+    "email": "kipcole9@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "tempo",
+      "source": "./",
+      "description": "Turn a natural-language date/time problem into correct, validated Tempo (Elixir) — ISO 8601 / IXDTF representation plus relations, set algebra, recurrence, scheduling, and constraint networks — and get a plain-language answer.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Kip Cole"
+      },
+      "repository": "https://github.com/kipcole9/tempo"
+    }
+  ]
+}

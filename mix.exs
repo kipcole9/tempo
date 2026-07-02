@@ -125,6 +125,7 @@ defmodule Tempo.MixProject do
       ],
       Guides: [
         "guides/when-to-use-tempo.md",
+        "guides/ai-assistance.md",
         "guides/interop.md",
         "guides/set-operations.md",
         "guides/uncertain-dates.md",
