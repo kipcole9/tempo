@@ -1755,6 +1755,63 @@ defmodule Tempo.Interval do
   @spec possibly_within?(interval_like(), interval_like()) :: boolean()
   def possibly_within?(a, b), do: within_certainty(a, b) in [:certain, :possible]
 
+  @doc """
+  `true` when `a` ends before `b` starts, with a gap (Allen `:precedes`),
+  for *every* placement of their `±` margins. Crisp counterpart:
+  `before?/2`.
+
+  ### Examples
+
+      iex> Tempo.Interval.certainly_before?(~o"2000±1Y", ~o"2010±1Y")
+      true
+
+      iex> Tempo.Interval.certainly_before?(~o"2000±1Y", ~o"2001±1Y")
+      false
+
+  """
+  @spec certainly_before?(interval_like(), interval_like()) :: boolean()
+  def certainly_before?(a, b), do: relation_certainty(a, b, :precedes) == :certain
+
+  @doc """
+  `true` when `a` *could* end before `b` starts for some placement of
+  their `±` margins.
+
+  ### Examples
+
+      iex> Tempo.Interval.possibly_before?(~o"2000±1Y", ~o"2001±1Y")
+      true
+
+  """
+  @spec possibly_before?(interval_like(), interval_like()) :: boolean()
+  def possibly_before?(a, b), do: relation_certainty(a, b, :precedes) in [:certain, :possible]
+
+  @doc """
+  `true` when `a` starts after `b` ends, with a gap (Allen
+  `:preceded_by`), for *every* placement of their `±` margins. Crisp
+  counterpart: `after?/2`.
+
+  ### Examples
+
+      iex> Tempo.Interval.certainly_after?(~o"2010±1Y", ~o"2000±1Y")
+      true
+
+  """
+  @spec certainly_after?(interval_like(), interval_like()) :: boolean()
+  def certainly_after?(a, b), do: relation_certainty(a, b, :preceded_by) == :certain
+
+  @doc """
+  `true` when `a` *could* start after `b` ends for some placement of
+  their `±` margins.
+
+  ### Examples
+
+      iex> Tempo.Interval.possibly_after?(~o"2001±1Y", ~o"2000±1Y")
+      true
+
+  """
+  @spec possibly_after?(interval_like(), interval_like()) :: boolean()
+  def possibly_after?(a, b), do: relation_certainty(a, b, :preceded_by) in [:certain, :possible]
+
   ## Graded-relation internals
 
   defp concept_certainty(a, b, concept) do
@@ -1772,10 +1829,104 @@ defmodule Tempo.Interval do
     end
   end
 
+  # Beyond this many candidate pairings, fall back to the sound
+  # endpoint-range over-approximation rather than enumerate. Covers
+  # margins up to ~±128 units on each operand exactly.
+  @max_placement_pairs 65_536
+
   # The set of Allen relations the two values could satisfy once their
-  # margins are taken into account. Internal: a sound over-approximation,
-  # not a tight conceptual neighbourhood.
+  # margins are taken into account. A `±m` value can sit at any integer
+  # offset `-m..+m` — rigidly, both endpoints moving together — so
+  # enumerating each operand's candidate placements and classifying every
+  # pairing yields the *exact* conceptual neighbourhood. For
+  # pathologically wide margins the pairing count is capped and we fall
+  # back to the sound (looser) endpoint-range method.
   defp possible_relations(a, b) do
+    with {:ok, a_places} <- placements(a),
+         {:ok, b_places} <- placements(b) do
+      classify_placements(a, b, a_places, b_places)
+    end
+  end
+
+  defp classify_placements(a, b, a_places, b_places) do
+    if length(a_places) * length(b_places) <= @max_placement_pairs do
+      for ia <- a_places, ib <- b_places, into: MapSet.new(), do: classify(ia, ib)
+    else
+      envelope_relations(a, b)
+    end
+  end
+
+  # Every crisp interval an operand could be, across its margin offsets.
+  # A bare `%Tempo{}` value shifts rigidly (one margin, both endpoints
+  # together); an explicit interval moves its endpoints independently
+  # (each by its own margin), keeping only the still-ordered pairings.
+  defp placements(%Tempo{} = value) do
+    case to_single_interval(value, :graded) do
+      {:ok, %__MODULE__{from: from, to: to}} ->
+        {:ok, rigid_placements(from, to, margin_spec(value))}
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  defp placements(%__MODULE__{from: %Tempo{} = from, to: %Tempo{} = to}) do
+    ordered =
+      for from_place <- offset_positions(from, margin_spec(from)),
+          to_place <- offset_positions(to, margin_spec(to)),
+          Compare.compare_endpoints(from_place, to_place) == :earlier do
+        %__MODULE__{from: from_place, to: to_place}
+      end
+
+    {:ok, ordered}
+  end
+
+  defp placements(%IntervalSet{intervals: [interval]}), do: placements(interval)
+
+  defp placements(operand), do: to_single_interval(operand, :graded)
+
+  defp rigid_placements(from, to, nil), do: [%__MODULE__{from: from, to: to}]
+
+  defp rigid_placements(from, to, {unit, margin}) do
+    for delta <- -margin..margin do
+      %__MODULE__{from: shift_by(from, unit, delta), to: shift_by(to, unit, delta)}
+    end
+  end
+
+  defp offset_positions(endpoint, nil), do: [endpoint]
+
+  defp offset_positions(endpoint, {unit, margin}) do
+    for delta <- -margin..margin, do: shift_by(endpoint, unit, delta)
+  end
+
+  defp shift_by(endpoint, _unit, 0), do: endpoint
+
+  defp shift_by(endpoint, unit, delta) when delta > 0,
+    do: Math.add(endpoint, Duration.new!([{unit, delta}]))
+
+  defp shift_by(endpoint, unit, delta) when delta < 0,
+    do: Math.subtract(endpoint, Duration.new!([{unit, -delta}]))
+
+  # The ± margin of a value as `{unit, amount}`, or nil when crisp.
+  defp margin_spec(%Tempo{time: time}) do
+    Enum.find_value(time, fn
+      {unit, {value, options}} when is_integer(value) and is_list(options) ->
+        case Keyword.get(options, :margin_of_error) do
+          nil -> nil
+          margin -> {unit, margin}
+        end
+
+      _ ->
+        nil
+    end)
+  end
+
+  # The sound over-approximation: treat each endpoint's uncertainty range
+  # independently. Looser than the placement enumeration (it ignores the
+  # rigid-shift linkage), but O(1) — used only as the wide-margin
+  # fallback. `:certain`/`:impossible` verdicts stay correct; it only
+  # ever errs toward `:possible`.
+  defp envelope_relations(a, b) do
     with {:ok, {a_from, a_to}} <- endpoint_envelopes(a),
          {:ok, {b_from, b_to}} <- endpoint_envelopes(b) do
       end_to_start = compare_ranges(a_to, b_from)

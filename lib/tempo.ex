@@ -3961,6 +3961,30 @@ defmodule Tempo do
   defdelegate possibly_within?(a, b), to: Tempo.Interval
 
   @doc """
+  `true` when `a` ends before `b` starts for *every* placement of their
+  `±` margins. See `Tempo.Interval.certainly_before?/2`.
+  """
+  defdelegate certainly_before?(a, b), to: Tempo.Interval
+
+  @doc """
+  `true` when `a` *could* end before `b` starts for some placement of
+  their `±` margins. See `Tempo.Interval.possibly_before?/2`.
+  """
+  defdelegate possibly_before?(a, b), to: Tempo.Interval
+
+  @doc """
+  `true` when `a` starts after `b` ends for *every* placement of their
+  `±` margins. See `Tempo.Interval.certainly_after?/2`.
+  """
+  defdelegate certainly_after?(a, b), to: Tempo.Interval
+
+  @doc """
+  `true` when `a` *could* start after `b` ends for some placement of
+  their `±` margins. See `Tempo.Interval.possibly_after?/2`.
+  """
+  defdelegate possibly_after?(a, b), to: Tempo.Interval
+
+  @doc """
   Narrow a Tempo span by a selector — the composition primitive
   for "workdays of June", "the 15th of every month", and similar
   queries.

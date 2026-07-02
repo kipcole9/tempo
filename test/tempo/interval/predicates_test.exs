@@ -414,5 +414,37 @@ defmodule Tempo.Interval.PredicatesTest do
       assert {:error, _} = Interval.overlap_certainty(open, ~o"2000Y")
       refute Interval.certainly_overlaps?(open, ~o"2000Y")
     end
+
+    test "before/after modal predicates" do
+      assert Interval.certainly_before?(~o"2000±1Y", ~o"2010±1Y")
+      refute Interval.certainly_before?(~o"2000±1Y", ~o"2001±1Y")
+      assert Interval.possibly_before?(~o"2000±1Y", ~o"2001±1Y")
+
+      assert Interval.certainly_after?(~o"2010±1Y", ~o"2000±1Y")
+      assert Interval.possibly_after?(~o"2001±1Y", ~o"2000±1Y")
+    end
+
+    test "before/after degrade exactly to the crisp before?/after?" do
+      crisp_pairs = [
+        {~o"2000Y", ~o"2005Y"},
+        {~o"2005Y", ~o"2000Y"},
+        {~o"2000Y", ~o"2000Y"},
+        {~o"2000Y", ~o"2001Y"}
+      ]
+
+      for {a, b} <- crisp_pairs do
+        assert Interval.certainly_before?(a, b) == Interval.before?(a, b)
+        assert Interval.certainly_after?(a, b) == Interval.after?(a, b)
+      end
+    end
+
+    test "verdicts use the exact neighbourhood, not the endpoint-range over-approximation" do
+      # Two width-1 year values can only stand in the five year-granularity
+      # relations. The exact placement enumeration knows this, so the target
+      # set is fully covered (`:certain`). An independent-endpoint envelope
+      # would spuriously admit overlaps/during/contains and report `:possible`.
+      year_relations = [:equals, :meets, :met_by, :precedes, :preceded_by]
+      assert Interval.relation_certainty(~o"2000±5Y", ~o"2000±5Y", year_relations) == :certain
+    end
   end
 end
