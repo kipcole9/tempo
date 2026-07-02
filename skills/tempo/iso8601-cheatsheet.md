@@ -72,7 +72,7 @@ A one-of set is epistemic: Tempo refuses to silently flatten it into a span, bec
 ## Advanced (see `guides/iso8601-conformance.md` for the code tables)
 
 * **Seasons / quarters / halves** — numeric sub-year codes (e.g. `2022-21` ≈ spring). Look up the exact code rather than guessing.
-* **Groups & selections** — `nGspanUNITU` groups and `L…N` selections (e.g. "the 4th Thursday") for calendrical patterns. Powerful but rarely hand-written; usually you reach these via the RRULE layer.
+* **Groups & selections** — `nGspanUNITU` groups and `L…N` selections express calendrical patterns natively: `~o"R/2025-01-01/P1M/FL2I1KN"` is "the 2nd Monday of every month" (`2I` = 2nd instance, `1K` = Monday). RRULE and cron compile to exactly this form and it round-trips, so `inspect/1` on any recurrence returns the canonical selection string.
 
 ## IXDTF suffixes (RFC 9557 extended info)
 
