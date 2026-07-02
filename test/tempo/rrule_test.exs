@@ -2,6 +2,7 @@ defmodule Tempo.RRuleTest do
   use ExUnit.Case, async: true
   import Tempo.Sigils
 
+  alias Tempo.IntervalSet
   alias Tempo.RRule
 
   # The purpose of this test suite is to validate that Tempo's
@@ -208,6 +209,6 @@ defmodule Tempo.RRuleTest do
 
   defp first_occurrence(value) do
     {:ok, set} = Tempo.to_interval(value, bound: ~o"2025")
-    set |> Tempo.IntervalSet.to_list() |> hd()
+    set |> IntervalSet.to_list() |> hd()
   end
 end
