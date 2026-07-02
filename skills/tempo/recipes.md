@@ -52,11 +52,12 @@ bookable =
 
 ```elixir
 rule = Tempo.RRule.parse!("FREQ=MONTHLY;BYDAY=2MO", from: ~o"2025-01-01")
+Tempo.explain(rule)                 #=> "An unbounded recurrence. … Selects: on the 2nd Monday. …"
 {:ok, months} = Tempo.to_interval(rule, bound: ~o"2025")
 Tempo.IntervalSet.to_list(months)   #=> the 12 second-Mondays
 ```
 
-> *"Parse the calendar rule into a recurring interval, then **materialise** it bounded to 2025."* For a simple period (no BY-rules) skip RRULE entirely: `Tempo.Interval.new!(from: dtstart, duration: ~o"P1W", recurrence: :infinity)`.
+> *"Parse the calendar rule into a recurring interval — `explain/1` reads it back in plain English so you can confirm the pattern — then **materialise** it bounded to 2025."* For a simple period (no BY-rules) skip RRULE entirely: `Tempo.Interval.new!(from: dtstart, duration: ~o"P1W", recurrence: :infinity)`. Prefer RRULE (or `Cron.parse!/2`) over hand-writing the native `~o"R/…/FL…N"` selection — it's easier to read and always round-trips.
 
 ---
 
@@ -120,9 +121,10 @@ net =
   |> Network.add_sequence([:k1, :k2])
   |> Network.add_relation(:starts_during, :s1, :k1)
 
-Tempo.Network.Solver.consistent?(net)          #=> true
+Tempo.Network.Solver.consistent?(net)               #=> true
+Tempo.Network.Solver.contemporaneity(net, :k1, :s1) #=> :certain  (S1 starts during K1's reign)
 {:ok, solved} = Tempo.Network.Solver.tighten(net)
-solved.periods[:s1].earliest_start             #=> a derived Tempo value
+solved.periods[:s1].earliest_start                  #=> a derived Tempo value
 ```
 
-> *"The kings reign in succession; stratum S1 starts during King K1. Is that jointly possible, and what does it pin down?"* `tighten/1` derives the narrowest start/end/duration for every period — even ones given no dates at all.
+> *"The kings reign in succession; stratum S1 starts during King K1. Do they overlap, is it jointly possible, and what does it pin down?"* `contemporaneity/3` answers "could these two have coexisted?" three-valued — `:certain`, `:possible`, or `:impossible` — read in constant time from the tightened network; `tighten/1` derives the narrowest start/end/duration for every period, even ones given no dates at all.
