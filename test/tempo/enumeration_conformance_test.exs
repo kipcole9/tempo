@@ -152,6 +152,16 @@ defmodule Tempo.EnumerationConformance.Test do
       assert {:ok, list} = take("XXXX")
       assert Enum.map(list, & &1.time) == [[year: 1000], [year: 1001], [year: 1002]]
     end
+
+    test "a day mask enumerates every valid day, including single digits (`2020-06-XX`)" do
+      tempo = Tempo.from_iso8601!("2020-06-XX")
+      days = tempo |> Enum.map(& &1.time[:day]) |> Enum.sort()
+
+      assert days == Enum.to_list(1..30)
+      # `count/1` must agree with the reduce-based walk, not the coarser
+      # block interval the mask materialises to.
+      assert Enum.count(tempo) == 30
+    end
   end
 
   ## Qualifications (expression + component).

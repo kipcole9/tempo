@@ -71,9 +71,14 @@ defmodule Tempo.Mask do
 
   def fill_unspecified(unit, mask, calendar, previous) when unit in [:month, :day] do
     [target_range] = fill_unspecified(unit, :any, calendar, previous)
+    width = length(mask)
 
+    # Months and days are zero-padded, so a single-digit candidate (day
+    # `5` → `05`) still matches a two-position `[:X, :X]` mask. Use the
+    # padded matcher rather than `matches_mask?/2` (which is exact-width,
+    # for years).
     Enum.reduce(target_range, [], fn candidate, acc ->
-      if matches_mask?(candidate, mask), do: [candidate | acc], else: acc
+      if padded_matches_mask?(candidate, mask, width), do: [candidate | acc], else: acc
     end)
   end
 
@@ -126,6 +131,18 @@ defmodule Tempo.Mask do
           previous :: keyword(),
           calendar :: module()
         ) :: [integer()]
+  # Year masks are digit-bounded — there is no calendar range for years —
+  # so their candidates come straight from the digit pattern.
+  def valid_values(:year, [:negative | rest], _previous, _calendar) do
+    {min, max} = mask_bounds(rest)
+    for candidate <- min..max, matches_mask?(candidate, rest), do: -candidate
+  end
+
+  def valid_values(:year, mask, _previous, _calendar) do
+    {min, max} = mask_bounds(mask)
+    Enum.filter(min..max, &matches_mask?(&1, mask))
+  end
+
   def valid_values(unit, mask, previous, calendar) do
     width = length(mask)
 
@@ -211,6 +228,10 @@ defmodule Tempo.Mask do
 
   def matches_mask?(_candidate, [:negative | _rest_mask]), do: false
 
+  # Years carry no leading zeros — a 2-digit `XX` year mask means 10..99,
+  # `XXXX` means 1000..9999 — so the candidate's digit count must equal
+  # the mask width exactly. (Months and days *are* zero-padded, but those
+  # go through `padded_matches_mask?/3`.)
   def matches_mask?(candidate, mask) do
     digits = Integer.digits(candidate)
     length(digits) == length(mask) and digits_equal_or_wildcard?(digits, mask)

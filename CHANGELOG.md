@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.13.0] — 2026-07-02
+
+### Fixed
+
+* `Tempo.shift/2`, `Tempo.Math.add/2` and `subtract/2` now support unspecified-digit masks instead of crashing, including masks spanning several components (`195X`, `2020-XX`, `19XX-XX`, `199X-06-XX`). A shift moves the value's block: a block-aligned single-year shift stays a mask (`195X` + `P10Y` → `196X`), a contiguous shift returns a one-of set (`195X` + `P1Y` → `~o"[1951Y..1960Y]"`), and a mask with a concrete component after it — which denotes *disjoint* spans — returns a coalesced IntervalSet (`199X-06-XX` + `P1Y` → the ten Junes of 1991–2000).
+
+* Fixed several long-standing mask bugs surfaced by the above: enumerating a month/day mask dropped single-digit values (`2020-06-XX` skipped days 1–9), `Enum.count/1` on a masked value returned the block count rather than the candidate count, and materialising a non-contiguous mask (`199X-06-XX`) raised instead of expanding to its disjoint intervals.
+
 ## [v0.12.0] — 2026-07-02
 
 ### Added

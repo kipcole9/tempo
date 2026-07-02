@@ -19,6 +19,11 @@ defmodule Tempo.MaskTest do
       assert Mask.valid_values(:hour, [1, :X], [], @cal) == Enum.to_list(10..19)
     end
 
+    test "year is digit-bounded, not calendar-bounded" do
+      assert Mask.valid_values(:year, [1, 9, 9, :X], [], @cal) == Enum.to_list(1990..1999)
+      assert Mask.valid_values(:year, [1, 9, :X, :X], [], @cal) == Enum.to_list(1900..1999)
+    end
+
     test "minute and second span 0..59" do
       assert Mask.valid_values(:minute, [:X, 5], [], @cal) == [5, 15, 25, 35, 45, 55]
       assert Mask.valid_values(:second, [3, :X], [], @cal) == Enum.to_list(30..39)

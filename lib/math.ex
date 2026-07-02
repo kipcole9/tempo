@@ -20,6 +20,9 @@ defmodule Tempo.Math do
 
   """
 
+  alias Tempo.IntervalSet
+  alias Tempo.Mask
+
   @doc """
   Advance a `%Tempo{}` or a keyword-list time representation by
   exactly one unit at the given resolution.
@@ -428,14 +431,41 @@ defmodule Tempo.Math do
       ~o"2022Y1M15D"
 
   """
-  @spec add(Tempo.t(), Tempo.Duration.t()) :: Tempo.t()
-  def add(%Tempo{} = tempo, %Tempo.Duration{time: duration_time}) do
-    # ISO 8601-2 margin-of-error (`±`) and significant-digits (`S`)
-    # annotations ride on a component value as `{integer, keyword}`.
-    # They are crisp-inert for arithmetic, so peel them off before the
-    # duration is applied and re-attach each to its (shifted) component
-    # afterwards — `Tempo.shift(~o"2018±2Y", ~o"P1Y") == ~o"2019±2Y"`
-    # rather than crashing the integer arithmetic on the tuple.
+  @spec add(Tempo.t(), Tempo.Duration.t()) :: Tempo.t() | Tempo.Set.t() | Tempo.IntervalSet.t()
+  def add(%Tempo{} = tempo, %Tempo.Duration{time: duration_time} = duration) do
+    masks = find_masks(tempo.time)
+
+    # Route to the mask path only when the shift actually reaches a mask.
+    # A shift coarser than every mask (or a value with no masks) never
+    # touches a masked component, so the crisp path shifts around them and
+    # keeps the masks intact (`2020-XX` + `P1Y` → `2021-XX`).
+    if Enum.any?(masks, fn {unit, _mask} -> duration_reaches?(duration_time, unit) end) do
+      shift_masked(tempo, masks, duration)
+    else
+      add_crisp(tempo, duration)
+    end
+  end
+
+  # Coarse → fine. A duration "reaches" a mask when it carries a
+  # non-zero component at the masked unit or finer (which is where the
+  # arithmetic reads or writes the masked value).
+  @unit_depth [year: 0, month: 1, week: 2, day: 2, hour: 3, minute: 4, second: 5, microsecond: 6]
+
+  defp duration_reaches?(duration_time, mask_unit) do
+    mask_depth = Keyword.fetch!(@unit_depth, mask_unit)
+
+    Enum.any?(duration_time, fn {unit, amount} ->
+      amount != 0 and Keyword.get(@unit_depth, unit, 0) >= mask_depth
+    end)
+  end
+
+  # The crisp arithmetic path. ISO 8601-2 margin-of-error (`±`) and
+  # significant-digits (`S`) annotations ride on a component value as
+  # `{integer, keyword}`; they are crisp-inert, so peel them off before
+  # the duration is applied and re-attach each to its (shifted) component
+  # afterwards — `Tempo.shift(~o"2018±2Y", ~o"P1Y") == ~o"2019±2Y"` rather
+  # than crashing the integer arithmetic on the tuple.
+  defp add_crisp(%Tempo{} = tempo, %Tempo.Duration{time: duration_time}) do
     {crisp_time, annotations} = strip_component_annotations(tempo.time)
 
     tempo =
@@ -447,6 +477,124 @@ defmodule Tempo.Math do
     tempo
     |> apply_duration(duration_time)
     |> Map.update!(:time, &reapply_component_annotations(&1, annotations))
+  end
+
+  # ------------------------------------------------------------------
+  # Unspecified-digit mask arithmetic
+  #
+  # A mask (`195X`, `2020-XX`, `19XX-XX`) denotes a *block* of candidate
+  # values. A shift moves the block: fill *every* mask to its min and max
+  # candidate, shift both crisply, then re-express the result. A
+  # block-aligned single-year shift stays a mask (`195X` + `P10Y` →
+  # `196X`); anything else becomes a one-of set spanning the shifted block
+  # (`195X` + `P1Y` → `~o"[1951Y..1960Y]"`).
+
+  # Masks are only resolved on units the arithmetic understands; a mask on
+  # any other unit falls through to the crisp path unchanged.
+  @maskable_units [:year, :month, :day, :hour, :minute, :second]
+
+  defp find_masks(time) do
+    Enum.flat_map(time, fn
+      {unit, {:mask, mask}} when is_list(mask) and unit in @maskable_units -> [{unit, mask}]
+      _ -> []
+    end)
+  end
+
+  defp shift_masked(%Tempo{time: time, calendar: calendar} = tempo, masks, duration) do
+    if trailing_masks?(time) do
+      # A contiguous (trailing) block shifts as a whole, so its min and
+      # max candidate bound it exactly.
+      first = add_crisp(%{tempo | time: fill_masks(time, calendar, :min)}, duration)
+      last = add_crisp(%{tempo | time: fill_masks(time, calendar, :max)}, duration)
+      remask_or_set(masks, first, last)
+    else
+      # A mask with a concrete component after it denotes *disjoint*
+      # blocks (`19XX-06-XX` is only the Junes), which a single range
+      # can't represent — shift each candidate and collect the exact
+      # spans into a coalesced IntervalSet.
+      shift_masked_disjoint(tempo, duration)
+    end
+  end
+
+  # Masks form a contiguous suffix — every component from the first mask
+  # onward is also masked. Such a value is a single block; a mask with a
+  # concrete component after it (`19XX-06-XX`) is not.
+  defp trailing_masks?(time) do
+    time
+    |> Enum.drop_while(fn {_unit, value} -> not match?({:mask, _mask}, value) end)
+    |> Enum.all?(fn {_unit, value} -> match?({:mask, _mask}, value) end)
+  end
+
+  defp shift_masked_disjoint(masked, duration) do
+    intervals =
+      Enum.map(masked, fn candidate ->
+        {:ok, interval} = Tempo.to_interval(add_crisp(candidate, duration))
+        interval
+      end)
+
+    {:ok, set} = IntervalSet.new(intervals)
+    IntervalSet.coalesce(set)
+  end
+
+  # Replace every masked component with its minimum (or maximum) candidate,
+  # coarse to fine so a sub-year mask sees the concrete coarser values it
+  # depends on (a month's valid range needs its year).
+  defp fill_masks(time, calendar, which) do
+    time
+    |> Enum.reduce([], fn
+      {unit, {:mask, mask}}, filled ->
+        {min_value, max_value} = mask_candidate_bounds(unit, mask, Enum.reverse(filled), calendar)
+        [{unit, if(which == :min, do: min_value, else: max_value)} | filled]
+
+      entry, filled ->
+        [entry | filled]
+    end)
+    |> Enum.reverse()
+  end
+
+  # Year masks are digit-bounded; sub-year masks are calendar-bounded by
+  # the already-filled coarser components.
+  defp mask_candidate_bounds(:year, [:negative | rest], _previous, _calendar) do
+    {min, max} = Mask.mask_bounds(rest)
+    {-max, -min}
+  end
+
+  defp mask_candidate_bounds(:year, mask, _previous, _calendar) do
+    Mask.mask_bounds(mask)
+  end
+
+  defp mask_candidate_bounds(unit, mask, previous, calendar) do
+    candidates = Mask.valid_values(unit, mask, previous, calendar)
+    {Enum.min(candidates), Enum.max(candidates)}
+  end
+
+  # A single, same-width, block-aligned year mask re-masks; everything
+  # else (misaligned, negative, or multi-component) is a one-of set
+  # spanning the shifted candidates.
+  defp remask_or_set(
+         [{:year, mask}],
+         %Tempo{time: [year: lo]} = first,
+         %Tempo{time: [year: hi]} = last
+       )
+       when is_integer(lo) and is_integer(hi) and lo >= 0 do
+    unspecified = Enum.count(mask, &(&1 == :X))
+    block = Integer.pow(10, unspecified)
+    digits = Integer.digits(lo)
+
+    if hi - lo + 1 == block and rem(lo, block) == 0 and length(digits) == length(mask) do
+      remasked =
+        Enum.take(digits, length(digits) - unspecified) ++ List.duplicate(:X, unspecified)
+
+      %{first | time: [year: {:mask, remasked}]}
+    else
+      one_of_range(first, last)
+    end
+  end
+
+  defp remask_or_set(_masks, first, last), do: one_of_range(first, last)
+
+  defp one_of_range(first, last) do
+    %Tempo.Set{type: :one, set: [%Tempo.Range{first: first, last: last}]}
   end
 
   # Peel `{integer, keyword}` value annotations (margin-of-error,
@@ -506,7 +654,8 @@ defmodule Tempo.Math do
       ~o"2021Y12M31D"
 
   """
-  @spec subtract(Tempo.t(), Tempo.Duration.t()) :: Tempo.t()
+  @spec subtract(Tempo.t(), Tempo.Duration.t()) ::
+          Tempo.t() | Tempo.Set.t() | Tempo.IntervalSet.t()
   def subtract(%Tempo{} = tempo, %Tempo.Duration{time: duration_time}) do
     negated =
       Enum.map(duration_time, fn

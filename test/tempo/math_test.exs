@@ -182,4 +182,52 @@ defmodule Tempo.Math.Test do
       assert Math.add(~o"1950S3", ~o"P1Y") == ~o"1951S3"
     end
   end
+
+  describe "unspecified-digit mask arithmetic (formerly crashed)" do
+    test "a block-aligned year shift stays a mask" do
+      assert Math.add(~o"195X", ~o"P10Y") == ~o"196X"
+      assert Math.add(~o"195X", ~o"P20Y") == ~o"197X"
+      assert Math.add(~o"19XX", ~o"P100Y") == ~o"20XX"
+      assert Math.subtract(~o"196X", ~o"P10Y") == ~o"195X"
+    end
+
+    test "a misaligned year shift becomes a one-of set of the shifted block" do
+      assert inspect(Math.add(~o"195X", ~o"P1Y")) == ~S|~o"[1951Y..1960Y]"|
+    end
+
+    test "a shift coarser than the mask keeps the mask intact" do
+      assert Math.add(~o"2020-XX", ~o"P1Y") == ~o"2021-XX"
+      assert Math.add(~o"2020-06-XX", ~o"P1M") == ~o"2020-07-XX"
+    end
+
+    test "a shift that reaches a sub-year mask crosses boundaries as a one-of set" do
+      assert inspect(Math.add(~o"2020-XX", ~o"P1M")) == ~S|~o"[2020Y2M..2021Y1M]"|
+      assert inspect(Math.add(~o"2020-06-XX", ~o"P1D")) == ~S|~o"[2020Y6M2D..2020Y7M1D]"|
+    end
+
+    test "masks in more than one component fill every mask (clean endpoints)" do
+      # Both year and month masked — the shifted set's endpoints are fully
+      # resolved, not left carrying a mask.
+      assert inspect(Math.add(~o"19XX-XX", ~o"P1Y")) == ~S|~o"[1901Y1M..2000Y12M]"|
+
+      assert inspect(Math.add(~o"2020-XX-XX", ~o"P1M")) ==
+               ~S|~o"[2020Y2M1D..2021Y1M31D]"|
+    end
+
+    test "a shift coarser than every mask keeps all of them" do
+      assert Math.add(~o"2020-XX-XX", ~o"P1Y") == ~o"2021-XX-XX"
+    end
+
+    test "a mask with a concrete component after it expands to disjoint spans" do
+      # `199X-06-XX` is the Junes of 1990-1999 — ten *disjoint* month
+      # spans, not one continuous range. Shifting must stay accurate, so
+      # the result is a coalesced IntervalSet, not an over-covering range.
+      result = Math.add(~o"199X-06-XX", ~o"P1Y")
+
+      assert %Tempo.IntervalSet{intervals: intervals} = result
+      assert length(intervals) == 10
+      assert inspect(hd(intervals)) =~ "1991Y6M1D"
+      assert inspect(List.last(intervals)) =~ "2000Y6M1D"
+    end
+  end
 end

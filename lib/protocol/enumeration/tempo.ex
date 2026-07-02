@@ -46,10 +46,18 @@ defimpl Enumerable, for: Tempo do
     end
   end
 
-  defp single_interval(%Tempo{} = tempo) do
-    case Tempo.to_interval(tempo) do
-      {:ok, %Tempo.Interval{} = interval} -> {:ok, interval}
-      _ -> :error
+  defp single_interval(%Tempo{time: time} = tempo) do
+    # A masked value materialises to a single block interval, but its
+    # enumeration walks the mask's *candidates* (e.g. `2020-06-XX` is 30
+    # day-candidates, not one month-long span), so the interval fast paths
+    # would disagree with `reduce/3`. Force the reduce fallback for masks.
+    if Enum.any?(time, &match?({_unit, {:mask, _mask}}, &1)) do
+      :error
+    else
+      case Tempo.to_interval(tempo) do
+        {:ok, %Tempo.Interval{} = interval} -> {:ok, interval}
+        _ -> :error
+      end
     end
   end
 

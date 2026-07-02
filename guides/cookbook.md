@@ -636,6 +636,21 @@ iex> Tempo.IntervalSet.count(set)
 
 A non-contiguous mask (masked month, concrete day) expands to one interval per valid month.
 
+### How do I move an approximate date?
+
+Arithmetic shifts the whole block. A block-aligned shift stays a mask; a misaligned one gives the exact candidate values; and a mask with a concrete component after it — which denotes *disjoint* spans — gives an `IntervalSet`.
+
+```elixir
+iex> Tempo.shift(~o"156X", ~o"P10Y")
+# The 1560s a decade on — still a decade mask: ~o"157X".
+
+iex> Tempo.shift(~o"156X", ~o"P1Y")
+# One year isn't a clean decade, so the ten candidate years: ~o"[1561Y..1570Y]".
+
+iex> Tempo.shift(~o"156X-06-XX", ~o"P1Y") |> Tempo.IntervalSet.count()
+# The Junes of the 1560s, a year on — ten disjoint month spans: 10.
+```
+
 ### How do I express an open-ended interval?
 
 ```elixir

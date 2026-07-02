@@ -10,16 +10,6 @@ Tempo treats **date and time as intervals, not as instants**. Every value repres
 
 * We **never run the risk of invalid dates** because every value is a bounded interval — partial specifications like `2022Y` or `2022Y-11M` are intervals spanning the whole year or month, not uncertain instants.
 
-### Next major milestone
-
-Define **set operations on intervals**:
-
-1. `union/2` and `intersection/2` on a pair of intervals (first).
-
-2. Extend those operations to **lists of intervals**, including coalescing overlapping intervals into a canonical, non-overlapping form.
-
-All subsequent work (difference, symmetric difference, containment queries, etc.) builds on these primitives.
-
 ## Architecture — implicit vs explicit spans
 
 Every Tempo value is a span on the time line. Spans come in two forms and the distinction matters for iteration, comparison, and set operations.
@@ -53,10 +43,6 @@ An explicit span is a pair of datetimes written with a range operator, such as `
 * Matches the implicit-span semantics above (`2026-01` ends just before `2026-02-01`, not on it).
 
 Any new span, interval, comparison, or set-operation code **must honour this convention**. Code that treats the upper bound as inclusive is a bug.
-
-### Planned: explicit-span conversion
-
-A near-term todo is to materialise an implicit span into its explicit form — i.e., convert `2026-01` into `2026-01-01..2026-02-01`. This normalisation is the bridge that will let set operations (union/intersection, coalescing) work uniformly whether the caller supplied implicit or explicit spans.
 
 ## Documentation and example style
 

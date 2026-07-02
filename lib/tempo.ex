@@ -2884,7 +2884,7 @@ defmodule Tempo do
       ~o"2028Y"
 
   """
-  @spec shift(t(), Tempo.Duration.t() | keyword()) :: t()
+  @spec shift(t(), Tempo.Duration.t() | keyword()) :: t() | Tempo.Set.t() | Tempo.IntervalSet.t()
   def shift(%Tempo{} = tempo, %Tempo.Duration{} = duration) do
     Math.add(tempo, duration)
   end
