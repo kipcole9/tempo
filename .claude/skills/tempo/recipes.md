@@ -1,0 +1,128 @@
+# Recipes — English problem → Tempo pipeline
+
+Few-shot templates, one per layer, in the pipeline-prose shape: **named bindings** (nouns) → **pipeline** (verbs) → **prose translation** (the human reading). Adapt the values; keep the shape. All assume `import Tempo.Sigils`. Validate any `~o"…"` you adapt (see `SKILL.md` → Grounding).
+
+---
+
+### "What does this uncertain date actually mean?" — Parse + Explain
+
+```elixir
+Tempo.explain(~o"2004-06~-11")
+```
+
+> *"June 2004, approximately, on the 11th — the year and month are the fuzzy part, the day is firm."* Use `explain/1` to confirm you've represented the user's intent before building on it.
+
+---
+
+### "Does the delivery window clash with the holiday?" — Relations
+
+```elixir
+delivery = ~o"2026-06-15/2026-06-20"
+holiday  = ~o"2026-06-18"
+
+Tempo.overlaps?(delivery, holiday)   #=> true
+Tempo.relation(delivery, holiday)    #=> :contains
+```
+
+> *"The delivery window **contains** the holiday, so yes — they clash."* `relation/2` gives the precise Allen relation; the `?` predicates give the yes/no.
+
+---
+
+### "When is everyone free for an hour?" — Set algebra
+
+```elixir
+work = ~o"2026-06-15T09/2026-06-15T17"
+{:ok, busy} = Tempo.union(
+  ~o"2026-06-15T10/2026-06-15T11",
+  ~o"2026-06-15T14/2026-06-15T15"
+)
+
+{:ok, free} = Tempo.difference(work, busy)
+bookable =
+  free
+  |> Tempo.IntervalSet.slots(~o"PT1H")
+  |> Tempo.IntervalSet.to_list()   #=> six one-hour openings
+```
+
+> *"Free time is the workday **minus** the busy blocks; **bookable** slots are those gaps cut into one-hour pieces."* `difference`/`intersection`/`union` produce new intervals; `slots/3` discretises a free region into fixed-length openings.
+
+---
+
+### "The second Monday of every month in 2025" — Recurrence
+
+```elixir
+rule = Tempo.RRule.parse!("FREQ=MONTHLY;BYDAY=2MO", from: ~o"2025-01-01")
+{:ok, months} = Tempo.to_interval(rule, bound: ~o"2025")
+Tempo.IntervalSet.to_list(months)   #=> the 12 second-Mondays
+```
+
+> *"Parse the calendar rule into a recurring interval, then **materialise** it bounded to 2025."* For a simple period (no BY-rules) skip RRULE entirely: `Tempo.Interval.new!(from: dtstart, duration: ~o"P1W", recurrence: :infinity)`.
+
+---
+
+### "List every month in the year" — Enumeration
+
+```elixir
+Enum.to_list(~o"2026Y")     #=> [~o"2026Y1M", …, ~o"2026Y12M"]
+Enum.take(~o"2026-06", 5)   #=> first five days of June
+```
+
+> *"A year value **is** an enumerable sequence of its months; a month, of its days."* Iteration drills to the next-finer unit.
+
+---
+
+### "Could these circa-dated finds be contemporary?" — Graded relations (uncertainty)
+
+```elixir
+hearth = ~o"1200±60Y"
+midden = ~o"1240±40Y"
+wall   = ~o"1500±20Y"
+
+Tempo.possibly_overlaps?(hearth, midden)               #=> true
+Tempo.certainly_overlaps?(hearth, midden)              #=> false
+Tempo.relation_certainty(hearth, wall, :precedes)      #=> :certain
+```
+
+> *"The hearth and midden **might** be contemporary but we can't be sure; the hearth is **certainly** earlier than the wall."* The `*_certainty` functions read `±` margins and answer three-valued; they collapse to the plain predicates on crisp dates.
+
+---
+
+### "Order these dependent tasks and find the critical path" — Scheduling
+
+```elixir
+{:ok, plan} =
+  Tempo.Schedule.new()
+  |> Tempo.Schedule.task(:design, duration: ~o"P2D", start: ~o"2026-06-01")
+  |> Tempo.Schedule.task(:build,  duration: ~o"P3D", after: :design)
+  |> Tempo.Schedule.task(:docs,   duration: ~o"P1D", after: :design)
+  |> Tempo.Schedule.task(:ship,   duration: ~o"P2D", after: [:build, :docs], deadline: ~o"2026-06-08")
+  |> Tempo.Schedule.solve()
+
+plan[:ship].start                    #=> ~o"2026Y6M6D"
+plan[:docs].critical?                #=> false   (docs has slack)
+Tempo.Schedule.critical_path(plan)   #=> [:design, :build, :ship]
+```
+
+> *"Design, then build and docs in parallel, then ship — due the 8th. Ship starts on the 6th; docs has slack; the critical path is design → build → ship."*
+
+---
+
+### "Which reign overlaps which stratum, given only relative dates?" — Constraint network
+
+```elixir
+alias Tempo.Network
+
+net =
+  Network.new()
+  |> Network.add_period(:k1, start: {:not_before, ~o"1200Y"}, duration: {:at_most, ~o"P10Y"})
+  |> Network.add_period(:k2, end: {:not_after, ~o"1300Y"}, duration: {:at_least, ~o"P35Y"})
+  |> Network.add_period(:s1, duration: {~o"P20Y", ~o"P100Y"})
+  |> Network.add_sequence([:k1, :k2])
+  |> Network.add_relation(:starts_during, :s1, :k1)
+
+Tempo.Network.Solver.consistent?(net)          #=> true
+{:ok, solved} = Tempo.Network.Solver.tighten(net)
+solved.periods[:s1].earliest_start             #=> a derived Tempo value
+```
+
+> *"The kings reign in succession; stratum S1 starts during King K1. Is that jointly possible, and what does it pin down?"* `tighten/1` derives the narrowest start/end/duration for every period — even ones given no dates at all.
