@@ -151,8 +151,9 @@ defmodule Tempo.Explain do
   defp classify(%Tempo.Interval{from: :undefined}), do: :open_lower_interval
   defp classify(%Tempo.Interval{to: :undefined}), do: :open_upper_interval
 
-  defp classify(%Tempo.Interval{recurrence: n}) when is_integer(n) and n > 1,
-    do: :recurring_interval
+  defp classify(%Tempo.Interval{recurrence: recurrence})
+       when recurrence == :infinity or (is_integer(recurrence) and recurrence > 1),
+       do: :recurring_interval
 
   defp classify(%Tempo.Interval{}), do: :closed_interval
   defp classify(%Tempo.IntervalSet{intervals: []}), do: :empty_interval_set
@@ -348,19 +349,24 @@ defmodule Tempo.Explain do
     ]
   end
 
-  defp interval_parts(%Tempo.Interval{
-         recurrence: n,
-         from: from,
-         duration: %Tempo.Duration{time: dt}
-       })
-       when is_integer(n) and n > 1 do
+  defp interval_parts(
+         %Tempo.Interval{
+           recurrence: recurrence,
+           from: %Tempo{} = from,
+           duration: %Tempo.Duration{time: dt}
+         } = interval
+       )
+       when recurrence == :infinity or (is_integer(recurrence) and recurrence > 1) do
+    selection = selection_of(interval.repeat_rule)
+
     [
-      {:headline, "A recurrence of #{n} occurrences."},
+      {:headline, recurrence_headline(recurrence)},
       {:span, "Starting: #{render_endpoint(from)}."},
+      selection && {:span, "Selects: #{selection_prose(selection)}."},
       {:span, "Cadence: #{duration_prose(dt)}."},
-      {:hint,
-       "Materialise with `Tempo.to_interval/1` to get an IntervalSet of the #{n} occurrences."}
+      {:hint, recurrence_hint(recurrence, from)}
     ]
+    |> Enum.reject(&is_nil/1)
   end
 
   defp interval_parts(%Tempo.Interval{from: %Tempo{} = from, to: %Tempo{} = to} = interval) do
@@ -567,4 +573,118 @@ defmodule Tempo.Explain do
   defp two_digit(n) when is_integer(n) and n >= 0 and n < 10, do: "0#{n}"
   defp two_digit(n) when is_integer(n), do: Integer.to_string(n)
   defp two_digit(_), do: "??"
+
+  # ── Recurrence + selection prose ───────────────────────────────
+
+  defp selection_of(%Tempo{time: [selection: selection]}), do: selection
+  defp selection_of(_), do: nil
+
+  defp recurrence_headline(:infinity), do: "An unbounded recurrence."
+  defp recurrence_headline(n) when is_integer(n), do: "A recurrence of #{n} occurrences."
+
+  defp recurrence_hint(:infinity, from),
+    do:
+      "List a window of occurrences: `Tempo.to_interval(interval, bound: #{bound_example(from)})`."
+
+  defp recurrence_hint(n, _from) when is_integer(n),
+    do: "Materialise the #{n} occurrences: `Tempo.to_interval(interval)`."
+
+  defp bound_example(%Tempo{time: time}) do
+    case Keyword.get(time, :year) do
+      year when is_integer(year) -> "~o\"#{year}\""
+      _year -> "~o\"2026\""
+    end
+  end
+
+  # Render a BY-rule selection as an English phrase — e.g.
+  # `[month: 11, day: [2..8], day_of_week: 2]` becomes "in November, on
+  # the 2nd–8th, on a Tuesday" (US Election Day).
+  defp selection_prose(selection) do
+    selection
+    |> Enum.reject(fn {key, _value} -> key == :wkst end)
+    |> Enum.flat_map(fn entry -> List.wrap(selection_clause(entry)) end)
+    |> Enum.join(", ")
+  end
+
+  defp selection_clause({:month, m}), do: "in #{names_phrase(m, &month_name/1)}"
+  defp selection_clause({:day, d}), do: "on #{ordinals_phrase(d)}"
+  defp selection_clause({:day_of_week, wd}), do: "on a #{weekday_name(wd)}"
+  defp selection_clause({:byday, pairs}), do: "on #{byday_phrase(pairs)}"
+  defp selection_clause({:hour, h}), do: "at #{names_phrase(h, fn n -> "#{two_digit(n)}:00" end)}"
+  defp selection_clause({:week, w}), do: "in #{ordinals_phrase(w)} week"
+  defp selection_clause({:day_of_year, d}), do: "on #{ordinals_phrase(d)} day of the year"
+  defp selection_clause({:set_position, p}), do: "keeping #{ordinals_phrase(p)} occurrence"
+  defp selection_clause({_other, _value}), do: []
+
+  defp byday_phrase(pairs) do
+    pairs
+    |> Enum.map(fn
+      {nil, wd} -> "a #{weekday_name(wd)}"
+      {ord, wd} -> "the #{ordinal(ord)} #{weekday_name(wd)}"
+    end)
+    |> or_join()
+  end
+
+  # Ordinal-list phrase — a contiguous run collapses to a range:
+  # `[2..8]` → "the 2nd–8th"; `[1, 15]` → "the 1st and 15th".
+  defp ordinals_phrase(value) do
+    ints = value |> List.wrap() |> Enum.flat_map(&expand_int/1) |> Enum.sort()
+
+    case ints do
+      [n] ->
+        "the #{ordinal(n)}"
+
+      [lo | _] = list ->
+        hi = List.last(list)
+
+        if length(list) > 2 and hi - lo + 1 == length(list) do
+          "the #{ordinal(lo)}–#{ordinal(hi)}"
+        else
+          "the " <> and_join(Enum.map(list, &ordinal/1))
+        end
+    end
+  end
+
+  defp names_phrase(value, name_fun) do
+    value |> List.wrap() |> Enum.flat_map(&expand_int/1) |> Enum.map(name_fun) |> or_join()
+  end
+
+  defp expand_int(%Range{} = range), do: Enum.to_list(range)
+  defp expand_int(n) when is_integer(n), do: [n]
+
+  defp ordinal(-1), do: "last"
+  defp ordinal(n) when is_integer(n) and n < 0, do: "#{ordinal(-n)}-to-last"
+
+  defp ordinal(n) when is_integer(n) do
+    suffix =
+      cond do
+        rem(n, 100) in 11..13 -> "th"
+        rem(n, 10) == 1 -> "st"
+        rem(n, 10) == 2 -> "nd"
+        rem(n, 10) == 3 -> "rd"
+        true -> "th"
+      end
+
+    "#{n}#{suffix}"
+  end
+
+  @weekdays ~w(Monday Tuesday Wednesday Thursday Friday Saturday Sunday)
+
+  defp weekday_name(n) when is_integer(n) and n in 1..7, do: Enum.at(@weekdays, n - 1)
+  defp weekday_name(other), do: "weekday #{inspect(other)}"
+
+  defp or_join([one]), do: one
+
+  defp or_join(list) do
+    {init, [last]} = Enum.split(list, -1)
+    Enum.join(init, ", ") <> " or " <> last
+  end
+
+  defp and_join([one]), do: one
+  defp and_join([first, second]), do: "#{first} and #{second}"
+
+  defp and_join(list) do
+    {init, [last]} = Enum.split(list, -1)
+    Enum.join(init, ", ") <> ", and " <> last
+  end
 end

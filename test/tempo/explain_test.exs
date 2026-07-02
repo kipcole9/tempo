@@ -113,6 +113,17 @@ defmodule Tempo.Explain.Test do
       assert Tempo.explain(iv) =~ "Design review"
       assert Tempo.explain(iv) =~ "Room 101"
     end
+
+    test "an unbounded recurrence with a BY-rule selection is explained in prose" do
+      # US Election Day — the Tuesday falling on the 2nd–8th of November.
+      election = ~o"R/2024Y11M1D/P1Y/FL11M{2..8}D2KN"
+
+      assert Explain.explain(election).kind == :recurring_interval
+
+      prose = Tempo.explain(election)
+      assert prose =~ "unbounded recurrence"
+      assert prose =~ "in November, on the 2nd–8th, on a Tuesday"
+    end
   end
 
   describe "Tempo.IntervalSet" do

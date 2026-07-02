@@ -20,6 +20,10 @@
 
 * `Tempo.from_iso8601/2` returns `{:error, %Tempo.InvalidCalendarError{}}` for a module that is not a usable calendar — such as the `Calendrical.Islamic` namespace, whose concrete forms are `Calendrical.Islamic.Civil`, `.UmmAlQura`, and so on — instead of crashing with `UndefinedFunctionError`.
 
+* A recurrence selection written with an index range — e.g. `~o"R/2024-11-01/P1Y/FL11M{2..8}D2KN"` (US Election Day: the Tuesday on the 2nd–8th of November) — now materialises correctly instead of raising, so an inspected recurrence round-trips through the `~o` sigil. Range and explicit-list selections (`{2..8}` and `{2,3,4,5,6,7,8}`) are equivalent.
+
+* `Tempo.explain/1` describes recurring intervals in plain English — the recurrence, its cadence, and its BY-rule selection rendered as prose (e.g. "in November, on the 2nd–8th, on a Tuesday") — instead of "a `Tempo.Interval` with an unusual shape".
+
 ## [v0.14.0] — 2026-07-02
 
 ### Added

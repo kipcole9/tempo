@@ -109,6 +109,7 @@ defmodule Tempo.RRule.Selection do
   # tokens — e.g. Note 1/2 downgrades BYDAY from EXPAND to LIMIT
   # when BYMONTHDAY or BYYEARDAY is co-present.
   defp apply_selection(candidate, selection, freq) do
+    selection = expand_index_ranges(selection)
     wkst = Keyword.get(selection, :wkst, 1)
 
     selection
@@ -117,6 +118,24 @@ defmodule Tempo.RRule.Selection do
       apply_entry(entry, candidates, freq, selection, wkst)
     end)
   end
+
+  # A `{2..8}` set in the ISO 8601-2 sigil grammar parses to a `Range`
+  # element in the selection value list (`day: [2..8]`), whereas the
+  # RRULE adapter emits an explicit integer list (`day: [2, 3, …, 8]`).
+  # The selection handlers expect integer indices, so expand any range
+  # element to its members before applying — keeping the two spellings
+  # equivalent so an inspected value round-trips. Non-list values (bare
+  # `day_of_week: 2`) and non-range elements (`byday: [{2, 5}]`) pass
+  # through unchanged.
+  defp expand_index_ranges(selection) do
+    Enum.map(selection, fn
+      {key, value} when is_list(value) -> {key, Enum.flat_map(value, &expand_range_element/1)}
+      {key, value} -> {key, value}
+    end)
+  end
+
+  defp expand_range_element(%Range{} = range), do: Enum.to_list(range)
+  defp expand_range_element(element), do: [element]
 
   @application_order [
     :wkst,

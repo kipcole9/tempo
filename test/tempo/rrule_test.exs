@@ -207,8 +207,33 @@ defmodule Tempo.RRuleTest do
     end
   end
 
+  describe "selection index ranges round-trip" do
+    # `{2..8}` in the ISO 8601-2 sigil parses to a Range element in the
+    # selection; the RRULE adapter emits an explicit integer list. Both
+    # must materialise identically. The regression case is US Election
+    # Day — the Tuesday falling on the 2nd–8th of November.
+    test "a day-range selection matches its explicit-list form and dates" do
+      range_form = ~o"R/2024Y11M1D/P1Y/FL11M{2..8}D2KN"
+
+      rrule_form =
+        RRule.parse!("FREQ=YEARLY;BYMONTH=11;BYDAY=TU;BYMONTHDAY=2,3,4,5,6,7,8",
+          from: ~o"2024-11-01"
+        )
+
+      dates = range_form |> occurrences() |> Enum.map(& &1.from) |> Enum.take(3)
+
+      assert occurrences(range_form) == occurrences(rrule_form)
+      assert dates == [~o"2024-11-05", ~o"2025-11-04", ~o"2026-11-03"]
+    end
+  end
+
   defp first_occurrence(value) do
     {:ok, set} = Tempo.to_interval(value, bound: ~o"2025")
     set |> IntervalSet.to_list() |> hd()
+  end
+
+  defp occurrences(value) do
+    {:ok, set} = Tempo.to_interval(value, bound: ~o"2024/2028")
+    IntervalSet.to_list(set)
   end
 end
