@@ -4,8 +4,8 @@ defmodule Tempo.Explanation do
 
   Produced by `Tempo.Explain.explain/1`. Consists of a `:kind`
   classifier and an ordered list of `{tag, text}` parts. The tag
-  lets renderers (plain terminal, ANSI colour, HTML, visualizer
-  components) style each part semantically without re-parsing the
+  lets renderers (plain terminal, ANSI colour, HTML) style each
+  part semantically without re-parsing the
   prose.
 
   ### Fields
@@ -49,7 +49,7 @@ defmodule Tempo.Explain do
 
   * `to_string/1` — plain multi-line text. Default for iex.
   * `to_ansi/1` — ANSI-coloured for terminals.
-  * `to_iodata/1` — tagged iodata for HTML or visualizer renderers.
+  * `to_iodata/1` — tagged iodata for HTML renderers.
 
   `Tempo.explain/1` delegates here with a `to_string/1` formatter —
   the most common case for interactive use.
@@ -126,7 +126,7 @@ defmodule Tempo.Explain do
 
   @doc """
   Render as tagged iodata `[{tag, text}, ...]`, ready for an HTML
-  or visualizer renderer to style each part by its tag.
+  renderer to style each part by its tag.
 
   Each element is a 2-tuple; no string concatenation happens here.
   Callers decide how to separate parts (newlines, `<div>`s, etc.).

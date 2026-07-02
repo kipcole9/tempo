@@ -12,6 +12,10 @@
 
 * Enumerating a masked value now yields its candidates in ascending order — `~o"2020-06-XX"` gives the 1st … 30th, consistent with year masks and materialisation (month/day masks previously enumerated descending). Mask candidate generation is now shared between the enumeration and materialisation paths through a single resolver, so they can no longer diverge.
 
+### Removed
+
+* The web visualizer — `Tempo.Visualizer` and its `Standalone` Bandit server — is removed, along with the optional `:plug` and `:bandit` dependencies. Interactive exploration is moving to an LLM-based approach that better fits Tempo's scope.
+
 ## [v0.13.0] — 2026-07-02
 
 ### Fixed

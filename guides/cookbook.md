@@ -130,7 +130,7 @@ Materialise as an interval with `Tempo.to_interval/1`.
 """
 ```
 
-`Tempo.explain/1` returns a plain string. For structured output (HTML visualiser, terminal colour) call `Tempo.Explain.explain/1` which returns a `%Tempo.Explanation{}` with tagged parts — `Tempo.Explain.to_string/1`, `to_ansi/1`, and `to_iodata/1` format it for different surfaces.
+`Tempo.explain/1` returns a plain string. For structured output (HTML, terminal colour) call `Tempo.Explain.explain/1` which returns a `%Tempo.Explanation{}` with tagged parts — `Tempo.Explain.to_string/1`, `to_ansi/1`, and `to_iodata/1` format it for different surfaces.
 
 ### How do I see the concrete bounds of an implicit interval?
 

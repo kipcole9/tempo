@@ -131,7 +131,7 @@ To:   2004-01-01 (exclusive — half-open `[from, to)`).
 """
 ```
 
-`Tempo.Explain.explain/1` returns a structured form with semantic part tags (`:headline`, `:span`, `:qualification`, `:metadata`, …); `to_string/1`, `to_ansi/1`, and `to_iodata/1` format it for terminal, coloured terminal, and HTML/visualizer surfaces respectively.
+`Tempo.Explain.explain/1` returns a structured form with semantic part tags (`:headline`, `:span`, `:qualification`, `:metadata`, …); `to_string/1`, `to_ansi/1`, and `to_iodata/1` format it for terminal, coloured terminal, and HTML surfaces respectively.
 
 The `~o` sigil also does **pattern matching**. In `match?/2`, `case` clauses, `=`, and function heads, the same sigil expands to a structural pattern against a value's `:time` keyword list — prefix-matching the units you name and leaving everything else unconstrained:
 

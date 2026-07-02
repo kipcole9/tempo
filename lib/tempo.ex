@@ -4333,7 +4333,7 @@ defmodule Tempo do
   what it is, what it spans, and how to work with it.
 
   Returns a plain string suitable for iex. For structured output
-  that renderers can style (ANSI, HTML, visualizer components),
+  that renderers can style (ANSI, HTML),
   use `Tempo.Explain.explain/1` directly and pick a formatter.
   """
   @spec explain(term()) :: String.t()

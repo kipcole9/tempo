@@ -111,7 +111,6 @@ defmodule Tempo.MixProject do
       Enumeration: ~r/^Tempo\.Enumeration$|^Enumerable\.Tempo/,
       "Explanation and inspection":
         ~r/^Tempo\.(Explain|Explanation|Inspect|Format|Sigil|Validation)$/,
-      Visualizer: ~r/^Tempo\.Visualizer(\.|$)/,
       Exceptions: ~r/^Tempo\.\w+Error$/
     ]
   end
@@ -159,8 +158,6 @@ defmodule Tempo.MixProject do
       {:localize, "~> 0.21"},
       {:tzdata, "~> 1.1"},
       {:ical, "~> 2.0", optional: true},
-      {:plug, "~> 1.15", optional: true},
-      {:bandit, "~> 1.5", optional: true},
       {:ex_doc, "~> 0.38", only: [:dev, :test, :release], optional: true, runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
