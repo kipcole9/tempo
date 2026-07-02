@@ -144,8 +144,14 @@ defmodule Tempo.CalendarTest do
       # `Calendrical.Islamic` is a namespace, not a calendar — its
       # concrete forms are `.Civil`, `.UmmAlQura`, etc. Passing it used
       # to crash with UndefinedFunctionError deep in validation.
-      assert {:error, {:invalid_calendar, Calendrical.Islamic}} =
+      assert {:error, %Tempo.InvalidCalendarError{calendar: Calendrical.Islamic}} =
                Tempo.from_iso8601("1446-09", Calendrical.Islamic)
+    end
+
+    test "the bang variant raises that exception cleanly" do
+      assert_raise Tempo.InvalidCalendarError, fn ->
+        Tempo.from_iso8601!("1446-09", Calendrical.Islamic)
+      end
     end
   end
 end

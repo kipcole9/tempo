@@ -16,9 +16,9 @@
 
 * Recurrence occurrences now span their selection's own resolution — "the 15th of every month" (`FREQ=MONTHLY;BYMONTHDAY=15`, `~o"R/2025-01-15/P1M/FL15DN"`, or cron `0 0 15 * *`) materialises as the *day* the 15th, not the month-long cadence it sits in. Native ISO 8601-2, RRULE, and cron now agree on occurrence spans, while a plain repeating interval still spans its cadence.
 
-* `Tempo.shift/2` no longer raises on un-anchored values (those with no year, such as `~o"1M31D"`): it computes the answer where the calendar can (`~o"1M31D"` shifted by `P1D` is `~o"2M1D"`, since January always has 31 days) and returns `{:error, :requires_anchor}` where the result would depend on the missing year. Requires `calendrical ~> 0.10`.
+* `Tempo.shift/2` no longer raises on un-anchored values (those with no year, such as `~o"1M31D"`): it computes the answer where the calendar can (`~o"1M31D"` shifted by `P1D` is `~o"2M1D"`, since January always has 31 days) and returns `{:error, %Tempo.RequiresAnchorError{}}` where the result would depend on the missing year. Requires `calendrical ~> 0.10`.
 
-* `Tempo.from_iso8601/2` returns `{:error, {:invalid_calendar, module}}` for a module that is not a usable calendar — such as the `Calendrical.Islamic` namespace, whose concrete forms are `Calendrical.Islamic.Civil`, `.UmmAlQura`, and so on — instead of crashing with `UndefinedFunctionError`.
+* `Tempo.from_iso8601/2` returns `{:error, %Tempo.InvalidCalendarError{}}` for a module that is not a usable calendar — such as the `Calendrical.Islamic` namespace, whose concrete forms are `Calendrical.Islamic.Civil`, `.UmmAlQura`, and so on — instead of crashing with `UndefinedFunctionError`.
 
 ## [v0.14.0] — 2026-07-02
 

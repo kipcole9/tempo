@@ -61,8 +61,8 @@ defmodule Tempo.ShiftTest do
   describe "Tempo.shift/2 on un-anchored values (no :year)" do
     # A value with no year lives on a repeating month/day axis. Cases
     # the calendar can resolve without a year are computed; cases that
-    # depend on the missing year return {:error, :requires_anchor} —
-    # never a raise.
+    # depend on the missing year return {:error, %RequiresAnchorError{}}
+    # — never a raise.
 
     test "day arithmetic that stays within a month is computed" do
       assert Tempo.shift(~o"2M15D", ~o"P1D") == ~o"2M16D"
@@ -80,9 +80,9 @@ defmodule Tempo.ShiftTest do
     end
 
     test "arithmetic that depends on the missing year returns an error, not a raise" do
-      assert Tempo.shift(~o"1M31D", ~o"P1M") == {:error, :requires_anchor}
-      assert Tempo.shift(~o"2M28D", ~o"P1D") == {:error, :requires_anchor}
-      assert Tempo.shift(~o"3M1D", day: -1) == {:error, :requires_anchor}
+      assert {:error, %Tempo.RequiresAnchorError{}} = Tempo.shift(~o"1M31D", ~o"P1M")
+      assert {:error, %Tempo.RequiresAnchorError{}} = Tempo.shift(~o"2M28D", ~o"P1D")
+      assert {:error, %Tempo.RequiresAnchorError{}} = Tempo.shift(~o"3M1D", day: -1)
     end
   end
 end

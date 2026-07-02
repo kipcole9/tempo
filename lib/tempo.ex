@@ -112,6 +112,7 @@ defmodule Tempo do
   alias Tempo.FloatingTempoError
   alias Tempo.Interval
   alias Tempo.IntervalSet
+  alias Tempo.InvalidCalendarError
   alias Tempo.InvalidDateError
   alias Tempo.InvalidUnitError
   alias Tempo.Iso8601.AST
@@ -701,7 +702,7 @@ defmodule Tempo do
     if Code.ensure_loaded?(calendar) and function_exported?(calendar, :months_in_year, 1) do
       {:ok, calendar}
     else
-      {:error, {:invalid_calendar, calendar}}
+      {:error, InvalidCalendarError.exception(calendar: calendar)}
     end
   end
 
@@ -2878,13 +2879,13 @@ defmodule Tempo do
 
   * The shifted `t:t/0`.
 
-  * `{:error, :requires_anchor}` when the value has no `:year` (an
-    un-anchored month/day or time-of-day value) and the arithmetic
-    would depend on the missing year — e.g. `~o"1M31D"` shifted by one
-    month can't be resolved without knowing February's length.
-    Un-anchored arithmetic that *is* determinable still succeeds:
-    `~o"1M31D"` plus one day is `~o"2M1D"`, since January always has 31
-    days.
+  * `{:error, %Tempo.RequiresAnchorError{}}` when the value has no
+    `:year` (an un-anchored month/day or time-of-day value) and the
+    arithmetic would depend on the missing year — e.g. `~o"1M31D"`
+    shifted by one month can't be resolved without knowing February's
+    length. Un-anchored arithmetic that *is* determinable still
+    succeeds: `~o"1M31D"` plus one day is `~o"2M1D"`, since January
+    always has 31 days.
 
   ### Examples
 
@@ -2903,12 +2904,12 @@ defmodule Tempo do
       iex> Tempo.shift(~o"1M31D", ~o"P1D")
       ~o"2M1D"
 
-      iex> Tempo.shift(~o"1M31D", ~o"P1M")
-      {:error, :requires_anchor}
+      iex> match?({:error, %Tempo.RequiresAnchorError{}}, Tempo.shift(~o"1M31D", ~o"P1M"))
+      true
 
   """
   @spec shift(t(), Tempo.Duration.t() | keyword()) ::
-          t() | Tempo.Set.t() | Tempo.IntervalSet.t() | {:error, :requires_anchor}
+          t() | Tempo.Set.t() | Tempo.IntervalSet.t() | {:error, error_reason()}
   def shift(%Tempo{} = tempo, %Tempo.Duration{} = duration) do
     Math.add(tempo, duration)
   end

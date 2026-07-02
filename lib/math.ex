@@ -22,6 +22,7 @@ defmodule Tempo.Math do
 
   alias Tempo.IntervalSet
   alias Tempo.Mask
+  alias Tempo.RequiresAnchorError
 
   @doc """
   Advance a `%Tempo{}` or a keyword-list time representation by
@@ -563,7 +564,10 @@ defmodule Tempo.Math do
 
   """
   @spec add(Tempo.t(), Tempo.Duration.t()) ::
-          Tempo.t() | Tempo.Set.t() | Tempo.IntervalSet.t() | {:error, :requires_anchor}
+          Tempo.t()
+          | Tempo.Set.t()
+          | Tempo.IntervalSet.t()
+          | {:error, RequiresAnchorError.t()}
   def add(%Tempo{} = tempo, %Tempo.Duration{time: duration_time} = duration) do
     masks = find_masks(tempo.time)
 
@@ -582,7 +586,8 @@ defmodule Tempo.Math do
         add_crisp(tempo, duration)
       end
     catch
-      {:tempo_math, :requires_anchor} -> {:error, :requires_anchor}
+      {:tempo_math, :requires_anchor} ->
+        {:error, RequiresAnchorError.exception(value: tempo, duration: duration)}
     end
   end
 
@@ -795,7 +800,10 @@ defmodule Tempo.Math do
 
   """
   @spec subtract(Tempo.t(), Tempo.Duration.t()) ::
-          Tempo.t() | Tempo.Set.t() | Tempo.IntervalSet.t()
+          Tempo.t()
+          | Tempo.Set.t()
+          | Tempo.IntervalSet.t()
+          | {:error, RequiresAnchorError.t()}
   def subtract(%Tempo{} = tempo, %Tempo.Duration{time: duration_time}) do
     negated =
       Enum.map(duration_time, fn
