@@ -154,7 +154,7 @@ defmodule Tempo.MixProject do
   defp deps do
     [
       {:nimble_parsec, "~> 1.0"},
-      {:calendrical, "~> 0.9 or ~> 1.0"},
+      {:calendrical, "~> 0.10"},
       {:astro, "~> 2.2"},
       {:localize, "~> 0.21"},
       {:tzdata, "~> 1.1"},

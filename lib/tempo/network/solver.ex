@@ -96,6 +96,103 @@ defmodule Tempo.Network.Solver do
   end
 
   @doc """
+  Classify whether two periods overlap in time, given the whole network.
+
+  Returns `:certain` when the constraints force the periods to be
+  contemporary, `:possible` when they merely allow it, and `:impossible`
+  when they forbid it. The verdict is read from the minimal (tightened)
+  network, so it accounts for every constraint — not just the two
+  periods' own bounds — in the spirit of Geeraerts, Levy & Pluquet,
+  *Models and Algorithms for Chronology* (TIME 2017), Props. 7 and 10.
+
+  Two periods that merely touch (one ends exactly where the other
+  begins) count as contemporary, matching `add_relation(:contemporary,
+  …)` — the endpoints are treated as closed here.
+
+  ### Arguments
+
+  * `network` is a `t:Tempo.Network.t/0`.
+
+  * `p1` and `p2` are ids of periods present in the network.
+
+  ### Returns
+
+  * `:certain` when every valid chronology has the periods overlapping;
+
+  * `:possible` when some but not all valid chronologies do;
+
+  * `:impossible` when none do; or
+
+  * `{:error, :inconsistent}` when the network has no valid chronology.
+
+  ### Examples
+
+      iex> network =
+      ...>   Tempo.Network.new()
+      ...>   |> Tempo.Network.add_period(:k1, start: {:not_before, 1200}, duration: {:at_most, 15})
+      ...>   |> Tempo.Network.add_period(:k2, end: {:not_after, 1300}, duration: {30, 100})
+      ...>   |> Tempo.Network.add_period(:s1, duration: {20, 100})
+      ...>   |> Tempo.Network.add_period(:s2, duration: {20, 100})
+      ...>   |> Tempo.Network.add_sequence([:k1, :k2])
+      ...>   |> Tempo.Network.add_sequence([:s1, :s2])
+      ...>   |> Tempo.Network.add_relation(:starts_during, :s1, :k1)
+      ...>   |> Tempo.Network.add_relation(:ends_during, :s2, :k2)
+      iex> Tempo.Network.Solver.contemporaneity(network, :k1, :s2)
+      :impossible
+
+  """
+  @spec contemporaneity(Network.t(), term(), term()) ::
+          :certain | :possible | :impossible | {:error, :inconsistent}
+  def contemporaneity(%Network{} = network, p1, p2) do
+    %{dist: distances} = network |> Normalize.normalize() |> shortest_paths()
+
+    cond do
+      negative_cycle?(distances) -> {:error, :inconsistent}
+      sure_overlap?(distances, p1, p2) -> :certain
+      possible_overlap?(distances, p1, p2) -> :possible
+      true -> :impossible
+    end
+  end
+
+  @doc """
+  Whether two periods are *certainly* contemporary — true only when
+  every valid chronology has them overlapping. See `contemporaneity/3`.
+  """
+  @spec certainly_contemporary?(Network.t(), term(), term()) :: boolean()
+  def certainly_contemporary?(%Network{} = network, p1, p2),
+    do: contemporaneity(network, p1, p2) == :certain
+
+  @doc """
+  Whether two periods are *possibly* contemporary — true when at least
+  one valid chronology has them overlapping. See `contemporaneity/3`.
+  """
+  @spec possibly_contemporary?(Network.t(), term(), term()) :: boolean()
+  def possibly_contemporary?(%Network{} = network, p1, p2),
+    do: contemporaneity(network, p1, p2) in [:certain, :possible]
+
+  # Prop. 7 — overlap is entailed iff both synchronism inequalities
+  # beg(p₁) ≤ end(p₂) and beg(p₂) ≤ end(p₁) are already implied, i.e. the
+  # tightest bound on each difference (its shortest-path weight) is ≤ 0.
+  defp sure_overlap?(distances, p1, p2) do
+    at_most_zero?(get(distances, {:start, p1}, {:end, p2})) and
+      at_most_zero?(get(distances, {:start, p2}, {:end, p1}))
+  end
+
+  # Prop. 10 — overlap is achievable iff adding both synchronism edges
+  # keeps the network satisfiable: the tight bound on each reverse
+  # difference end − beg must leave room to be non-negative.
+  defp possible_overlap?(distances, p1, p2) do
+    at_least_zero?(get(distances, {:end, p2}, {:start, p1})) and
+      at_least_zero?(get(distances, {:end, p1}, {:start, p2}))
+  end
+
+  defp at_most_zero?(:inf), do: false
+  defp at_most_zero?(weight), do: weight <= 0
+
+  defp at_least_zero?(:inf), do: true
+  defp at_least_zero?(weight), do: weight >= 0
+
+  @doc """
   Explain a tightened bound as a trace — the chain of constraints that
   forces it.
 

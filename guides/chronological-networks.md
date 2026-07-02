@@ -126,6 +126,19 @@ Tempo.Network.Solver.consistent?(hypothesis)
 
 The network says **no**: if S2 had begun during K1's reign, that reign would have had to contain the whole of S1 *and* the start of S2 — at least 20 years — which exceeds K1's 10-year maximum. A conclusion that was far from obvious by eye.
 
+### Asking directly — could two periods overlap?
+
+Adding a claim and re-checking consistency is the general tool, but for the common question *"could these two have coexisted at all?"* there is a direct query. `contemporaneity/3` reads the tightened network and answers three ways — `:certain` (every valid chronology has them overlapping), `:possible` (some do, some don't), or `:impossible` (none do):
+
+```elixir
+Tempo.Network.Solver.contemporaneity(chronoland, :k1, :s2)
+#=> :impossible
+```
+
+> *"King K1 and Stratum S2 can never have coexisted — S2 begins at least ten years after K1 is already dead."*
+
+K1's reign (≤ 10 years) is shorter than the ≥ 20 years that must separate the two strata's starts, so K1 has ended well before S2 begins. `certainly_contemporary?/3` and `possibly_contemporary?/3` are the boolean shortcuts, and unlike adding a relation they leave the network untouched. The verdict is read in constant time from the tightened network's shortest-path weights — the sure/possible-contemporaneity result of Geeraerts, Levy & Pluquet (TIME 2017, Props 7 and 10).
+
 ## 6. When you don't need a network
 
 A network earns its keep when something is *uncertain* or the structure is *not a simple line*. When neither is true — one anchor, exact durations, plain succession — you don't need it at all. You can just chain intervals.

@@ -6,6 +6,8 @@
 
 * A Claude Code **skill** — shipped as a GitHub plugin — that maps a natural-language date/time problem to validated, runnable Tempo (`~o"…"` syntax, the right layer, checked with `Tempo.explain/1`), plus a *Using Tempo with an AI assistant* guide. Install with `/plugin marketplace add kipcole9/tempo` then `/plugin install tempo@tempo-plugins`.
 
+* `Tempo.Network.Solver.contemporaneity/3` (with `certainly_contemporary?/3` and `possibly_contemporary?/3`) reports whether two periods in a constraint network are `:certain`, `:possible`, or `:impossible` to overlap. It reads the verdict in constant time from the tightened network's shortest-path weights, following Geeraerts, Levy & Pluquet (*Models and Algorithms for Chronology*, TIME 2017), Props 7 and 10.
+
 ### Changed
 
 * `Tempo.Cron.parse/2` and `parse!/2` now return a recurring `%Tempo.Interval{}` — the same first-class value `Tempo.RRule.parse/2` produces — instead of an internal `%Tempo.RRule.Rule{}`. A parsed cron schedule now materialises directly with `Tempo.to_interval/2` (no `Expander` step) and accepts a `:from` anchor; the raw field mapping stays available internally.
@@ -13,6 +15,10 @@
 ### Fixed
 
 * Recurrence occurrences now span their selection's own resolution — "the 15th of every month" (`FREQ=MONTHLY;BYMONTHDAY=15`, `~o"R/2025-01-15/P1M/FL15DN"`, or cron `0 0 15 * *`) materialises as the *day* the 15th, not the month-long cadence it sits in. Native ISO 8601-2, RRULE, and cron now agree on occurrence spans, while a plain repeating interval still spans its cadence.
+
+* `Tempo.shift/2` no longer raises on un-anchored values (those with no year, such as `~o"1M31D"`): it computes the answer where the calendar can (`~o"1M31D"` shifted by `P1D` is `~o"2M1D"`, since January always has 31 days) and returns `{:error, :requires_anchor}` where the result would depend on the missing year. Requires `calendrical ~> 0.10`.
+
+* `Tempo.from_iso8601/2` returns `{:error, {:invalid_calendar, module}}` for a module that is not a usable calendar — such as the `Calendrical.Islamic` namespace, whose concrete forms are `Calendrical.Islamic.Civil`, `.UmmAlQura`, and so on — instead of crashing with `UndefinedFunctionError`.
 
 ## [v0.14.0] — 2026-07-02
 

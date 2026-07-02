@@ -133,4 +133,19 @@ defmodule Tempo.CalendarTest do
       end
     end
   end
+
+  describe "Tempo.from_iso8601/2 with an unusable calendar module" do
+    test "a concrete Islamic calendar parses" do
+      assert {:ok, _} = Tempo.from_iso8601("1446-09", Calendrical.Islamic.Civil)
+      assert {:ok, _} = Tempo.from_iso8601("2025-06-15", Calendrical.Gregorian)
+    end
+
+    test "a namespace module returns an error rather than raising" do
+      # `Calendrical.Islamic` is a namespace, not a calendar — its
+      # concrete forms are `.Civil`, `.UmmAlQura`, etc. Passing it used
+      # to crash with UndefinedFunctionError deep in validation.
+      assert {:error, {:invalid_calendar, Calendrical.Islamic}} =
+               Tempo.from_iso8601("1446-09", Calendrical.Islamic)
+    end
+  end
 end

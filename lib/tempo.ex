@@ -693,8 +693,17 @@ defmodule Tempo do
   defp resolve_calendar(:from_ixdtf_or_default, _extended),
     do: {:ok, Calendrical.Gregorian}
 
-  defp resolve_calendar(calendar, _extended),
-    do: {:ok, calendar}
+  # An explicit calendar always wins — but validate it is a usable
+  # calendar module first. Passing a namespace like `Calendrical.Islamic`
+  # (whose concrete forms are `.Civil`, `.UmmAlQura`, …) must return a
+  # clean error, not crash deep in validation with `UndefinedFunctionError`.
+  defp resolve_calendar(calendar, _extended) when is_atom(calendar) do
+    if Code.ensure_loaded?(calendar) and function_exported?(calendar, :months_in_year, 1) do
+      {:ok, calendar}
+    else
+      {:error, {:invalid_calendar, calendar}}
+    end
+  end
 
   @doc false
   def attach_extended(result, nil), do: result
@@ -2869,6 +2878,14 @@ defmodule Tempo do
 
   * The shifted `t:t/0`.
 
+  * `{:error, :requires_anchor}` when the value has no `:year` (an
+    un-anchored month/day or time-of-day value) and the arithmetic
+    would depend on the missing year — e.g. `~o"1M31D"` shifted by one
+    month can't be resolved without knowing February's length.
+    Un-anchored arithmetic that *is* determinable still succeeds:
+    `~o"1M31D"` plus one day is `~o"2M1D"`, since January always has 31
+    days.
+
   ### Examples
 
       iex> Tempo.shift(~o"2026-06-15", month: 1, day: -5)
@@ -2883,8 +2900,15 @@ defmodule Tempo do
       iex> Tempo.shift(~o"2026", ~o"P2Y")
       ~o"2028Y"
 
+      iex> Tempo.shift(~o"1M31D", ~o"P1D")
+      ~o"2M1D"
+
+      iex> Tempo.shift(~o"1M31D", ~o"P1M")
+      {:error, :requires_anchor}
+
   """
-  @spec shift(t(), Tempo.Duration.t() | keyword()) :: t() | Tempo.Set.t() | Tempo.IntervalSet.t()
+  @spec shift(t(), Tempo.Duration.t() | keyword()) ::
+          t() | Tempo.Set.t() | Tempo.IntervalSet.t() | {:error, :requires_anchor}
   def shift(%Tempo{} = tempo, %Tempo.Duration{} = duration) do
     Math.add(tempo, duration)
   end

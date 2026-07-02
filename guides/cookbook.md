@@ -705,6 +705,21 @@ false
 
 `consistent?/1` is `true` when at least one assignment of dates satisfies every constraint at once — here it's `false`, since a period can't end before it starts.
 
+### How do I tell whether two periods could overlap?
+
+Two pottery phases dated only to overlapping windows — nothing forces them together or apart:
+
+```elixir
+iex> network =
+...>   Tempo.Network.new()
+...>   |> Tempo.Network.add_period(:phase_a, start: {:not_before, ~o"1200Y"}, end: {:not_after, ~o"1260Y"})
+...>   |> Tempo.Network.add_period(:phase_b, start: {:not_before, ~o"1250Y"}, end: {:not_after, ~o"1300Y"})
+iex> Tempo.Network.Solver.contemporaneity(network, :phase_a, :phase_b)
+:possible
+```
+
+`contemporaneity/3` reads the tightened network and answers three ways — `:certain` (every consistent chronology has them overlapping), `:possible` (some do, some don't), or `:impossible` (none do) — so *"could these two phases have been in use at the same time?"* gets a graded answer, not a guess. `certainly_contemporary?/3` and `possibly_contemporary?/3` are the boolean shortcuts.
+
 ---
 
 ## 12. Scheduling
