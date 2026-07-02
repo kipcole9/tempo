@@ -151,7 +151,8 @@ defmodule Tempo.RRule.Expander do
 
   """
   @spec to_ast(Rule.t(), Tempo.t(), keyword()) :: {:ok, Interval.t()}
-  def to_ast(%Rule{} = rule, %Tempo{} = dtstart, options \\ []) do
+  def to_ast(%Rule{} = rule, dtstart, options \\ [])
+      when is_nil(dtstart) or is_struct(dtstart, Tempo) do
     cadence = %Tempo.Duration{time: [{rule.freq, rule.interval}]}
 
     recurrence = if is_integer(rule.count) and rule.count > 0, do: rule.count, else: :infinity

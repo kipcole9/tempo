@@ -176,4 +176,38 @@ defmodule Tempo.RRuleTest do
       assert rrule_ast.repeat_rule.time == [selection: [month: 6]]
     end
   end
+
+  describe "occurrence span matches the selection's resolution" do
+    # A selection picks points at its own resolution, so "the 15th of
+    # every month" is the *day* the 15th — not the month-long cadence
+    # it sits in. The span is derived in materialisation, so native
+    # ISO 8601-2, RRULE, and cron agree; a plain repeating interval
+    # (no selection) still spans its cadence.
+
+    test "BYMONTHDAY yields day-resolution occurrences, not month spans" do
+      first = first_occurrence(RRule.parse!("FREQ=MONTHLY;BYMONTHDAY=15", from: ~o"2025-01-15"))
+
+      assert first.from == ~o"2025-01-15"
+      assert first.to == ~o"2025-01-16"
+    end
+
+    test "native selection sigil and RRULE agree on occurrence spans" do
+      native = ~o"R/2025-01-15/P1M/FL15DN"
+      rrule = RRule.parse!("FREQ=MONTHLY;BYMONTHDAY=15", from: ~o"2025-01-15")
+
+      assert first_occurrence(native) == first_occurrence(rrule)
+    end
+
+    test "a plain repeating interval keeps its cadence as the occurrence span" do
+      first = first_occurrence(~o"R/2025-01-15/P1M")
+
+      assert first.from == ~o"2025-01-15"
+      assert first.to == ~o"2025-02-15"
+    end
+  end
+
+  defp first_occurrence(value) do
+    {:ok, set} = Tempo.to_interval(value, bound: ~o"2025")
+    set |> Tempo.IntervalSet.to_list() |> hd()
+  end
 end

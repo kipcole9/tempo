@@ -3424,9 +3424,45 @@ defmodule Tempo do
     fn candidate -> [candidate] end
   end
 
-  defp selection_fn(%Tempo.Interval{repeat_rule: %Tempo{} = rule}, %Tempo.Duration{} = cadence) do
+  defp selection_fn(
+         %Tempo.Interval{repeat_rule: %Tempo{} = rule, metadata: metadata},
+         %Tempo.Duration{} = cadence
+       ) do
     freq = freq_of(cadence)
-    fn candidate -> Selection.apply(candidate, rule, freq) end
+    resize? = not explicit_occurrence_span?(metadata)
+
+    fn candidate ->
+      candidate
+      |> Selection.apply(rule, freq)
+      |> resize_selected_occurrences(resize?)
+    end
+  end
+
+  # A selection picks *points* at its own resolution — "the 15th"
+  # is the day the 15th, not the month it sits in. The candidate the
+  # selection expands spans a whole cadence period (so the resolver
+  # can see the enclosing month/year), so each selected occurrence
+  # inherits that period as its span. Unless the recurrence carries
+  # an explicit event span (a DTEND-style `occurrence_base_to` or
+  # `occurrence_duration`), resize each occurrence to one unit of its
+  # own resolution. This keeps native `~o".../FL15DN"`, RRULE, and
+  # cron consistent without storing any per-occurrence metadata.
+  defp resize_selected_occurrences(occurrences, false), do: occurrences
+
+  defp resize_selected_occurrences(occurrences, true) do
+    Enum.map(occurrences, &resize_to_resolution/1)
+  end
+
+  defp resize_to_resolution(%Tempo.Interval{from: %Tempo{} = from} = occurrence) do
+    {unit, _value} = resolution(from)
+    %{occurrence | to: Math.add(from, %Tempo.Duration{time: [{unit, 1}]})}
+  end
+
+  defp resize_to_resolution(occurrence), do: occurrence
+
+  defp explicit_occurrence_span?(metadata) do
+    match?(%{occurrence_base_to: %Tempo{}}, metadata) or
+      match?(%{occurrence_duration: %Tempo.Duration{}}, metadata)
   end
 
   # The FREQ of a recurrence is the primary unit of its cadence —

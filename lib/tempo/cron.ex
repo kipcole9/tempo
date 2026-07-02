@@ -1,14 +1,13 @@
 defmodule Tempo.Cron do
   @moduledoc """
-  Parser for cron expressions, producing the same
-  `t:Tempo.RRule.Rule.t/0` AST that the ISO 8601 / RFC 5545 RRULE
-  parser produces.
+  Parses cron expressions into recurring `t:Tempo.Interval.t/0`
+  values — the same first-class recurrence that `Tempo.RRule.parse/2`
+  and native ISO 8601 repeating intervals produce.
 
   Lets Tempo consume any cron-configured schedule (Oban, Quantum,
-  system crontab) without rewriting the rule in another
-  vocabulary. Once parsed, the rule can be materialised the same
-  way any RRULE can — `Tempo.RRule.Expander.expand/2,3` or
-  `Tempo.to_interval/2` with a `:bound`.
+  system crontab) without rewriting it in another vocabulary. Once
+  parsed, materialise it like any other recurrence — `Tempo.to_interval/2`
+  with a `:bound` — or supply `:from` to anchor the occurrences.
 
   ### Supported formats
 
@@ -97,6 +96,7 @@ defmodule Tempo.Cron do
   """
 
   alias Tempo.CronError
+  alias Tempo.RRule.Expander
   alias Tempo.RRule.Rule
 
   @aliases %{
@@ -139,71 +139,75 @@ defmodule Tempo.Cron do
   @cascade_order [:year, :month, :day_of_week, :day_of_month, :hour, :minute, :second]
 
   @doc """
-  Parse a cron expression into a `t:Tempo.RRule.Rule.t/0`.
+  Parse a cron expression into a recurring `t:Tempo.Interval.t/0`.
+
+  A cron schedule, an RFC 5545 RRULE, and a native ISO 8601 repeating
+  interval all become the same kind of first-class Tempo value, so a
+  parsed cron entry composes and materialises exactly like any other
+  recurrence — no intermediate rule struct to manage.
 
   ### Arguments
 
   * `expression` is a cron string (5, 6, or 7 fields, or an alias).
 
+  ### Options
+
+  * `:from` — a `t:Tempo.t/0` anchor for the recurrence. Optional;
+    supply it to enumerate or materialise concrete occurrences.
+
   ### Returns
 
-  * `{:ok, rule}` where `rule` is a `t:Tempo.RRule.Rule.t/0`.
+  * `{:ok, interval}` — a recurring `t:Tempo.Interval.t/0`, materialised
+    with `Tempo.to_interval/2` given a `:bound`.
 
   * `{:error, exception}` — typically a `t:Tempo.CronError.t/0`.
 
   ### Examples
 
-      iex> {:ok, rule} = Tempo.Cron.parse("0 9 * * 1-5")
-      iex> rule.freq
-      :week
-      iex> rule.byhour
-      [9]
-      iex> rule.byminute
-      [0]
-      iex> rule.byday
-      [{nil, 1}, {nil, 2}, {nil, 3}, {nil, 4}, {nil, 5}]
-
-      iex> {:ok, rule} = Tempo.Cron.parse("@daily")
-      iex> rule.freq
-      :day
-      iex> {rule.byhour, rule.byminute}
-      {[0], [0]}
-
-      iex> {:ok, rule} = Tempo.Cron.parse("*/15 * * * *")
-      iex> {rule.freq, rule.interval}
-      {:minute, 15}
-
-      iex> {:ok, rule} = Tempo.Cron.parse("* * * * *")
-      iex> {rule.freq, rule.interval}
-      {:minute, 1}
+      iex> {:ok, monthly} = Tempo.Cron.parse("0 0 15 * *", from: ~o"2025-01-15")
+      iex> {:ok, occurrences} = Tempo.to_interval(monthly, bound: ~o"2025")
+      iex> Tempo.IntervalSet.count(occurrences)
+      12
 
       iex> {:error, %Tempo.CronError{}} = Tempo.Cron.parse("not a cron")
 
   """
-  @spec parse(String.t()) :: {:ok, Rule.t()} | {:error, Exception.t()}
-  def parse(expression) when is_binary(expression) do
+  @spec parse(String.t(), keyword()) :: {:ok, Tempo.Interval.t()} | {:error, Exception.t()}
+  def parse(expression, options \\ []) when is_binary(expression) do
+    with {:ok, rule} <- to_rule(expression) do
+      Expander.to_ast(rule, Keyword.get(options, :from))
+    end
+  end
+
+  @doc """
+  Raising version of `parse/2`.
+
+  ### Examples
+
+      iex> Tempo.Cron.parse!("@hourly").recurrence
+      :infinity
+
+  """
+  @spec parse!(String.t(), keyword()) :: Tempo.Interval.t()
+  def parse!(expression, options \\ []) do
+    case parse(expression, options) do
+      {:ok, interval} -> interval
+      {:error, exception} -> raise exception
+    end
+  end
+
+  # Parse a cron expression into the intermediate RRULE `Rule` — the
+  # detailed field mapping (freq/interval/by-rules). Internal: the public
+  # `parse/2` wraps this and returns a recurring interval. Kept as a named
+  # function so the field-level mapping stays directly testable.
+  @doc false
+  @spec to_rule(String.t()) :: {:ok, Rule.t()} | {:error, Exception.t()}
+  def to_rule(expression) when is_binary(expression) do
     trimmed = String.trim(expression)
 
     case Map.get(@aliases, String.downcase(trimmed)) do
       nil -> parse_fields(trimmed, expression)
       expanded -> parse_fields(expanded, expression)
-    end
-  end
-
-  @doc """
-  Raising version of `parse/1`.
-
-  ### Examples
-
-      iex> Tempo.Cron.parse!("@hourly").freq
-      :hour
-
-  """
-  @spec parse!(String.t()) :: Rule.t()
-  def parse!(expression) do
-    case parse(expression) do
-      {:ok, rule} -> rule
-      {:error, exception} -> raise exception
     end
   end
 
