@@ -347,9 +347,13 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
       maybe_negative_integer_or_integer_set("Y", :year, min: 1),
       maybe_negative_integer_or_integer_set("M", :month, min: 1),
       maybe_negative_integer_or_integer_set("W", :week, min: 1),
-      maybe_negative_integer_or_integer_set("O", :day, min: 1),
+      maybe_negative_integer_or_integer_set("O", :day_of_year, min: 1),
       maybe_negative_integer_or_integer_set("D", :day, min: 1),
       maybe_negative_integer_or_integer_set("K", :day_of_week, min: 1),
+      # `V` (BYSETPOS) and `Q` (WKST) are Tempo project-specific designators —
+      # RFC 5545 extensions with no ISO 8601 form. See `Tempo.Inspect`.
+      maybe_negative_integer_or_integer_set("V", :set_position, min: 1),
+      maybe_negative_integer_or_integer_set("Q", :wkst, min: 1),
       selection_instance(),
       ignore(string("L")) |> parsec(:interval_parser) |> ignore(string("N"))
     ])

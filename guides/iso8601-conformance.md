@@ -118,7 +118,13 @@ These syntaxes are Tempo conveniences, not part of any standard:
 * **Step in range** — `{1990..1999//2}Y` or `2023Y{1..-1//2}W` means "every second week in 2023".
 * **Explicit suffixes** — `2022Y11M20D` instead of `2022-11-20`. Used by the `~o` sigil as the canonical output form.
 * **Repeat rule** — `/F` combinator inside a parsed expression.
-* **Selection instance count** — `L…N` with an `I` modifier for the nth instance.
+* **Selection instance count** — `L…N` with an `I` modifier for the nth instance (`2I1K` = "the 2nd Monday").
+* **RRULE selection designators** — a recurrence selection may carry two RFC 5545 (iCalendar RRULE / cron) filters that have **no ISO 8601 representation**. Tempo assigns them project-specific designators so a parsed rule round-trips through `inspect/1`/`Tempo.to_iso8601/1` instead of being lost:
+
+  * **`V` — set position** (RRULE `BYSETPOS`): keep the Nth occurrence(s) of the per-period candidate set, e.g. `-1V` = the last, `{1,3}V` = the 1st and 3rd.
+  * **`Q` — week start** (RRULE `WKST`): the weekday a week begins on, e.g. `7Q` = Sunday.
+
+  So "the last weekday of each month" (`FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1`) inspects as `~o"R/../P1M/FL{1..5}K-1VN"`. These two designators are the **only** non-standard letters Tempo emits inside a selection; the canonical external form for such a rule is still the RRULE string via `Tempo.to_rrule/1`.
 
 None of these break ISO 8601 compatibility — Tempo accepts the standard forms too.
 

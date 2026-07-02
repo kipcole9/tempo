@@ -71,6 +71,12 @@ defmodule Tempo.Iso8601.RoundTripTest do
     {"selection — month/weekday", "2018Y3ML1KN"},
     {"selection — ordinal BYDAY (2nd Monday)", "R/2025-01-01/P1M/FL2I1KN"},
     {"selection — weekday+instance (postfix)", "R/2018-09-05/P1D/F1YL9M3K1IN"},
+    {"selection — day-of-year (BYYEARDAY)", "R/2025-01-01/P1Y/FL100ON"},
+    {"selection — consolidated weekday range", "R/2025-01-01/P1W/FL{1..5}KN"},
+    # Tempo project-specific designators (§5) — RFC 5545 BYSETPOS / WKST, which
+    # have no ISO 8601 form: `V` (set position) and `Q` (week start).
+    {"selection — set-position (V, Tempo ext.)", "R/2025-01-01/P1M/FL1K-1VN"},
+    {"selection — week-start (Q, Tempo ext.)", "R/2025-01-01/P1W/FL1K7QN"},
     {"season — meteorological", "2022-21"},
     {"season — astronomical", "2022-25"},
     {"quarter", "2022-33"},

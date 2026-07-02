@@ -37,6 +37,7 @@ defmodule Tempo.RRule.Expander do
   """
 
   alias Tempo.Interval
+  alias Tempo.Iso8601.Parser
   alias Tempo.RRule.Rule
   alias Tempo.RRuleError
 
@@ -207,7 +208,7 @@ defmodule Tempo.RRule.Expander do
         |> push_wkst(rule.wkst)
 
       %Tempo{
-        time: [selection: Enum.reverse(by_rules)],
+        time: [selection: Parser.consolidate_selection(Enum.reverse(by_rules))],
         calendar: Calendrical.Gregorian
       }
     else

@@ -48,6 +48,8 @@ defmodule Tempo.RRule do
 
   """
 
+  alias Tempo.Iso8601.Parser
+
   @weekdays %{
     "MO" => 1,
     "TU" => 2,
@@ -306,6 +308,12 @@ defmodule Tempo.RRule do
   #   grammar uses, since BYSETPOS has different semantics
   #   (applied after all other BY-rules, across the per-period
   #   candidate set).
+  # * `{:wkst, int}` — WKST, the week-start weekday.
+  #
+  # BYSETPOS and WKST have no ISO 8601 form, so `inspect/1`/`to_iso8601/1`
+  # render them with the Tempo project-specific selection designators `V` and
+  # `Q` (see `Tempo.Inspect` and `guides/iso8601-conformance.md` §5) so a rule
+  # round-trips; the canonical external form remains the RRULE string.
   #
   # When no BY-rules are present AND WKST is the default, the
   # repeat_rule is nil. A non-default `WKST` alone is enough to
@@ -336,7 +344,7 @@ defmodule Tempo.RRule do
 
       rules ->
         %Tempo{
-          time: [selection: Enum.reverse(rules)],
+          time: [selection: Parser.consolidate_selection(Enum.reverse(rules))],
           calendar: Calendrical.Gregorian
         }
     end

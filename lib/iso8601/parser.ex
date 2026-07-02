@@ -534,6 +534,29 @@ defmodule Tempo.Iso8601.Parser do
     other
   end
 
+  # A repeat-rule selection built from RRULE/cron `BY…` parts holds raw integer
+  # lists (`BYDAY=MO,TU,WE,TH,FR` → `[1, 2, 3, 4, 5]`). Parsing the same
+  # selection back from ISO 8601 consolidates consecutive runs into ranges
+  # (`[1..5]`) as a readability aid, so a builder must apply the same
+  # consolidation for a value to round-trip. Only integer-list values are
+  # touched; `:byday` ordinal pairs and scalar filters are left as-is.
+  def consolidate_selection(selection) when is_list(selection) do
+    Enum.map(selection, fn
+      {unit, value} when is_list(value) -> {unit, consolidate_list_value(value)}
+      other -> other
+    end)
+  end
+
+  # Merge already-ascending consecutive runs (`[1, 2, 3, 4, 5]` → `[1..5]`)
+  # without sorting: an RRULE `BYMONTHDAY=1,-1` keeps its order (a leading `-1`
+  # is a "last day" sentinel, not a value to reorder), and the common weekday
+  # and month lists are written ascending already.
+  defp consolidate_list_value(value) do
+    if Enum.all?(value, &is_integer/1),
+      do: consolidate_ranges(value),
+      else: value
+  end
+
   # Consolidate overlapping, adjacent and enclosing
   # ranges. Remove integers that fit within or are
   # adjacent to ranges. Collapse sequences of integers

@@ -605,6 +605,14 @@ defmodule Tempo.Inspect do
     end)
   end
 
+  # RRULE BYSETPOS and WKST have no ISO 8601 designator — they are RFC 5545
+  # extensions. Tempo renders them with the project-specific selection
+  # designators `V` (set position) and `Q` (week start) so a recurrence
+  # carrying them round-trips through `inspect/1`/`to_iso8601/1` rather than
+  # crashing; the canonical external form remains the RRULE string.
+  defp inspect_value({:set_position, position}), do: [inspect_list(position), ?V]
+  defp inspect_value({:wkst, weekday}), do: [inspect_list(weekday), ?Q]
+
   defp inspect_value({:interval, interval}), do: inspect_value(interval)
   defp inspect_value({:duration, duration}), do: inspect_value(duration)
   defp inspect_value(:undefined), do: ".."

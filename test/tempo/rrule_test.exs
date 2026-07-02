@@ -74,9 +74,11 @@ defmodule Tempo.RRuleTest do
       assert i.repeat_rule.time == [selection: [month: 6]]
     end
 
-    test "multiple BYMONTH values become a list" do
+    test "multiple BYMONTH values become a list (consecutive runs consolidate)" do
       {:ok, i} = RRule.parse("FREQ=YEARLY;BYMONTH=6,7,8")
-      assert i.repeat_rule.time == [selection: [month: [6, 7, 8]]]
+      # Consecutive integers consolidate to a range for readability, matching
+      # what parsing the ISO 8601 selection back produces, so it round-trips.
+      assert i.repeat_rule.time == [selection: [month: [6..8]]]
     end
 
     test "BYDAY without ordinal becomes day_of_week selection" do
@@ -117,9 +119,10 @@ defmodule Tempo.RRuleTest do
       # used by Tempo's native ISO 8601-2 selection grammar. The
       # semantics differ: BYSETPOS operates on the per-period
       # candidate set AFTER all other BY-rules, so it serialises last —
-      # after the `:day_of_week` filter it selects from.
+      # after the `:day_of_week` filter it selects from. Consecutive
+      # weekdays consolidate to a range (`[1..5]`) for readability.
       assert i.repeat_rule.time ==
-               [selection: [day_of_week: [1, 2, 3, 4, 5], set_position: -1]]
+               [selection: [day_of_week: [1..5], set_position: -1]]
     end
   end
 
@@ -207,6 +210,24 @@ defmodule Tempo.RRuleTest do
 
       assert rrule.repeat_rule.time == [selection: [day_of_week: 5, hour: 17, minute: 0]]
       assert Tempo.from_iso8601(Tempo.to_iso8601(rrule)) == {:ok, rrule}
+    end
+
+    test "BYYEARDAY, BYSETPOS, WKST and consecutive runs round-trip via to_iso8601/1" do
+      # BYYEARDAY uses the ISO `O` designator; BYSETPOS (`V`) and WKST (`Q`) are
+      # Tempo project-specific designators — RFC 5545 features with no ISO form,
+      # which previously crashed `to_iso8601/1`. Consecutive values consolidate
+      # to ranges and still round-trip.
+      rules = [
+        "FREQ=YEARLY;BYYEARDAY=100",
+        "FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1",
+        "FREQ=WEEKLY;BYDAY=MO;WKST=SU",
+        "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR"
+      ]
+
+      for rule <- rules do
+        rrule = RRule.parse!(rule, from: ~o"2025-01-01")
+        assert Tempo.from_iso8601(Tempo.to_iso8601(rrule)) == {:ok, rrule}
+      end
     end
   end
 

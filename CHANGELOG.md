@@ -8,6 +8,8 @@
 
 * An unanchored recurrence — a cron schedule or RRULE with no start, e.g. `Tempo.Cron.parse!("0 17 * * 5")` — now round-trips through its ISO 8601 form: the parser accepts the open-start `R/../P1W/…` shape, and a weekday-plus-time selection serialises the weekday before the time (`FL5KT17H0MN`) so it re-parses to the same value.
 
+* `inspect/1` and `Tempo.to_iso8601/1` no longer crash on a recurrence carrying RRULE `BYSETPOS` or `WKST`; these RFC 5545 filters have no ISO 8601 form, so Tempo renders them with the project-specific selection designators `V` and `Q` (conformance guide §5) and they round-trip. `BYYEARDAY` now round-trips via the `O` ordinal-day designator, and consecutive `BY…` runs (weekdays, months) consolidate to ranges (`{1..5}`) that round-trip while staying readable.
+
 ## [v0.15.0] — 2026-07-02
 
 ### Added
