@@ -1,7 +1,7 @@
 defmodule Tempo.Mask do
   @moduledoc false
 
-  import Tempo.Enumeration, only: [adjusted_range: 4, backtrack: 2]
+  import Tempo.Enumeration, only: [adjusted_range: 4, backtrack: 2, current_units: 1]
 
   # Fill in the mask when enumerating. The unspecified digits are filled
   # with the known candidate values and then expanded. For `year: :any` we
@@ -26,26 +26,16 @@ defmodule Tempo.Mask do
     |> List.wrap()
   end
 
-  # Year masks are bounded entirely by their digit pattern — there
-  # is no calendar context that narrows them further. Compute the
-  # `min..max` range directly from the mask (each `:X` spans
-  # `0..9` at its position) and filter to candidates that match
-  # the concrete digits.
-  def fill_unspecified(:year, [:negative | rest_mask], _calendar, _previous) do
-    {min, max} = mask_bounds(rest_mask)
-
-    Enum.reduce(max..min//-1, [], fn candidate, acc ->
-      if matches_mask?(candidate, rest_mask), do: [-candidate | acc], else: acc
-    end)
+  # Year masks are bounded entirely by their digit pattern (no calendar
+  # context narrows them), so they defer to `valid_values/4` — the single
+  # resolver — just like the month/day path below. `valid_values/4` ignores
+  # `previous`/`calendar` for years.
+  def fill_unspecified(:year, [:negative | _] = mask, calendar, previous) do
+    valid_values(:year, mask, previous, calendar)
   end
 
-  def fill_unspecified(:year, mask, _calendar, _previous) when is_list(mask) do
-    {min, max} = mask_bounds(mask)
-
-    Enum.reduce(min..max, [], fn candidate, acc ->
-      if matches_mask?(candidate, mask), do: [candidate | acc], else: acc
-    end)
-    |> Enum.reverse()
+  def fill_unspecified(:year, mask, calendar, previous) when is_list(mask) do
+    valid_values(:year, mask, previous, calendar)
   end
 
   # Month and day masks still need calendar context (month-of-year
@@ -70,26 +60,26 @@ defmodule Tempo.Mask do
   end
 
   def fill_unspecified(unit, mask, calendar, previous) when unit in [:month, :day] do
-    [target_range] = fill_unspecified(unit, :any, calendar, previous)
-    width = length(mask)
-
-    # Months and days are zero-padded, so a single-digit candidate (day
-    # `5` → `05`) still matches a two-position `[:X, :X]` mask. Use the
-    # padded matcher rather than `matches_mask?/2` (which is exact-width,
-    # for years).
-    Enum.reduce(target_range, [], fn candidate, acc ->
-      if padded_matches_mask?(candidate, mask, width), do: [candidate | acc], else: acc
-    end)
+    # Unified candidate generation: derive the concrete coarser units from
+    # the enumeration state (advance them via `backtrack/2`, then take each
+    # unit's current value) and defer to `valid_values/4` — the single,
+    # exact, calendar-aware resolver. This is the same range + zero-padded
+    # match the old inline `adjusted_range`/`padded_matches_mask?` computed,
+    # now shared with the materialisation path so the two cannot diverge.
+    concrete = previous |> backtrack(calendar) |> current_units() |> Enum.reverse()
+    valid_values(unit, mask, concrete, calendar)
   end
 
   @doc """
   Return the list of valid values a mask can take at a given
   unit, constrained by the calendar and the preceding units.
 
-  Unlike `fill_unspecified/4` (which drives enumeration and
-  folds a heuristic for multi-digit widths), this function
-  returns the exact candidate set: for `:month` with no leading
-  constraint, that's `1..months_in_year(year)` filtered by the
+  This is the single, exact, calendar-aware candidate resolver.
+  Both the materialisation path (non-contiguous mask expansion in
+  `Tempo.to_interval/2`) and the enumeration path
+  (`fill_unspecified/4`, which delegates here) route through it, so
+  the two cannot diverge. For `:month` with no leading constraint,
+  the result is `1..months_in_year(year)` filtered by the
   zero-padded digit pattern.
 
   ### Arguments

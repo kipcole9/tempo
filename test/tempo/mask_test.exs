@@ -57,7 +57,7 @@ defmodule Tempo.MaskTest do
     end
 
     test "a positive single-digit month mask yields 1..9" do
-      assert Mask.fill_unspecified(:month, [:X], @cal, year: 1985) == Enum.to_list(9..1//-1)
+      assert Mask.fill_unspecified(:month, [:X], @cal, year: 1985) == Enum.to_list(1..9)
     end
 
     test "a negative year mask yields negative two-digit years" do

@@ -10,6 +10,8 @@
 
 * The graded relations now compute the *exact* set of possible Allen relations — enumerating each operand's discrete `±` placements rather than treating endpoints independently — so verdicts are tighter (e.g. `relation_certainty(~o"2000±5Y", ~o"2000±5Y", [...year relations])` is now `:certain`). Margins beyond ±128 units per operand fall back to the previous sound O(1) endpoint-range method.
 
+* Enumerating a masked value now yields its candidates in ascending order — `~o"2020-06-XX"` gives the 1st … 30th, consistent with year masks and materialisation (month/day masks previously enumerated descending). Mask candidate generation is now shared between the enumeration and materialisation paths through a single resolver, so they can no longer diverge.
+
 ## [v0.13.0] — 2026-07-02
 
 ### Fixed

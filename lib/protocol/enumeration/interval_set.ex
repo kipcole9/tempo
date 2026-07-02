@@ -8,10 +8,13 @@ defimpl Enumerable, for: Tempo.IntervalSet do
   # order — the natural input for free/busy scans and calendar
   # renderings.
   #
-  # To iterate the member intervals directly (instead of every
-  # sub-point inside them) call `Tempo.IntervalSet.to_list/1` and
-  # pipe the list into `Enum`. See the TODO on resolving this
-  # semantic tension cleanly.
+  # There are two legitimate iteration modes, and this is the
+  # deliberate resolution of that tension: the `Enumerable` protocol
+  # yields *sub-points* (the free/busy-scan and calendar-rendering
+  # input), and iterating the *member intervals* is an explicit, named
+  # operation — `Tempo.IntervalSet.to_list/1` returns the members for
+  # piping into `Enum`. The protocol is not overloaded to do both; the
+  # accessor makes the member-level intent visible at the call site.
 
   @impl Enumerable
   def count(_set) do
