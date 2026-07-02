@@ -1,5 +1,15 @@
 # Changelog
 
+## [v0.14.0] — 2026-07-02
+
+### Added
+
+* Graded before/after predicates — `Tempo.certainly_before?/2`, `possibly_before?/2`, `certainly_after?/2`, and `possibly_after?/2` answer the disjoint-order question three-valued (`:certain | :possible | :impossible`) over `±` margin-of-error intervals, alongside the existing overlap/within certainty functions.
+
+### Changed
+
+* The graded relations now compute the *exact* set of possible Allen relations — enumerating each operand's discrete `±` placements rather than treating endpoints independently — so verdicts are tighter (e.g. `relation_certainty(~o"2000±5Y", ~o"2000±5Y", [...year relations])` is now `:certain`). Margins beyond ±128 units per operand fall back to the previous sound O(1) endpoint-range method.
+
 ## [v0.13.0] — 2026-07-02
 
 ### Fixed
