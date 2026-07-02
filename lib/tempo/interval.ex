@@ -315,6 +315,14 @@ defmodule Tempo.Interval do
     %__MODULE__{from: AST.build(time), to: :undefined}
   end
 
+  # An unanchored recurrence with no selection — `R/../P1W`, the inspect form
+  # of a cron/`RRule` value that has no `:from`. The duration is the cadence,
+  # kept as-is; the start stays `nil` (not `:undefined`) so it matches what
+  # inspect renders and round-trips to the same value.
+  def build([:undefined, {:duration, duration}]) do
+    %__MODULE__{from: nil, duration: Duration.build(duration)}
+  end
+
   def build([:undefined, {_to_tag, time}]) do
     %__MODULE__{from: :undefined, to: AST.build(time)}
   end
@@ -342,6 +350,17 @@ defmodule Tempo.Interval do
   end
 
   ## Three-element forms with a repeat_rule.
+
+  # An unanchored recurrence carrying a selection — `R/../P1W/FLT17H0M5KN`, the
+  # inspect form of a cron schedule with no `:from`. Start stays `nil`; the
+  # duration is the cadence and the selection is the repeat rule.
+  def build([:undefined, {:duration, duration}, {:repeat_rule, repeat_rule}]) do
+    %__MODULE__{
+      from: nil,
+      duration: Duration.build(duration),
+      repeat_rule: AST.build(repeat_rule)
+    }
+  end
 
   def build([{:duration, duration}, {_to_tag, to}, {:repeat_rule, repeat_rule}]) do
     %__MODULE__{

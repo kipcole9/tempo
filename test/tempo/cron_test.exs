@@ -424,4 +424,27 @@ defmodule Tempo.CronTest do
       assert IntervalSet.count(set) == 4
     end
   end
+
+  describe "round-trips through its ISO 8601 form" do
+    # A parsed cron is a recurring `%Tempo.Interval{}`; re-parsing the string
+    # `Tempo.to_iso8601/1` renders must return the identical value. Two shapes
+    # broke this: an unanchored schedule (`from: nil`) inspects as `R/../P1W/…`
+    # (the `..` open-start needed a parser branch), and a weekday+time selection
+    # must serialise the weekday before the time (`FL5KT17H0MN`, not the
+    # out-of-order `FLT17H0M5KN`) to re-parse.
+
+    test "every Friday at 17:00 (unanchored, weekday + time)" do
+      cron = Cron.parse!("0 17 * * 5")
+
+      assert Tempo.to_iso8601(cron) == "R/../P1W/FL5KT17H0MN"
+      assert Tempo.from_iso8601(Tempo.to_iso8601(cron)) == {:ok, cron}
+    end
+
+    test "a range of cron shapes each round-trip" do
+      for expression <- ["0 9 * * 1", "30 8 15 * *", "0 0 1 1 *", "*/15 * * * *"] do
+        cron = Cron.parse!(expression)
+        assert Tempo.from_iso8601(Tempo.to_iso8601(cron)) == {:ok, cron}
+      end
+    end
+  end
 end

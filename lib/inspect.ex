@@ -84,6 +84,7 @@ defmodule Tempo.Inspect do
   defp extended_trailer(%Tempo{extended: extended}) do
     [
       zone_id_trailer(extended),
+      zone_offset_trailer(extended),
       calendar_trailer(extended),
       tags_trailer(extended)
     ]
@@ -95,6 +96,18 @@ defmodule Tempo.Inspect do
   end
 
   defp zone_id_trailer(_), do: []
+
+  # An IXDTF numeric offset (`[+08:45]`) is stored as signed minutes from UTC;
+  # render it back in the bracketed `[±HH:MM]` form so it round-trips.
+  defp zone_offset_trailer(%{zone_offset: minutes}) when is_integer(minutes) do
+    sign = if minutes < 0, do: "-", else: "+"
+    absolute = abs(minutes)
+    ["[", sign, pad_two(div(absolute, 60)), ":", pad_two(rem(absolute, 60)), "]"]
+  end
+
+  defp zone_offset_trailer(_), do: []
+
+  defp pad_two(number), do: String.pad_leading(Integer.to_string(number), 2, "0")
 
   defp calendar_trailer(%{calendar: cal}) when is_atom(cal) and not is_nil(cal) do
     ["[u-ca=", Atom.to_string(cal), "]"]

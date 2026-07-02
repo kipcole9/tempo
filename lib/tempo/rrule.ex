@@ -320,11 +320,14 @@ defmodule Tempo.RRule do
       |> push_by(parts, :bymonthday, :day)
       |> push_by(parts, :byyearday, :day_of_year)
       |> push_by(parts, :byweekno, :week)
+      # `byday` (day-of-week, resolution 18) must precede the time elements so
+      # the selection serialises coarsest-to-finest and re-parses; a weekday
+      # after `T…H…M` is out of order. `Tempo.RRule.Expander` mirrors this.
+      |> push_byday(parts)
       |> push_by(parts, :byhour, :hour)
       |> push_by(parts, :byminute, :minute)
       |> push_by(parts, :bysecond, :second)
       |> push_by(parts, :bysetpos, :set_position)
-      |> push_byday(parts)
       |> push_wkst(wkst)
 
     case by_rules do

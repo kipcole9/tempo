@@ -196,11 +196,14 @@ defmodule Tempo.RRule.Expander do
         |> push_or_day(rule.bymonthday_or_byday)
         |> push_by(rule.byyearday, :day_of_year)
         |> push_by(rule.byweekno, :week)
+        # `byday` (a day-of-week filter, resolution 18) must precede the time
+        # elements: a selection is serialised coarsest-to-finest, so a weekday
+        # after `T…H…M` (`FLT17H0M5KN`) is out of order and will not re-parse.
+        |> push_byday(rule.byday)
         |> push_by(rule.byhour, :hour)
         |> push_by(rule.byminute, :minute)
         |> push_by(rule.bysecond, :second)
         |> push_by(rule.bysetpos, :set_position)
-        |> push_byday(rule.byday)
         |> push_wkst(rule.wkst)
 
       %Tempo{

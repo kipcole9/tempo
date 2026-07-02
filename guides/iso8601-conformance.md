@@ -21,7 +21,7 @@ A single `Tempo.from_iso8601/1` call therefore always returns a bounded value, n
 | Year-month-day | `2022-06-15`, `20220615` |
 | Ordinal date | `2022-166`, `2022166` |
 | Week date | `2022-W24`, `2022-W24-3`, `2022W243` |
-| Month-day | `06-15`, `--0615` |
+| Month-day | `06-15` (the truncated `--06-15` / `--0615` forms are deprecated — see below) |
 | Time of day | `T10`, `T10:30`, `T10:30:00`, `T103000` |
 | Fractional seconds | `T10:30:00.5`, `T10:30:00,5` |
 | Time zone `Z`, `+HH`, `+HH:MM`, `+HHMM` | `10:30:00Z`, `10:30:00+05:30` |
@@ -144,6 +144,7 @@ Tempo's conformance is exercised by:
 * **`test/tempo/iso8601/open_interval_test.exs`** — open-ended intervals.
 * **`test/tempo/iso8601/unspecified_digit_test.exs`** — unspecified-digit masks.
 * **`test/tempo/iso8601/leap_second_test.exs`** — leap-second validation.
+* **`test/tempo/iso8601/round_trip_test.exs`** — one representative per token round-trips through `inspect/1`: parse a value, re-parse the canonical `~o"…"` form `inspect/1` shows, and get the identical value back — no component dropped or mangled.
 * **`test/tempo/iso8601/edtf_corpus_test.exs`** — the full `unt-libraries/edtf-validate` corpus (BSD-3-Clause), exercised at 100%. See `test/support/edtf_corpus.ex` for the raw strings and attribution.
 
 As of v0.2.0 the suite runs 1592 tests with zero failures. The EDTF corpus is the only publicly-available conformance test set we know of for ISO 8601-2 Part 2; Tempo passes it in full.

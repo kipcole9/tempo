@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.15.1] — 2026-07-03
+
+### Fixed
+
+* An IXDTF numeric UTC offset (`[+08:45]`, `[-03:30]`) is now rendered by `inspect/1` and `Tempo.to_iso8601/1`, so a parsed value carrying one round-trips instead of silently dropping the offset.
+
+* An unanchored recurrence — a cron schedule or RRULE with no start, e.g. `Tempo.Cron.parse!("0 17 * * 5")` — now round-trips through its ISO 8601 form: the parser accepts the open-start `R/../P1W/…` shape, and a weekday-plus-time selection serialises the weekday before the time (`FL5KT17H0MN`) so it re-parses to the same value.
+
 ## [v0.15.0] — 2026-07-02
 
 ### Added

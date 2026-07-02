@@ -116,9 +116,10 @@ defmodule Tempo.RRuleTest do
       # `:set_position` is distinct from the `:instance` token
       # used by Tempo's native ISO 8601-2 selection grammar. The
       # semantics differ: BYSETPOS operates on the per-period
-      # candidate set AFTER all other BY-rules.
+      # candidate set AFTER all other BY-rules, so it serialises last —
+      # after the `:day_of_week` filter it selects from.
       assert i.repeat_rule.time ==
-               [selection: [set_position: -1, day_of_week: [1, 2, 3, 4, 5]]]
+               [selection: [day_of_week: [1, 2, 3, 4, 5], set_position: -1]]
     end
   end
 
@@ -196,6 +197,16 @@ defmodule Tempo.RRuleTest do
 
         assert Tempo.from_iso8601(iso) == {:ok, rrule}
       end
+    end
+
+    test "a weekday-plus-time selection serialises the weekday before the time" do
+      # `BYDAY` (day-of-week, resolution 18) is coarser than `BYHOUR`/`BYMINUTE`,
+      # so the selection must render weekday-first (`FL5KT17H0MN`) to re-parse —
+      # the reverse order (`FLT17H0M5KN`) is out of resolution order.
+      rrule = RRule.parse!("FREQ=WEEKLY;BYDAY=FR;BYHOUR=17;BYMINUTE=0", from: ~o"2025-01-03")
+
+      assert rrule.repeat_rule.time == [selection: [day_of_week: 5, hour: 17, minute: 0]]
+      assert Tempo.from_iso8601(Tempo.to_iso8601(rrule)) == {:ok, rrule}
     end
   end
 

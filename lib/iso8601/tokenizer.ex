@@ -137,6 +137,12 @@ defmodule Tempo.Iso8601.Tokenizer do
               |> ignore(string("/"))
               |> parsec(:qualified_endpoint),
 
+              # ../duration — an unanchored recurrence (no start), e.g. a cron
+              # schedule with no `:from`, which inspects as `R/../P1W/…`
+              replace(string(".."), :undefined)
+              |> ignore(string("/"))
+              |> parsec(:duration_parser),
+
               # date/ (trailing slash — open upper endpoint)
               parsec(:qualified_endpoint)
               |> ignore(string("/"))
