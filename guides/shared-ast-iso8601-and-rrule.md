@@ -90,17 +90,17 @@ RRULE's UNTIL uses the RFC 3339 basic format — four-digit years only. Years ou
 
 Tempo's IXDTF support attaches `[Europe/Paris]`, `[u-ca=hebrew]`, or arbitrary elective tags to a datetime, storing them on the `:extended` field. The current `to_rrule/1` does **not** emit these — iCalendar handles zones and calendars via `TZID` and `CALSCALE` at the calendar-object level, not inside `RRULE`.
 
-## What RRULE can express and ISO 8601 (via Tempo) cannot (yet)
+## RRULE features ISO 8601 has no standard form for
 
-Two cases:
+Two RRULE filters — `BYSETPOS` and `WKST` — have no representation in the ISO 8601 selection grammar. Rather than drop them on encode (which would make `Tempo.to_iso8601/1`/`inspect/1` lose data, or crash), Tempo assigns each a **project-specific selection designator**, documented in `guides/iso8601-conformance.md` §5. A rule carrying either still round-trips through the ISO form; the canonical *external* form for such a rule remains the RRULE string via `Tempo.to_rrule/1`.
 
-### `BYSETPOS` on a non-BYDAY selection
+### `BYSETPOS` — the `V` designator
 
-RRULE allows `BYSETPOS=-1` combined with any BY* rules — "take the last element from the resolved set". Tempo's AST represents `:instance` as a selection modifier, which is straightforward for BYDAY-paired ordinals but more awkward for arbitrary BY* combinations. The current implementation supports the common cases (BYDAY ordinal, bare BYSETPOS); exotic combinations may round-trip via distinct BYDAY and BYSETPOS parts rather than paired.
+RRULE `BYSETPOS=-1` ("take the last element of the resolved per-period set") is held as a `:set_position` token — distinct from the `:instance` selector that pairs an ordinal to a weekday (`2MO` = the 2nd Monday), since BYSETPOS applies across the whole candidate set after every other BY-rule. It renders as `-1V`, so `FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1` round-trips as `~o"R/../P1M/FL{1..5}K-1VN"`.
 
-### `WKST` (week start)
+### `WKST` — the `Q` designator
 
-RRULE lets each rule override the week start (`WKST=SU`). Tempo has no per-interval week-start field — the week start is a calendar concern, set on the `Calendrical.Gregorian` or `Calendrical.ISOWeek` module. The RRule parser currently accepts `WKST` and ignores it; `to_rrule/1` never emits one.
+RRULE lets a rule override the week start (`WKST=SU`), which shifts `BYWEEKNO`/`BYDAY`-weekly boundaries. Tempo holds it as a `:wkst` token: `Tempo.to_rrule/1` emits `WKST=SU`, and `Tempo.to_iso8601/1` renders it as `7Q` (7 = Sunday), so it round-trips both ways. (A non-default `WKST` alone is enough to produce a `:repeat_rule`, since it changes weekly boundaries.)
 
 ## What is lossy in the encoders
 
@@ -126,7 +126,7 @@ Every error carries a human-readable `:message` field and the source `:value`. E
 
 Three practical benefits:
 
-1. **Validation.** A parser that lands on a specific AST shape, combined with a round-trip test suite, is self-validating. If a parser bug changes the AST, round-trip fails loudly. The 17 ISO and 12 RRULE round-trip assertions in `test/tempo/round_trip_test.exs` give exactly this.
+1. **Validation.** A parser that lands on a specific AST shape, combined with a round-trip test suite, is self-validating. If a parser bug changes the AST, round-trip fails loudly. `test/tempo/round_trip_test.exs` (ISO ⇄ RRULE through the encoders) and `test/tempo/iso8601/round_trip_test.exs` (one case per ISO 8601 / ISO 8601-2 / IXDTF token, parse → `inspect` → parse) give exactly this.
 
 2. **Cross-format conversion.** Because both parsers target the same AST, `ISO 8601 → AST → RRULE` works for any input in the intersection. The test suite exercises three such conversions (`R/2022-01-01/P1D` → `FREQ=DAILY`, etc.). When the input is *outside* the intersection, the encoder returns a `Tempo.ConversionError` with a clear message pointing at what's not expressible.
 
@@ -155,5 +155,5 @@ assert ast_1 == ast_2           # fixed-point property
 
 * Source: `lib/tempo/rrule.ex`, `lib/tempo/rrule/encoder.ex`, `lib/inspect.ex`
 * Validation spike: `docs/rrule-ast-validation.md`
-* Round-trip tests: `test/tempo/round_trip_test.exs`
-* Conformance coverage (ISO 8601 side): `guides/iso8601-conformance.md`
+* Round-trip tests: `test/tempo/round_trip_test.exs` (encoder round-trips) and `test/tempo/iso8601/round_trip_test.exs` (per-token `inspect`/`to_iso8601` round-trips)
+* Conformance coverage (ISO 8601 side): `guides/iso8601-conformance.md` (§5 covers the `V`/`Q` project-specific designators)
