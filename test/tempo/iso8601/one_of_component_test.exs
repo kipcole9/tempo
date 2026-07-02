@@ -1,8 +1,6 @@
 defmodule Tempo.Iso8601.OneOfComponentTest do
   use ExUnit.Case, async: true
 
-  import Tempo.Sigils
-
   # A component-level "one of a set" (`[1,2,3]M`) is the one-of
   # counterpart of the all-of `{1,2,3}M` shorthand. It distributes
   # across the surrounding components to a one-of `Tempo.Set`.
