@@ -72,6 +72,8 @@ defmodule Tempo.RRule.Rule do
 
   """
 
+  alias Tempo.Iso8601.Parser
+
   @type frequency :: :second | :minute | :hour | :day | :week | :month | :year
   @type weekday :: 1..7
   @type byday_entry :: {integer() | nil, weekday()}
@@ -148,4 +150,99 @@ defmodule Tempo.RRule.Rule do
       &(&1 != nil)
     )
   end
+
+  @doc """
+  Project a rule's `BY*` filters onto the `%Tempo{}` selection carried in a
+  recurring interval's `:repeat_rule`.
+
+  This is the single source of truth for the RRULE/cron → selection mapping:
+  both `Tempo.RRule.parse/2` (over a parsed keyword list) and
+  `Tempo.RRule.Expander` (over a `%Rule{}`) build their selection here, so the
+  token vocabulary above cannot drift between the two paths.
+
+  The `BY*` filters are pushed coarsest-to-finest and the list is consolidated
+  (consecutive integers collapse to ranges) so the selection serialises to a
+  re-parseable ISO 8601 form. `byday` precedes the time elements because a
+  weekday after `T…H…M` is out of resolution order and will not round-trip.
+
+  ### Arguments
+
+  * `rule` is a `t:t/0`.
+
+  ### Returns
+
+  * A `%Tempo{}` carrying `[selection: …]`, or `nil` when the rule has no
+    `BY*` filter and a default `WKST` (the simple recurrence needs no
+    repeat rule).
+
+  ### Examples
+
+      iex> Tempo.RRule.Rule.to_selection(%Tempo.RRule.Rule{freq: :monthly, byday: [{2, 1}]})
+      ~o"L2I1KN"
+
+      iex> Tempo.RRule.Rule.to_selection(%Tempo.RRule.Rule{freq: :daily})
+      nil
+
+  """
+  # No `@spec`: the result is a `%Tempo{}` carrying a `{:selection, …}` token,
+  # which the `Tempo.t()` type's `token_list()` does not yet enumerate, so a
+  # `Tempo.t()` spec would read as an incomplete return type to Dialyzer.
+  def to_selection(%__MODULE__{} = rule) do
+    if has_by_rules?(rule) or non_default_wkst?(rule) do
+      selection =
+        []
+        |> push_by(rule.bymonth, :month)
+        |> push_by(rule.bymonthday, :day)
+        |> push_by(rule.bymonthday_nearest, :nearest_weekday)
+        |> push_or_day(rule.bymonthday_or_byday)
+        |> push_by(rule.byyearday, :day_of_year)
+        |> push_by(rule.byweekno, :week)
+        |> push_byday(rule.byday)
+        |> push_by(rule.byhour, :hour)
+        |> push_by(rule.byminute, :minute)
+        |> push_by(rule.bysecond, :second)
+        |> push_by(rule.bysetpos, :set_position)
+        |> push_wkst(rule.wkst)
+        |> Enum.reverse()
+        |> Parser.consolidate_selection()
+
+      %Tempo{time: [selection: selection], calendar: Calendrical.Gregorian}
+    end
+  end
+
+  defp non_default_wkst?(%__MODULE__{wkst: wkst}) when is_integer(wkst) and wkst != 1, do: true
+  defp non_default_wkst?(_rule), do: false
+
+  defp push_by(acc, nil, _unit), do: acc
+  defp push_by(acc, [], _unit), do: acc
+  defp push_by(acc, [single], unit), do: [{unit, single} | acc]
+  defp push_by(acc, list, unit) when is_list(list), do: [{unit, list} | acc]
+
+  defp push_or_day(acc, nil), do: acc
+
+  defp push_or_day(acc, {monthdays, byday_entries}) do
+    [{:or_day, {List.wrap(monthdays), List.wrap(byday_entries)}} | acc]
+  end
+
+  # BYDAY emits `{:day_of_week, …}` when every entry is a bare weekday, or
+  # `{:byday, [{ordinal, weekday}, …]}` when any entry carries an ordinal (so
+  # the resolver keeps "the 4th Thursday" paired rather than as two filters).
+  defp push_byday(acc, nil), do: acc
+  defp push_byday(acc, []), do: acc
+
+  defp push_byday(acc, entries) when is_list(entries) do
+    if Enum.all?(entries, fn {ordinal, _day} -> is_nil(ordinal) end) do
+      push_day_of_week(acc, Enum.map(entries, fn {nil, day} -> day end))
+    else
+      [{:byday, entries} | acc]
+    end
+  end
+
+  defp push_day_of_week(acc, [single]), do: [{:day_of_week, single} | acc]
+  defp push_day_of_week(acc, days), do: [{:day_of_week, days} | acc]
+
+  # Only emit `{:wkst, n}` for a non-default week start (WKST=MO is 1); the
+  # common case keeps the AST identical and the token signals intent.
+  defp push_wkst(acc, wkst) when is_integer(wkst) and wkst in 2..7, do: [{:wkst, wkst} | acc]
+  defp push_wkst(acc, _wkst), do: acc
 end

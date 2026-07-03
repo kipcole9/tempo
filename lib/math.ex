@@ -233,15 +233,32 @@ defmodule Tempo.Math do
 
   # ── Un-anchored arithmetic (no :year) ──────────────────────────
   #
-  # A value with no `:year` lives on a repeating month/day axis, so
-  # some arithmetic is still answerable — "the 31st of a month + one
-  # day" is the 1st of the next month because every January has 31
-  # days. We resolve those cases with the calendar's year-less
-  # `days_in_month/1` and `months_in_year/0`; where the answer would
-  # depend on the missing year (a February day count, a lunisolar
-  # year's last month, or a calendar that can't answer without a
-  # year) we throw `:requires_anchor`, which `add/2` converts to
-  # `{:error, :requires_anchor}` rather than crashing.
+  # A value with no `:year` lives on a repeating month/day axis. One principle
+  # governs every case below, and any new case must be decided by it — not by
+  # whatever the day-clamp happens to do:
+  #
+  #   Compute the shift when its result is invariant to the missing year;
+  #   return `%Tempo.RequiresAnchorError{}` when the result would depend on the
+  #   year. Never raise.
+  #
+  # The calendar answers via the year-less `days_in_month/1` and
+  # `months_in_year/0`, which return `{:ambiguous, range}` where a count varies
+  # with the year. Applying the principle (Gregorian examples):
+  #
+  #   * A whole-year step is a **no-op** — the untracked year moves, the
+  #     month/day/time does not (`1M31D` + `P1Y` = `1M31D`). Exception: a value
+  #     already sitting on a year-dependent day (`2M29D` + `P1Y`) errors,
+  #     because whether Feb 29 exists next year depends on the year.
+  #   * A **month** step is answerable (12 months is invariant) and wraps
+  #     December to January (`12M31D` + `P1M` = `1M31D`); only clamping the day
+  #     onto the new month can force an anchor (`1M31D` + `P1M` = "Feb 31").
+  #   * A **day/week** step advances while the day stays within the month's
+  #     *guaranteed* length; crossing a boundary whose position depends on the
+  #     year errors (`2M28D` + `P1D` — Feb 29 or Mar 1?). A bare-day value
+  #     (no month) advances while below the shortest month any month can be.
+  #
+  # `add/2` catches the internal `:requires_anchor` throw and converts it to the
+  # error tuple, so callers see a value or a clean error, never a crash.
 
   defp advance_day_unanchored(time, calendar) do
     day = Keyword.fetch!(time, :day)

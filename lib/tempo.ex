@@ -2880,12 +2880,14 @@ defmodule Tempo do
   * The shifted `t:t/0`.
 
   * `{:error, %Tempo.RequiresAnchorError{}}` when the value has no
-    `:year` (an un-anchored month/day or time-of-day value) and the
-    arithmetic would depend on the missing year — e.g. `~o"1M31D"`
-    shifted by one month can't be resolved without knowing February's
-    length. Un-anchored arithmetic that *is* determinable still
-    succeeds: `~o"1M31D"` plus one day is `~o"2M1D"`, since January
-    always has 31 days.
+    `:year` (an un-anchored month/day, bare-day, or time-of-day value)
+    and the shift's result would depend on the missing year. The rule:
+    an un-anchored shift is **computed when its result is invariant to
+    the year, and errors when it isn't** (it never raises). So
+    `~o"1M31D"` plus one day is `~o"2M1D"` (January always has 31 days)
+    and a whole-year step is a no-op (`~o"1M31D"` plus `P1Y` is
+    `~o"1M31D"`), but `~o"1M31D"` plus one month lands on an unresolvable
+    "Feb 31" and `~o"2M28D"` plus one day (Feb 29 or Mar 1?) both error.
 
   ### Examples
 
@@ -2903,6 +2905,9 @@ defmodule Tempo do
 
       iex> Tempo.shift(~o"1M31D", ~o"P1D")
       ~o"2M1D"
+
+      iex> Tempo.shift(~o"1M31D", ~o"P1Y")
+      ~o"1M31D"
 
       iex> match?({:error, %Tempo.RequiresAnchorError{}}, Tempo.shift(~o"1M31D", ~o"P1M"))
       true

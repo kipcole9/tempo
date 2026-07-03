@@ -37,7 +37,6 @@ defmodule Tempo.RRule.Expander do
   """
 
   alias Tempo.Interval
-  alias Tempo.Iso8601.Parser
   alias Tempo.RRule.Rule
   alias Tempo.RRuleError
 
@@ -180,82 +179,17 @@ defmodule Tempo.RRule.Expander do
      }}
   end
 
-  # Build the `%Tempo{}` carrying BY-rule filters as selection
-  # tokens. Matches the shape `Tempo.RRule.parse/2` produces so
-  # the same interpreter path handles both. Returns nil when no
-  # BY-rules are present — the simple recurrence case needs no
-  # repeat_rule at all.
-  #
-  # See `Tempo.RRule` for the token vocabulary.
-  defp repeat_rule(%Rule{} = rule) do
-    if Rule.has_by_rules?(rule) or non_default_wkst?(rule) do
-      by_rules =
-        []
-        |> push_by(rule.bymonth, :month)
-        |> push_by(rule.bymonthday, :day)
-        |> push_by(rule.bymonthday_nearest, :nearest_weekday)
-        |> push_or_day(rule.bymonthday_or_byday)
-        |> push_by(rule.byyearday, :day_of_year)
-        |> push_by(rule.byweekno, :week)
-        # `byday` (a day-of-week filter, resolution 18) must precede the time
-        # elements: a selection is serialised coarsest-to-finest, so a weekday
-        # after `T…H…M` (`FLT17H0M5KN`) is out of order and will not re-parse.
-        |> push_byday(rule.byday)
-        |> push_by(rule.byhour, :hour)
-        |> push_by(rule.byminute, :minute)
-        |> push_by(rule.bysecond, :second)
-        |> push_by(rule.bysetpos, :set_position)
-        |> push_wkst(rule.wkst)
-
-      %Tempo{
-        time: [selection: Parser.consolidate_selection(Enum.reverse(by_rules))],
-        calendar: Calendrical.Gregorian
-      }
-    else
-      nil
-    end
-  end
-
-  defp non_default_wkst?(%Rule{wkst: wkst}) when is_integer(wkst) and wkst != 1, do: true
-  defp non_default_wkst?(_), do: false
-
-  # Only emit a `:wkst` token when it's non-default. `Rule.wkst`
-  # defaults to `1` (Monday / ISO) and the struct's type narrows
-  # the field to `1..7`, so the catch-all covers nil and 1.
-  defp push_wkst(acc, wkst) when is_integer(wkst) and wkst in 2..7, do: [{:wkst, wkst} | acc]
-  defp push_wkst(acc, _), do: acc
+  # The BY-rule filters become the `%Tempo{}` selection carried in the recurring
+  # interval's `:repeat_rule`, built through the shared
+  # `Tempo.RRule.Rule.to_selection/1` — the single source of truth for the
+  # RRULE/cron → selection mapping — so this path and `Tempo.RRule.parse/2`
+  # cannot diverge. Returns nil for the simple recurrence with no BY-rules.
+  defp repeat_rule(%Rule{} = rule), do: Rule.to_selection(rule)
 
   defp put_if_given(map, _key, nil, _pred), do: map
 
   defp put_if_given(map, key, value, pred) do
     if pred.(value), do: Map.put(map, key, value), else: map
-  end
-
-  defp push_by(acc, nil, _unit), do: acc
-  defp push_by(acc, [], _unit), do: acc
-  defp push_by(acc, [single], unit), do: [{unit, single} | acc]
-  defp push_by(acc, list, unit) when is_list(list), do: [{unit, list} | acc]
-
-  defp push_or_day(acc, nil), do: acc
-
-  defp push_or_day(acc, {monthdays, byday_entries}) do
-    [{:or_day, {List.wrap(monthdays), List.wrap(byday_entries)}} | acc]
-  end
-
-  defp push_byday(acc, nil), do: acc
-  defp push_byday(acc, []), do: acc
-
-  defp push_byday(acc, entries) when is_list(entries) do
-    if Enum.all?(entries, fn {ord, _day} -> is_nil(ord) end) do
-      days = Enum.map(entries, fn {_nil, day} -> day end)
-
-      case days do
-        [single] -> [{:day_of_week, single} | acc]
-        list -> [{:day_of_week, list} | acc]
-      end
-    else
-      [{:byday, entries} | acc]
-    end
   end
 
   ## ------------------------------------------------------------

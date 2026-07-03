@@ -95,14 +95,14 @@ A small list of features outside Tempo's current RRULE scope:
 
 Tempo's RRULE conformance is covered by six test files:
 
-* `test/tempo/rrule_test.exs` — 23 tests — parse/round-trip behaviour at the string level.
-* `test/tempo/rrule/expander_test.exs` — 16 tests — AST materialisation across FREQ values.
-* `test/tempo/rrule/selection_test.exs` — 39 tests — the RFC 5545 §3.8.5.3 worked examples (Thanksgiving, Election Day, Friday-the-13th, last-weekday-of-month, etc.).
-* `test/tempo/rrule/rfc5545_conformance_test.exs` — 30 tests — broad conformance suite.
-* `test/tempo/rrule/rdate_exdate_test.exs` — 10 tests — RDATE/EXDATE integration.
-* `test/tempo/rrule/wkst_and_edges_test.exs` — 8 tests — WKST and boundary edge cases.
+* `test/tempo/rrule_test.exs` — parse/round-trip behaviour at the string level.
+* `test/tempo/rrule/expander_test.exs` — AST materialisation across FREQ values.
+* `test/tempo/rrule/selection_test.exs` — the RFC 5545 §3.8.5.3 worked examples (Thanksgiving, Election Day, Friday-the-13th, last-weekday-of-month, etc.).
+* `test/tempo/rrule/rfc5545_conformance_test.exs` — broad conformance suite.
+* `test/tempo/rrule/rdate_exdate_test.exs` — RDATE/EXDATE integration.
+* `test/tempo/rrule/wkst_and_edges_test.exs` — WKST and boundary edge cases.
 
-Total: **126 tests** dedicated to RRULE behaviour, plus the ~2400 other suite tests that exercise the AST and set-algebra pipelines the RRULE machinery uses.
+These sit on top of the broader suite that exercises the AST and set-algebra pipelines the RRULE machinery depends on.
 
 ## Acknowledgement
 

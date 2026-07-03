@@ -48,7 +48,7 @@ defmodule Tempo.RRule do
 
   """
 
-  alias Tempo.Iso8601.Parser
+  alias Tempo.RRule.Rule
 
   @weekdays %{
     "MO" => 1,
@@ -284,116 +284,10 @@ defmodule Tempo.RRule do
     }
   end
 
-  # A `repeat_rule` is a `%Tempo{}` whose `:time` keyword list
-  # holds the selection tokens — matching the AST produced by the
-  # ISO 8601-2 `L…N` selection grammar.
-  #
-  # Token vocabulary:
-  #
-  # * `{:month, int | [int]}` — BYMONTH.
-  # * `{:day, int | [int]}` — BYMONTHDAY (signed).
-  # * `{:day_of_year, int | [int]}` — BYYEARDAY (signed).
-  # * `{:week, int | [int]}` — BYWEEKNO (signed).
-  # * `{:hour, int | [int]}` — BYHOUR.
-  # * `{:minute, int | [int]}` — BYMINUTE.
-  # * `{:second, int | [int]}` — BYSECOND.
-  # * `{:day_of_week, int | [int]}` — BYDAY when NO entry carries
-  #   an ordinal prefix (pure day-of-week filter/expander).
-  # * `{:byday, [{ordinal_or_nil, weekday}, …]}` — BYDAY when ANY
-  #   entry carries an ordinal. Pairs are preserved so the
-  #   selection resolver can apply `nth_kday`-style semantics per
-  #   period.
-  # * `{:set_position, int | [int]}` — BYSETPOS. Distinct from
-  #   the `:instance` token Tempo's native ISO 8601-2 selection
-  #   grammar uses, since BYSETPOS has different semantics
-  #   (applied after all other BY-rules, across the per-period
-  #   candidate set).
-  # * `{:wkst, int}` — WKST, the week-start weekday.
-  #
-  # BYSETPOS and WKST have no ISO 8601 form, so `inspect/1`/`to_iso8601/1`
-  # render them with the Tempo project-specific selection designators `V` and
-  # `Q` (see `Tempo.Inspect` and `guides/iso8601-conformance.md` §5) so a rule
-  # round-trips; the canonical external form remains the RRULE string.
-  #
-  # When no BY-rules are present AND WKST is the default, the
-  # repeat_rule is nil. A non-default `WKST` alone is enough to
-  # produce a repeat_rule since it changes BYDAY-WEEKLY week
-  # boundaries.
-  defp build_repeat_rule(parts) do
-    wkst = Keyword.get(parts, :wkst)
-
-    by_rules =
-      []
-      |> push_by(parts, :bymonth, :month)
-      |> push_by(parts, :bymonthday, :day)
-      |> push_by(parts, :byyearday, :day_of_year)
-      |> push_by(parts, :byweekno, :week)
-      # `byday` (day-of-week, resolution 18) must precede the time elements so
-      # the selection serialises coarsest-to-finest and re-parses; a weekday
-      # after `T…H…M` is out of order. `Tempo.RRule.Expander` mirrors this.
-      |> push_byday(parts)
-      |> push_by(parts, :byhour, :hour)
-      |> push_by(parts, :byminute, :minute)
-      |> push_by(parts, :bysecond, :second)
-      |> push_by(parts, :bysetpos, :set_position)
-      |> push_wkst(wkst)
-
-    case by_rules do
-      [] ->
-        nil
-
-      rules ->
-        %Tempo{
-          time: [selection: Parser.consolidate_selection(Enum.reverse(rules))],
-          calendar: Calendrical.Gregorian
-        }
-    end
-  end
-
-  # Only emit `{:wkst, n}` when it's non-default (WKST=MO is 1).
-  # This keeps the common-case AST identical to pre-Phase-E rules
-  # and makes the token a signal of intent.
-  defp push_wkst(acc, nil), do: acc
-  defp push_wkst(acc, 1), do: acc
-  defp push_wkst(acc, wkst) when is_integer(wkst) and wkst in 2..7, do: [{:wkst, wkst} | acc]
-  defp push_wkst(acc, _), do: acc
-
-  defp push_by(acc, parts, rrule_key, unit) do
-    case Keyword.get(parts, rrule_key) do
-      nil -> acc
-      [single] -> [{unit, single} | acc]
-      list when is_list(list) -> [{unit, list} | acc]
-    end
-  end
-
-  # BYDAY emits one of two tokens:
-  #
-  # * `{:day_of_week, int | [int]}` — every entry has `nil`
-  #   ordinal. The resolver filters/expands by weekday only.
-  #
-  # * `{:byday, [{ordinal_or_nil, weekday}, …]}` — at least one
-  #   entry has an ordinal. Pairs stay linked so the resolver
-  #   can pick "the 4th Thursday of November" (a paired
-  #   `nth_kday` operation), not "all Thursdays AND the 4th
-  #   instance" (two unrelated filters).
-  defp push_byday(acc, parts), do: push_byday_entries(acc, Keyword.get(parts, :byday))
-
-  defp push_byday_entries(acc, nil), do: acc
-
-  defp push_byday_entries(acc, entries) do
-    if all_unordered?(entries),
-      do: push_simple_byday(acc, entries),
-      else: [{:byday, entries} | acc]
-  end
-
-  defp all_unordered?(entries), do: Enum.all?(entries, fn {ord, _day} -> is_nil(ord) end)
-
-  defp push_simple_byday(acc, entries) do
-    days = Enum.map(entries, fn {_nil, day} -> day end)
-
-    case days do
-      [single] -> [{:day_of_week, single} | acc]
-      list -> [{:day_of_week, list} | acc]
-    end
-  end
+  # The parsed `BY*` parts become the `%Tempo{}` selection carried in the
+  # recurring interval's `:repeat_rule`. Both this path and `Tempo.RRule.Expander`
+  # build that selection through `Tempo.RRule.Rule.to_selection/1` — the single
+  # source of truth for the RRULE → selection token vocabulary (documented there)
+  # — so the two paths cannot drift.
+  defp build_repeat_rule(parts), do: Rule.to_selection(struct(Rule, parts))
 end

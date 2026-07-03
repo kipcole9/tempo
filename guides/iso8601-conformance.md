@@ -153,7 +153,7 @@ Tempo's conformance is exercised by:
 * **`test/tempo/iso8601/round_trip_test.exs`** — one representative per token round-trips through `inspect/1`: parse a value, re-parse the canonical `~o"…"` form `inspect/1` shows, and get the identical value back — no component dropped or mangled.
 * **`test/tempo/iso8601/edtf_corpus_test.exs`** — the full `unt-libraries/edtf-validate` corpus (BSD-3-Clause), exercised at 100%. See `test/support/edtf_corpus.ex` for the raw strings and attribution.
 
-As of v0.2.0 the suite runs 1592 tests with zero failures. The EDTF corpus is the only publicly-available conformance test set we know of for ISO 8601-2 Part 2; Tempo passes it in full.
+The EDTF corpus is the only publicly-available conformance test set we know of for ISO 8601-2 Part 2; Tempo passes it in full.
 
 ## 8. Comparison to other implementations
 
