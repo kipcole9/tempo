@@ -59,6 +59,20 @@ defmodule Tempo.Operations.Test do
       assert {:ok, _} = Operations.align(~o"T10:00", ~o"T14:30")
     end
 
+    test "two non-anchored operands on the same axis — OK" do
+      # Both lead with :month, so they recur on the same (annual) cycle.
+      assert {:ok, _} = Operations.align(~o"1M31D", ~o"6M15D")
+      assert {:ok, _} = Operations.align(~o"1M31D", ~o"1M")
+    end
+
+    test "two non-anchored operands on different axes — error" do
+      # `1M31D` recurs annually, `15D` monthly; there is no common timeline.
+      assert {:error, %Tempo.NonAnchoredError{} = e} =
+               Operations.align(~o"1M31D", ~o"15D")
+
+      assert Exception.message(e) =~ "different resolution axes"
+    end
+
     test "anchored + non-anchored without bound — error" do
       assert {:error, %Tempo.NonAnchoredError{} = e} =
                Operations.align(~o"2022Y", ~o"T10:30")

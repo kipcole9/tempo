@@ -84,5 +84,45 @@ defmodule Tempo.ShiftTest do
       assert {:error, %Tempo.RequiresAnchorError{}} = Tempo.shift(~o"2M28D", ~o"P1D")
       assert {:error, %Tempo.RequiresAnchorError{}} = Tempo.shift(~o"3M1D", day: -1)
     end
+
+    test "a whole-year step is a no-op — the untracked year moves, the date does not" do
+      assert Tempo.shift(~o"1M31D", ~o"P1Y") == ~o"1M31D"
+      assert Tempo.shift(~o"6M15D", year: -1) == ~o"6M15D"
+    end
+
+    test "a year step on Feb 29 needs an anchor — next year may not be a leap year" do
+      assert {:error, %Tempo.RequiresAnchorError{}} = Tempo.shift(~o"2M29D", ~o"P1Y")
+    end
+
+    test "a month step that keeps a valid day is computed, and wraps the year" do
+      assert Tempo.shift(~o"1M15D", ~o"P1M") == ~o"2M15D"
+      assert Tempo.shift(~o"3M31D", ~o"P1M") == ~o"4M30D"
+      assert Tempo.shift(~o"12M31D", ~o"P1M") == ~o"1M31D"
+      assert Tempo.shift(~o"1M15D", month: -1) == ~o"12M15D"
+    end
+
+    test "a time step never spuriously requires an anchor for an ambiguous day" do
+      # `2M29D` sits on an ambiguous day, but a time shift doesn't touch it.
+      assert Tempo.shift(~o"2M29D", ~o"PT1H") == ~o"2M29DT1H"
+    end
+
+    test "a month-only value carries a month/year step and extends for finer steps" do
+      assert Tempo.shift(~o"3M", ~o"P1M") == ~o"4M"
+      assert Tempo.shift(~o"3M", ~o"P1Y") == ~o"3M"
+      assert Tempo.shift(~o"3M", ~o"P1D") == ~o"3M2D"
+      assert Tempo.shift(~o"3M", ~o"P1W") == ~o"3M8D"
+    end
+
+    test "a day-only value advances while every month has that day, else errors" do
+      assert Tempo.shift(~o"15D", ~o"P1D") == ~o"16D"
+      assert Tempo.shift(~o"15D", ~o"P1W") == ~o"22D"
+      assert Tempo.shift(~o"27D", ~o"P1D") == ~o"28D"
+      assert Tempo.shift(~o"15D", day: -1) == ~o"14D"
+      # A month/year step leaves a bare day untouched.
+      assert Tempo.shift(~o"15D", ~o"P1M") == ~o"15D"
+      # The 29th isn't in every month, and the 1st's predecessor is unknown.
+      assert {:error, %Tempo.RequiresAnchorError{}} = Tempo.shift(~o"28D", ~o"P1D")
+      assert {:error, %Tempo.RequiresAnchorError{}} = Tempo.shift(~o"1D", day: -1)
+    end
   end
 end

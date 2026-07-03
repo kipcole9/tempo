@@ -10,6 +10,10 @@
 
 * `inspect/1` and `Tempo.to_iso8601/1` no longer crash on a recurrence carrying RRULE `BYSETPOS` or `WKST`; these RFC 5545 filters have no ISO 8601 form, so Tempo renders them with the project-specific selection designators `V` and `Q` (conformance guide §5) and they round-trip. `BYYEARDAY` now round-trips via the `O` ordinal-day designator, and consecutive `BY…` runs (weekdays, months) consolidate to ranges (`{1..5}`) that round-trip while staying readable — while a list mixing a positive value with a negative sentinel (`BYMONTHDAY=1,-1`, "the first and last day") keeps its source order so it round-trips too.
 
+* `Tempo.shift/2` on an un-anchored value (no year, such as `~o"1M31D"`) no longer crashes and now resolves every case the calendar can answer without a year: a whole-year step is a no-op, a month step wraps December to January, a bare day advances while every month has it, and weeks/months extend a coarser value's resolution. Only genuinely year-dependent shifts (a February day count, `~o"2M29D"` plus a year) return `{:error, %Tempo.RequiresAnchorError{}}`.
+
+* Set operations (`Tempo.union/2`, `intersection/2`, `difference/2`) between two un-anchored values on different resolution axes — a month/day like `~o"1M31D"` and a bare day like `~o"15D"`, which recur on different cycles — now return `{:error, %Tempo.NonAnchoredError{}}` instead of silently computing a misaligned result; same-axis pairs still compute.
+
 ## [v0.15.0] — 2026-07-02
 
 ### Added

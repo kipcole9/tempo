@@ -107,16 +107,18 @@ Tempo.disjoint?(hebrew_day, ~o"2023-01")
 
 ## 2. The anchor-class rule
 
-A Tempo value is **anchored** when it has a year-level component — it's a position on the universal time line. A **non-anchored** value is a pure time-of-day (`~o"T10:30"`) — it represents a recurring pattern, 10:30 on every day, with no anchor. A `Tempo.Duration` is neither — it's a length, not a set of instants.
+A Tempo value is **anchored** when it has a year-level component — it's a position on the universal time line. A **non-anchored** value has no year: it recurs on a cycle rather than sitting at one instant. That's a pure time-of-day (`~o"T10:30"` — 10:30 every day), but also a month/day (`~o"1M31D"` — January 31st every year), a bare day (`~o"15D"` — the 15th of every month), a month (`~o"3M"` — every March), and so on. A `Tempo.Duration` is neither — it's a length, not a set of instants.
 
 Set operations require **both operands to share an anchor class**:
 
 | A | B | Valid without `:bound`? |
 |---|---|---|
-| anchored | anchored | ✓ compare on universal time line |
-| non-anchored | non-anchored | ✓ compare on time-of-day axis |
+| anchored | anchored | ✓ compare on the universal time line |
+| non-anchored | non-anchored | ✓ when both recur on the **same axis** (see below) |
 | anchored | non-anchored | needs `:bound` |
 | duration | anything | always raises — anchor it first |
+
+Two non-anchored operands must recur on the **same axis** — share their coarsest (leading) unit — to be comparable. `~o"1M31D"` and `~o"6M15D"` are both annual, so they align; `~o"1M31D"` (annual) and `~o"15D"` (monthly) recur on different cycles with no common time line, so they return a `Tempo.NonAnchoredError` rather than a silently misaligned result. Anchor them, or give both the same leading unit.
 
 The cross-axis case *is* mathematically defined — a bare time-of-day is an infinite set of 1-second slots (one per day), and an anchored operand bounds it to finite occurrences. But picking the universe (what year range does "every day" mean?) isn't something Tempo can do without inventing a default. The `:bound` option makes the choice explicit:
 
@@ -130,7 +132,7 @@ Tempo.intersection(~o"2026-01-04", ~o"T10:30")
 
 # With bound — works
 Tempo.intersection(~o"2026-01-04", ~o"T10:30", bound: ~o"2026-01-04")
-# {:ok, #Tempo.IntervalSet<[~o"2026Y1M4DT10H30M/2026Y1M4DT10H31M"]>}
+# {:ok, #Tempo.IntervalSet<[~o"2026Y1M4DT10H30M0S/2026Y1M4DT10H31M0S"]>}
 ```
 
 The `:bound` option is also required on `complement/2` — for the same reason. An unbounded complement is infinite; Tempo refuses to pick a universe.

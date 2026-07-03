@@ -286,6 +286,20 @@ defmodule Tempo.Operations do
       class_b == :empty ->
         {:ok, class_a, class_a}
 
+      # Two non-anchored operands only share a timeline when they sit on the
+      # same resolution axis. `~o"1M31D"` (a month/day) and `~o"15D"` (a bare
+      # day) recur on different cycles — annual vs monthly — so aligning them
+      # would silently compare incomparable spans. Require a matching leading
+      # unit; otherwise it needs an anchor, like the mixed-class case.
+      class_a == :non_anchored and class_b == :non_anchored and not same_axis?(a, b) ->
+        {:error,
+         NonAnchoredError.exception(
+           operation:
+             "combine non-anchored operands on different resolution axes " <>
+               "(leading #{inspect(leading_unit(a))} vs #{inspect(leading_unit(b))}) " <>
+               "in a set operation (anchor them, or give both the same leading unit)"
+         )}
+
       class_a == class_b ->
         {:ok, class_a, class_b}
 
@@ -323,6 +337,20 @@ defmodule Tempo.Operations do
   defp anchor_class(%Tempo{} = tempo) do
     if Tempo.anchored?(tempo), do: :anchored, else: :non_anchored
   end
+
+  # Two non-anchored operands are comparable only when they lead with the same
+  # (coarsest) unit — the axis they recur on. A bare-day value has no month, so
+  # it cannot be placed against a month/day value.
+  defp same_axis?(a, b), do: leading_unit(a) == leading_unit(b)
+
+  defp leading_unit(%IntervalSet{intervals: [first | _]}), do: leading_unit(first)
+  defp leading_unit(%IntervalSet{intervals: []}), do: nil
+  defp leading_unit(%Interval{from: %Tempo{} = from}), do: leading_unit(from)
+  defp leading_unit(%Interval{to: %Tempo{} = to}), do: leading_unit(to)
+  defp leading_unit(%Interval{}), do: nil
+  defp leading_unit(%Tempo.Set{set: [first | _]}), do: leading_unit(first)
+  defp leading_unit(%Tempo{time: [{unit, _value} | _]}), do: unit
+  defp leading_unit(_other), do: nil
 
   ## Conversion to IntervalSet.
 
