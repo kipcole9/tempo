@@ -1,6 +1,6 @@
 # Temporal formalisms and where Tempo fits
 
-Tempo is a software library, but it sits on top of forty years of formal work on how to reason about time. This guide is a short survey of the main formalisms — Allen's interval algebra, the Vilain–Kautz point algebra, the Allen–Hayes interval theory, and Grüninger & Li's bounded-meeting ontology — and an account of which choices Tempo inherits, which it rejects, and the one idea it adds.
+Tempo is a software library, but it sits on top of forty years of formal work on how to reason about time. This guide is a short survey of the main formalisms — Allen's interval algebra, the Vilain–Kautz point algebra, the Allen–Hayes interval theory, Grüninger & Li's bounded-meeting ontology, and time-granularity theory — and an account of which choices Tempo inherits, which it rejects, and the one idea it adds.
 
 If you only remember one thing: **the field splits on a single question — is a *point* or an *interval* the primitive thing?** Tempo answers "interval", and everything else follows.
 
@@ -85,9 +85,9 @@ Tempo.compose(:precedes, :during)
 
 This looks like it should cross the tractability line — its *result* is a disjunction, the very thing the NP-hardness warning above is about. It doesn't, and the reason is exactly where that line is drawn. The NP-hard problem is *closing a network* of disjunctive constraints under composition — composing and intersecting to a fixpoint over inputs that are themselves sets of relations. Tempo does neither: `compose/2` is a single table lookup on two *definite* relations, and `Tempo.Network.Solver.relation/3` reads its disjunction off an already-solved metric network. Emitting a disjunctive *answer* is polynomial; reasoning over disjunctive *constraints* is not — and Tempo only ever does the former.
 
-### The new idea: resolution-indexed atomicity
+### Resolution-indexed atomicity — a granularity lattice
 
-Here is the element with no direct precedent in the formalisms above. Tempo recovers the "instant" not as a primitive point, but as **the interval of one unit at the value's *finest declared resolution*** — a *moment* in Allen and Hayes' sense, but **relativised to representational precision**:
+Tempo recovers the "instant" not as a primitive point, but as **the interval of one unit at the value's *finest declared resolution*** — a *moment* in Allen and Hayes' sense, but **relativised to representational precision**:
 
 ```elixir
 # A second-resolution timestamp is a one-second interval
@@ -98,7 +98,27 @@ Tempo.Interval.duration(iv)
 
 A day value materialises to a one-day interval, a microsecond value to a one-microsecond interval. The width of the "atom" is determined by ISO 8601 *syntax*, not by an absolute smallest unit. Classical moments are absolute atoms; Tempo's are resolution-relative. This is what lets the library treat `2026`, `2026-01`, and `2026-01-15T10:30:45` as first-class spans of different widths without ever inventing an "uncertain instant" — the recurring failure mode catalogued in the [falsehoods guide](falsehoods.md).
 
+The nearest formal frame is **time granularity** (Bettini, Jajodia & Wang 2000; Euzenat & Montanari 2005): a granularity maps indices to time spans, and a set of granularities forms a lattice under the *finer-than* and *groups-into* relations. Tempo's ISO 8601 unit ladder — year ⊃ month ⊃ day ⊃ hour ⊃ … — is a clean special case of that lattice, with the "instant" of a value the atom of the finest granularity it declares. So the atomicity is not new; it is a specialisation of a known structure to the granularities ISO 8601 makes syntactically available.
+
 See the [interop guide](interop.md) for how this plays out when you convert Elixir `Date`/`DateTime` values, and the [enumeration semantics guide](enumeration-semantics.md) for how the implicit span drives iteration.
+
+### The genuinely new part: arithmetic under underspecification
+
+The granularity literature is about *mapping and relating* granularities — converting an index in one to a span in another, deciding whether one is finer than another. What has no home there, nor in the calendar-arithmetic literature (which operates on *complete* dates), is **arithmetic on a value that omits a coarser field**. A month-day with no year lives on a repeating axis; shifting it is sometimes well-defined and sometimes not, depending entirely on the missing year.
+
+Tempo answers this with one principle: **compute the shift when its result is invariant to the missing field, and return a typed `Tempo.RequiresAnchorError` when the result would depend on it — never guess, never raise.**
+
+```elixir
+# Invariant to the missing year — computed
+Tempo.shift(~o"1M15D", ~o"P1M")   #=> ~o"2M15D"   # 15 Jan → 15 Feb in every year
+Tempo.shift(~o"10M", ~o"P3M")     #=> ~o"1M"      # October + 3 months wraps to January
+
+# Depends on the missing year — refused, not guessed
+Tempo.shift(~o"2M28D", ~o"P1D")
+#=> {:error, %Tempo.RequiresAnchorError{}}          # 28 Feb + 1 day is 29 Feb or 1 Mar
+```
+
+The nearest formal frame is time-granularity theory; the shift-invariance operation on underspecified values appears to be new — it is the one move in this guide with no cited precedent.
 
 ## The constraint-solving layer: Tempo.Network
 
@@ -116,13 +136,16 @@ The accompanying [chronological-networks guide](chronological-networks.md) devel
 * It uses the **point-algebra** reduction of Vilain–Kautz as its computational engine (endpoints projected to a real UTC frame).
 * Because its core values are **fully grounded**, relation queries are point-algebra comparisons, not constraint propagation — the core is an algebra, not a solver.
 * Where the values *aren't* grounded, the opt-in **`Tempo.Network`** layer does solve constraints, but only in the polynomial **Simple Temporal Problem** fragment (metric, conjunctive) — never the NP-hard qualitative-disjunctive regime.
-* Its one novel move is **resolution-indexed atomicity**: an "instant" is the one-unit interval at the finest declared ISO 8601 resolution.
+* Its **atomicity is resolution-indexed** — an "instant" is the one-unit interval at the finest declared ISO 8601 resolution — a special case of the **time-granularity** lattice (Bettini; Euzenat & Montanari).
+* Its one **genuinely novel** move is **shift-invariance arithmetic**: a shift on an underspecified value (a month-day with no year) is computed only when the result is invariant to the missing field, and returns a typed `RequiresAnchorError` otherwise.
 
 ## Further reading
 
 * J. F. Allen. *Maintaining Knowledge about Temporal Intervals.* CACM 26(11), 1983.
 * M. B. Vilain and H. A. Kautz. *Constraint Propagation Algorithms for Temporal Reasoning.* AAAI-86, 1986.
 * J. F. Allen and P. J. Hayes. *Moments and Points in an Interval-Based Temporal Logic.* Computational Intelligence 5(3), 1989.
+* C. Bettini, S. Jajodia, and X. S. Wang. *Time Granularities in Databases, Data Mining, and Temporal Reasoning.* Springer, 2000.
+* J. Euzenat and A. Montanari. *Time Granularity.* In *Handbook of Temporal Reasoning in Artificial Intelligence*, ch. 3. Elsevier, 2005.
 * B. Nebel and H.-J. Bürckert. *Reasoning about Temporal Relations: A Maximal Tractable Subclass of Allen's Interval Algebra.* JACM 42(1), 1995.
 * R. Dechter, I. Meiri, and J. Pearl. *Temporal Constraint Networks.* Artificial Intelligence 49(1–3), 1991.
 * E. Levy, G. Geeraerts, F. Pluquet, E. Piasetzky, and A. Fantalkin. *Chronological Networks in Archaeology: A Formalised Scheme.* Journal of Archaeological Science 124, 2020.
