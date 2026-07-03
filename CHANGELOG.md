@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.16.0] — 2026-07-03
+
+### Added
+
+* `Tempo.Network.Solver.relation/3` returns the tightest Allen relation(s) still possible between two periods in a constraint network — a single atom when the constraints entail one (`:precedes`), or the smallest disjunction otherwise — generalising `contemporaneity/3` from overlap to the full thirteen-relation vocabulary. `relation_certainty/4` reports whether a named relation is `:certain`, `:possible`, or `:impossible`, and both read off the already-solved network in polynomial time.
+
 ## [v0.15.1] — 2026-07-03
 
 ### Fixed

@@ -139,6 +139,35 @@ Tempo.Network.Solver.contemporaneity(chronoland, :k1, :s2)
 
 K1's reign (≤ 10 years) is shorter than the ≥ 20 years that must separate the two strata's starts, so K1 has ended well before S2 begins. `certainly_contemporary?/3` and `possibly_contemporary?/3` are the boolean shortcuts, and unlike adding a relation they leave the network untouched. The verdict is read in constant time from the tightened network's shortest-path weights — the sure/possible-contemporaneity result of Geeraerts, Levy & Pluquet (TIME 2017, Props 7 and 10).
 
+### Asking directly — what *is* the relation?
+
+`contemporaneity/3` collapses the thirteen Allen relations into a single overlap question. When you want the actual relation the constraints leave open — the archaeologist's real question, *"given everything I know, how does King K1's reign sit against Stratum S2?"* — `relation/3` answers in the same vocabulary `Tempo.relation/2` uses for fixed dates:
+
+```elixir
+Tempo.Network.Solver.relation(chronoland, :k1, :s2)
+#=> :precedes
+```
+
+> *"King K1's reign falls entirely before Stratum S2 — not merely non-overlapping, but earlier."*
+
+A single atom means the network **entails** that relation: every chronology consistent with the constraints agrees. It is the sharp form of the `:impossible` overlap above — the evidence doesn't just forbid coexistence, it fixes the order. When the constraints leave room, the answer is the tightest disjunction that still holds:
+
+```elixir
+Tempo.Network.Solver.relation(chronoland, :s1, :k1)
+#=> [:started_by, :overlapped_by, :met_by]
+```
+
+> *"Stratum S1 starts within King K1's reign and outlasts it — but whether it shares his accession, overlaps mid-reign, or begins just as he ends, the evidence doesn't say."*
+
+`relation_certainty/4` asks the same of one named relation, in the three-valued vocabulary the ±-margin comparisons already use — `:certain` when the network entails it, `:possible` when it is one of several, `:impossible` when ruled out:
+
+```elixir
+Tempo.Network.Solver.relation_certainty(chronoland, :k1, :s2, :precedes)
+#=> :certain
+```
+
+Like `contemporaneity/3`, both read straight off the tightened network's shortest-path weights — no extra solve, and no qualitative disjunction enters, so the query stays polynomial.
+
 ## 6. When you don't need a network
 
 A network earns its keep when something is *uncertain* or the structure is *not a simple line*. When neither is true — one anchor, exact durations, plain succession — you don't need it at all. You can just chain intervals.

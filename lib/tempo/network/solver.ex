@@ -15,7 +15,12 @@ defmodule Tempo.Network.Solver do
   * `tighten/1` — the narrowest start, end, and duration each period can
     take given every constraint together.
 
-  Both run in O(n³) on the boundary count (Floyd–Warshall), which is
+  * `contemporaneity/3` — whether two periods can, must, or cannot overlap.
+
+  * `relation/3` — the tightest Allen relation(s) still possible between two
+    periods, with `relation_certainty/4` for a single named relation.
+
+  These all run in O(n³) on the boundary count (Floyd–Warshall), which is
   interactive for the hundreds of periods these chronologies contain.
 
   """
@@ -191,6 +196,213 @@ defmodule Tempo.Network.Solver do
 
   defp at_least_zero?(:inf), do: true
   defp at_least_zero?(weight), do: weight >= 0
+
+  # The thirteen Allen relations as endpoint constraints (half-open, matching
+  # `Tempo.relation/2`): `:a1`/`:a2` are period p1's start/end, `:b1`/`:b2`
+  # p2's. `:lt` is a strict order on the finest time-scale, `:eq` coincidence.
+  # These are jointly exhaustive and pairwise disjoint for proper intervals.
+  @allen_relations [
+    precedes: [{:a2, :lt, :b1}],
+    meets: [{:a2, :eq, :b1}],
+    overlaps: [{:a1, :lt, :b1}, {:b1, :lt, :a2}, {:a2, :lt, :b2}],
+    finished_by: [{:a1, :lt, :b1}, {:a2, :eq, :b2}],
+    contains: [{:a1, :lt, :b1}, {:b2, :lt, :a2}],
+    starts: [{:a1, :eq, :b1}, {:a2, :lt, :b2}],
+    equals: [{:a1, :eq, :b1}, {:a2, :eq, :b2}],
+    started_by: [{:a1, :eq, :b1}, {:b2, :lt, :a2}],
+    during: [{:b1, :lt, :a1}, {:a2, :lt, :b2}],
+    finishes: [{:a2, :eq, :b2}, {:b1, :lt, :a1}],
+    overlapped_by: [{:b1, :lt, :a1}, {:a1, :lt, :b2}, {:b2, :lt, :a2}],
+    met_by: [{:a1, :eq, :b2}],
+    preceded_by: [{:b2, :lt, :a1}]
+  ]
+
+  @doc """
+  The Allen interval relation(s) still possible between two periods, given
+  every constraint in the network.
+
+  Generalises `contemporaneity/3` from the single overlap question to the full
+  relational answer, in the same vocabulary `Tempo.relation/2` uses for
+  grounded values. It reads off the **minimal network** — the same solved
+  shortest-path distances `contemporaneity/3` and `tighten/1` use — so it costs
+  no extra solve: a relation is possible iff adding its endpoint constraints to
+  the solved network stays consistent (no negative cycle). No qualitative
+  disjunction enters, so it remains polynomial.
+
+  Periods are treated as proper intervals (start strictly before end), matching
+  Tempo's no-degenerate-intervals ontology, and endpoints are compared
+  half-open — so "the end of A coincides with the start of B" is `:meets`, not
+  overlap. (That boundary case is still `possibly_contemporary?/3`, which asks
+  the looser "could they have coexisted" question.)
+
+  ### Arguments
+
+  * `network` is a `t:Tempo.Network.t/0`.
+
+  * `p1` and `p2` are period identifiers added with `Tempo.Network.add_period/3`.
+
+  ### Returns
+
+  * A single Allen relation atom (e.g. `:during`) when the constraints pin the
+    relation to exactly one — it is *entailed*.
+
+  * A list of atoms (in Allen's canonical order) when several remain possible —
+    the tightest qualitative statement the constraints support.
+
+  * `{:error, :inconsistent}` when the network has no valid assignment, or
+    `{:error, :unknown_period}` when an id is not in the network.
+
+  ### Examples
+
+      iex> Tempo.Network.new()
+      ...> |> Tempo.Network.add_period(:a, start: ~o"1200Y", end: ~o"1250Y")
+      ...> |> Tempo.Network.add_period(:b, start: ~o"1230Y", end: ~o"1280Y")
+      ...> |> Tempo.Network.Solver.relation(:a, :b)
+      :overlaps
+
+      iex> Tempo.Network.new()
+      ...> |> Tempo.Network.add_period(:a, duration: {:at_least, ~o"P1Y"})
+      ...> |> Tempo.Network.add_period(:b, duration: {:at_least, ~o"P1Y"})
+      ...> |> Tempo.Network.add_sequence([:a, :b])
+      ...> |> Tempo.Network.Solver.relation(:a, :b)
+      :meets
+
+  """
+  @spec relation(Network.t(), term(), term()) ::
+          atom() | [atom()] | {:error, :inconsistent | :unknown_period}
+  def relation(%Network{} = network, p1, p2) do
+    with :ok <- known_period(network, p1),
+         :ok <- known_period(network, p2) do
+      %{dist: distances} = network |> Normalize.normalize() |> shortest_paths()
+
+      if negative_cycle?(distances) do
+        {:error, :inconsistent}
+      else
+        feasible_relations(distances, p1, p2)
+      end
+    end
+  end
+
+  @doc """
+  Whether a specific Allen `relation` between two periods is `:certain`,
+  `:possible`, or `:impossible` under the network's constraints.
+
+  The network counterpart of `Tempo.relation_certainty/3` on grounded `±`-margin
+  values — the same three-valued vocabulary, read from the solved network via
+  `relation/3`. A relation is `:certain` when it is the *only* one the
+  constraints allow, `:possible` when it is one of several, `:impossible` when
+  ruled out.
+
+  ### Arguments
+
+  * `network`, `p1`, `p2` — as for `relation/3`.
+
+  * `relation` is an Allen relation atom (e.g. `:during`, `:precedes`).
+
+  ### Returns
+
+  * `:certain | :possible | :impossible`, or `{:error, reason}` as `relation/3`.
+
+  ### Examples
+
+      iex> net =
+      ...>   Tempo.Network.new()
+      ...>   |> Tempo.Network.add_period(:a, start: ~o"1200Y", end: ~o"1250Y")
+      ...>   |> Tempo.Network.add_period(:b, start: ~o"1230Y", end: ~o"1280Y")
+      iex> Tempo.Network.Solver.relation_certainty(net, :a, :b, :overlaps)
+      :certain
+      iex> Tempo.Network.Solver.relation_certainty(net, :a, :b, :during)
+      :impossible
+
+  """
+  @spec relation_certainty(Network.t(), term(), term(), atom()) ::
+          :certain | :possible | :impossible | {:error, :inconsistent | :unknown_period}
+  def relation_certainty(%Network{} = network, p1, p2, relation) do
+    case relation(network, p1, p2) do
+      {:error, _reason} = error ->
+        error
+
+      result ->
+        feasible = List.wrap(result)
+
+        cond do
+          relation not in feasible -> :impossible
+          length(feasible) == 1 -> :certain
+          true -> :possible
+        end
+    end
+  end
+
+  defp known_period(%Network{periods: periods}, id) do
+    if Map.has_key?(periods, id), do: :ok, else: {:error, :unknown_period}
+  end
+
+  # A relation is feasible iff adding its endpoint constraints (plus the
+  # proper-interval constraints, since Tempo intervals are never degenerate) to
+  # the minimal network keeps it consistent. The check is local to the four
+  # boundary nodes of p1/p2: the minimal network's pairwise weights already
+  # summarise every path through the rest of the graph, so a negative cycle can
+  # only run through these four nodes and the added edges.
+  defp feasible_relations(distances, p1, p2) do
+    vars = %{a1: {:start, p1}, a2: {:end, p1}, b1: {:start, p2}, b2: {:end, p2}}
+    nodes = Map.values(vars)
+    base = induced(distances, nodes)
+    proper = lt_edges(vars.a1, vars.a2) ++ lt_edges(vars.b1, vars.b2)
+
+    relations =
+      for {relation, comparisons} <- @allen_relations,
+          feasible?(base, nodes, proper ++ instantiate(comparisons, vars)),
+          do: relation
+
+    single_or_list(relations)
+  end
+
+  defp single_or_list([single]), do: single
+  defp single_or_list(list), do: list
+
+  defp induced(distances, nodes) do
+    for from <- nodes, to <- nodes, into: %{} do
+      {{from, to}, if(from == to, do: 0, else: get(distances, from, to))}
+    end
+  end
+
+  defp feasible?(base, nodes, added) do
+    augmented =
+      Enum.reduce(added, base, fn {from, to, weight}, acc ->
+        Map.update(acc, {from, to}, weight, &min_weight(&1, weight))
+      end)
+
+    final =
+      for k <- nodes, i <- nodes, j <- nodes, reduce: augmented do
+        distances ->
+          via = add_weight(distances[{i, k}], distances[{k, j}])
+          if less?(via, distances[{i, j}]), do: %{distances | {i, j} => via}, else: distances
+      end
+
+    Enum.all?(nodes, fn node -> not negative?(Map.get(final, {node, node}, :inf)) end)
+  end
+
+  defp instantiate(comparisons, vars) do
+    Enum.flat_map(comparisons, fn {left, op, right} ->
+      edges_for(op, Map.fetch!(vars, left), Map.fetch!(vars, right))
+    end)
+  end
+
+  defp edges_for(:lt, from, to), do: lt_edges(from, to)
+  defp edges_for(:eq, from, to), do: eq_edges(from, to)
+
+  # from < to ⇒ from − to ≤ −1 (strict on the integer time-scale).
+  defp lt_edges(from, to), do: [{from, to, -1}]
+
+  # from = to ⇒ from − to ≤ 0 ∧ to − from ≤ 0.
+  defp eq_edges(from, to), do: [{from, to, 0}, {to, from, 0}]
+
+  defp min_weight(:inf, other), do: other
+  defp min_weight(other, :inf), do: other
+  defp min_weight(a, b), do: min(a, b)
+
+  defp negative?(:inf), do: false
+  defp negative?(weight), do: weight < 0
 
   @doc """
   Explain a tightened bound as a trace — the chain of constraints that

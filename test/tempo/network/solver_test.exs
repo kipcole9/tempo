@@ -1,5 +1,6 @@
 defmodule Tempo.Network.SolverTest do
   use ExUnit.Case, async: true
+  use ExUnitProperties
 
   import Tempo.Sigils
 
@@ -20,6 +21,21 @@ defmodule Tempo.Network.SolverTest do
 
   defp duration_years(nil), do: nil
   defp duration_years(%Tempo.Duration{time: time}), do: Keyword.get(time, :year)
+
+  # Two grounded periods a = [a1, a2) and b = [b1, b2) as integer years.
+  defp ground(a1, a2, b1, b2) do
+    Network.new()
+    |> Network.add_period(:a, start: a1, end: a2)
+    |> Network.add_period(:b, start: b1, end: b2)
+  end
+
+  # The same two intervals compared by the core point algebra, for agreement.
+  defp core_relation(a1, a2, b1, b2) do
+    Tempo.relation(
+      Tempo.from_iso8601!("#{a1}Y/#{a2}Y"),
+      Tempo.from_iso8601!("#{b1}Y/#{b2}Y")
+    )
+  end
 
   describe "consistency" do
     test "a single well-formed period is consistent" do
@@ -170,6 +186,122 @@ defmodule Tempo.Network.SolverTest do
                Network.new()
                |> Network.add_period(:k, start: 1200, end: 1180)
                |> Solver.trace({:start, :k})
+    end
+  end
+
+  describe "relation/3 — the tightest Allen relation" do
+    test "grounded periods pin exactly one relation, one per Allen class" do
+      # One representative of each of the thirteen base relations, each read
+      # back as a single entailed atom.
+      assert Solver.relation(ground(1200, 1250, 1300, 1350), :a, :b) == :precedes
+      assert Solver.relation(ground(1200, 1250, 1250, 1300), :a, :b) == :meets
+      assert Solver.relation(ground(1200, 1250, 1230, 1280), :a, :b) == :overlaps
+      assert Solver.relation(ground(1200, 1280, 1230, 1280), :a, :b) == :finished_by
+      assert Solver.relation(ground(1200, 1280, 1230, 1250), :a, :b) == :contains
+      assert Solver.relation(ground(1200, 1250, 1200, 1280), :a, :b) == :starts
+      assert Solver.relation(ground(1200, 1250, 1200, 1250), :a, :b) == :equals
+      assert Solver.relation(ground(1200, 1280, 1200, 1250), :a, :b) == :started_by
+      assert Solver.relation(ground(1230, 1250, 1200, 1280), :a, :b) == :during
+      assert Solver.relation(ground(1230, 1280, 1200, 1280), :a, :b) == :finishes
+      assert Solver.relation(ground(1230, 1280, 1200, 1250), :a, :b) == :overlapped_by
+      assert Solver.relation(ground(1250, 1300, 1200, 1250), :a, :b) == :met_by
+      assert Solver.relation(ground(1300, 1350, 1200, 1250), :a, :b) == :preceded_by
+    end
+
+    test "an unconstrained pair leaves all thirteen relations possible" do
+      # Two periods with only proper-interval constraints — every relation
+      # remains feasible, so the answer is the full disjunction.
+      relations =
+        Network.new()
+        |> Network.add_period(:a, duration: {:at_least, 1})
+        |> Network.add_period(:b, duration: {:at_least, 1})
+        |> Solver.relation(:a, :b)
+
+      assert length(relations) == 13
+    end
+
+    test "a sequence link entails :meets" do
+      assert Network.new()
+             |> Network.add_period(:a, duration: {:at_least, 10})
+             |> Network.add_period(:b, duration: {:at_least, 10})
+             |> Network.add_sequence([:a, :b])
+             |> Solver.relation(:a, :b) == :meets
+    end
+
+    test "partial constraints narrow to a disjunction without pinning one" do
+      # b starts within a's span but its end is free, so b may finish inside a
+      # (:during), coincide with a's end (:finishes), or run past it
+      # (:overlapped_by) — but never precede or meet a.
+      relations =
+        Network.new()
+        |> Network.add_period(:a, start: {1200, 1200}, end: {1260, 1260})
+        |> Network.add_period(:b, start: {1210, 1210}, duration: {:at_least, 5})
+        |> Solver.relation(:b, :a)
+
+      assert is_list(relations)
+      assert :during in relations
+      assert :finishes in relations
+      assert :overlapped_by in relations
+      refute :precedes in relations
+      refute :meets in relations
+    end
+
+    test "an inconsistent network returns {:error, :inconsistent}" do
+      assert {:error, :inconsistent} =
+               Network.new()
+               |> Network.add_period(:a, start: 1200, end: 1180)
+               |> Network.add_period(:b, start: 1000, end: 1100)
+               |> Solver.relation(:a, :b)
+    end
+
+    test "an unknown period returns {:error, :unknown_period}" do
+      assert {:error, :unknown_period} =
+               ground(1200, 1250, 1230, 1280) |> Solver.relation(:a, :missing)
+    end
+
+    property "on grounded periods it entails one relation, matching Tempo.relation/2" do
+      check all(
+              a1 <- integer(1000..2000),
+              da <- integer(1..400),
+              b1 <- integer(1000..2000),
+              db <- integer(1..400)
+            ) do
+        a2 = a1 + da
+        b2 = b1 + db
+        network_relation = Solver.relation(ground(a1, a2, b1, b2), :a, :b)
+
+        # Exactly one relation is feasible (jointly exhaustive, pairwise
+        # disjoint), and it is the one the core point algebra reports.
+        assert is_atom(network_relation)
+        assert network_relation == core_relation(a1, a2, b1, b2)
+      end
+    end
+  end
+
+  describe "relation_certainty/4" do
+    test ":certain when the relation is the only one entailed" do
+      net = ground(1200, 1250, 1230, 1280)
+      assert Solver.relation_certainty(net, :a, :b, :overlaps) == :certain
+    end
+
+    test ":impossible when the relation is ruled out" do
+      net = ground(1200, 1250, 1230, 1280)
+      assert Solver.relation_certainty(net, :a, :b, :during) == :impossible
+    end
+
+    test ":possible when the relation is one of several still open" do
+      net =
+        Network.new()
+        |> Network.add_period(:a, duration: {:at_least, 1})
+        |> Network.add_period(:b, duration: {:at_least, 1})
+
+      assert Solver.relation_certainty(net, :a, :b, :overlaps) == :possible
+      assert Solver.relation_certainty(net, :a, :b, :precedes) == :possible
+    end
+
+    test "propagates the errors relation/3 returns" do
+      net = ground(1200, 1250, 1230, 1280)
+      assert {:error, :unknown_period} = Solver.relation_certainty(net, :a, :missing, :precedes)
     end
   end
 end
