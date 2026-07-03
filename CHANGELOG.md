@@ -6,6 +6,8 @@
 
 * `Tempo.Network.Solver.relation/3` returns the tightest Allen relation(s) still possible between two periods in a constraint network — a single atom when the constraints entail one (`:precedes`), or the smallest disjunction otherwise — generalising `contemporaneity/3` from overlap to the full thirteen-relation vocabulary. `relation_certainty/4` reports whether a named relation is `:certain`, `:possible`, or `:impossible`, and both read off the already-solved network in polynomial time.
 
+* `Tempo.compose/2` composes two Allen relations — given `A r1 B` and `B r2 C` it returns every relation possible from `A` to `C` (Allen's 1983 composition table), as a constant-time lookup that chains one qualitative inference with no interval in hand. `Tempo.compose(:precedes, :during)` is `[:precedes, :meets, :overlaps, :starts, :during]`.
+
 ## [v0.15.1] — 2026-07-03
 
 ### Fixed

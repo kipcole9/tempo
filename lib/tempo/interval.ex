@@ -52,6 +52,7 @@ defmodule Tempo.Interval do
 
   alias Tempo.Compare
   alias Tempo.Duration
+  alias Tempo.Interval.Composition
   alias Tempo.IntervalEndpointsError
   alias Tempo.IntervalSet
   alias Tempo.Iso8601.AST
@@ -817,6 +818,59 @@ defmodule Tempo.Interval do
   def inverse_relation(:during), do: :contains
   def inverse_relation(:contains), do: :during
   def inverse_relation(:equals), do: :equals
+
+  @doc """
+  Compose two Allen relations — the relations possible from `A` to `C` given
+  `A r1 B` and `B r2 C`.
+
+  This is Allen's interval-algebra composition (Allen 1983): a constant-time
+  read of the 13×13 table. Where `relation/2` compares two intervals you hold,
+  `compose/2` takes one qualitative step with no interval in hand —
+  *"if A precedes B and B is during C, how can A relate to C?"* — and returns
+  every relation some arrangement of the three intervals allows. It is the same
+  reasoning `Tempo.Network.Solver.relation/3` applies across a whole network,
+  reduced to a single step.
+
+  ### Arguments
+
+  * `relation1` is the Allen relation from `A` to `B` — one of the 13 atoms
+    `relation/2` returns.
+
+  * `relation2` is the Allen relation from `B` to `C`.
+
+  ### Returns
+
+  * A list of the relations possible from `A` to `C`, in Allen's canonical
+    order — one element when the composition is determined, up to all 13 when
+    the step is fully ambiguous.
+
+  * `{:error, {:invalid_relation, term}}` when either argument is not one of
+    the 13 relation atoms.
+
+  ### Examples
+
+      iex> Tempo.Interval.compose(:precedes, :during)
+      [:precedes, :meets, :overlaps, :starts, :during]
+
+      iex> Tempo.Interval.compose(:equals, :overlaps)
+      [:overlaps]
+
+      iex> Tempo.Interval.compose(:precedes, :nonsense)
+      {:error, {:invalid_relation, :nonsense}}
+
+  """
+  @spec compose(relation(), relation()) ::
+          [relation()] | {:error, {:invalid_relation, term()}}
+  def compose(relation1, relation2) do
+    case Composition.compose(relation1, relation2) do
+      nil -> {:error, {:invalid_relation, first_invalid(relation1, relation2)}}
+      relations -> relations
+    end
+  end
+
+  defp first_invalid(relation1, relation2) do
+    if relation1 in Composition.relations(), do: relation2, else: relation1
+  end
 
   # Three endpoint comparisons drive the 13-way branch:
   # `a.from vs b.from`, `a.to vs b.to`, and the "seam" checks

@@ -72,6 +72,19 @@ This buys two things:
 
 * **Cross-calendar and cross-zone comparison fall out for free**: project both operands' endpoints to the shared real-number frame and order them, regardless of calendar or zone.
 
+### Composition, without the closure
+
+Allen's algebra has one more canonical operation, and Tempo now surfaces it: **composition**. Given `A r1 B` and `B r2 C`, `Tempo.compose/2` returns every relation that can hold from `A` to `C` — a constant-time read of Allen's 13×13 table:
+
+```elixir
+Tempo.compose(:precedes, :during)
+#=> [:precedes, :meets, :overlaps, :starts, :during]
+```
+
+> *"If the dig predates the reign, and the reign falls within the dynasty, then the dig is somewhere at or before the dynasty — before it, meeting it, overlapping into it, sharing its start, or inside it."*
+
+This looks like it should cross the tractability line — its *result* is a disjunction, the very thing the NP-hardness warning above is about. It doesn't, and the reason is exactly where that line is drawn. The NP-hard problem is *closing a network* of disjunctive constraints under composition — composing and intersecting to a fixpoint over inputs that are themselves sets of relations. Tempo does neither: `compose/2` is a single table lookup on two *definite* relations, and `Tempo.Network.Solver.relation/3` reads its disjunction off an already-solved metric network. Emitting a disjunctive *answer* is polynomial; reasoning over disjunctive *constraints* is not — and Tempo only ever does the former.
+
 ### The new idea: resolution-indexed atomicity
 
 Here is the element with no direct precedent in the formalisms above. Tempo recovers the "instant" not as a primitive point, but as **the interval of one unit at the value's *finest declared resolution*** — a *moment* in Allen and Hayes' sense, but **relativised to representational precision**:

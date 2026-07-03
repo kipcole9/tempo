@@ -3900,6 +3900,25 @@ defmodule Tempo do
   defdelegate relation(a, b), to: Tempo.Interval
 
   @doc """
+  Compose two Allen relations — the relations possible from `A` to `C`
+  given `A r1 B` and `B r2 C`.
+
+  Thin delegate to `Tempo.Interval.compose/2`. Allen's composition
+  (1983) chains a qualitative inference without holding any interval:
+  *"if A precedes B and B is during C, how can A relate to C?"*
+
+  ### Examples
+
+      iex> Tempo.compose(:precedes, :during)
+      [:precedes, :meets, :overlaps, :starts, :during]
+
+      iex> Tempo.compose(:contains, :during)
+      [:overlaps, :finished_by, :contains, :starts, :equals, :started_by, :during, :finishes, :overlapped_by]
+
+  """
+  defdelegate compose(relation1, relation2), to: Tempo.Interval
+
+  @doc """
   Return the interval's length as a `%Tempo.Duration{}`, or
   `:infinity` for unbounded intervals. See `Tempo.Interval.duration/1`.
   """
