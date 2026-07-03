@@ -8,6 +8,8 @@
 
 * `Tempo.compose/2` composes two Allen relations — given `A r1 B` and `B r2 C` it returns every relation possible from `A` to `C` (Allen's 1983 composition table), as a constant-time lookup that chains one qualitative inference with no interval in hand. `Tempo.compose(:precedes, :during)` is `[:precedes, :meets, :overlaps, :starts, :during]`.
 
+* The three-valued certainty queries — `within_certainty/2`, `relation_certainty/3`, `overlap_certainty/2`, and the `certainly_*?`/`possibly_*?` predicates — now reason over *underspecified* operands: an unspecified-digit value like `~o"20XXY"` (some year in 2000–2099) is read across every year its mask admits, and two un-anchored values compare on a shared leading unit or return a `Tempo.RequiresAnchorError` across resolution axes. `within_certainty(~o"20XXY", ~o"2001Y/2101Y")` is `:possible` because the year 2000 falls outside the window.
+
 ## [v0.15.1] — 2026-07-03
 
 ### Fixed

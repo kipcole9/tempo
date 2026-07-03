@@ -61,6 +61,7 @@ defmodule Tempo.Interval do
   alias Tempo.Mask
   alias Tempo.MaterialisationError
   alias Tempo.Math
+  alias Tempo.RequiresAnchorError
 
   @type t :: %__MODULE__{
           recurrence: pos_integer() | :infinity,
@@ -1636,7 +1637,7 @@ defmodule Tempo.Interval do
   end
 
   # ------------------------------------------------------------------
-  # Graded relations over ±-bearing intervals (ISO 8601-2 margin-of-error)
+  # Graded relations over uncertain and underspecified intervals
   #
   # A margin widens each endpoint into a range; comparing two ranges
   # yields the *set* of orderings (:earlier/:same/:later) they could
@@ -1646,11 +1647,23 @@ defmodule Tempo.Interval do
   # its certainty is set containment: possible ⊆ concept → :certain;
   # possible ∩ concept = ∅ → :impossible; otherwise → :possible.
   #
+  # The same lens covers three sources of uncertainty, each turned into
+  # an endpoint range the machinery already consumes:
+  #
+  #   * ISO 8601-2 `±` margin-of-error — a rigid shift of both endpoints.
+  #   * Unspecified digits (`~o"20XXY"` — some year in `[2000, 2100)`) —
+  #     read as their *grounding envelope*: the resolution-wide value
+  #     slides anywhere inside the span the mask admits, so certainty is
+  #     over every year the mask could be, not the enclosing block.
+  #   * Un-anchored values (no year) — comparable only on a shared leading
+  #     unit (the same-axis rule); off-axis they return a
+  #     `RequiresAnchorError` rather than guess the missing year.
+  #
   # Endpoints are treated independently, which for a rigidly-shifting ±
-  # value is a *sound over-approximation*: `:certain`/`:impossible` are
-  # never wrong; the verdict only ever errs toward `:possible`. Crisp
-  # operands widen to points, so every concept degrades exactly to its
-  # boolean predicate (`certainly_within?/2 == within?/2`).
+  # or a masked value is a *sound over-approximation*: `:certain` and
+  # `:impossible` are never wrong; the verdict only ever errs toward
+  # `:possible`. Crisp operands widen to points, so every concept degrades
+  # exactly to its boolean predicate (`certainly_within?/2 == within?/2`).
 
   @intersecting_relations MapSet.new([
                             :overlaps,
@@ -1706,10 +1719,14 @@ defmodule Tempo.Interval do
   def overlap_certainty(a, b), do: concept_certainty(a, b, @intersecting_relations)
 
   @doc """
-  The certainty that `a` falls within `b`, given their `±` margins.
+  The certainty that `a` falls within `b`, given any uncertainty in either.
 
   The three-valued counterpart of `within?/2` (Allen `:equals | :starts
-  | :during | :finishes`). Crisp operands degrade exactly to `within?/2`.
+  | :during | :finishes`). Uncertainty may be a `±` margin *or*
+  underspecification — an unspecified-digit value (`~o"20XXY"`) is read
+  over the set of years its mask admits, so `:possible` reports that some
+  but not all groundings fall within `b`. Crisp operands degrade exactly to
+  `within?/2`.
 
   ### Arguments
 
@@ -1720,7 +1737,9 @@ defmodule Tempo.Interval do
 
   * `:certain`, `:possible`, or `:impossible`.
 
-  * `{:error, reason}` for open-ended or multi-member operands.
+  * `{:error, reason}` for open-ended or multi-member operands, or a
+    `t:Tempo.RequiresAnchorError.t/0` when an un-anchored operand is
+    compared across resolution axes.
 
   ### Examples
 
@@ -1730,6 +1749,10 @@ defmodule Tempo.Interval do
       iex> Tempo.Interval.within_certainty(~o"2000±1Y", ~o"2000Y")
       :possible
 
+      iex> # ~o"20XXY" is some year in [2000, 2100); 2000 escapes [2001, 2101)
+      iex> Tempo.Interval.within_certainty(~o"20XXY", ~o"2001Y/2101Y")
+      :possible
+
   """
   @spec within_certainty(interval_like(), interval_like()) :: certainty() | {:error, term()}
   def within_certainty(a, b), do: concept_certainty(a, b, @within_relations)
@@ -1737,7 +1760,11 @@ defmodule Tempo.Interval do
   @doc """
   The certainty that `relation(a, b)` is (one of) `target`.
 
-  Certainty is containment of the possible relations in `target`.
+  Certainty is containment of the possible relations in `target`. The
+  possible relations account for any `±` margin and for underspecification:
+  an unspecified-digit operand (`~o"20XXY"`) is read over every grounding
+  its mask admits, and two un-anchored operands compare on a shared leading
+  unit.
 
   ### Arguments
 
@@ -1750,7 +1777,9 @@ defmodule Tempo.Interval do
 
   * `:certain`, `:possible`, or `:impossible`.
 
-  * `{:error, reason}` for open-ended or multi-member operands.
+  * `{:error, reason}` for open-ended or multi-member operands, or a
+    `t:Tempo.RequiresAnchorError.t/0` when an un-anchored operand is
+    compared across resolution axes.
 
   ### Examples
 
@@ -1759,6 +1788,10 @@ defmodule Tempo.Interval do
 
       iex> Tempo.Interval.relation_certainty(~o"2000Y", ~o"2000Y", :equals)
       :certain
+
+      iex> # some year in 2000–2099 may precede 2050, may follow it
+      iex> Tempo.Interval.relation_certainty(~o"20XXY", ~o"2050Y", :precedes)
+      :possible
 
   """
   @spec relation_certainty(interval_like(), interval_like(), relation() | [relation()]) ::
@@ -1915,11 +1948,64 @@ defmodule Tempo.Interval do
   # pathologically wide margins the pairing count is capped and we fall
   # back to the sound (looser) endpoint-range method.
   defp possible_relations(a, b) do
-    with {:ok, a_places} <- placements(a),
-         {:ok, b_places} <- placements(b) do
-      classify_placements(a, b, a_places, b_places)
+    cond do
+      not anchored_operand?(a) or not anchored_operand?(b) ->
+        unanchored_possible_relations(a, b)
+
+      masked_operand?(a) or masked_operand?(b) ->
+        # An unspecified-digit value (`~o"20XXY"`) denotes an unknown grounding
+        # within a bounded span. Its grounding envelope feeds the same
+        # endpoint-range machinery the wide-± fallback uses, so the concept
+        # certainty is read over every year the mask admits, not the block.
+        envelope_relations(a, b)
+
+      true ->
+        with {:ok, a_places} <- placements(a),
+             {:ok, b_places} <- placements(b) do
+          classify_placements(a, b, a_places, b_places)
+        end
     end
   end
+
+  # Two un-anchored values (no year) compare only on a shared leading unit —
+  # the same-axis rule the set operations use. Same axis: the positional
+  # `relation/2` is definite, so the possible set is the single relation it
+  # returns. Different axes (or one operand anchored, the other not): the answer
+  # depends on the missing year, so we signal that rather than guess.
+  defp unanchored_possible_relations(a, b) do
+    if same_axis_operands?(a, b) do
+      case relation(a, b) do
+        relation when is_atom(relation) -> MapSet.new([relation])
+        {:error, _reason} = error -> error
+      end
+    else
+      {:error,
+       RequiresAnchorError.exception(value: unanchored_operand(a, b), reason: :comparison)}
+    end
+  end
+
+  defp same_axis_operands?(a, b), do: leading_time_unit(a) == leading_time_unit(b)
+
+  defp leading_time_unit(%Tempo{time: [{unit, _value} | _rest]}), do: unit
+  defp leading_time_unit(%__MODULE__{from: %Tempo{} = from}), do: leading_time_unit(from)
+
+  defp leading_time_unit(%IntervalSet{intervals: [interval | _rest]}),
+    do: leading_time_unit(interval)
+
+  defp leading_time_unit(_operand), do: nil
+
+  defp unanchored_operand(a, b), do: if(anchored_operand?(a), do: b, else: a)
+
+  defp anchored_operand?(%Tempo{} = value), do: Tempo.anchored?(value)
+  defp anchored_operand?(%__MODULE__{from: %Tempo{} = from}), do: Tempo.anchored?(from)
+  defp anchored_operand?(%IntervalSet{intervals: [interval]}), do: anchored_operand?(interval)
+  defp anchored_operand?(_operand), do: true
+
+  defp masked_operand?(%Tempo{time: time}), do: Enum.any?(time, &masked_field?/1)
+  defp masked_operand?(_operand), do: false
+
+  defp masked_field?({_unit, {:mask, _digits}}), do: true
+  defp masked_field?(_field), do: false
 
   defp classify_placements(a, b, a_places, b_places) do
     if length(a_places) * length(b_places) <= @max_placement_pairs do
@@ -2018,13 +2104,41 @@ defmodule Tempo.Interval do
 
   # value -> {from_range, to_range}, each a {lo, hi} of endpoint Tempos.
   defp endpoint_envelopes(operand) do
-    case to_single_interval(operand, :graded) do
-      {:ok, %__MODULE__{from: from_endpoint, to: to_endpoint}} ->
-        {from_margin, to_margin} = endpoint_margins(operand)
-        {:ok, {widen(from_endpoint, from_margin), widen(to_endpoint, to_margin)}}
+    if masked_operand?(operand) do
+      grounding_envelope(operand)
+    else
+      case to_single_interval(operand, :graded) do
+        {:ok, %__MODULE__{from: from_endpoint, to: to_endpoint}} ->
+          {from_margin, to_margin} = endpoint_margins(operand)
+          {:ok, {widen(from_endpoint, from_margin), widen(to_endpoint, to_margin)}}
 
-      {:error, _} = error ->
-        error
+        {:error, _} = error ->
+          error
+      end
+    end
+  end
+
+  # A masked value's grounding envelope: its unknown grounding is a
+  # resolution-wide interval sliding anywhere inside the bounded span the mask
+  # admits (`~o"20XXY"` → some year in `[2000, 2100)`). The from-endpoint
+  # ranges over `[span_start, span_end − width]`, the to-endpoint over
+  # `[span_start + width, span_end]`.
+  defp grounding_envelope(operand) do
+    with {:ok, %__MODULE__{from: span_start, to: span_end}} <- Tempo.to_interval(operand),
+         {:ok, width} <- resolution_duration(operand) do
+      from_range = {span_start, Math.subtract(span_end, width)}
+      to_range = {Math.add(span_start, width), span_end}
+      {:ok, {from_range, to_range}}
+    end
+  end
+
+  # `Tempo.resolution/1` is `{unit, count}` for a metric value (`{:year, 1}`)
+  # but `{unit, finer_unit}` for a selection; only the former has a numeric
+  # width to build a Duration from.
+  defp resolution_duration(operand) do
+    case Tempo.resolution(operand) do
+      {unit, count} when is_integer(count) -> {:ok, Duration.new!([{unit, count}])}
+      {_unit, _finer_unit} -> {:error, :no_resolution}
     end
   end
 

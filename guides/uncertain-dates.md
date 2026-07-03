@@ -65,6 +65,38 @@ Tempo.overlap_certainty(~o"2000Y", ~o"2001Y")    #=> :impossible
 
 So you can reach for the graded verdicts everywhere and pay nothing on crisp data.
 
+## Underspecification is uncertainty too
+
+A margin is not the only way a date is vague. ISO 8601-2 also lets a value leave digits **unspecified** — `~o"20XXY"` is *some* year in 2000–2099, `~o"2020YXXM"` *some* month of 2020 — and a value may be **un-anchored**, carrying a month or day with no year at all. Tempo reads these the same three-valued way, over the set of dates the value could actually be:
+
+```elixir
+# "Some year in 2000–2099" — certainly within that span, but not every
+# grounding survives a window that opens a year later.
+Tempo.certainly_within?(~o"20XXY", ~o"2000Y/2100Y")   #=> true
+Tempo.within_certainty(~o"20XXY", ~o"2001Y/2101Y")    #=> :possible
+
+# A masked year may precede a date inside its span, or follow it.
+Tempo.relation_certainty(~o"20XXY", ~o"2050Y", :precedes)  #=> :possible
+Tempo.certainly_before?(~o"20XXY", ~o"2200Y")              #=> true
+```
+
+> *"A find dated only to 'the 2000s' is certainly within 2000–2100, only possibly before 2050, and certainly before 2200."*
+
+Un-anchored values — a recurring month or day with no year — compare on a **shared leading unit**, the same-axis rule the set operations use:
+
+```elixir
+Tempo.certainly_before?(~o"1M31D", ~o"3M15D")   #=> true
+```
+
+> *"The 31st of January is before the 15th of March in any year."*
+
+Comparing across resolution axes — an un-anchored month against an anchored year — has no answer without knowing the year, so Tempo says so rather than guess:
+
+```elixir
+Tempo.within_certainty(~o"2M", ~o"2050Y")
+#=> {:error, %Tempo.RequiresAnchorError{}}
+```
+
 ## What this is not (yet)
 
 The verdicts are three-valued, not numeric — Tempo will tell you an overlap is *possible*, but not that it is "70% likely". A probability needs a prior over where the true date sits, and a soft, fades-at-the-edges *approximately* needs a membership function; both are planned for a companion library rather than the crisp core. For today, `±` is inert in your bounds and your exact relations, and speaks only through the graded questions above.
