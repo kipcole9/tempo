@@ -281,6 +281,14 @@ defmodule Tempo.Iso8601.Tokenizer.Extended do
   defp unwrap_payload([{:zone, zone}]), do: {:zone, zone}
   defp unwrap_payload([{:offset, offset}]), do: {:offset, offset}
 
+  # A `u-…` BCP 47 Unicode extension in the hyphen form (no `=`) — e.g.
+  # `[u-ca-hebrew]`. It has no `=`, so it tokenises as a bare "zone"; route
+  # it through the BCP 47 U parser and take its calendar. Matched at any
+  # position so `[Europe/Paris][u-ca-hebrew]` works too.
+  defp apply_payload({:zone, "u-" <> _ = u_extension}, critical, acc, _index) do
+    apply_u_extension(u_extension, critical, acc)
+  end
+
   # First segment: bare zone name is the time zone.
   defp apply_payload({:zone, zone}, critical, acc, 0) do
     apply_zone(zone, critical, acc)
@@ -332,22 +340,43 @@ defmodule Tempo.Iso8601.Tokenizer.Extended do
     end
   end
 
+  # Parse a hyphen-form BCP 47 U extension and take its calendar (`ca`).
+  # A valid U extension without a calendar (e.g. `u-nu-latn`) or an
+  # unparseable one is retained verbatim for round-tripping.
+  defp apply_u_extension(raw, critical, acc) do
+    case Localize.LanguageTag.U.parse(raw) do
+      {:ok, %{ca: calendar}} when not is_nil(calendar) ->
+        {:ok, %{acc | calendar: calendar}}
+
+      {:ok, _no_calendar} ->
+        {:ok, put_in(acc, [:tags, "unknown_zone"], [raw])}
+
+      {:error, _reason} when critical ->
+        {:error,
+         ParseError.exception(
+           input: raw,
+           reason: "Invalid u extension #{inspect(raw)} in extended suffix"
+         )}
+
+      {:error, _reason} ->
+        {:ok, put_in(acc, [:tags, "unknown_zone"], [raw])}
+    end
+  end
+
   @u_ca "u-ca"
 
-  # Calendar identifier.
-  #
-  # BCP 47 / CLDR calendar identifiers may be multi-segment —
-  # `islamic-umalqura`, `islamic-civil`, `ethiopic-amete-alem`.
-  # The tokenizer splits on `-` so multi-segment identifiers
-  # arrive as a list of parts (`["islamic", "umalqura"]`). Rejoin
-  # with `-` to reconstruct the BCP 47 form and let
-  # `Localize.validate_calendar/1` do the normalisation
-  # (dash↔underscore, aliases like `gregory`/`ethioaa`).
+  # Calendar identifier in the IXDTF `[u-ca=value]` form (the `=` separator
+  # is IXDTF's, borrowed from Temporal — it is not valid BCP 47). A Unicode
+  # Calendar Identifier may be multi-segment (`islamic-civil`,
+  # `islamic-umalqura`); the tokenizer split it on `-`, so rejoin and decode
+  # via `Localize.Validity.U.decode/2`, which normalises the value to the
+  # internal atom and folds registered aliases (`islamicc` → `islamic_civil`,
+  # `gregorian` → `gregory`).
   defp apply_tag(@u_ca, values, critical, acc) when is_list(values) do
     raw = Enum.join(values, "-")
 
-    case Localize.validate_calendar(raw) do
-      {:ok, calendar} ->
+    case Localize.Validity.U.decode(:ca, raw) do
+      {:ok, {:ca, calendar}} ->
         {:ok, %{acc | calendar: calendar}}
 
       {:error, _} when critical ->

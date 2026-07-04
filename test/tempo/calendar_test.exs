@@ -28,9 +28,12 @@ defmodule Tempo.CalendarTest do
       assert civil.calendar == Calendrical.Islamic.Civil
     end
 
-    test "ethiopic-amete-alem resolves to Calendrical.Ethiopic.AmeteAlem" do
+    test "the CLDR type name ethiopic-amete-alem is not a u-ca identifier (use ethioaa)" do
+      # IXDTF/TR35 u-ca values are Unicode Calendar Identifiers (`ethioaa`),
+      # not CLDR's internal calendar-type names. An unknown, non-critical
+      # suffix is ignored per IXDTF §3.3, so the calendar stays the default.
       {:ok, tempo} = Tempo.from_iso8601("2019-05-10[u-ca=ethiopic-amete-alem]")
-      assert tempo.calendar == Calendrical.Ethiopic.AmeteAlem
+      assert tempo.calendar == Calendrical.Gregorian
     end
 
     test "the ethioaa BCP 47 alias works" do
@@ -71,6 +74,50 @@ defmodule Tempo.CalendarTest do
                Tempo.from_iso8601("2026-06-15[u-ca=fakecalendar]")
 
       assert tempo.calendar == Calendrical.Gregorian
+    end
+  end
+
+  # Tempo borrowed the `[…]` suffix from IXDTF (which uses `[u-ca=value]`),
+  # but the value is a BCP 47 Unicode Calendar Identifier, whose native form
+  # is hyphenated (`u-ca-hebrew`). So Tempo reads BOTH separators (liberal in)
+  # and emits the IXDTF `=` form (conservative out), via the Localize U parser.
+  describe "u extension: parse `=` and `-`, emit `=`" do
+    test "the hyphen (BCP 47) form parses" do
+      {:ok, tempo} = Tempo.from_iso8601("2020-06-15[u-ca-hebrew]")
+      assert tempo.calendar == Calendrical.Hebrew
+
+      {:ok, tempo} = Tempo.from_iso8601("2020-06-15[u-ca-islamic-civil]")
+      assert tempo.calendar == Calendrical.Islamic.Civil
+    end
+
+    test "a hyphen-form u extension is accepted after a zone" do
+      {:ok, tempo} = Tempo.from_iso8601("2020-06-15T10:00[Europe/Paris][u-ca-hebrew]")
+      assert tempo.calendar == Calendrical.Hebrew
+    end
+
+    test "deprecated aliases fold in either separator" do
+      for string <- ["2020-06-15[u-ca=islamicc]", "2020-06-15[u-ca-islamicc]"] do
+        {:ok, tempo} = Tempo.from_iso8601(string)
+        assert tempo.calendar == Calendrical.Islamic.Civil
+      end
+    end
+
+    test "generation always uses `=` and the preferred identifier" do
+      # Parsed via the hyphen + deprecated alias, emitted as canonical `=`.
+      {:ok, tempo} = Tempo.from_iso8601("2020-06-15[u-ca-islamicc]")
+      assert Tempo.to_iso8601(tempo) == "2020Y6M15D[u-ca=islamic-civil]"
+
+      # `:gregorian` encodes to the preferred `gregory`, not a naive spelling.
+      {:ok, gregory} = Tempo.from_iso8601("2020-06-15[u-ca=gregorian]")
+      {:ok, hebrew} = Tempo.from_iso8601("2020-06-15[u-ca-hebrew]")
+      assert Tempo.to_iso8601(hebrew) == "2020Y6M15D[u-ca=hebrew]"
+      assert gregory.calendar == Calendrical.Gregorian
+    end
+
+    test "the hyphen form round-trips through generation" do
+      {:ok, tempo} = Tempo.from_iso8601("2020-06-15[u-ca-hebrew]")
+      {:ok, reparsed} = Tempo.from_iso8601(Tempo.to_iso8601(tempo))
+      assert reparsed.calendar == Calendrical.Hebrew
     end
   end
 

@@ -14,7 +14,7 @@
 
 * Comparison, duration, and everything built on them — cross-calendar Allen relations, the `Tempo.Network` constraint solver, and interval-set coalescing — are now calendar-independent. A value in a non-Gregorian calendar (`[u-ca=hebrew]`, `[u-ca=persian]`, …) is projected through its calendar's date→absolute-day conversion, so `Tempo.relation(~o"2025-09-23", ~o"5786-01-01[u-ca=hebrew]")` is `:equals`, a Hebrew common year measures 354 days rather than a Gregorian 365, and the Gregorian path is unchanged.
 
-* An IXDTF calendar identifier with multiple words now round-trips: `Tempo.to_iso8601/1` emits the hyphenated BCP 47 key (`[u-ca=islamic-civil]`, not `islamic_civil`), which re-parses cleanly.
+* The IXDTF `u` calendar tag is parsed and generated through Localize's BCP 47 Unicode-extension parser (`localize ~> 0.44`): Tempo reads both the IXDTF `[u-ca=hebrew]` and the BCP 47 `[u-ca-hebrew]` separators — folding registered aliases such as `islamicc` → `islamic-civil` — and emits the canonical IXDTF `=` form with the preferred identifier (`:gregorian` → `gregory`). Calendar values are the Unicode Calendar Identifiers of UTS #35 (`ethioaa`), not CLDR's internal type names (`ethiopic-amete-alem`).
 
 * A date in a month that doesn't exist in its calendar year — such as the Hebrew Adar I (month 6) in an ordinary year — now returns a clear `"month 6 does not exist in …"` error instead of a confusing empty-range message.
 

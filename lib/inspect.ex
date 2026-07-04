@@ -3,6 +3,7 @@ defmodule Tempo.Inspect do
 
   import Kernel, except: [inspect: 1]
 
+  alias Localize.Validity.U
   alias Tempo.Microsecond
 
   @from_iso8601 "Tempo.from_iso8601!(\""
@@ -110,15 +111,26 @@ defmodule Tempo.Inspect do
   defp pad_two(number), do: String.pad_leading(Integer.to_string(number), 2, "0")
 
   defp calendar_trailer(%{calendar: cal}) when is_atom(cal) and not is_nil(cal) do
-    # The calendar is held as an atom (`:islamic_civil`), but BCP 47 `u-ca`
-    # keys are hyphenated (`islamic-civil`) — and only the hyphenated form
-    # re-parses. CLDR calendar identifiers never contain underscores, so the
-    # reversal is unambiguous.
-    key = cal |> Atom.to_string() |> String.replace("_", "-")
-    ["[u-ca=", key, "]"]
+    # Emit the IXDTF `[u-ca=value]` form (the `=` separator, borrowed from
+    # Temporal), with the value produced by `Localize.Validity.U.encode/2`
+    # so it is the preferred BCP 47 identifier (`:gregorian` → `"gregory"`,
+    # `:islamic_civil` → `"islamic-civil"`), not a naive atom spelling.
+    case encode_calendar(cal) do
+      {:ok, value} -> ["[u-ca=", value, "]"]
+      :error -> []
+    end
   end
 
   defp calendar_trailer(_), do: []
+
+  # `U.encode/2` raises on an atom that is not a calendar; guard it so
+  # inspect/`to_iso8601` never crash on an unexpected value.
+  defp encode_calendar(cal) do
+    {"ca", value} = U.encode(:ca, cal)
+    {:ok, value}
+  rescue
+    _error -> :error
+  end
 
   defp tags_trailer(%{tags: tags}) when is_map(tags) and map_size(tags) > 0 do
     Enum.map(tags, fn {k, v} ->
