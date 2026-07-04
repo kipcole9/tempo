@@ -10,6 +10,8 @@
 
 * The three-valued certainty queries — `within_certainty/2`, `relation_certainty/3`, `overlap_certainty/2`, and the `certainly_*?`/`possibly_*?` predicates — now reason over *underspecified* operands: an unspecified-digit value like `~o"20XXY"` (some year in 2000–2099) is read across every year its mask admits, and two un-anchored values compare on a shared leading unit or return a `Tempo.RequiresAnchorError` across resolution axes. `within_certainty(~o"20XXY", ~o"2001Y/2101Y")` is `:possible` because the year 2000 falls outside the window.
 
+* A [Custom calendars](guides/custom-calendars.md) guide (and a cookbook recipe) shows how a fiscal-year, 4-4-5 retail, or academic-year calendar built with `Calendrical.new/3` flows end-to-end through Tempo — iterated by its own periods and compared cross-calendar — realising the time-granularity framing as calendar arithmetic.
+
 ### Fixed
 
 * Comparison, duration, and everything built on them — cross-calendar Allen relations, the `Tempo.Network` constraint solver, and interval-set coalescing — are now calendar-independent. A value in a non-Gregorian calendar (`[u-ca=hebrew]`, `[u-ca=persian]`, …) is projected through its calendar's date→absolute-day conversion, so `Tempo.relation(~o"2025-09-23", ~o"5786-01-01[u-ca=hebrew]")` is `:equals`, a Hebrew common year measures 354 days rather than a Gregorian 365, and the Gregorian path is unchanged.

@@ -140,7 +140,8 @@ defmodule Tempo.MixProject do
         "guides/shared-ast-iso8601-and-rrule.md"
       ],
       Foundations: [
-        "guides/temporal-formalisms.md"
+        "guides/temporal-formalisms.md",
+        "guides/custom-calendars.md"
       ]
     ]
   end

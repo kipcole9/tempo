@@ -967,6 +967,20 @@ false
 
 > 1 January 1582 under the **Julian calendar** and 1 January 1582 under the **Gregorian calendar** are not the same real day — they're **10 days apart** because of the Julian-to-Gregorian drift. Tempo comparisons are **calendar-aware**: same nominal components, different calendar, different underlying instant. The answer is `false`.
 
+### How do I work in a fiscal year?
+
+```elixir
+iex> {:ok, us_fiscal}   = Calendrical.FiscalYear.calendar_for(:US)
+iex> {:ok, fiscal_2026} = Tempo.from_iso8601("2026", us_fiscal)
+iex> {:ok, months}      = Tempo.to_interval(fiscal_2026)
+iex> Enum.count(months)
+12
+iex> Tempo.relation(Tempo.from_iso8601!("2026-01-01", us_fiscal), ~o"2025-10-01")
+:equals
+```
+
+> The **US federal fiscal year** starts on 1 October, so fiscal year 2026 iterates to its **twelve fiscal months** and its first day **equals** 1 October 2025 on the shared timeline. A fiscal calendar is just a `Calendrical` calendar — every comparison, duration, and set operation stays calendar-aware. See the [custom calendars guide](custom-calendars.md).
+
 ### Allen's interval algebra
 
 ```elixir
