@@ -345,12 +345,10 @@ defmodule Tempo.Validation do
   def resolve([{:year, year}, {:month, month}, {:day, day} | rest], calendar)
       when is_integer(year) and is_integer(month) and
              (is_number(day) or is_struct(day, Range) or is_list(day)) do
-    with [{:year, year}, {:month, month}] <- resolve([{:year, year}, {:month, month}], calendar) do
-      days_in_month = calendar.days_in_month(year, month)
-
-      with {:ok, day} <- conform(day, 1..days_in_month) do
-        prepend_year_month(year, month, resolve([{:day, day} | rest], calendar))
-      end
+    with [{:year, year}, {:month, month}] <- resolve([{:year, year}, {:month, month}], calendar),
+         {:ok, days_in_month} <- month_length(calendar, year, month),
+         {:ok, day} <- conform(day, 1..days_in_month) do
+      prepend_year_month(year, month, resolve([{:day, day} | rest], calendar))
     end
   end
 
@@ -631,6 +629,24 @@ defmodule Tempo.Validation do
 
   defp prepend_year_month(year, month, resolved),
     do: [{:year, year}, {:month, month} | resolved]
+
+  # A calendar may report a month as having no days — e.g. the Hebrew Adar I
+  # (month 6) does not exist in an ordinary year. Report the missing month
+  # clearly rather than building a confusing `1..0` empty day range.
+  defp month_length(calendar, year, month) do
+    case calendar.days_in_month(year, month) do
+      days when is_integer(days) and days > 0 ->
+        {:ok, days}
+
+      _no_such_month ->
+        {:error,
+         InvalidDateError.exception(
+           year: year,
+           month: month,
+           reason: "month #{month} does not exist in #{inspect(calendar)} year #{year}"
+         )}
+    end
+  end
 
   def year_week_day(year, week, day, rest, :month, calendar) do
     # The week → date lookup must happen under ISOWeek semantics

@@ -17,6 +17,14 @@ defmodule Tempo.Compare do
   policy decision was made in the implicit-to-explicit plan and
   revisited in the set-operations plan.
 
+  The same projection makes comparison calendar-independent:
+  when two values are in different calendars, each is routed
+  through its calendar's date→absolute-day conversion (the
+  `date_to_iso_days` round-trip) before comparison, so a Hebrew
+  and a Gregorian date order by their true instants rather than
+  by their raw numeric components. Same-calendar comparison keeps
+  the fast structural path on the `:time` lists.
+
   """
 
   alias Tempo.ZoneOffsetMismatchError
@@ -155,7 +163,12 @@ defmodule Tempo.Compare do
     a = %{a | time: drop_margin_of_error(a.time)}
     b = %{b | time: drop_margin_of_error(b.time)}
 
-    if zones_compatible?(a, b) do
+    # Structural comparison of the time lists is calendar-blind — `5786`
+    # (Hebrew) would read as later than `2025` (Gregorian) — so it is only
+    # valid within a single calendar. Values in different calendars are
+    # compared by projecting both to the shared absolute UTC frame, which
+    # routes each through its calendar's `date_to_iso_days` conversion.
+    if a.calendar == b.calendar and zones_compatible?(a, b) do
       case compare_time(a.time, b.time) do
         :lt -> :earlier
         :gt -> :later
@@ -266,7 +279,7 @@ defmodule Tempo.Compare do
 
   """
   @spec to_utc_seconds(Tempo.t()) :: integer() | float()
-  def to_utc_seconds(%Tempo{time: time, extended: extended, shift: shift}) do
+  def to_utc_seconds(%Tempo{time: time, extended: extended, shift: shift, calendar: calendar}) do
     year = Keyword.get(time, :year)
 
     if year == nil do
@@ -277,14 +290,18 @@ defmodule Tempo.Compare do
               "calling operation."
     end
 
-    wall = wall_seconds(time, year)
+    wall = wall_seconds(time, year, calendar)
     wall - resolve_offset_seconds(extended, shift, wall)
   end
 
   # The wall-clock instant as gregorian seconds (before any offset is
   # applied). Shared by `to_utc_seconds/1` and `validate_zone_offset/1`.
-  defp wall_seconds(time, year) do
-    {year, month, day} = resolve_ymd(time, year)
+  # A non-Gregorian value's calendar components are converted to the
+  # proleptic Gregorian frame first, so the projection lands on a true
+  # absolute instant (and cross-calendar comparisons and durations are
+  # correct); Gregorian values take the fast path unchanged.
+  defp wall_seconds(time, year, calendar) do
+    {year, month, day} = resolve_ymd(time, year, calendar)
     hour = Keyword.get(time, :hour, 0)
     minute = Keyword.get(time, :minute, 0)
     second = Keyword.get(time, :second, 0)
@@ -328,12 +345,12 @@ defmodule Tempo.Compare do
       is_nil(zone_id) or zone_id == "" -> :ok
       is_nil(stated) -> :ok
       not Tempo.anchored?(tempo) -> :ok
-      true -> check_zone_offset(time, zone_id, stated)
+      true -> check_zone_offset(time, tempo.calendar, zone_id, stated)
     end
   end
 
-  defp check_zone_offset(time, zone_id, stated) do
-    wall = wall_seconds(time, Keyword.get(time, :year))
+  defp check_zone_offset(time, calendar, zone_id, stated) do
+    wall = wall_seconds(time, Keyword.get(time, :year), calendar)
 
     offsets =
       case Tzdata.periods_for_time(zone_id, wall, :wall) do
@@ -375,7 +392,7 @@ defmodule Tempo.Compare do
   # Without this, week and ordinal dates projected via the
   # month/day defaults (1, 1) and collapsed to Jan 1 — making every
   # week interval report a zero-second duration.
-  defp resolve_ymd(time, year) do
+  defp resolve_ymd(time, year, calendar) do
     cond do
       Keyword.has_key?(time, :week) ->
         week = Keyword.get(time, :week)
@@ -392,7 +409,27 @@ defmodule Tempo.Compare do
         {date.year, date.month, date.day}
 
       true ->
-        {year, Keyword.get(time, :month, 1), Keyword.get(time, :day, 1)}
+        to_gregorian_ymd(
+          {year, Keyword.get(time, :month, 1), Keyword.get(time, :day, 1)},
+          calendar
+        )
+    end
+  end
+
+  # Convert calendar-native `{year, month, day}` to the proleptic Gregorian
+  # frame the projection assumes. Gregorian passes through untouched (fast
+  # path); any other calendar routes through `Date.convert/2`, which is the
+  # `date_to_iso_days` round-trip. Falls back to the raw components rather
+  # than raising if the date can't be built (a defensive best-effort).
+  defp to_gregorian_ymd(ymd, calendar) when calendar in [Calendrical.Gregorian, Calendar.ISO],
+    do: ymd
+
+  defp to_gregorian_ymd({year, month, day}, calendar) do
+    with {:ok, date} <- Date.new(year, month, day, calendar),
+         {:ok, gregorian} <- Date.convert(date, Calendar.ISO) do
+      {gregorian.year, gregorian.month, gregorian.day}
+    else
+      _error -> {year, month, day}
     end
   end
 

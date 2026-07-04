@@ -110,7 +110,12 @@ defmodule Tempo.Inspect do
   defp pad_two(number), do: String.pad_leading(Integer.to_string(number), 2, "0")
 
   defp calendar_trailer(%{calendar: cal}) when is_atom(cal) and not is_nil(cal) do
-    ["[u-ca=", Atom.to_string(cal), "]"]
+    # The calendar is held as an atom (`:islamic_civil`), but BCP 47 `u-ca`
+    # keys are hyphenated (`islamic-civil`) — and only the hyphenated form
+    # re-parses. CLDR calendar identifiers never contain underscores, so the
+    # reversal is unambiguous.
+    key = cal |> Atom.to_string() |> String.replace("_", "-")
+    ["[u-ca=", key, "]"]
   end
 
   defp calendar_trailer(_), do: []
