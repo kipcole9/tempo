@@ -49,6 +49,30 @@ defmodule Tempo.CalendarIndependenceTest do
     end
   end
 
+  describe "the ~o sigil honours an in-string u-ca calendar" do
+    # Regression: with no calendar modifier the value-context sigil must
+    # defer to the string's own `[u-ca=NAME]` suffix, not force Gregorian.
+    # Previously `~o"5786-01-01[u-ca=hebrew]"` silently parsed as a
+    # Gregorian year 5786, so the documented `:equals` was `:precedes`.
+    test "resolves the calendar named by the u-ca suffix" do
+      assert ~o"5786-01-01[u-ca=hebrew]".calendar == Calendrical.Hebrew
+      assert ~o"1404-01-01[u-ca=persian]".calendar == Calendrical.Persian
+    end
+
+    test "the sigil form matches the from_iso8601 form" do
+      assert ~o"5786-01-01[u-ca=hebrew]" == cal("5786-01-01", "hebrew")
+    end
+
+    test "sigil-built cross-calendar values compare through the shared frame" do
+      assert Tempo.relation(~o"2025-09-23", ~o"5786-01-01[u-ca=hebrew]") == :equals
+      assert Tempo.relation(~o"5786-10-30[u-ca=hebrew]", ~o"2026-06-15") == :equals
+    end
+
+    test "a sigil with no u-ca suffix is still Gregorian" do
+      assert ~o"2026-06-15".calendar == Calendrical.Gregorian
+    end
+  end
+
   describe "durations are calendar-correct" do
     test "a Hebrew common year is 354 days, not a Gregorian 365" do
       assert span_days(cal("5786", "hebrew")) == 354

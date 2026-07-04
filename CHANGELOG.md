@@ -18,6 +18,8 @@
 
 * The IXDTF `u` calendar tag is parsed and generated through Localize's BCP 47 Unicode-extension parser (`localize ~> 0.44`): Tempo reads both the IXDTF `[u-ca=hebrew]` and the BCP 47 `[u-ca-hebrew]` separators — folding registered aliases such as `islamicc` → `islamic-civil` — and emits the canonical IXDTF `=` form with the preferred identifier (`:gregorian` → `gregory`). Calendar values are the Unicode Calendar Identifiers of UTS #35 (`ethioaa`), not CLDR's internal type names (`ethiopic-amete-alem`).
 
+* The `~o` sigil now honours an in-string `[u-ca=NAME]` calendar, so `~o"5786-01-01[u-ca=hebrew]"` is a Hebrew date rather than a silently-Gregorian year 5786 and compares correctly against Gregorian values. A `w` modifier still selects the ISO Week calendar and a plain sigil is still Gregorian.
+
 * A date in a month that doesn't exist in its calendar year — such as the Hebrew Adar I (month 6) in an ordinary year — now returns a clear `"month 6 does not exist in …"` error instead of a confusing empty-range message.
 
 * A date in an astronomical calendar (e.g. Persian) far outside the ephemeris range no longer crashes; the `astro` dependency is bumped to `~> 2.3` (2.3.2), which returns a clean result for such dates rather than raising.

@@ -262,7 +262,9 @@ defmodule Tempo.Sigils do
       ~o"1984?/2004~"           #=> qualified interval
 
   The single modifier letter `w` selects the ISO Week calendar;
-  otherwise the string is parsed against the Gregorian calendar.
+  otherwise the calendar is taken from the string's IXDTF
+  `[u-ca=NAME]` suffix when present (`~o"5786-01-01[u-ca=hebrew]"`
+  is a Hebrew date), falling back to Gregorian.
 
   ## Match context
 
@@ -316,9 +318,19 @@ defmodule Tempo.Sigils do
   end
 
   defp do_sigil(nil, {:<<>>, _meta, [string]}, opts) do
-    calendar = Options.calendar_from(opts)
+    # No calendar modifier → defer to the string's own IXDTF
+    # `[u-ca=NAME]` suffix (via `from_iso8601/1`), so
+    # `~o"5786-01-01[u-ca=hebrew]"` resolves to the Hebrew calendar
+    # instead of being forced to Gregorian. A `w` modifier is an
+    # explicit calendar choice that wins, matching `from_iso8601/2`'s
+    # "explicit calendar always wins" rule.
+    result =
+      case Options.calendar_from(opts) do
+        nil -> Tempo.from_iso8601(string)
+        calendar -> Tempo.from_iso8601(string, calendar)
+      end
 
-    case Tempo.from_iso8601(string, calendar) do
+    case result do
       {:ok, tempo} -> Macro.escape(tempo)
       {:error, exception} -> raise exception
     end
