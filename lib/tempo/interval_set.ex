@@ -422,57 +422,17 @@ defmodule Tempo.IntervalSet do
   # sharing the same start — matches intuition and makes the
   # coalesce pass deterministic.
 
+  # Ordering is calendar-aware: `Compare.compare_endpoints/2` projects
+  # cross-calendar endpoints to the shared absolute frame, so intervals from
+  # different calendars sort by their true instants — which the coalesce pass
+  # relies on to merge overlaps.
   defp compare_from(%Interval{from: a_from, to: a_to}, %Interval{from: b_from, to: b_to}) do
-    case compare_time(a_from.time, b_from.time) do
-      :lt -> true
-      :gt -> false
-      :eq -> compare_time(a_to.time, b_to.time) != :gt
+    case Compare.compare_endpoints(a_from, b_from) do
+      :earlier -> true
+      :later -> false
+      :same -> Compare.compare_endpoints(a_to, b_to) != :later
     end
   end
-
-  # Compare two time keyword lists as start-moments, padding
-  # missing trailing units with their unit minimum. Mirrors the
-  # helper in `Enumerable.Tempo.Interval` — kept local here to
-  # avoid a cross-module dependency.
-
-  defp compare_time([], []), do: :eq
-
-  defp compare_time([{unit, v} | rest], []) do
-    min = unit_minimum(unit)
-
-    cond do
-      v < min -> :lt
-      v > min -> :gt
-      true -> compare_time(rest, [])
-    end
-  end
-
-  defp compare_time([], [{unit, v} | rest]) do
-    min = unit_minimum(unit)
-
-    cond do
-      min < v -> :lt
-      min > v -> :gt
-      true -> compare_time([], rest)
-    end
-  end
-
-  defp compare_time([{unit, v1} | t1], [{unit, v2} | t2]) do
-    cond do
-      v1 < v2 -> :lt
-      v1 > v2 -> :gt
-      true -> compare_time(t1, t2)
-    end
-  end
-
-  defp compare_time(_, _), do: :eq
-
-  defp unit_minimum(:month), do: 1
-  defp unit_minimum(:day), do: 1
-  defp unit_minimum(:week), do: 1
-  defp unit_minimum(:day_of_year), do: 1
-  defp unit_minimum(:day_of_week), do: 1
-  defp unit_minimum(_), do: 0
 
   ## ---------------------------------------------------------
   ## Coalesce — canonical instant-set form
@@ -646,17 +606,17 @@ defmodule Tempo.IntervalSet do
   # `max(current.to, next.to)`.
 
   defp merge_if_touching(%Interval{} = current, %Interval{} = next) do
-    case compare_time(next.from.time, current.to.time) do
-      order when order in [:lt, :eq] ->
+    case Compare.compare_endpoints(next.from, current.to) do
+      order when order in [:earlier, :same] ->
         merged_to =
-          case compare_time(next.to.time, current.to.time) do
-            :gt -> next.to
+          case Compare.compare_endpoints(next.to, current.to) do
+            :later -> next.to
             _ -> current.to
           end
 
         {:merged, %{current | to: merged_to}}
 
-      :gt ->
+      :later ->
         :separate
     end
   end

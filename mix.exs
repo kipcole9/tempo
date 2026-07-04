@@ -155,7 +155,7 @@ defmodule Tempo.MixProject do
     [
       {:nimble_parsec, "~> 1.0"},
       {:calendrical, "~> 0.10"},
-      {:astro, "~> 2.2"},
+      {:astro, "~> 2.3"},
       {:localize, "~> 0.21"},
       {:tzdata, "~> 1.1"},
       {:ical, "~> 2.0", optional: true},

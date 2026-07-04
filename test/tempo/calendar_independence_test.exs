@@ -11,6 +11,9 @@ defmodule Tempo.CalendarIndependenceTest do
 
   alias Tempo.Compare
   alias Tempo.Interval
+  alias Tempo.IntervalSet
+  alias Tempo.Network
+  alias Tempo.Network.Solver
 
   # Build a value in the named calendar via its IXDTF `u-ca` tag.
   defp cal(string, calendar), do: Tempo.from_iso8601!("#{string}[u-ca=#{calendar}]")
@@ -85,6 +88,30 @@ defmodule Tempo.CalendarIndependenceTest do
     test "the corresponding real month still resolves" do
       # In an ordinary year Adar is month 7, not 6.
       assert {:ok, _} = Tempo.from_iso8601("2026-07-15[u-ca=hebrew]")
+    end
+  end
+
+  describe "the network solver and coalescing are calendar-independent" do
+    test "a network relation across calendars reads true instants" do
+      network =
+        Network.new()
+        |> Network.add_period(:gregorian, start: ~o"2025-09-01", end: ~o"2025-10-01")
+        |> Network.add_period(:hebrew,
+          start: cal("5786-01-01", "hebrew"),
+          end: cal("5786-02-01", "hebrew")
+        )
+
+      # Hebrew Tishri 5786 (Sep 23 – Oct 22, 2025) overlaps Gregorian September.
+      assert Solver.relation(network, :gregorian, :hebrew) == :overlaps
+    end
+
+    test "coalescing merges overlapping intervals across calendars" do
+      {:ok, set} = Tempo.union(~o"2025-09", cal("5786-01", "hebrew"))
+
+      # By default an IntervalSet keeps distinct members…
+      assert IntervalSet.count(set) == 2
+      # …but the opt-in coalesce merges them by their true instants.
+      assert IntervalSet.count(IntervalSet.coalesce(set)) == 1
     end
   end
 end

@@ -1,6 +1,6 @@
 # Changelog
 
-## [v0.16.0] — 2026-07-03
+## [v0.16.0] — 2026-07-04
 
 ### Added
 
@@ -12,11 +12,13 @@
 
 ### Fixed
 
-* Comparison and duration are now calendar-independent. A value in a non-Gregorian calendar (`[u-ca=hebrew]`, `[u-ca=persian]`, …) is projected through its calendar's date→absolute-day conversion before comparison, so cross-calendar relations are correct — `Tempo.relation(~o"2025-09-23", ~o"5786-01-01[u-ca=hebrew]")` is `:equals` — and a Hebrew common year measures 354 days rather than a Gregorian 365. The Gregorian path is unchanged.
+* Comparison, duration, and everything built on them — cross-calendar Allen relations, the `Tempo.Network` constraint solver, and interval-set coalescing — are now calendar-independent. A value in a non-Gregorian calendar (`[u-ca=hebrew]`, `[u-ca=persian]`, …) is projected through its calendar's date→absolute-day conversion, so `Tempo.relation(~o"2025-09-23", ~o"5786-01-01[u-ca=hebrew]")` is `:equals`, a Hebrew common year measures 354 days rather than a Gregorian 365, and the Gregorian path is unchanged.
 
 * An IXDTF calendar identifier with multiple words now round-trips: `Tempo.to_iso8601/1` emits the hyphenated BCP 47 key (`[u-ca=islamic-civil]`, not `islamic_civil`), which re-parses cleanly.
 
 * A date in a month that doesn't exist in its calendar year — such as the Hebrew Adar I (month 6) in an ordinary year — now returns a clear `"month 6 does not exist in …"` error instead of a confusing empty-range message.
+
+* A date in an astronomical calendar (e.g. Persian) far outside the ephemeris range no longer crashes; the `astro` dependency is bumped to `~> 2.3` (2.3.2), which returns a clean result for such dates rather than raising.
 
 ## [v0.15.1] — 2026-07-03
 

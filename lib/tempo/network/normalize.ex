@@ -223,19 +223,41 @@ defmodule Tempo.Network.Normalize do
 
   defp unit_rank(unit), do: Enum.find_index(@unit_order, &(&1 == unit)) || 0
 
-  # Convert a date to an integer count of `unit` relative to year 0.
-  defp date_axis(%Tempo{time: time}, :year), do: Keyword.fetch!(time, :year)
-
-  defp date_axis(%Tempo{time: time}, :month) do
-    Keyword.fetch!(time, :year) * 12 + (Keyword.get(time, :month, 1) - 1)
+  # Convert a date to an integer count of `unit` relative to year 0, in the
+  # proleptic Gregorian frame. A non-Gregorian bound is converted first, so
+  # positions from different calendars share a single axis and the network's
+  # difference constraints stay correct across calendars.
+  defp date_axis(%Tempo{} = tempo, unit) do
+    {year, month, day} = gregorian_ymd(tempo)
+    axis_position(year, month, day, unit)
   end
 
-  defp date_axis(%Tempo{time: time}, :day) do
+  defp axis_position(year, _month, _day, :year), do: year
+  defp axis_position(year, month, _day, :month), do: year * 12 + (month - 1)
+
+  defp axis_position(year, month, day, :day) do
+    {:ok, date} = Date.new(year, month, day)
+    Date.to_gregorian_days(date)
+  end
+
+  # The bound's `{year, month, day}` in the proleptic Gregorian calendar.
+  # Gregorian passes through; any other calendar converts via `Date.convert/2`.
+  defp gregorian_ymd(%Tempo{time: time, calendar: calendar})
+       when calendar in [Calendrical.Gregorian, Calendar.ISO] do
+    {Keyword.fetch!(time, :year), Keyword.get(time, :month, 1), Keyword.get(time, :day, 1)}
+  end
+
+  defp gregorian_ymd(%Tempo{time: time, calendar: calendar}) do
     year = Keyword.fetch!(time, :year)
     month = Keyword.get(time, :month, 1)
     day = Keyword.get(time, :day, 1)
-    {:ok, date} = Date.new(year, month, day)
-    Date.to_gregorian_days(date)
+
+    with {:ok, date} <- Date.new(year, month, day, calendar),
+         {:ok, gregorian} <- Date.convert(date, Calendar.ISO) do
+      {gregorian.year, gregorian.month, gregorian.day}
+    else
+      _error -> {year, month, day}
+    end
   end
 
   # Convert a duration to an integer count of `unit`. Exact for a
