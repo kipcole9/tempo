@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.16.1] — 2026-07-05
+
+### Fixed
+
+* A bare `%Tempo{}` built as a struct literal — carrying the default `calendar: nil` rather than the resolved calendar the parser and `Tempo.new/1` produce — no longer crashes comparison, materialisation, or network placement; the `nil` is resolved to the default Gregorian calendar at each boundary. `Tempo.relation(%Tempo{time: [year: 2026]}, ~o"2026")` is now `:equals` instead of raising `nil.calendar_base/0`.
+
 ## [v0.16.0] — 2026-07-04
 
 ### Added

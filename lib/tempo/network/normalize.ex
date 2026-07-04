@@ -17,6 +17,7 @@ defmodule Tempo.Network.Normalize do
 
   """
 
+  alias Tempo.Compare
   alias Tempo.Network
   alias Tempo.Network.Relation
 
@@ -240,14 +241,19 @@ defmodule Tempo.Network.Normalize do
     Date.to_gregorian_days(date)
   end
 
-  # The bound's `{year, month, day}` in the proleptic Gregorian calendar.
-  # Gregorian passes through; any other calendar converts via `Date.convert/2`.
-  defp gregorian_ymd(%Tempo{time: time, calendar: calendar})
-       when calendar in [Calendrical.Gregorian, Calendar.ISO] do
+  # The bound's `{year, month, day}` in the proleptic Gregorian calendar. A
+  # bare `%Tempo{}`'s `nil` calendar is resolved to Gregorian at this
+  # boundary; Gregorian then passes through and any other calendar converts
+  # via `Date.convert/2`.
+  defp gregorian_ymd(%Tempo{time: time, calendar: calendar}) do
+    gregorian_ymd(time, Compare.effective_calendar(calendar))
+  end
+
+  defp gregorian_ymd(time, calendar) when calendar in [Calendrical.Gregorian, Calendar.ISO] do
     {Keyword.fetch!(time, :year), Keyword.get(time, :month, 1), Keyword.get(time, :day, 1)}
   end
 
-  defp gregorian_ymd(%Tempo{time: time, calendar: calendar}) do
+  defp gregorian_ymd(time, calendar) do
     year = Keyword.fetch!(time, :year)
     month = Keyword.get(time, :month, 1)
     day = Keyword.get(time, :day, 1)

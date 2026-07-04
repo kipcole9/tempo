@@ -73,6 +73,30 @@ defmodule Tempo.CalendarIndependenceTest do
     end
   end
 
+  describe "a bare %Tempo{} with a nil calendar (the struct default)" do
+    # Regression: a directly-constructed value carries `calendar: nil`
+    # (the defstruct default) rather than the parsed Gregorian default.
+    # Calendar projection must treat `nil` as Gregorian, not pass it to
+    # `Date.new/4`, which raises `nil.valid_date?/3`.
+    test "comparison and Interval.new tolerate a nil calendar" do
+      partial = %Tempo{time: [year: 2026]}
+      assert partial.calendar == nil
+
+      assert {:ok, _interval} = Interval.new(from: partial, to: ~o"2027")
+      assert Tempo.relation(partial, ~o"2026") == :equals
+      assert Tempo.within?(%Tempo{time: [year: 2026, month: 6]}, ~o"2026")
+    end
+
+    test "a nil-calendar bound is placed correctly in a network" do
+      network =
+        Network.new()
+        |> Network.add_period(:a, start: %Tempo{time: [year: 2026]}, end: ~o"2026-06")
+        |> Network.add_period(:b, start: ~o"2026-07", end: ~o"2027")
+
+      assert Solver.relation(network, :a, :b) == :precedes
+    end
+  end
+
   describe "durations are calendar-correct" do
     test "a Hebrew common year is 354 days, not a Gregorian 365" do
       assert span_days(cal("5786", "hebrew")) == 354

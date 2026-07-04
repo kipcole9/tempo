@@ -510,7 +510,9 @@ defmodule Tempo do
   end
 
   defp build_tempo(components, options) do
-    calendar = Keyword.get(options, :calendar, Calendrical.Gregorian)
+    # A missing — or explicitly `nil` — calendar defaults to Gregorian, so a
+    # value built through `new/1` never carries the bare-struct `nil`.
+    calendar = Keyword.get(options, :calendar) || Calendrical.Gregorian
     zone = Keyword.get(options, :zone)
     shift = Keyword.get(options, :shift)
     qualification = Keyword.get(options, :qualification)

@@ -414,6 +414,7 @@ defmodule Tempo.Interval do
 
   """
   def next_unit_boundary(%Tempo{time: time, calendar: calendar} = tempo) do
+    calendar = Compare.effective_calendar(calendar)
     time = significant_digits_as_mask(time)
 
     case List.last(time) do
@@ -547,7 +548,7 @@ defmodule Tempo.Interval do
   # for the lower bound, then add one unit at the input's resolution
   # for the upper bound.
 
-  defp concrete_boundary(%Tempo{time: time, calendar: calendar} = tempo, calendar) do
+  defp concrete_boundary(%Tempo{time: time} = tempo, calendar) do
     time = Compare.drop_margin_of_error(time)
 
     case List.last(time) do

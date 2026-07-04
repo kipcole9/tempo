@@ -280,6 +280,7 @@ defmodule Tempo.Compare do
   """
   @spec to_utc_seconds(Tempo.t()) :: integer() | float()
   def to_utc_seconds(%Tempo{time: time, extended: extended, shift: shift, calendar: calendar}) do
+    calendar = effective_calendar(calendar)
     year = Keyword.get(time, :year)
 
     if year == nil do
@@ -416,11 +417,25 @@ defmodule Tempo.Compare do
     end
   end
 
+  @doc false
+  # A hand-built `%Tempo{}` may carry `calendar: nil` (the struct default)
+  # rather than the resolved calendar a parsed or `Tempo.new/1`-built value
+  # has. Calendar dispatch (`calendar.calendar_base/0`, `Date.new/4`, …)
+  # assumes a real calendar module, so a boundary resolves `nil` to the
+  # default Gregorian implementation — the internal form of `Calendar.ISO`,
+  # which unlike `Calendar.ISO` carries the `Calendrical` behaviour callbacks
+  # — before any dispatch. Applied at the comparison, materialisation, and
+  # network-ingest choke points every public operation funnels through.
+  def effective_calendar(nil), do: Calendrical.Gregorian
+  def effective_calendar(calendar), do: calendar
+
   # Convert calendar-native `{year, month, day}` to the proleptic Gregorian
   # frame the projection assumes. Gregorian passes through untouched (fast
   # path); any other calendar routes through `Date.convert/2`, which is the
   # `date_to_iso_days` round-trip. Falls back to the raw components rather
-  # than raising if the date can't be built (a defensive best-effort).
+  # than raising if the date can't be built (a defensive best-effort). The
+  # `nil` default is resolved to `Calendrical.Gregorian` at the boundary
+  # (`to_utc_seconds/1`), so it never reaches here.
   defp to_gregorian_ymd(ymd, calendar) when calendar in [Calendrical.Gregorian, Calendar.ISO],
     do: ymd
 
