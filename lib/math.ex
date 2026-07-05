@@ -1020,16 +1020,52 @@ defmodule Tempo.Math do
   # arithmetic if profiling demands it.
   defp apply_n_units(time, _unit, 0, _calendar), do: time
 
-  defp apply_n_units(time, unit, n, calendar) when n > 0 do
-    time
-    |> add_unit(unit, calendar)
-    |> apply_n_units(unit, n - 1, calendar)
+  # Fast path: adding N days to a concrete date is O(1) via
+  # absolute-day arithmetic (`Date.add/2`), versus O(N) single-day
+  # stepping. This is what keeps a large recurrence (`R10000/…/P1D`)
+  # from being quadratic to materialise. Falls back to stepping for
+  # anything that isn't a plain integer `[year, month, day]` prefix
+  # (masks, groups, ranges, or a coarser shape).
+  defp apply_n_units(time, :day, n, calendar) do
+    case fast_add_days(time, n, calendar) do
+      {:ok, new_time} -> new_time
+      :fallback -> step_n_units(time, :day, n, calendar)
+    end
   end
 
-  defp apply_n_units(time, unit, n, calendar) when n < 0 do
+  defp apply_n_units(time, unit, n, calendar), do: step_n_units(time, unit, n, calendar)
+
+  defp fast_add_days(time, n, calendar) do
+    with year when is_integer(year) <- Keyword.get(time, :year),
+         month when is_integer(month) <- Keyword.get(time, :month),
+         day when is_integer(day) <- Keyword.get(time, :day),
+         {:ok, date} <- Date.new(year, month, day, calendar) do
+      shifted = Date.add(date, n)
+
+      new_time =
+        time
+        |> Keyword.replace!(:year, shifted.year)
+        |> Keyword.replace!(:month, shifted.month)
+        |> Keyword.replace!(:day, shifted.day)
+
+      {:ok, new_time}
+    else
+      _ -> :fallback
+    end
+  end
+
+  defp step_n_units(time, _unit, 0, _calendar), do: time
+
+  defp step_n_units(time, unit, n, calendar) when n > 0 do
+    time
+    |> add_unit(unit, calendar)
+    |> step_n_units(unit, n - 1, calendar)
+  end
+
+  defp step_n_units(time, unit, n, calendar) when n < 0 do
     time
     |> subtract_unit(unit, calendar)
-    |> apply_n_units(unit, n + 1, calendar)
+    |> step_n_units(unit, n + 1, calendar)
   end
 
   # After month arithmetic, the day field may exceed days-in-month

@@ -5,6 +5,8 @@ defmodule Tempo.RRule.Rfc5545ConformanceTest do
   alias Tempo.RRule.Expander
   alias Tempo.RRule.Rule
 
+  doctest Tempo.RRule
+
   # RFC 5545 §3.8.5.3 worked examples.
   #
   # Each `test` mirrors one (or a close pair) of the RFC's

@@ -20,6 +20,21 @@ defmodule Tempo.Iso8601.Tokenizer do
   alias Tempo.Iso8601.Tokenizer.Extended
   alias Tempo.ParseError
 
+  # Guard against pathological input. Legitimate ISO 8601 / IXDTF
+  # strings are short; a multi-kilobyte string is almost certainly
+  # adversarial, and a long digit run costs super-linear time to
+  # tokenize. Reject over-long input up front rather than let the
+  # parser chew on it.
+  @max_input_bytes 8_192
+
+  # Bracket-nesting (`{…}` / `[…]`) is the parser's one exponential
+  # axis: each level multiplies the combinator alternatives tried,
+  # so deep nesting (or an unbalanced run of openers) costs
+  # exponential time. Legitimate ISO 8601-2 sets and groups nest at
+  # most two or three deep, so a small cap rejects the pathological
+  # cases up front while leaving every real value untouched.
+  @max_nesting_depth 6
+
   @doc """
   Tokenize an ISO 8601 or IXDTF string.
 
@@ -40,10 +55,44 @@ defmodule Tempo.Iso8601.Tokenizer do
     critical IXDTF suffix is unrecognised.
 
   """
+  def tokenize(string) when byte_size(string) > @max_input_bytes do
+    {:error,
+     ParseError.exception(
+       input: binary_part(string, 0, 64) <> "…",
+       reason: "Input of #{byte_size(string)} bytes exceeds the #{@max_input_bytes}-byte limit"
+     )}
+  end
+
   def tokenize(string) do
+    if nesting_exceeds_limit?(string) do
+      {:error,
+       ParseError.exception(
+         input: string,
+         reason: "Set/group nesting exceeds the depth limit of #{@max_nesting_depth}"
+       )}
+    else
+      string
+      |> iso8601()
+      |> return(string)
+    end
+  end
+
+  # Walk the string once, tracking `{`/`[` open-bracket depth, and
+  # report whether it ever exceeds the limit (an unbalanced run of
+  # openers keeps climbing and is caught the same way).
+  defp nesting_exceeds_limit?(string) do
     string
-    |> iso8601()
-    |> return(string)
+    |> :binary.bin_to_list()
+    |> Enum.reduce_while(0, fn
+      char, depth when char in [?{, ?[] ->
+        if depth + 1 > @max_nesting_depth, do: {:halt, :exceeded}, else: {:cont, depth + 1}
+
+      char, depth when char in [?}, ?]] ->
+        {:cont, max(depth - 1, 0)}
+
+      _char, depth ->
+        {:cont, depth}
+    end) == :exceeded
   end
 
   defp return(result, string) do

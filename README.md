@@ -11,7 +11,7 @@ This conceptual shift — *time as interval, not instant* — removes a surprisi
 ```elixir
 def deps do
   [
-    {:ex_tempo, "~> 0.10"},
+    {:ex_tempo, "~> 0.16"},
     # Optional but recommended - needed for iCalendar import
     {:ical, "~> 2.0"}
   ]
@@ -193,7 +193,7 @@ Tempo draws on several bodies of work:
 
 * **IETF draft-ietf-sedate-datetime-extended (IXDTF).** The extended date-time format for annotations such as `[Europe/Paris][u-ca=hebrew]`. Supported in both parse and round-trip.
 
-A hex release is imminent. The package name is `ex_tempo` because the `tempo` name on hex was already taken; the library is imported as `use Tempo` / `alias Tempo` and feels like `tempo` in code. Docs at [https://hexdocs.pm/ex_tempo](https://hexdocs.pm/ex_tempo).
+Tempo is published on hex as `ex_tempo` because the `tempo` name on hex was already taken; the library is imported as `use Tempo` / `alias Tempo` and feels like `tempo` in code. Docs at [https://hexdocs.pm/ex_tempo](https://hexdocs.pm/ex_tempo).
 
 ### Time-zone database
 
@@ -235,4 +235,4 @@ Either [`:tzdata`](https://hex.pm/packages/tzdata) or [`:tz`](https://hex.pm/pac
 
 ## Licence
 
-See [LICENSE.md](https://github.com/kipcole9/tempo/blob/v0.10.0/LICENSE.md). Copyright © Kip Cole.
+See [LICENSE.md](https://github.com/kipcole9/tempo/blob/v0.16.1/LICENSE.md). Copyright © Kip Cole.

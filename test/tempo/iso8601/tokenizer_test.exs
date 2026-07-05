@@ -2,6 +2,37 @@ defmodule Tempo.Iso8601.ParserTest do
   use ExUnit.Case, async: true
   alias Tempo.Iso8601.Tokenizer
 
+  describe "input guard" do
+    test "over-long input is rejected before tokenizing" do
+      big = String.duplicate("9", 20_000)
+      assert {:error, %Tempo.ParseError{reason: reason}} = Tokenizer.tokenize(big)
+      assert reason =~ "exceeds the"
+      assert {:error, %Tempo.ParseError{}} = Tempo.from_iso8601(big)
+    end
+
+    test "input at the limit still tokenizes normally" do
+      assert {:ok, _} = Tokenizer.tokenize("2026-06-15")
+    end
+
+    test "deeply nested brackets are rejected fast, not parsed exponentially" do
+      deep = String.duplicate("{", 30) <> "1" <> String.duplicate("}", 30) <> "Y"
+      assert {:error, %Tempo.ParseError{reason: reason}} = Tokenizer.tokenize(deep)
+      assert reason =~ "nesting exceeds"
+    end
+
+    test "an unbalanced run of openers is rejected" do
+      assert {:error, %Tempo.ParseError{reason: reason}} =
+               Tokenizer.tokenize(String.duplicate("{", 40) <> "1Y")
+
+      assert reason =~ "nesting exceeds"
+    end
+
+    test "legitimate shallow set/group nesting still tokenizes" do
+      assert {:ok, _} = Tokenizer.tokenize("{1,2,3}M")
+      assert {:ok, _} = Tokenizer.tokenize("[2020Y/2021Y,2022Y/2023Y]")
+    end
+  end
+
   describe "iso8601/1" do
     test "parsing simple iso dates" do
       assert {:ok,

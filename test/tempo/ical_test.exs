@@ -1,8 +1,12 @@
 defmodule Tempo.ICal.Test do
   use ExUnit.Case, async: true
 
+  import Tempo.Sigils
+
   alias Tempo.ICal
   alias Tempo.Interval
+
+  doctest Tempo.ICal
 
   # Tests for `Tempo.ICal.from_ical/2` — iCalendar → IntervalSet
   # conversion with event metadata preserved on each interval.

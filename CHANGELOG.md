@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.16.2] — 2026-07-05
+
+### Fixed
+
+* Materialising a large recurrence is now linear rather than quadratic in the occurrence count: `Tempo.to_interval/2` on a schedule like `~o"R10000/2020-01-01/P1D"` completes in ~20 ms instead of ~6 s. Day arithmetic on a concrete date now uses absolute-day conversion (`O(1)`) instead of stepping one day at a time.
+
+* The ISO 8601 / IXDTF parser is hardened against adversarial input. Input longer than 8 KB, and set/group bracket nesting (`{…}` / `[…]`) deeper than six levels, are rejected up front with a `Tempo.ParseError` — previously a deeply-nested or unbalanced string (e.g. `"{"` × 40) drove the parser into exponential backtracking. Every legitimate value is well within both limits.
+
 ## [v0.16.1] — 2026-07-05
 
 ### Fixed

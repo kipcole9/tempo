@@ -4,6 +4,26 @@ defmodule Tempo.Math.Test do
 
   alias Tempo.Math
 
+  describe "large day-count arithmetic (absolute-day fast path)" do
+    defp add_days(tempo, n), do: Math.add(tempo, %Tempo.Duration{time: [day: n]})
+
+    test "a large day count matches stepped arithmetic and is fast" do
+      # Fast path (Date.add) must equal single-day stepping across
+      # month/year rollover, leap years, and a negative count.
+      assert add_days(~o"2020-01-01", 10_000) == ~o"2047Y5M19D"
+      assert add_days(~o"2020-01-31", 1) == ~o"2020Y2M1D"
+      assert add_days(~o"2020-12-31", 1) == ~o"2021Y1M1D"
+      assert add_days(~o"2020-03-01", -1) == ~o"2020Y2M29D"
+
+      {us, _} = :timer.tc(fn -> add_days(~o"2020-01-01", 1_000_000) end)
+      assert us < 100_000, "adding a million days should be O(1), took #{us}µs"
+    end
+
+    test "day arithmetic on a value with a time component keeps the time" do
+      assert add_days(~o"2020-01-01T10:30:00", 40) == ~o"2020Y2M10DT10H30M0S"
+    end
+  end
+
   # Tests for `Tempo.Math.add/2`, `subtract/2`, and the low-level
   # `subtract_unit/3` mirror of `add_unit/3`. Covers clamping,
   # carry/borrow, leap years, negative durations, and the

@@ -1,7 +1,7 @@
 defmodule Tempo.MixProject do
   use Mix.Project
 
-  @version "0.16.1"
+  @version "0.16.2"
 
   def project do
     [
@@ -103,8 +103,7 @@ defmodule Tempo.MixProject do
     [
       Core: ~r/^Tempo(?:\.(Interval|IntervalSet|Duration|Range|Set))?$/,
       "Clock and current time": ~r/^Tempo\.Clock(\.|$)/,
-      "Set algebra and comparison":
-        ~r/^Tempo\.(Operations|Compare|Math|Rounding|Split|Select|Mask|Territory)$/,
+      "Set algebra and comparison": ~r/^Tempo\.(Operations|Compare|Math|Select|Territory)$/,
       "Recurrence (RRULE)": ~r/^Tempo\.RRule(\.|$)/,
       "iCalendar integration": ~r/^Tempo\.ICal(\.|$)/,
       "ISO 8601 and IXDTF": ~r/^Tempo\.Iso8601(\.|$)/,
@@ -132,6 +131,7 @@ defmodule Tempo.MixProject do
         "guides/enumeration-semantics.md",
         "guides/pattern-matching-with-sigils.md",
         "guides/ical-integration.md",
+        "guides/chronological-networks.md",
         "guides/falsehoods.md"
       ],
       Reference: [

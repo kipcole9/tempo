@@ -20,6 +20,9 @@ defmodule Tempo.Set do
 
   defstruct [:type, :set]
 
+  # Internal constructor used by the parser; users build sets by
+  # parsing (`~o"[…]"` / `~o"{…}"`), so this is not public API.
+  @doc false
   def new(tokens, type, calendar \\ Calendrical.Gregorian) do
     tokens = Enum.map(tokens, &AST.build(&1, calendar))
     %__MODULE__{type: type, set: tokens}

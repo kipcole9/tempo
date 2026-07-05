@@ -2,6 +2,8 @@ defmodule Tempo.IntervalSet.Test do
   use ExUnit.Case, async: true
   import Tempo.Sigils
 
+  doctest Tempo.IntervalSet
+
   # `%Tempo.IntervalSet{}` is the multi-interval value. The tests
   # below cover the constructor invariants (sort + coalesce),
   # the Enumerable protocol (walks each interval in time order),

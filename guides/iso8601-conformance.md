@@ -8,7 +8,7 @@ The canonical authority is the PDF of the ISO standard (held locally in `~/Docum
 
 Every Tempo value is a **bounded interval on the time line**, not an instant. `2026-01` is not the single instant "January 2026"; it is the interval `[2026-01-01, 2026-02-01)` — inclusive of the first boundary, exclusive of the last. This is called the **implicit-span semantics**: a partial date specification spans the next-finer unit that isn't given.
 
-A single `Tempo.from_iso8601/1` call therefore always returns a bounded value, never a "partial" or "unresolved" date. This guarantees that set operations (planned: union, intersection, coalesce) can reason about every value uniformly.
+A single `Tempo.from_iso8601/1` call therefore always returns a bounded value, never a "partial" or "unresolved" date. This lets the set operations (`Tempo.union/2`, `intersection/2`, `difference/2`, and interval-set coalescing) reason about every value uniformly.
 
 ## 2. ISO 8601 Part 1 — core representations
 
@@ -77,7 +77,7 @@ A single `Tempo.from_iso8601/1` call therefore always returns a bounded value, n
 
 | Feature | Example | Reason |
 |---|---|---|
-| Cross-endpoint semantic validation of intervals | `2012-24/2012-21` (winter before spring) | Parses at syntax level; semantic check (via Allen's Interval Algebra) is planned for the set-operations milestone. |
+| Cross-endpoint semantic validation of intervals | `2012-24/2012-21` (winter before spring) | Parses at the syntax level; a semantic ordering check across the two endpoints is not currently enforced, so a small number of syntactically-valid but semantically-inverted intervals are accepted. |
 
 All other EDTF Level 2 features — including wide-range exponent years (`Y17E8`, `Y-170000002`) and long-year significant-digit annotations (`Y171010000S3`) — are supported.
 

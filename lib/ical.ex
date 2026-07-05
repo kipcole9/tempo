@@ -122,9 +122,9 @@ if Code.ensure_loaded?(ICal) do
 
     """
     @spec from_ical(binary(), keyword()) :: {:ok, IntervalSet.t()} | {:error, term()}
-    def from_ical(ics, opts \\ []) when is_binary(ics) do
+    def from_ical(ics, options \\ []) when is_binary(ics) do
       calendar = ICal.from_ics(ics)
-      build_interval_set(calendar, opts)
+      build_interval_set(calendar, options)
     rescue
       e in [ArgumentError, MatchError, FunctionClauseError] ->
         {:error, Exception.message(e)}
@@ -150,9 +150,9 @@ if Code.ensure_loaded?(ICal) do
     """
     @spec from_ical_file(binary(), keyword()) ::
             {:ok, IntervalSet.t()} | {:error, term()}
-    def from_ical_file(path, opts \\ []) do
+    def from_ical_file(path, options \\ []) do
       with {:ok, ics} <- File.read(path) do
-        from_ical(ics, opts)
+        from_ical(ics, options)
       end
     end
 

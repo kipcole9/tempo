@@ -3,6 +3,8 @@ defmodule Tempo.Parser.Duration.Test do
 
   alias Tempo.Iso8601.Tokenizer
 
+  doctest Tempo.Duration
+
   test "Alternate duration format section 5.5.2.4" do
     assert Tokenizer.tokenize("P00020110T223355") ==
              {:ok,

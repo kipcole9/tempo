@@ -1628,6 +1628,7 @@ defmodule Tempo do
   and time.
 
   """
+  @spec split(t()) :: {t() | nil, t() | nil}
   def split(%__MODULE__{time: time, calendar: calendar}) do
     case Split.split(time) do
       {date, []} ->
@@ -1641,6 +1642,10 @@ defmodule Tempo do
     end
   end
 
+  # Like `anchor/2`, passes through any non-`{:ok, _}` from
+  # `Validation.validate/2`, which dialyzer widens beyond the spec.
+  @dialyzer {:nowarn_function, merge: 2}
+  @spec merge(t(), t()) :: t() | {:error, error_reason()}
   def merge(%__MODULE__{} = base, %Tempo{} = from) do
     units = Enumeration.merge(base.time, from.time)
     shift = from.shift || base.shift
@@ -1725,6 +1730,7 @@ defmodule Tempo do
 
   """
 
+  @spec extend(t(), nil) :: {:ok, t()} | {:error, error_reason()}
   def extend(tempo, unit \\ nil)
 
   def extend(%Tempo{} = tempo, nil) do
@@ -1733,6 +1739,7 @@ defmodule Tempo do
     |> Validation.validate()
   end
 
+  @spec extend!(t(), nil) :: t()
   def extend!(%Tempo{} = tempo, unit \\ nil) do
     case extend(tempo, unit) do
       {:ok, zoomed} -> zoomed
@@ -2041,6 +2048,7 @@ defmodule Tempo do
       ~D[2020-06-10]
 
   """
+  @spec to_date(t()) :: {:ok, Date.t()} | {:error, error_reason()}
   def to_date(%Tempo{time: [year: year, month: month, day: day]}) do
     Date.new(year, month, day)
   end
@@ -2094,6 +2102,7 @@ defmodule Tempo do
   # the offset — the same lossy projection `Time` itself is (it has
   # no zone). Mirrors `to_date/1`, and `DateTime.to_time/1` in the
   # stdlib. Callers who need the offset should keep the Tempo.
+  @spec to_time(t()) :: {:ok, Time.t()} | {:error, error_reason()}
   def to_time(%Tempo{time: [hour: hour, minute: minute, second: second]}) do
     Time.new(hour, minute, second, 0)
   end
@@ -2134,6 +2143,7 @@ defmodule Tempo do
       iex> {:error, _} = Tempo.to_naive_date_time(~o"2022-11")
 
   """
+  @spec to_naive_date_time(t()) :: {:ok, NaiveDateTime.t()} | {:error, error_reason()}
   def to_naive_date_time(%Tempo{
         time: [
           year: year,
@@ -2247,6 +2257,43 @@ defmodule Tempo do
 
   defp disambiguate_fold(first, _second, _tempo), do: first
 
+  @doc """
+  Convert a `t:t/0` to its best-fit native Elixir calendar type.
+
+  Dispatches by resolution: a full date becomes a `Date`, a
+  time-of-day becomes a `Time`, and a full date-and-time becomes a
+  `NaiveDateTime`. A value too coarse to pin an instant (a bare year
+  or month) or one carrying a UTC offset cannot be represented by a
+  single native type and returns an error. For a specific target
+  type use `to_date/1`, `to_time/1`, or `to_naive_date_time/1`.
+
+  ### Arguments
+
+  * `tempo` is a `t:t/0`.
+
+  ### Returns
+
+  * `{:ok, native}` where `native` is a `Date`, `Time`, or
+    `NaiveDateTime`; or
+
+  * `{:error, t:Tempo.ConversionError.t/0}` when the value is too
+    coarse to convert, or carries a zone offset.
+
+  ### Examples
+
+      iex> Tempo.to_calendar(~o"2026-06-15")
+      {:ok, ~D[2026-06-15]}
+
+      iex> Tempo.to_calendar(~o"2026-06-15T10:30:00")
+      {:ok, ~N[2026-06-15 10:30:00.000000]}
+
+      iex> match?({:error, %Tempo.ConversionError{}}, Tempo.to_calendar(~o"2026"))
+      true
+
+  """
+  @spec to_calendar(t()) ::
+          {:ok, Date.t() | Time.t() | NaiveDateTime.t()}
+          | {:error, Tempo.ConversionError.t()}
   def to_calendar(%Tempo{shift: nil} = tempo) do
     with {:error, %Tempo.ConversionError{target: Date}} <- to_date(tempo),
          {:error, %Tempo.ConversionError{target: Time}} <- to_time(tempo) do
