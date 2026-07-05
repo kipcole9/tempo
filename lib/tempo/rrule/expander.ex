@@ -38,7 +38,6 @@ defmodule Tempo.RRule.Expander do
 
   alias Tempo.Interval
   alias Tempo.RRule.Rule
-  alias Tempo.RRuleError
 
   @doc """
   Expand a rule into a list of concrete `%Tempo.Interval{}`
@@ -227,6 +226,12 @@ defmodule Tempo.RRule.Expander do
   # The `ical` library is optional — guard the clauses so Tempo
   # compiles when it isn't present.
   if Code.ensure_loaded?(ICal.Recurrence) do
+    # Aliased inside the `ical`-conditional block: `RRuleError` is only
+    # referenced by the ical→rule mapping below, so a module-level alias
+    # would be unused when `ical` is absent (e.g. a downstream that does
+    # not depend on it), emitting an unused-alias warning.
+    alias Tempo.RRuleError
+
     @doc """
     Convert an `%ICal.Recurrence{}` into a `%Tempo.RRule.Rule{}`.
 
