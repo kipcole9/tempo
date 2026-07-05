@@ -13,19 +13,7 @@ defmodule Tempo.Iso8601.Tokenizer do
   """
 
   import NimbleParsec
-  import Tempo.Iso8601.Tokenizer.Numbers
   import Tempo.Iso8601.Tokenizer.Grammar
-  import Tempo.Iso8601.Tokenizer.Helpers
-
-  # Disable the Erlang optimiser for this module. NimbleParsec expands the ~40
-  # parsers below into large binary-matching functions, and the SSA / binary-
-  # match optimiser passes dominate the whole library's compile time (measured
-  # ~118 s → ~75 s with these off). The trade is a marginally slower *parser* at
-  # runtime — which is not a hot path, since real code builds values with
-  # `Tempo.new/1` rather than parsing strings — so we spend the optimiser's
-  # budget on faster builds instead. Disabling optimisation passes changes
-  # speed, not semantics; correctness is unaffected (the full suite gates it).
-  @compile [:no_ssa_opt, :no_bsm_opt, :no_type_opt, :no_bool_opt, :no_fun_opt]
 
   alias Tempo.Iso8601.Tokenizer.Extended
   alias Tempo.ParseError
@@ -126,239 +114,33 @@ defmodule Tempo.Iso8601.Tokenizer do
     end
   end
 
+  # The single true entry point, called directly by `tokenize/1`. Every
+  # other parser is internal — referenced only via `parsec/1` — and lives
+  # in one of the sibling tokenizer modules (`.Date`, `.Time`, `.Set`) so
+  # `mix` compiles them concurrently. NimbleParsec resolves a
+  # `parsec({Module, :name})` reference against that module's exported
+  # combinator, so the grammar is split across modules without changing
+  # behaviour.
   defparsec :iso8601, iso8601_tokenizer()
 
+  # `set` and `datetime_or_date_or_time` stay here but are now referenced
+  # from the sibling modules, so they are exported combinators. Their inner
+  # `parsec/1` references are qualified to each parser's home module.
   defcombinator :set,
                 choice([
-                  parsec(:set_all),
-                  parsec(:set_one),
-                  parsec(:interval_parser),
-                  parsec(:datetime_or_date_or_time)
+                  parsec({Tempo.Iso8601.Tokenizer.Set, :set_all}),
+                  parsec({Tempo.Iso8601.Tokenizer.Set, :set_one}),
+                  parsec({Tempo.Iso8601.Tokenizer.Set, :interval_parser}),
+                  parsec({Tempo.Iso8601.Tokenizer, :datetime_or_date_or_time})
+                ]),
+                export_combinator: true
+
+  defcombinator :datetime_or_date_or_time,
+                choice([
+                  parsec({Tempo.Iso8601.Tokenizer.Date, :datetime_parser}),
+                  parsec({Tempo.Iso8601.Tokenizer.Date, :date_parser}),
+                  parsec({Tempo.Iso8601.Tokenizer.Time, :time_parser})
                 ])
-
-  defparsec :integer_or_integer_set,
-            choice([
-              integer(min: 1) |> unwrap_and_tag(:nth),
-              parsec(:integer_set_all),
-              parsec(:integer_set_one)
-            ])
-            |> label("integer or integer set")
-
-  defparsec :set_all,
-            ignore(string("{"))
-            |> list_of_time_or_range()
-            |> ignore(string("}"))
-            |> tag(:all_of)
-
-  defparsec :set_one,
-            ignore(string("["))
-            |> list_of_time_or_range()
-            |> ignore(string("]"))
-            |> tag(:one_of)
-
-  defparsec :integer_set_all,
-            ignore(string("{"))
-            |> list_of_integer_or_range()
-            |> ignore(string("}"))
-            |> tag(:all_of)
-
-  defparsec :integer_set_one,
-            ignore(string("["))
-            |> list_of_integer_or_range()
-            |> ignore(string("]"))
-            |> tag(:one_of)
-
-  defparsec :interval_parser,
-            optional(recurrence())
-            |> choice([
-              # date/date — each endpoint may carry an EDTF qualification
-              parsec(:qualified_endpoint)
-              |> ignore(string("/"))
-              |> parsec(:qualified_endpoint),
-
-              # date/duration
-              parsec(:qualified_endpoint)
-              |> ignore(string("/"))
-              |> parsec(:duration_parser),
-
-              # duration/date
-              parsec(:duration_parser)
-              |> ignore(string("/"))
-              |> parsec(:qualified_endpoint),
-
-              # date/..
-              parsec(:qualified_endpoint)
-              |> ignore(string("/"))
-              |> replace(string(".."), :undefined),
-
-              # ../date
-              replace(string(".."), :undefined)
-              |> ignore(string("/"))
-              |> parsec(:qualified_endpoint),
-
-              # ../duration — an unanchored recurrence (no start), e.g. a cron
-              # schedule with no `:from`, which inspects as `R/../P1W/…`
-              replace(string(".."), :undefined)
-              |> ignore(string("/"))
-              |> parsec(:duration_parser),
-
-              # date/ (trailing slash — open upper endpoint)
-              parsec(:qualified_endpoint)
-              |> ignore(string("/"))
-              |> replace(empty(), :undefined),
-
-              # /date (leading slash — open lower endpoint)
-              replace(empty(), :undefined)
-              |> ignore(string("/"))
-              |> parsec(:qualified_endpoint),
-
-              # ../.. or /.. or ../ or / (both endpoints open)
-              replace(choice([string(".."), empty()]), :undefined)
-              |> ignore(string("/"))
-              |> replace(choice([string(".."), empty()]), :undefined)
-            ])
-            |> optional(parsec(:repeat_rule))
-            |> reduce(:adjust_interval)
-            |> unwrap_and_tag(:interval)
-            |> label("interval")
-
-  defparsec :datetime_or_date_or_time,
-            choice([
-              parsec(:datetime_parser),
-              parsec(:date_parser),
-              parsec(:time_parser)
-            ])
-            |> label("datetime_or_date_or_time")
-
-  # A date/datetime/time endpoint with an optional EDTF
-  # qualification prefix or suffix (`?`, `~`, `%`) and an optional
-  # IXDTF extended-info suffix (`[Europe/Paris][u-ca=hebrew]`). The
-  # qualifier, when present, is merged into the tagged date's inner
-  # keyword list so each interval endpoint retains its own
-  # qualification. The extended-info segments are spliced into the
-  # endpoint's inner list as `{:extended, raw_segments}` and later
-  # validated by `Extended.split_extended/1`, which bubbles any
-  # critical-suffix error back up to the parser's return path.
-  # Defined as `defparsecp` so the `reduce` scope is local to this
-  # combinator.
-  defparsecp :qualified_endpoint,
-             optional(qualification())
-             |> parsec(:datetime_or_date_or_time)
-             |> optional(qualification())
-             |> optional(Extended.extended_suffix())
-             |> reduce(:merge_endpoint_qualification)
-
-  # Private parsec definitions to reduce compile-time code expansion.
-  # Each defparsecp creates a function call boundary instead of inlining
-  # the combinator, significantly reducing generated code size.
-
-  # Date combinators
-  defparsecp :implicit_date_p, implicit_date()
-  defparsecp :extended_date_p, extended_date()
-  defparsecp :explicit_date_p, explicit_date()
-
-  # Time-of-day combinators
-  defparsecp :implicit_time_of_day_p, implicit_time_of_day()
-  defparsecp :extended_time_of_day_p, extended_time_of_day()
-  defparsecp :explicit_time_of_day_p, explicit_time_of_day()
-
-  # Time shift combinators
-  defparsecp :implicit_time_shift_p, implicit_time_shift()
-  defparsecp :extended_time_shift_p, extended_time_shift()
-  defparsecp :explicit_time_shift_p, explicit_time_shift()
-
-  # Low-level component combinators
-  defparsecp :implicit_year_p, implicit_year()
-  defparsecp :implicit_month_p, implicit_month()
-  defparsecp :implicit_day_of_month_p, implicit_day_of_month()
-  defparsecp :implicit_hour_p, implicit_hour()
-  defparsecp :implicit_minute_p, implicit_minute()
-  defparsecp :implicit_week_p, implicit_week()
-
-  # Duration and remaining implicit component combinators
-  defparsecp :duration_elements_p, duration_elements()
-  defparsecp :duration_time_elements_p, duration_time_elements()
-  defparsecp :implicit_second_p, implicit_second()
-  defparsecp :implicit_day_of_week_p, implicit_day_of_week()
-  defparsecp :implicit_day_of_year_p, implicit_day_of_year()
-
-  # Explicit composite combinators (only those called 3+ times)
-  defparsecp :explicit_century_decade_or_year_p, explicit_century_decade_or_year()
-  defparsecp :explicit_month_p, explicit_month()
-  defparsecp :explicit_week_p, explicit_week()
-
-  defparsec :datetime_parser,
-            choice([
-              explicit_date_time() |> optional(parsec(:explicit_time_shift_p)),
-              extended_date_time() |> optional(parsec(:extended_time_shift_p)),
-              implicit_date_time() |> optional(parsec(:implicit_time_shift_p)),
-              explicit_time_shift()
-            ])
-            |> tag(:datetime)
-            |> label("datetime")
-
-  defparsec :date_parser,
-            choice([
-              parsec(:explicit_date_p)
-              |> optional(parsec(:explicit_time_shift_p)),
-              parsec(:extended_date_p)
-              |> optional(fraction())
-              |> optional(parsec(:extended_time_shift_p)),
-              parsec(:implicit_date_p)
-              |> optional(fraction())
-              |> optional(parsec(:implicit_time_shift_p)),
-              explicit_time_shift()
-            ])
-            |> reduce(:apply_fraction)
-            |> post_traverse({:check_valid_date, []})
-            |> unwrap_and_tag(:date)
-            |> label("date")
-
-  defparsec :time_parser,
-            choice([
-              parsec(:explicit_time_of_day_p) |> optional(parsec(:explicit_time_shift_p)),
-              parsec(:extended_time_of_day_p) |> optional(parsec(:extended_time_shift_p)),
-              parsec(:implicit_time_of_day_p) |> optional(parsec(:implicit_time_shift_p)),
-              explicit_time_shift()
-            ])
-            |> tag(:time_of_day)
-            |> label("time of day")
-
-  defparsec :group,
-            parsec(:integer_or_integer_set)
-            |> ignore(string("G"))
-            |> parsec(:duration_elements_p)
-            |> ignore(string("U"))
-            |> tag(:group)
-            |> label("group")
-
-  defparsec :time_group,
-            parsec(:integer_or_integer_set)
-            |> ignore(string("G"))
-            |> parsec(:duration_time_elements_p)
-            |> ignore(string("U"))
-            |> tag(:group)
-            |> label("time group")
-
-  defparsec :selection,
-            ignore(string("L"))
-            |> selection_elements()
-            |> optional(selection_instance())
-            |> ignore(string("N"))
-            |> tag(:selection)
-            |> label("selection")
-
-  defparsec :duration_parser,
-            optional(negative() |> replace({:direction, :negative}))
-            |> ignore(string("P"))
-            |> concat(parsec(:duration_elements_p))
-            |> tag(:duration)
-            |> label("duration")
-
-  defparsec :repeat_rule,
-            ignore(string("/F"))
-            |> parsec(:datetime_or_date_or_time)
-            |> reduce(:extract_repeat_rule)
-            |> label("repeat_rule")
-            |> unwrap_and_tag(:repeat_rule)
+                |> label("datetime_or_date_or_time"),
+                export_combinator: true
 end

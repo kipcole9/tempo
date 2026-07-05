@@ -1,7 +1,7 @@
 defmodule Tempo.Iso8601.Parser.Data.Test do
   use ExUnit.Case, async: true
 
-  alias Tempo.Iso8601.Tokenizer
+  alias Tempo.Iso8601.Tokenizer.Time, as: TimeTokenizer
 
   @data "./test/support/data/iso8601_test_data.txt"
   @interval_data "./test/support/data/iso8601_range_test_data.txt"
@@ -39,7 +39,7 @@ defmodule Tempo.Iso8601.Parser.Data.Test do
 
   for {test_time, line} <- @time_tests do
     test "line #{line}: parse as time #{inspect(test_time)}" do
-      assert {:ok, _, "", _, _, _} = Tokenizer.time_parser(unquote(test_time))
+      assert {:ok, _, "", _, _, _} = TimeTokenizer.time_parser(unquote(test_time))
     end
   end
 

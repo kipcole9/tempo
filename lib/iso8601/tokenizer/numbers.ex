@@ -155,8 +155,8 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
 
   def positive_number_or_integer_set(indicator, tag, opts) do
     choice([
-      parsec(:integer_set_all),
-      parsec(:integer_set_one),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :integer_set_all}),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :integer_set_one}),
       positive_number(opts)
     ])
     |> ignore(string(indicator))
@@ -168,7 +168,7 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
   # (all-of) is accepted in the designator-less position.
   def positive_number_or_integer_set(tag, opts) do
     choice([
-      parsec(:integer_set_all),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :integer_set_all}),
       positive_number(opts)
     ])
     |> unwrap_and_tag(tag)
@@ -176,8 +176,8 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
 
   def maybe_negative_number_or_integer_set(indicator, tag, opts) do
     choice([
-      parsec(:integer_set_all),
-      parsec(:integer_set_one),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :integer_set_all}),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :integer_set_one}),
       maybe_negative_number(opts)
     ])
     |> ignore(string(indicator))
@@ -192,8 +192,8 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
   # `:individual_qualification` token the implicit left-qualifier does.
   def qualified_number_or_integer_set(indicator, tag, opts) do
     choice([
-      parsec(:integer_set_all),
-      parsec(:integer_set_one),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :integer_set_all}),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :integer_set_one}),
       maybe_negative_number(opts)
     ])
     |> unwrap_and_tag(tag)
@@ -211,7 +211,7 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
   # float would discard significant trailing zeros (`.120` vs `.12`).
   def implicit_second_or_integer_set(opts) do
     choice([
-      parsec(:integer_set_all),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :integer_set_all}),
       positive_integer(opts)
     ])
     |> unwrap_and_tag(:second)
@@ -220,8 +220,8 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
 
   def explicit_second_or_integer_set(indicator, opts) do
     choice([
-      parsec(:integer_set_all),
-      parsec(:integer_set_one),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :integer_set_all}),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :integer_set_one}),
       maybe_negative_integer(opts)
     ])
     |> unwrap_and_tag(:second)
@@ -231,7 +231,7 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
 
   def positive_integer_or_integer_set(tag, opts) do
     choice([
-      parsec(:integer_set_all),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :integer_set_all}),
       positive_integer(opts)
     ])
     |> unwrap_and_tag(tag)
@@ -239,8 +239,8 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
 
   def positive_integer_or_integer_set(indicator, tag, opts) do
     choice([
-      parsec(:integer_set_all),
-      parsec(:integer_set_one),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :integer_set_all}),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :integer_set_one}),
       positive_integer(opts)
     ])
     |> ignore(string(indicator))
@@ -249,8 +249,8 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
 
   def maybe_negative_integer_or_integer_set(indicator, tag, opts) do
     choice([
-      parsec(:integer_set_all),
-      parsec(:integer_set_one),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :integer_set_all}),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :integer_set_one}),
       maybe_negative_integer(opts)
     ])
     |> ignore(string(indicator))
@@ -305,7 +305,7 @@ defmodule Tempo.Iso8601.Tokenizer.Numbers do
     choice([
       digit(),
       unspecified(),
-      parsec(:integer_set_all)
+      parsec({Tempo.Iso8601.Tokenizer.Set, :integer_set_all})
     ])
   end
 

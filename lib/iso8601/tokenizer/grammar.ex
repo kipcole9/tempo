@@ -15,7 +15,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
     optional(qualification())
     |> choice([
       interval_or_time_or_duration(),
-      parsec(:set)
+      parsec({Tempo.Iso8601.Tokenizer, :set})
     ])
     |> optional(qualification())
     |> optional(extended_suffix())
@@ -25,24 +25,27 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
   def interval_or_time_or_duration(combinator \\ empty()) do
     combinator
     |> choice([
-      parsec(:interval_parser),
-      parsec(:duration_parser),
-      parsec(:datetime_or_date_or_time)
+      parsec({Tempo.Iso8601.Tokenizer.Set, :interval_parser}),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :duration_parser}),
+      parsec({Tempo.Iso8601.Tokenizer, :datetime_or_date_or_time})
     ])
   end
 
   # Date Time
 
   def implicit_date_time do
-    parsec(:implicit_date_p) |> concat(parsec(:implicit_time_of_day_p))
+    parsec({Tempo.Iso8601.Tokenizer.Date, :implicit_date_p})
+    |> concat(parsec({Tempo.Iso8601.Tokenizer.Time, :implicit_time_of_day_p}))
   end
 
   def extended_date_time do
-    parsec(:extended_date_p) |> concat(parsec(:extended_time_of_day_p))
+    parsec({Tempo.Iso8601.Tokenizer.Date, :extended_date_p})
+    |> concat(parsec({Tempo.Iso8601.Tokenizer.Time, :extended_time_of_day_p}))
   end
 
   def explicit_date_time do
-    parsec(:explicit_date_p) |> concat(parsec(:explicit_time_of_day_p))
+    parsec({Tempo.Iso8601.Tokenizer.Date, :explicit_date_p})
+    |> concat(parsec({Tempo.Iso8601.Tokenizer.Time, :explicit_time_of_day_p}))
   end
 
   # Date
@@ -50,18 +53,18 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
   def implicit_date do
     choice([
       implicit_week_date(),
-      parsec(:implicit_year_p)
-      |> concat(parsec(:implicit_month_p))
-      |> concat(parsec(:implicit_day_of_month_p)),
-      parsec(:implicit_year_p)
-      |> concat(parsec(:implicit_month_p))
+      parsec({Tempo.Iso8601.Tokenizer.Date, :implicit_year_p})
+      |> concat(parsec({Tempo.Iso8601.Tokenizer.Date, :implicit_month_p}))
+      |> concat(parsec({Tempo.Iso8601.Tokenizer.Date, :implicit_day_of_month_p})),
+      parsec({Tempo.Iso8601.Tokenizer.Date, :implicit_year_p})
+      |> concat(parsec({Tempo.Iso8601.Tokenizer.Date, :implicit_month_p}))
       |> lookahead_not(digit()),
       implicit_ordinal_date(),
-      parsec(:implicit_year_p),
+      parsec({Tempo.Iso8601.Tokenizer.Date, :implicit_year_p}),
       implicit_decade(),
       implicit_century(),
-      parsec(:implicit_month_p)
-      |> concat(parsec(:implicit_day_of_month_p))
+      parsec({Tempo.Iso8601.Tokenizer.Date, :implicit_month_p})
+      |> concat(parsec({Tempo.Iso8601.Tokenizer.Date, :implicit_day_of_month_p}))
     ])
     |> label("implicit date")
   end
@@ -76,33 +79,33 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
       # to the left, an *individual* qualifier (that one only). The
       # trailing qualifier after the day is left for the outer
       # `qualification/0` so it reads as *complete* (§8.2.1).
-      parsec(:implicit_year_p)
+      parsec({Tempo.Iso8601.Tokenizer.Date, :implicit_year_p})
       |> optional(right_qualifier(:year))
       |> ignore(dash())
       |> optional(left_qualifier(:month))
-      |> concat(parsec(:implicit_month_p))
+      |> concat(parsec({Tempo.Iso8601.Tokenizer.Date, :implicit_month_p}))
       |> optional(right_qualifier(:month))
       |> ignore(dash())
       |> optional(left_qualifier(:day))
-      |> concat(parsec(:implicit_day_of_month_p)),
+      |> concat(parsec({Tempo.Iso8601.Tokenizer.Date, :implicit_day_of_month_p})),
 
       # Year-Month, with qualifiers. The trailing qualifier after the
       # month is the rightmost component, so it too is left for the
       # outer complete qualifier.
-      parsec(:implicit_year_p)
+      parsec({Tempo.Iso8601.Tokenizer.Date, :implicit_year_p})
       |> optional(right_qualifier(:year))
       |> ignore(dash())
       |> optional(left_qualifier(:month))
-      |> concat(parsec(:implicit_month_p))
+      |> concat(parsec({Tempo.Iso8601.Tokenizer.Date, :implicit_month_p}))
       |> lookahead_not(digit()),
 
       # Month-Day (no year) with qualifiers.
       optional(left_qualifier(:month))
-      |> concat(parsec(:implicit_month_p))
+      |> concat(parsec({Tempo.Iso8601.Tokenizer.Date, :implicit_month_p}))
       |> optional(right_qualifier(:month))
       |> ignore(dash())
       |> optional(left_qualifier(:day))
-      |> concat(parsec(:implicit_day_of_month_p)),
+      |> concat(parsec({Tempo.Iso8601.Tokenizer.Date, :implicit_day_of_month_p})),
       extended_ordinal_date()
     ])
     |> label("extended date")
@@ -111,49 +114,49 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
   def explicit_date do
     choice([
       # Year, month, day
-      parsec(:explicit_century_decade_or_year_p)
-      |> concat(parsec(:explicit_month_p))
+      parsec({Tempo.Iso8601.Tokenizer.Date, :explicit_century_decade_or_year_p})
+      |> concat(parsec({Tempo.Iso8601.Tokenizer.Date, :explicit_month_p}))
       |> concat(explicit_day_of_month()),
 
       # Year, week, day of week
-      parsec(:explicit_century_decade_or_year_p)
-      |> concat(parsec(:explicit_week_p))
+      parsec({Tempo.Iso8601.Tokenizer.Date, :explicit_century_decade_or_year_p})
+      |> concat(parsec({Tempo.Iso8601.Tokenizer.Date, :explicit_week_p}))
       |> concat(explicit_day_of_week()),
 
       # Year, month
-      parsec(:explicit_century_decade_or_year_p)
-      |> concat(parsec(:explicit_month_p)),
+      parsec({Tempo.Iso8601.Tokenizer.Date, :explicit_century_decade_or_year_p})
+      |> concat(parsec({Tempo.Iso8601.Tokenizer.Date, :explicit_month_p})),
 
       # Year, day
-      parsec(:explicit_century_decade_or_year_p)
+      parsec({Tempo.Iso8601.Tokenizer.Date, :explicit_century_decade_or_year_p})
       |> concat(explicit_day_of_month()),
 
       # Year, week
-      parsec(:explicit_century_decade_or_year_p)
-      |> concat(parsec(:explicit_week_p)),
+      parsec({Tempo.Iso8601.Tokenizer.Date, :explicit_century_decade_or_year_p})
+      |> concat(parsec({Tempo.Iso8601.Tokenizer.Date, :explicit_week_p})),
 
       # Month, day of month
-      parsec(:explicit_month_p)
+      parsec({Tempo.Iso8601.Tokenizer.Date, :explicit_month_p})
       |> concat(explicit_day_of_month()),
 
       # Week, day of week
-      parsec(:explicit_week_p)
+      parsec({Tempo.Iso8601.Tokenizer.Date, :explicit_week_p})
       |> concat(explicit_day_of_week()),
 
       # Ordinal Date (year-day_of_year)
       explicit_ordinal_date(),
 
       # Year
-      parsec(:explicit_century_decade_or_year_p),
+      parsec({Tempo.Iso8601.Tokenizer.Date, :explicit_century_decade_or_year_p}),
 
       # Month
-      parsec(:explicit_month_p)
+      parsec({Tempo.Iso8601.Tokenizer.Date, :explicit_month_p})
       |> lookahead_not(explicit_time_of_day()),
 
       # Can create ambiguity with implicit week dates so care is required
       # This should also cater for looking ahead for interval separators
       # and probably other tokens
-      parsec(:explicit_week_p) |> lookahead_not(digit()),
+      parsec({Tempo.Iso8601.Tokenizer.Date, :explicit_week_p}) |> lookahead_not(digit()),
       explicit_day_of_year(),
       explicit_day_of_month(),
       explicit_day_of_week()
@@ -173,14 +176,14 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
   # Ordinal date
 
   def implicit_ordinal_date do
-    parsec(:implicit_year_p)
-    |> concat(parsec(:implicit_day_of_year_p))
+    parsec({Tempo.Iso8601.Tokenizer.Date, :implicit_year_p})
+    |> concat(parsec({Tempo.Iso8601.Tokenizer.Date, :implicit_day_of_year_p}))
   end
 
   def extended_ordinal_date do
-    parsec(:implicit_year_p)
+    parsec({Tempo.Iso8601.Tokenizer.Date, :implicit_year_p})
     |> ignore(dash())
-    |> concat(parsec(:implicit_day_of_year_p))
+    |> concat(parsec({Tempo.Iso8601.Tokenizer.Date, :implicit_day_of_year_p}))
   end
 
   def explicit_ordinal_date do
@@ -192,38 +195,38 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
 
   def implicit_week_date do
     choice([
-      parsec(:implicit_year_p)
-      |> concat(parsec(:implicit_week_p))
-      |> concat(parsec(:implicit_day_of_week_p)),
-      parsec(:implicit_year_p)
-      |> concat(parsec(:implicit_week_p)),
-      parsec(:implicit_week_p)
+      parsec({Tempo.Iso8601.Tokenizer.Date, :implicit_year_p})
+      |> concat(parsec({Tempo.Iso8601.Tokenizer.Date, :implicit_week_p}))
+      |> concat(parsec({Tempo.Iso8601.Tokenizer.Date, :implicit_day_of_week_p})),
+      parsec({Tempo.Iso8601.Tokenizer.Date, :implicit_year_p})
+      |> concat(parsec({Tempo.Iso8601.Tokenizer.Date, :implicit_week_p})),
+      parsec({Tempo.Iso8601.Tokenizer.Date, :implicit_week_p})
     ])
   end
 
   def extended_week_date do
     choice([
-      parsec(:implicit_year_p)
+      parsec({Tempo.Iso8601.Tokenizer.Date, :implicit_year_p})
       |> ignore(dash())
-      |> concat(parsec(:implicit_week_p))
+      |> concat(parsec({Tempo.Iso8601.Tokenizer.Date, :implicit_week_p}))
       |> ignore(dash())
-      |> concat(parsec(:implicit_day_of_week_p)),
-      parsec(:implicit_year_p)
+      |> concat(parsec({Tempo.Iso8601.Tokenizer.Date, :implicit_day_of_week_p})),
+      parsec({Tempo.Iso8601.Tokenizer.Date, :implicit_year_p})
       |> ignore(dash())
-      |> concat(parsec(:implicit_week_p))
+      |> concat(parsec({Tempo.Iso8601.Tokenizer.Date, :implicit_week_p}))
     ])
   end
 
   def explicit_week_date do
     choice([
-      parsec(:explicit_century_decade_or_year_p)
-      |> concat(parsec(:explicit_week_p))
+      parsec({Tempo.Iso8601.Tokenizer.Date, :explicit_century_decade_or_year_p})
+      |> concat(parsec({Tempo.Iso8601.Tokenizer.Date, :explicit_week_p}))
       |> concat(explicit_day_of_week()),
-      parsec(:explicit_century_decade_or_year_p)
-      |> concat(parsec(:explicit_week_p)),
-      parsec(:explicit_week_p)
+      parsec({Tempo.Iso8601.Tokenizer.Date, :explicit_century_decade_or_year_p})
+      |> concat(parsec({Tempo.Iso8601.Tokenizer.Date, :explicit_week_p})),
+      parsec({Tempo.Iso8601.Tokenizer.Date, :explicit_week_p})
       |> concat(explicit_day_of_week()),
-      parsec(:explicit_week_p)
+      parsec({Tempo.Iso8601.Tokenizer.Date, :explicit_week_p})
     ])
   end
 
@@ -232,12 +235,12 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
   def implicit_time_of_day do
     ignore(optional(string("T")))
     |> choice([
-      parsec(:implicit_hour_p)
-      |> concat(parsec(:implicit_minute_p))
-      |> concat(parsec(:implicit_second_p)),
-      parsec(:implicit_hour_p)
-      |> concat(parsec(:implicit_minute_p)),
-      parsec(:implicit_hour_p)
+      parsec({Tempo.Iso8601.Tokenizer.Time, :implicit_hour_p})
+      |> concat(parsec({Tempo.Iso8601.Tokenizer.Time, :implicit_minute_p}))
+      |> concat(parsec({Tempo.Iso8601.Tokenizer.Time, :implicit_second_p})),
+      parsec({Tempo.Iso8601.Tokenizer.Time, :implicit_hour_p})
+      |> concat(parsec({Tempo.Iso8601.Tokenizer.Time, :implicit_minute_p})),
+      parsec({Tempo.Iso8601.Tokenizer.Time, :implicit_hour_p})
     ])
     |> optional(fraction())
   end
@@ -245,15 +248,15 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
   def extended_time_of_day do
     ignore(optional(string("T")))
     |> choice([
-      parsec(:implicit_hour_p)
+      parsec({Tempo.Iso8601.Tokenizer.Time, :implicit_hour_p})
       |> ignore(colon())
-      |> concat(parsec(:implicit_minute_p))
+      |> concat(parsec({Tempo.Iso8601.Tokenizer.Time, :implicit_minute_p}))
       |> ignore(colon())
-      |> concat(parsec(:implicit_second_p)),
-      parsec(:implicit_hour_p)
+      |> concat(parsec({Tempo.Iso8601.Tokenizer.Time, :implicit_second_p})),
+      parsec({Tempo.Iso8601.Tokenizer.Time, :implicit_hour_p})
       |> ignore(colon())
-      |> concat(parsec(:implicit_minute_p)),
-      parsec(:implicit_hour_p)
+      |> concat(parsec({Tempo.Iso8601.Tokenizer.Time, :implicit_minute_p})),
+      parsec({Tempo.Iso8601.Tokenizer.Time, :implicit_hour_p})
       |> lookahead_not(digit())
     ])
     |> optional(fraction())
@@ -281,7 +284,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
       concat(duration_date_elements(), duration_time_elements()),
       duration_date_elements(),
       duration_time_elements(),
-      parsec(:datetime_or_date_or_time)
+      parsec({Tempo.Iso8601.Tokenizer, :datetime_or_date_or_time})
     ])
   end
 
@@ -355,7 +358,9 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
       maybe_negative_integer_or_integer_set("V", :set_position, min: 1),
       maybe_negative_integer_or_integer_set("Q", :wkst, min: 1),
       selection_instance(),
-      ignore(string("L")) |> parsec(:interval_parser) |> ignore(string("N"))
+      ignore(string("L"))
+      |> parsec({Tempo.Iso8601.Tokenizer.Set, :interval_parser})
+      |> ignore(string("N"))
     ])
   end
 
@@ -364,7 +369,9 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
       maybe_negative_integer_or_integer_set("H", :hour, min: 1),
       maybe_negative_integer_or_integer_set("M", :minute, min: 1),
       maybe_negative_integer_or_integer_set("S", :second, min: 1),
-      ignore(string("L")) |> parsec(:interval_parser) |> ignore(string("N"))
+      ignore(string("L"))
+      |> parsec({Tempo.Iso8601.Tokenizer.Set, :interval_parser})
+      |> ignore(string("N"))
     ])
   end
 
@@ -378,8 +385,8 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
 
   def implicit_year do
     choice([
-      parsec(:group),
-      parsec(:integer_set_all) |> unwrap_and_tag(:year),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :group}),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :integer_set_all}) |> unwrap_and_tag(:year),
 
       # EDTF Level 2 long-year with exponent or significant-digit
       # annotation: `Y17E8` (17 × 10^8) or `Y171010000S3`. Requires
@@ -424,8 +431,8 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
 
   def explicit_year do
     choice([
-      parsec(:group),
-      parsec(:selection),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :group}),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :selection}),
       explicit_year_bc(),
       explicit_year_with_sign()
     ])
@@ -437,7 +444,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
   # the value and the `Y` designator (`2018?Y`).
   def explicit_year_with_sign do
     choice([
-      parsec(:integer_set_all),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :integer_set_all}),
       maybe_negative_number(min: 1)
     ])
     |> unwrap_and_tag(:year)
@@ -448,7 +455,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
 
   def explicit_year_bc do
     choice([
-      parsec(:integer_set_all),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :integer_set_all}),
       maybe_negative_number(min: 1)
     ])
     |> optional(left_qualifier(:year))
@@ -474,7 +481,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
 
   def implicit_month do
     choice([
-      parsec(:group),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :group}),
       positive_integer_or_integer_set(:month, 2),
       quarter(),
       half()
@@ -483,8 +490,8 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
 
   def explicit_month do
     choice([
-      parsec(:group),
-      parsec(:selection),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :group}),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :selection}),
       qualified_number_or_integer_set("M", :month, min: 1),
       quarter(),
       half()
@@ -496,7 +503,7 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
   def implicit_week do
     ignore(string("W"))
     |> choice([
-      parsec(:group),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :group}),
       positive_integer_or_integer_set(:week, 2)
     ])
   end
@@ -507,8 +514,8 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
 
   def explicit_week do
     choice([
-      parsec(:group),
-      parsec(:selection),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :group}),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :selection}),
       maybe_negative_number_or_integer_set("W", :week, min: 1)
     ])
   end
@@ -517,15 +524,15 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
 
   def implicit_day_of_month do
     choice([
-      parsec(:group),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :group}),
       positive_integer_or_integer_set(:day, 2)
     ])
   end
 
   def explicit_day_of_month do
     choice([
-      parsec(:group),
-      parsec(:selection),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :group}),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :selection}),
       qualified_number_or_integer_set("D", :day, min: 1)
     ])
   end
@@ -534,15 +541,15 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
 
   def implicit_day_of_week do
     choice([
-      parsec(:group),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :group}),
       positive_integer_or_integer_set(:day_of_week, 1)
     ])
   end
 
   def explicit_day_of_week do
     choice([
-      parsec(:group),
-      parsec(:selection),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :group}),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :selection}),
       maybe_negative_number_or_integer_set("K", :day_of_week, 1)
     ])
   end
@@ -551,16 +558,16 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
 
   def implicit_day_of_year do
     choice([
-      parsec(:group),
-      parsec(:integer_set_all) |> unwrap_and_tag(:day),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :group}),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :integer_set_all}) |> unwrap_and_tag(:day),
       positive_integer(3) |> unwrap_and_tag(:day)
     ])
   end
 
   def explicit_day_of_year do
     choice([
-      parsec(:group),
-      parsec(:selection),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :group}),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :selection}),
       maybe_negative_number_or_integer_set("O", :day, min: 1)
     ])
   end
@@ -598,45 +605,45 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
 
   def implicit_hour do
     choice([
-      parsec(:time_group),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :time_group}),
       positive_number_or_integer_set(:hour, 2)
     ])
   end
 
   def explicit_hour do
     choice([
-      parsec(:time_group),
-      parsec(:selection),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :time_group}),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :selection}),
       maybe_negative_number_or_integer_set("H", :hour, min: 1)
     ])
   end
 
   def implicit_minute do
     choice([
-      parsec(:time_group),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :time_group}),
       positive_number_or_integer_set(:minute, 2)
     ])
   end
 
   def explicit_minute do
     choice([
-      parsec(:time_group),
-      parsec(:selection),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :time_group}),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :selection}),
       maybe_negative_number_or_integer_set("M", :minute, min: 1)
     ])
   end
 
   def implicit_second do
     choice([
-      parsec(:time_group),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :time_group}),
       implicit_second_or_integer_set(2)
     ])
   end
 
   def explicit_second do
     choice([
-      parsec(:time_group),
-      parsec(:selection),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :time_group}),
+      parsec({Tempo.Iso8601.Tokenizer.Set, :selection}),
       explicit_second_or_integer_set("S", min: 1)
     ])
   end
@@ -646,10 +653,10 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
   def implicit_time_shift do
     shift_indicator()
     |> choice([
-      parsec(:implicit_hour_p)
+      parsec({Tempo.Iso8601.Tokenizer.Time, :implicit_hour_p})
       |> ignore(optional(colon()))
-      |> concat(parsec(:implicit_minute_p)),
-      parsec(:implicit_hour_p),
+      |> concat(parsec({Tempo.Iso8601.Tokenizer.Time, :implicit_minute_p})),
+      parsec({Tempo.Iso8601.Tokenizer.Time, :implicit_hour_p}),
       lookahead_not(digit())
     ])
     |> reduce(:resolve_shift)
@@ -659,10 +666,10 @@ defmodule Tempo.Iso8601.Tokenizer.Grammar do
   def extended_time_shift do
     shift_indicator()
     |> choice([
-      parsec(:implicit_hour_p)
+      parsec({Tempo.Iso8601.Tokenizer.Time, :implicit_hour_p})
       |> ignore(optional(colon()))
-      |> concat(parsec(:implicit_minute_p)),
-      parsec(:implicit_hour_p)
+      |> concat(parsec({Tempo.Iso8601.Tokenizer.Time, :implicit_minute_p})),
+      parsec({Tempo.Iso8601.Tokenizer.Time, :implicit_hour_p})
       |> lookahead_not(digit()),
       lookahead_not(digit())
     ])
