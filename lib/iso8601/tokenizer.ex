@@ -17,6 +17,16 @@ defmodule Tempo.Iso8601.Tokenizer do
   import Tempo.Iso8601.Tokenizer.Grammar
   import Tempo.Iso8601.Tokenizer.Helpers
 
+  # Disable the Erlang optimiser for this module. NimbleParsec expands the ~40
+  # parsers below into large binary-matching functions, and the SSA / binary-
+  # match optimiser passes dominate the whole library's compile time (measured
+  # ~118 s → ~75 s with these off). The trade is a marginally slower *parser* at
+  # runtime — which is not a hot path, since real code builds values with
+  # `Tempo.new/1` rather than parsing strings — so we spend the optimiser's
+  # budget on faster builds instead. Disabling optimisation passes changes
+  # speed, not semantics; correctness is unaffected (the full suite gates it).
+  @compile [:no_ssa_opt, :no_bsm_opt, :no_type_opt, :no_bool_opt, :no_fun_opt]
+
   alias Tempo.Iso8601.Tokenizer.Extended
   alias Tempo.ParseError
 
