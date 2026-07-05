@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.17.0] — 2026-07-06
+
+### Changed
+
+* Clean-build and CI compile time is roughly halved (~118 s → ~51 s for `mix compile --force` on the reference machine): the Erlang optimiser is turned off for the ISO 8601 tokenizer — whose parser is not a runtime hot path — and its ~40 NimbleParsec parsers are split across `Tokenizer.Date` / `.Time` / `.Set` modules that compile in parallel. Parsing is byte-identical; there is no public API or behaviour change.
+
 ## [v0.16.2] — 2026-07-05
 
 ### Fixed
