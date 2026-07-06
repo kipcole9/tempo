@@ -18,6 +18,10 @@ def deps do
 end
 ```
 
+> #### Requires Erlang/OTP 27 or later {: .warning}
+>
+> Tempo requires **OTP 27+**; **OTP 26 is not supported**. Tempo's ISO 8601 tokenizer is compiled with the Erlang optimiser disabled — a deliberate trade that roughly halves build time — and this trips a code-generation bug in OTP 26's compiler that miscompiles the parser and crashes at runtime. Elixir 1.17 and later are supported, on OTP 27 or newer.
+
 ## Why intervals, not instants
 
 Every mainstream language treats `date`, `time`, and `datetime` as distinct scalar types. That fragmentation creates three classes of common bugs that Tempo eliminates by construction:

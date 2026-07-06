@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.17.1] — 2026-07-06
+
+### Changed
+
+* The minimum Erlang/OTP is now **27**; OTP 26 is no longer supported, because the tokenizer's optimiser-disabled compilation (introduced in 0.17.0 to halve build time) trips an OTP-26 code-generation bug that miscompiles the parser and crashes at runtime. `mix.exs` now raises a clear "requires OTP 27 or later" error on older OTP instead of letting the miscompile surface as a cryptic multi-terabyte-allocation crash.
+
 ## [v0.17.0] — 2026-07-06
 
 ### Changed

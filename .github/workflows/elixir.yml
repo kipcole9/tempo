@@ -21,28 +21,26 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # OTP 26 is not supported: the tokenizer's `@compile` optimiser-off
+        # flags expose an OTP-26 code-generation bug in the unoptimised binary-
+        # matching path (a bogus multi-terabyte allocation at runtime). OTP 27
+        # is the minimum. See the README.
         include:
-          # Elixir 1.17 — supports OTP 25–27
-          - elixir: "1.17-otp-26"
-            otp: "26"
+          # Elixir 1.17 — on OTP 27
           - elixir: "1.17-otp-27"
             otp: "27"
 
-          # # Elixir 1.18 — supports OTP 25–27
-          - elixir: "1.18-otp-26"
-            otp: "26"
+          # Elixir 1.18 — on OTP 27
           - elixir: "1.18-otp-27"
             otp: "27"
 
-          # # Elixir 1.19 — supports OTP 26–28
-          - elixir: "1.19-otp-26"
-            otp: "26"
+          # Elixir 1.19 — on OTP 27–28
           - elixir: "1.19-otp-27"
             otp: "27"
           - elixir: "1.19-otp-28"
             otp: "28"
 
-          # Elixir 1.20 — supports OTP 27–29
+          # Elixir 1.20 — on OTP 27–29
           - elixir: "1.20.2-otp-27"
             otp: "27"
           - elixir: "1.20.2-otp-28"

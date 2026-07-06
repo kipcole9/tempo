@@ -1,7 +1,19 @@
 defmodule Tempo.MixProject do
   use Mix.Project
 
-  @version "0.17.0"
+  # OTP 26 is not supported. The tokenizer is compiled with the Erlang optimiser
+  # disabled (the `@compile` flags in the tokenizer modules roughly halve build
+  # time), and OTP 26's compiler miscompiles that unoptimised binary-matching
+  # path — it crashes at runtime with a bogus multi-terabyte allocation. Fail
+  # fast here with a clear message rather than let a consumer hit the crash.
+  if String.to_integer(System.otp_release()) < 27 do
+    Mix.raise(
+      "ex_tempo requires Erlang/OTP 27 or later — OTP #{System.otp_release()} detected. " <>
+        "See the README for details."
+    )
+  end
+
+  @version "0.17.1"
 
   def project do
     [
