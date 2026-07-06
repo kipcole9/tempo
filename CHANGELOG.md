@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.18.0] — 2026-07-07
+
+### Changed
+
+* `Inspect` for `Tempo.IntervalSet` now honours the `Inspect.Opts` `:limit` — it renders up to that many member intervals (default `50`) followed by the current locale's ellipsis via `Localize.ellipsis/1`, rather than collapsing any set over three members to a bare `N intervals` count.
+
 ## [v0.17.1] — 2026-07-06
 
 ### Changed

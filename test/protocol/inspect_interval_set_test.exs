@@ -11,13 +11,24 @@ defmodule Tempo.Protocol.InspectIntervalSetTest do
     assert inspect(%IntervalSet{intervals: []}) == "#Tempo.IntervalSet<[]>"
   end
 
-  test "a small set (<= 3 intervals) inspects its members inline" do
+  test "a small set inspects its members inline" do
     assert inspect(set(~o"{2021,2022,2023}Y")) ==
              ~s|#Tempo.IntervalSet<[~o"2021Y1M/2022Y1M", ~o"2022Y1M/2023Y1M", ~o"2023Y1M/2024Y1M"]>|
   end
 
-  test "a larger set (> 3 intervals) inspects as a count" do
-    assert inspect(set(~o"{2021,2022,2023,2024,2025}Y")) == "#Tempo.IntervalSet<5 intervals>"
+  test "a set within the inspect limit shows every member inline" do
+    assert inspect(set(~o"{2021,2022,2023,2024,2025}Y")) ==
+             ~s|#Tempo.IntervalSet<[~o"2021Y1M/2022Y1M", ~o"2022Y1M/2023Y1M", ~o"2023Y1M/2024Y1M", ~o"2024Y1M/2025Y1M", ~o"2025Y1M/2026Y1M"]>|
+  end
+
+  test "a set larger than :limit shows that many members then the locale ellipsis" do
+    assert inspect(set(~o"{2021,2022,2023,2024,2025}Y"), limit: 2) ==
+             ~s|#Tempo.IntervalSet<[~o"2021Y1M/2022Y1M", ~o"2022Y1M/2023Y1M", …]>|
+  end
+
+  test "the inspect limit is honoured as :infinity" do
+    assert inspect(set(~o"{2021,2022,2023,2024,2025}Y"), limit: :infinity) ==
+             ~s|#Tempo.IntervalSet<[~o"2021Y1M/2022Y1M", ~o"2022Y1M/2023Y1M", ~o"2023Y1M/2024Y1M", ~o"2024Y1M/2025Y1M", ~o"2025Y1M/2026Y1M"]>|
   end
 
   test "a calendar name in metadata is shown in the tag" do

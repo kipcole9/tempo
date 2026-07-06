@@ -172,7 +172,10 @@ defmodule Tempo.Inspect do
   Inspect a `t:Tempo.IntervalSet.t/0`.
 
   Renders as `#Tempo.IntervalSet<[...]>` with each interval
-  inspected via its own protocol implementation. Set-level
+  inspected via its own protocol implementation. At most
+  `opts.limit` members are shown (the `Inspect.Opts` default is
+  `50`); when the set is larger, the shown members are followed by
+  the current locale's ellipsis via `Localize.ellipsis/1`. Set-level
   metadata appears as a trailing label when present. Empty sets
   render as `#Tempo.IntervalSet<[]>`.
 
@@ -185,21 +188,38 @@ defmodule Tempo.Inspect do
         %Tempo.IntervalSet{intervals: intervals, metadata: metadata},
         opts
       ) do
-    body =
-      Enum.map_join(intervals, ", ", fn iv ->
+    {shown, truncated?} = take_within_limit(intervals, opts.limit)
+
+    rendered =
+      Enum.map(shown, fn iv ->
         Kernel.inspect(iv, opts |> Map.from_struct() |> Enum.into([]))
       end)
 
-    count = length(intervals)
-    header = "#Tempo.IntervalSet<" <> Integer.to_string(count) <> " intervals"
-    tail = set_metadata_tag(metadata) <> ">"
+    # Emit the ellipsis as a trailing element so it joins with the same
+    # `", "` separator — `[a, b, …]`, matching how Elixir truncates a list.
+    elements = if truncated?, do: rendered ++ [ellipsis()], else: rendered
 
-    case count do
-      n when n <= 3 ->
-        "#Tempo.IntervalSet<[" <> body <> "]" <> set_metadata_tag(metadata) <> ">"
+    "#Tempo.IntervalSet<[" <>
+      Enum.join(elements, ", ") <> "]" <> set_metadata_tag(metadata) <> ">"
+  end
 
-      _ ->
-        header <> tail
+  # `Inspect.Opts.limit` bounds how many members are rendered; `:infinity`
+  # shows them all. Split (rather than take + length) so we learn whether
+  # the list was truncated without walking past the limit.
+  defp take_within_limit(intervals, :infinity), do: {intervals, false}
+
+  defp take_within_limit(intervals, limit) when is_integer(limit) and limit >= 0 do
+    {shown, rest} = Enum.split(intervals, limit)
+    {shown, rest != []}
+  end
+
+  # The current locale's ellipsis mark, from the CLDR ellipsis pattern via
+  # `Localize.ellipsis/1`. Inspect sits on the render path and must never
+  # raise, so fall back to U+2026 if the locale data cannot be loaded.
+  defp ellipsis do
+    case Localize.ellipsis("") do
+      {:ok, mark} -> mark
+      {:error, _reason} -> "…"
     end
   end
 
