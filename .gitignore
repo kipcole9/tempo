@@ -30,7 +30,6 @@ tempo-*.tar
 
 # Claude (local settings/state; the distributable skill lives in skills/)
 .claude
-plans/
 
 # Mise and asdf
 mise.toml
