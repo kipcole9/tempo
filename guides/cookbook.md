@@ -883,6 +883,30 @@ weekdays =
 {:ok, days} = Tempo.to_interval(weekdays, bound: ~o"2026-06")
 ```
 
+### Business/252 — Brazil's business-day year fraction
+
+Brazilian fixed-income instruments accrue interest on the BUS/252 day count: the year fraction between two dates is the number of business days between them divided by a fixed 252, where a business day is Monday–Friday minus the [ANBIMA](https://www.anbima.com.br/feriados/feriados.asp) national banking holidays. Tempo's half-open `[from, to)` convention is exactly the counting rule BUS/252 requires — two consecutive business days count as 1.
+
+ANBIMA publishes the holiday list (2001–2099) as a spreadsheet; `scripts/anbima_xls_to_ics.py` in this repository converts it to an iCalendar file that Tempo loads directly.
+
+```elixir
+{:ok, holidays} = Tempo.ICal.from_ical_file("feriados_anbima.ics")
+
+settlement = ~o"2024-01-01"
+maturity   = ~o"2025-01-01"
+
+{:ok, window}        = Tempo.Interval.new(from: settlement, to: maturity)
+{:ok, workdays}      = Tempo.select(window, Tempo.workdays(:BR))
+{:ok, business_days} = Tempo.members_outside(workdays, holidays)
+
+Tempo.IntervalSet.count(business_days) / 252
+#=> 1.003968253968254   (253 business days in 2024)
+```
+
+> The **window** runs from settlement to maturity. **Workdays** narrow it to Brazil's Monday–Friday. **Business days** are the workdays falling **outside** the ANBIMA holidays. The **year fraction** is the business-day count over a fixed 252.
+
+The denominator is always 252, regardless of how many business days a given year actually contains — a fraction slightly above 1 for a calendar year is correct, not a bug. And because the holiday list is normative pricing data, pin a dated copy of the generated `.ics` rather than refreshing it from a live feed.
+
 ### Every free minute in a month
 
 ```elixir
