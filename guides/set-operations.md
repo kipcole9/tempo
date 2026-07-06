@@ -265,6 +265,32 @@ iex> Tempo.equal?(~o"2022Y", Tempo.from_iso8601!("2022-01-01/2023-01-01"))
 true                                 # same covered instants, different representations
 ```
 
+### Counting a result
+
+Once you hold a result set, three different "how much" questions each have their own tool — and they return very different numbers, so pick the one that matches intent:
+
+* **How many windows** (member spans)? — `Tempo.IntervalSet.count/1`, the set's cardinality.
+
+* **How many sub-points** (days, hours, … at the members' resolution)? — `Enum.count/1`. The `Enumerable` protocol walks *into* each member and yields its stepped points, so this totals across every window, not the number of windows.
+
+* **How long** (elapsed time)? — `Tempo.duration/1` on a member, or `Tempo.at_least?/2` to keep only windows of a given length. Don't count sub-points for this — across a DST boundary the walk skips the spring-forward hour and emits the fall-back hour twice, so `Enum.count` deliberately diverges from elapsed time.
+
+```elixir
+iex> {:ok, free} = Tempo.union(~o"2026Y1M", ~o"2026Y3M")
+{:ok, #Tempo.IntervalSet<[~o"2026Y1M1D/2026Y2M1D", ~o"2026Y3M1D/2026Y4M1D"]>}
+
+iex> Tempo.IntervalSet.count(free)
+2                                    # two windows: January and March
+
+iex> Enum.count(free)
+62                                   # 62 sub-points: 31 + 31 days
+
+iex> free |> Tempo.IntervalSet.to_list() |> Enum.filter(&Tempo.at_least?(&1, ~o"P1M"))
+[~o"2026Y1M1D/2026Y2M1D", ~o"2026Y3M1D/2026Y4M1D"]   # both windows ≥ 1 month
+```
+
+`to_list/1` exposes the windows for `Enum`; `Tempo.at_least?/2` (and its companions) then select by duration — the member-level idiom that keeps the sub-point walk and the window count from being confused.
+
 ## 4. Algebraic laws
 
 Set-algebra identities hold at the **instant-set level** — i.e. after coalescing, or equivalently, when compared via `Tempo.equal?/2`. The instant-level operations (`intersection`, `difference`, `symmetric_difference`, `complement`) satisfy them directly. The member-preserving operation `union` and the member-preserving filters (`members_overlapping`, `members_outside`, `members_in_exactly_one`) preserve A-side member identity, so they don't satisfy classical laws like commutativity at the member-list level — but they do at the covered-instant level once you compare via `Tempo.equal?/2`:

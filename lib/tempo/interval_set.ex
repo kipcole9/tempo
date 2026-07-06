@@ -22,6 +22,34 @@ defmodule Tempo.IntervalSet do
   * No `:undefined` endpoints. (Open-ended intervals cannot
     participate in a set; the caller must bound them first.)
 
+  ## Counting
+
+  A set answers three different "how much" questions, and they return
+  very different numbers — reach for the one that matches intent:
+
+  * **How many windows** (member spans)? — `count/1`, the set's
+    cardinality.
+
+  * **How many sub-points** (days, hours, … at the members'
+    resolution)? — `Enum.count/1`. The `Enumerable` protocol walks
+    *into* each member and yields its stepped points, so this totals
+    across every window, not the number of windows.
+
+  * **How long** (elapsed time)? — `Tempo.duration/1` on a member, or
+    `Tempo.at_least?/2` to keep only windows of a given length. Never
+    count sub-points for this: across a DST boundary the walk skips the
+    spring-forward hour and emits the fall-back hour twice, so
+    `Enum.count` deliberately diverges from elapsed time.
+
+  A two-window set — January and March — is `2` windows but `62`
+  sub-points (31 + 31 days):
+
+      iex> {:ok, free} = Tempo.union(~o"2026Y1M", ~o"2026Y3M")
+      iex> Tempo.IntervalSet.count(free)
+      2
+      iex> Enum.count(free)
+      62
+
   ## Timezone handling
 
   An IntervalSet preserves the wall-clock + zone form of its member
