@@ -326,10 +326,35 @@ defmodule Tempo.Select do
   end
 
   defp tempo_to_date(%Tempo{time: time, calendar: calendar}, calendar) do
+    if Keyword.has_key?(time, :week) do
+      week_time_to_date(time, calendar)
+    else
+      month_time_to_date(time, calendar)
+    end
+  end
+
+  defp month_time_to_date(time, calendar) do
     with year when is_integer(year) <- Keyword.get(time, :year),
          month when is_integer(month) <- Keyword.get(time, :month, 1),
          day when is_integer(day) <- Keyword.get(time, :day, 1) do
       Date.new(year, month, day, calendar)
+    else
+      _ -> :error
+    end
+  end
+
+  # Week-axis endpoint — `[year, week, day_of_week]`. Week
+  # numbering is ISO-week semantics regardless of the base
+  # calendar (see `Tempo.Validation`), so resolve the week date
+  # under `Calendrical.ISOWeek` and convert into the base
+  # calendar. A week-resolution endpoint denotes the start of its
+  # week, so a missing `:day_of_week` defaults to 1.
+  defp week_time_to_date(time, calendar) do
+    with year when is_integer(year) <- Keyword.get(time, :year),
+         week when is_integer(week) <- Keyword.get(time, :week),
+         day when is_integer(day) <- Keyword.get(time, :day_of_week, 1),
+         {:ok, week_date} <- Date.new(year, week, day, Calendrical.ISOWeek) do
+      Date.convert(week_date, calendar)
     else
       _ -> :error
     end

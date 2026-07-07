@@ -35,7 +35,9 @@ defmodule Tempo.Operations do
   alias Tempo.MaterialisationError
   alias Tempo.Math
   alias Tempo.NonAnchoredError
+  alias Tempo.ResolutionError
   alias Tempo.UnboundedRecurrenceError
+  alias Tempo.Validation
 
   ## ---------------------------------------------------------------
   ## Preflight — `align/2,3`
@@ -82,6 +84,7 @@ defmodule Tempo.Operations do
          {:ok, a_set, b_set} <- maybe_anchor_to_bound(a_set, b_set, class_a, class_b, opts),
          {:ok, a_set, b_set} <- maybe_split_midnight_crossers(a_set, b_set, class_a, class_b),
          {:ok, b_set} <- convert_calendar(b_set, a_set),
+         {:ok, a_set, b_set} <- canonicalize_axes(a_set, b_set),
          {:ok, a_set, b_set} <- align_resolution(a_set, b_set) do
       {:ok, {a_set, b_set}}
     end
@@ -450,6 +453,90 @@ defmodule Tempo.Operations do
     end
   end
 
+  ## Axis canonicalisation — week-axis endpoints
+  ## (`[year, week, day_of_week]`) have no common unit vocabulary
+  ## with month-axis endpoints (`[year, month, day]`), so the
+  ## sweep cannot compare them. When exactly one operand is
+  ## week-axis, rewrite its endpoints as month-axis calendar dates
+  ## via `Tempo.Validation.resolve/2` (ISO week semantics,
+  ## converted into the endpoint's own calendar). Same-axis pairs
+  ## pass through untouched — week-on-week set operations stay on
+  ## the week axis.
+
+  defp canonicalize_axes(a_set, b_set) do
+    case {week_axis?(a_set), week_axis?(b_set)} do
+      {true, false} -> month_axis_operands(a_set, b_set, :first)
+      {false, true} -> month_axis_operands(a_set, b_set, :second)
+      _same_axis -> {:ok, a_set, b_set}
+    end
+  end
+
+  defp month_axis_operands(a_set, b_set, :first) do
+    with {:ok, converted} <- map_endpoints(a_set, &month_axis_endpoint/1) do
+      {:ok, converted, b_set}
+    end
+  end
+
+  defp month_axis_operands(a_set, b_set, :second) do
+    with {:ok, converted} <- map_endpoints(b_set, &month_axis_endpoint/1) do
+      {:ok, a_set, converted}
+    end
+  end
+
+  defp week_axis?(%IntervalSet{intervals: intervals}) do
+    Enum.any?(intervals, fn %Interval{from: from, to: to} ->
+      week_axis_endpoint?(from) or week_axis_endpoint?(to)
+    end)
+  end
+
+  defp week_axis_endpoint?(%Tempo{time: time}), do: Keyword.has_key?(time, :week)
+  defp week_axis_endpoint?(_other), do: false
+
+  # Rewrite one week-axis endpoint as a month-axis calendar date.
+  # A week-resolution endpoint denotes the start of its week under
+  # the half-open convention, so a missing `:day_of_week` pads to 1
+  # before resolution.
+  defp month_axis_endpoint(%Tempo{time: time, calendar: calendar} = tempo) do
+    if Keyword.has_key?(time, :week) do
+      resolved = time |> pad_day_of_week() |> Validation.resolve(calendar)
+      month_axis_time(resolved, tempo)
+    else
+      {:ok, tempo}
+    end
+  end
+
+  defp month_axis_endpoint(other), do: {:ok, other}
+
+  defp month_axis_time({:error, _} = error, _tempo), do: error
+
+  defp month_axis_time(resolved, tempo) when is_list(resolved) do
+    if Keyword.has_key?(resolved, :week) do
+      {:error,
+       ResolutionError.exception(
+         current: :week,
+         target: :month,
+         operation: :align,
+         calendar: tempo.calendar,
+         reason:
+           "Cannot express #{inspect(tempo)} as a month-axis calendar date " <>
+             "under #{inspect(tempo.calendar)}"
+       )}
+    else
+      {:ok, %{tempo | time: resolved}}
+    end
+  end
+
+  defp pad_day_of_week(time) do
+    if Keyword.has_key?(time, :day_of_week) do
+      time
+    else
+      Enum.flat_map(time, fn
+        {:week, _} = week -> [week, {:day_of_week, 1}]
+        other -> [other]
+      end)
+    end
+  end
+
   ## Resolution alignment — extend the coarser operand's endpoints
   ## to the finer resolution.
 
@@ -481,26 +568,44 @@ defmodule Tempo.Operations do
     |> Enum.min_by(&Unit.sort_key/1, fn -> :day end)
   end
 
-  defp apply_resolution(%IntervalSet{intervals: intervals} = set, target) do
-    aligned =
-      Enum.map(intervals, fn %Interval{from: from, to: to} = interval ->
-        %{
-          interval
-          | from: extend_or_pass(from, target),
-            to: extend_or_pass(to, target)
-        }
-      end)
-
-    {:ok, %{set | intervals: aligned}}
+  defp apply_resolution(%IntervalSet{} = set, target) do
+    map_endpoints(set, &extend_or_pass(&1, target))
   end
 
   defp extend_or_pass(%Tempo{} = tempo, target) do
     {current, _} = Tempo.resolution(tempo)
 
     case Unit.compare(target, current) do
-      :eq -> tempo
-      :gt -> tempo
-      :lt -> Tempo.extend_resolution(tempo, target)
+      :lt -> extend_endpoint(tempo, target)
+      _eq_or_gt -> {:ok, tempo}
+    end
+  end
+
+  defp extend_endpoint(tempo, target) do
+    case Tempo.extend_resolution(tempo, target) do
+      %Tempo{} = extended -> {:ok, extended}
+      {:error, _} = error -> error
+    end
+  end
+
+  # Apply `mapper` to every interval endpoint in `set`, preserving
+  # member order and propagating the first `{:error, _}` returned.
+  # Both callers apply monotone per-endpoint transforms, so the
+  # from-sorted precondition the sweeps rely on is preserved.
+  defp map_endpoints(%IntervalSet{intervals: intervals} = set, mapper) do
+    with {:ok, mapped} <- map_interval_endpoints(intervals, mapper, []) do
+      {:ok, %{set | intervals: mapped}}
+    end
+  end
+
+  defp map_interval_endpoints([], _mapper, acc), do: {:ok, Enum.reverse(acc)}
+
+  defp map_interval_endpoints([%Interval{from: from, to: to} = interval | rest], mapper, acc) do
+    with {:ok, mapped_from} <- mapper.(from),
+         {:ok, mapped_to} <- mapper.(to) do
+      map_interval_endpoints(rest, mapper, [
+        %{interval | from: mapped_from, to: mapped_to} | acc
+      ])
     end
   end
 

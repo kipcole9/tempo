@@ -120,6 +120,28 @@ defmodule Tempo.Select.Test do
                  Tempo.weekend(:SA).time[:day_of_week]
              ) == [1, 2, 3, 4, 5, 6, 7]
     end
+
+    test "weekend selection over a week-axis base (regression: was silently empty)" do
+      # Each ISO week contains exactly one Saturday and one Sunday,
+      # so 13 weeks yield 26 weekend days.
+      {:ok, set} = Tempo.select(~o"2026Y{1..13}W", Tempo.weekend(:US))
+
+      days = IntervalSet.to_list(set)
+      assert length(days) == 26
+
+      # ISO week 1 of 2026 spans 2025-12-29..2026-01-05; its
+      # weekend days are Sat Jan 3 and Sun Jan 4.
+      [saturday, sunday | _rest] = days
+      assert saturday.from.time == [year: 2026, month: 1, day: 3]
+      assert sunday.from.time == [year: 2026, month: 1, day: 4]
+    end
+
+    test "weekend selection over a single week-resolution base" do
+      {:ok, set} = Tempo.select(~o"2026Y1W", Tempo.weekend(:US))
+
+      days = IntervalSet.to_list(set)
+      assert Enum.map(days, & &1.from.time[:day]) == [3, 4]
+    end
   end
 
   describe "territory resolution inside Tempo.workdays/1 and Tempo.weekend/1" do

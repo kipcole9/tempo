@@ -481,6 +481,74 @@ defmodule Tempo.Operations.Test do
     end
   end
 
+  describe "week-axis operands against month-axis operands" do
+    # ISO week 1 of 2026 spans 2025-12-29..2026-01-05; week 2
+    # spans 2026-01-05..2026-01-12; week 3 spans
+    # 2026-01-12..2026-01-19. `align/3` canonicalises the
+    # week-axis operand's endpoints to month-axis calendar dates
+    # so the sweep compares like with like.
+
+    test "week ∩ day → the day (regression: was FunctionClauseError)" do
+      {:ok, r} = Tempo.intersection(~o"2026Y1W", ~o"2026-01-03")
+
+      [iv] = r.intervals
+      assert iv.from.time[:year] == 2026
+      assert iv.from.time[:month] == 1
+      assert iv.from.time[:day] == 3
+      assert iv.to.time[:day] == 4
+    end
+
+    test "week ∩ day is commutative at the instant level" do
+      {:ok, r1} = Tempo.intersection(~o"2026Y1W", ~o"2026-01-03")
+      {:ok, r2} = Tempo.intersection(~o"2026-01-03", ~o"2026Y1W")
+      assert Tempo.equal?(r1, r2)
+    end
+
+    test "disjoint week and day → empty, not a crash" do
+      {:ok, r} = Tempo.intersection(~o"2026Y2W", ~o"2026-01-03")
+      assert r.intervals == []
+    end
+
+    test "first week of the year reaches back into the previous December" do
+      {:ok, r} = Tempo.intersection(~o"2026Y1W", ~o"2025-12-30")
+
+      [iv] = r.intervals
+      assert iv.from.time[:year] == 2025
+      assert iv.from.time[:month] == 12
+      assert iv.from.time[:day] == 30
+    end
+
+    test "members_overlapping — week members against a day member" do
+      # 2026-01-15 falls in ISO week 3, so only that member survives.
+      {:ok, r} = Tempo.members_overlapping(~o"2026Y{1..4}W", ~o"2026-01-15")
+
+      [iv] = r.intervals
+      assert iv.from.time[:month] == 1
+      assert iv.from.time[:day] == 12
+      assert iv.to.time[:day] == 19
+    end
+
+    test "members_outside — week members against a day member" do
+      {:ok, r} = Tempo.members_outside(~o"2026Y{1..4}W", ~o"2026-01-15")
+
+      # Weeks 1, 2 and 4 survive; week 3 contains the day.
+      starts =
+        Enum.map(r.intervals, fn iv ->
+          {iv.from.time[:month], iv.from.time[:day]}
+        end)
+
+      assert starts == [{12, 29}, {1, 5}, {1, 19}]
+    end
+
+    test "week ∩ week stays on the week axis" do
+      {:ok, r} = Tempo.intersection(~o"2026Y1W/2026Y3W", ~o"2026Y2W/2026Y5W")
+
+      [iv] = r.intervals
+      assert iv.from.time[:week] == 2
+      assert iv.to.time[:week] == 3
+    end
+  end
+
   describe "zone-crossing" do
     test "equal?/2 across zones — same UTC instant compares equal" do
       # Both these intervals represent the same one-hour window,
