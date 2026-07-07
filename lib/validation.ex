@@ -997,6 +997,18 @@ defmodule Tempo.Validation do
 
   defp check_wall_time_in_zone(%Tempo{time: time}, zone) do
     case fully_anchored_datetime(time) do
+      # Pre-common-era wall times cannot fall into a zone-transition
+      # gap — standardised time (and every tzdata rule) begins many
+      # centuries later, so local mean time applies throughout. The
+      # guard also matters mechanically: `Tzdata` feeds the year to
+      # `:calendar.last_day_of_the_month/2`, whose OTP ≤ 28 guards
+      # reject negative years with a `FunctionClauseError`. A value
+      # like `~o"2022-06-15T10:00[Europe/Paris][u-ca=hebrew]"` — the
+      # units read as Hebrew year 2022, ≈ 1739 BCE Gregorian — must
+      # validate cleanly, not crash.
+      {:ok, {{year, _month, _day}, _time}} when year < 1 ->
+        :ok
+
       {:ok, {{year, month, day}, {hour, minute, second}} = datetime} ->
         wall = :calendar.datetime_to_gregorian_seconds(datetime)
 

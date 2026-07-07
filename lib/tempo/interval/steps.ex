@@ -467,6 +467,17 @@ defmodule Tempo.Interval.Steps do
   defp zone_id(%Tempo{extended: %{zone_id: zone}}) when is_binary(zone) and zone != "", do: zone
   defp zone_id(_), do: nil
 
+  # UTC seconds at 0001-01-01T00:00:00. Pre-common-era instants
+  # precede every tzdata rule — and Tzdata's internals crash on
+  # OTP ≤ 28 for negative years — so they take the same `0` offset
+  # as the no-period fallback (local-mean-time era).
+  @gregorian_seconds_year_1 :calendar.datetime_to_gregorian_seconds({{1, 1, 1}, {0, 0, 0}})
+
+  defp zone_offset_at_utc(_zone, utc_seconds)
+       when utc_seconds < @gregorian_seconds_year_1 do
+    0
+  end
+
   defp zone_offset_at_utc(zone, utc_seconds) do
     case Tzdata.periods_for_time(zone, utc_seconds, :utc) do
       [period | _] -> period.utc_off + period.std_off

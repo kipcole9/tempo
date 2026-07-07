@@ -1,6 +1,7 @@
 defmodule Tempo.Iso8601.Extended.Test do
   use ExUnit.Case, async: true
 
+  alias Tempo.Compare
   alias Tempo.Iso8601.Tokenizer
 
   ## Backward compatibility — no suffix
@@ -366,6 +367,14 @@ defmodule Tempo.Iso8601.Extended.Test do
       assert interval.from.extended.calendar == :hebrew
       assert interval.to.extended.zone_id == "Europe/Paris"
       assert interval.to.extended.calendar == nil
+
+      # Regression (OTP ≤ 28): the Hebrew-read units resolve to a
+      # pre-common-era Gregorian instant (year −1738), which used to
+      # crash the `:calendar`-based conversions inside endpoint-order
+      # validation and UTC projection on OTP 27/28. Parsing above and
+      # both projections below must work on every supported OTP.
+      assert Tempo.relation(interval.from, interval.to) == :precedes
+      assert Compare.to_utc_seconds(interval.from) < 0
     end
 
     test "critical unknown zone on an endpoint bubbles up to the error result" do

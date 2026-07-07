@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.19.1] — 2026-07-07
+
+### Fixed
+
+* Values that resolve to a pre-common-era Gregorian instant — e.g. `~o"2022-06-15T10:00[Europe/Paris][u-ca=hebrew]"`, whose units read as Hebrew year 2022 ≈ 1739 BCE — no longer crash parsing, comparison, or zone projection on OTP 27/28. UTC projection now uses OTP-version-independent proleptic conversion, and tzdata lookups are skipped for pre-CE instants (local-mean-time era, zero offset).
+
 ## [v0.19.0] — 2026-07-07
 
 ### Added

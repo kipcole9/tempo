@@ -27,6 +27,7 @@ defmodule Tempo.Compare do
 
   """
 
+  alias Calendar.ISO
   alias Tempo.ZoneOffsetMismatchError
 
   @doc """
@@ -306,7 +307,14 @@ defmodule Tempo.Compare do
     hour = Keyword.get(time, :hour, 0)
     minute = Keyword.get(time, :minute, 0)
     second = Keyword.get(time, :second, 0)
-    :calendar.datetime_to_gregorian_seconds({{year, month, day}, {hour, minute, second}})
+
+    # `Calendar.ISO.date_to_iso_days/3` shares Erlang's gregorian-days
+    # epoch (0000-01-01 = day 0) but, unlike OTP ≤ 28's
+    # `:calendar.datetime_to_gregorian_seconds/1`, accepts negative
+    # (pre-common-era) years on every OTP — e.g. a value whose units
+    # read as Hebrew year 2022 resolves to proleptic Gregorian −1738.
+    ISO.date_to_iso_days(year, month, day) * 86_400 +
+      hour * 3_600 + minute * 60 + second
   end
 
   @doc """
@@ -350,9 +358,26 @@ defmodule Tempo.Compare do
     end
   end
 
+  # Wall seconds at 0001-01-01T00:00:00 — the floor below which no
+  # tzdata rule exists (local mean time era) and below which Tzdata's
+  # internals crash on OTP ≤ 28 (`:calendar.last_day_of_the_month/2`
+  # rejects negative years). Pre-common-era instants skip the tzdata
+  # lookups entirely.
+  @gregorian_seconds_year_1 :calendar.datetime_to_gregorian_seconds({{1, 1, 1}, {0, 0, 0}})
+
   defp check_zone_offset(time, calendar, zone_id, stated) do
     wall = wall_seconds(time, Keyword.get(time, :year), calendar)
 
+    if wall < @gregorian_seconds_year_1 do
+      # Pre-common-era: tzdata has no rules to confirm or refute the
+      # stated offset, so accept it rather than crash inside Tzdata.
+      :ok
+    else
+      do_check_zone_offset(wall, zone_id, stated)
+    end
+  end
+
+  defp do_check_zone_offset(wall, zone_id, stated) do
     offsets =
       case Tzdata.periods_for_time(zone_id, wall, :wall) do
         [] -> []
@@ -462,6 +487,15 @@ defmodule Tempo.Compare do
   #    directly.
   # 3. A `shift` keyword list (legacy-style) — convert to seconds.
   # 4. No info → 0 (treat as UTC).
+  # Pre-common-era wall instants precede every tzdata rule (and crash
+  # Tzdata's internals on OTP ≤ 28) — local-mean-time era, so treat as
+  # UTC exactly like the no-info fallback below.
+  defp resolve_offset_seconds(%{zone_id: zone_id}, _shift, wall_seconds)
+       when is_binary(zone_id) and zone_id != "" and
+              wall_seconds < @gregorian_seconds_year_1 do
+    0
+  end
+
   defp resolve_offset_seconds(%{zone_id: zone_id} = extended, shift, wall_seconds)
        when is_binary(zone_id) and zone_id != "" do
     case Tzdata.periods_for_time(zone_id, wall_seconds, :wall) do

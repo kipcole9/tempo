@@ -239,4 +239,4 @@ Either [`:tzdata`](https://hex.pm/packages/tzdata) or [`:tz`](https://hex.pm/pac
 
 ## Licence
 
-See [LICENSE.md](https://github.com/kipcole9/tempo/blob/v0.19.0/LICENSE.md). Copyright © Kip Cole.
+See [LICENSE.md](https://github.com/kipcole9/tempo/blob/v0.19.1/LICENSE.md). Copyright © Kip Cole.

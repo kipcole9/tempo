@@ -103,6 +103,7 @@ defmodule Tempo do
 
   """
 
+  alias Calendar.ISO
   alias Tempo.Clock
   alias Tempo.Compare
   alias Tempo.ConversionError
@@ -2532,7 +2533,7 @@ defmodule Tempo do
     utc_seconds = Compare.to_utc_seconds(tempo)
 
     {{year, month, day}, {hour, minute, second}} =
-      :calendar.gregorian_seconds_to_datetime(utc_seconds)
+      seconds_to_datetime(utc_seconds)
 
     {:ok,
      %__MODULE__{
@@ -2553,13 +2554,13 @@ defmodule Tempo do
   defp do_shift_zone(%Tempo{calendar: calendar} = tempo, target_zone) do
     utc_seconds = Compare.to_utc_seconds(tempo)
 
-    case Tzdata.periods_for_time(target_zone, utc_seconds, :utc) do
+    case zone_periods_at_utc(target_zone, utc_seconds) do
       [period | _] ->
         offset_seconds = period.utc_off + period.std_off
         wall_seconds = utc_seconds + offset_seconds
 
         {{year, month, day}, {hour, minute, second}} =
-          :calendar.gregorian_seconds_to_datetime(wall_seconds)
+          seconds_to_datetime(wall_seconds)
 
         {:ok,
          %__MODULE__{
@@ -2584,6 +2585,34 @@ defmodule Tempo do
       [] ->
         {:error, UnknownZoneError.exception(zone_id: target_zone)}
     end
+  end
+
+  # Seconds-on-the-gregorian-line back to `{{y, m, d}, {h, mi, s}}`.
+  # `Calendar.ISO.date_from_iso_days/1` shares Erlang's epoch
+  # (0000-01-01 = day 0) but, unlike OTP ≤ 28's
+  # `:calendar.gregorian_seconds_to_datetime/1`, handles negative
+  # (pre-common-era) values on every OTP.
+  defp seconds_to_datetime(seconds) do
+    days = Integer.floor_div(seconds, 86_400)
+    time_of_day = Integer.mod(seconds, 86_400)
+    {year, month, day} = ISO.date_from_iso_days(days)
+
+    {{year, month, day},
+     {div(time_of_day, 3_600), time_of_day |> rem(3_600) |> div(60), rem(time_of_day, 60)}}
+  end
+
+  # Pre-common-era instants precede every tzdata rule (and crash
+  # Tzdata's internals on OTP ≤ 28) — local-mean-time era, so present
+  # the zone as a single zero-offset period.
+  @gregorian_seconds_year_1 :calendar.datetime_to_gregorian_seconds({{1, 1, 1}, {0, 0, 0}})
+
+  defp zone_periods_at_utc(_zone, utc_seconds)
+       when utc_seconds < @gregorian_seconds_year_1 do
+    [%{utc_off: 0, std_off: 0}]
+  end
+
+  defp zone_periods_at_utc(zone, utc_seconds) do
+    Tzdata.periods_for_time(zone, utc_seconds, :utc)
   end
 
   ## ---------------------------------------------------------
