@@ -1943,6 +1943,16 @@ defmodule Tempo do
     {:ok, time}
   end
 
+  # `:microsecond` is deliberately absent from the unit-successor chain
+  # (a second is never enumerated into its million microseconds), so the
+  # generic walk below cannot reach it. Extension is still well-defined:
+  # the start-of-unit minimum is zero microseconds, declared at full
+  # (6-digit) precision — the same precision `Tempo.Math` uses when
+  # sub-second arithmetic introduces a fraction onto a whole second.
+  defp fill_to_resolution(time, :second, :microsecond, _calendar) do
+    {:ok, time ++ [microsecond: {0, 6}]}
+  end
+
   defp fill_to_resolution(time, current_unit, target_unit, calendar) do
     case Unit.implicit_enumerator(current_unit, calendar) do
       nil ->

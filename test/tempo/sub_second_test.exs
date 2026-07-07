@@ -12,6 +12,7 @@ defmodule Tempo.SubSecondTest do
 
   alias Tempo.Compare
   alias Tempo.Interval
+  alias Tempo.IntervalSet
   alias Tempo.Math
 
   defp time(iso) do
@@ -71,6 +72,18 @@ defmodule Tempo.SubSecondTest do
       assert Tempo.resolution(~o"2026Y6M15DT10H30M45.123S") == {:microsecond, 3}
       assert Tempo.resolution(~o"2026Y6M15DT10H30M45.12S") == {:microsecond, 2}
       assert Tempo.resolution(~o"2026Y6M15DT10H30M45.000123S") == {:microsecond, 6}
+    end
+
+    test "extend_resolution/2 extends a whole second to zero microseconds" do
+      extended = Tempo.extend_resolution(~o"2026Y6M15DT10H30M45S", :microsecond)
+      assert extended.time[:microsecond] == {0, 6}
+      assert Tempo.resolution(extended) == {:microsecond, 6}
+    end
+
+    test "extend_resolution/2 walks through the second on the way to microsecond" do
+      extended = Tempo.extend_resolution(~o"2026Y6M15DT10H30M", :microsecond)
+      assert extended.time[:second] == 0
+      assert extended.time[:microsecond] == {0, 6}
     end
   end
 
@@ -132,6 +145,84 @@ defmodule Tempo.SubSecondTest do
       utc = Tempo.from_iso8601!("2026-06-15T10:30:45.100+00:00")
       syd = Tempo.from_iso8601!("2026-06-15T20:30:45.200+10:00")
       assert Compare.compare_endpoints(utc, syd) == :earlier
+    end
+  end
+
+  describe "set operations across mixed sub-second resolution" do
+    # Regression: a `from_elixir/1` value carrying Elixir's
+    # `{value, precision}` microsecond tuple, used in a set operation
+    # against a coarser operand, crashed `compare_endpoints/2` —
+    # aligning the coarser endpoints to `:microsecond` had no unit
+    # path and the resulting error tuple leaked into the sweep.
+    defp work_day do
+      Tempo.from_iso8601!("2026-12-01T08:00[Europe/Helsinki]/2026-12-01T16:00[Europe/Helsinki]")
+    end
+
+    defp sub_second_shift do
+      {:ok, interval} =
+        Interval.new(
+          from: Tempo.from_elixir(helsinki(~T[08:56:20.589187])),
+          to: Tempo.from_elixir(helsinki(~T[15:56:20.589187]))
+        )
+
+      interval
+    end
+
+    defp helsinki(time) do
+      DateTime.new!(~D[2026-12-01], time, "Europe/Helsinki", Tzdata.TimeZoneDatabase)
+    end
+
+    test "intersection keeps the sub-second endpoints without truncation" do
+      {:ok, overlap} = Tempo.intersection(work_day(), sub_second_shift())
+
+      [only] = IntervalSet.to_list(overlap)
+      assert only.from.time[:microsecond] == {589_187, 6}
+      assert only.to.time[:microsecond] == {589_187, 6}
+    end
+
+    test "difference aligns the coarser endpoints to microsecond resolution" do
+      {:ok, remaining} = Tempo.difference(work_day(), sub_second_shift())
+
+      [morning, evening] = IntervalSet.to_list(remaining)
+      assert morning.from.time[:microsecond] == {0, 6}
+      assert morning.to.time[:microsecond] == {589_187, 6}
+      assert evening.from.time[:microsecond] == {589_187, 6}
+      assert evening.to.time[:microsecond] == {0, 6}
+    end
+
+    test "union keeps both members" do
+      {:ok, union} = Tempo.union(work_day(), sub_second_shift())
+      assert length(IntervalSet.to_list(union)) == 2
+    end
+
+    test "member-preserving filters accept mixed sub-second operands" do
+      {:ok, overlapping} = Tempo.members_overlapping(work_day(), sub_second_shift())
+      assert length(IntervalSet.to_list(overlapping)) == 1
+
+      {:ok, outside} = Tempo.members_outside(work_day(), sub_second_shift())
+      assert IntervalSet.to_list(outside) == []
+
+      {:ok, exclusive} = Tempo.members_in_exactly_one(work_day(), sub_second_shift())
+      assert IntervalSet.to_list(exclusive) == []
+    end
+
+    test "Allen relation between a sub-second interval and a coarser window" do
+      assert Tempo.relation(sub_second_shift(), work_day()) == :during
+      assert Tempo.relation(work_day(), sub_second_shift()) == :contains
+    end
+
+    test "endpoint comparison between a from_elixir value and a coarser value" do
+      micro = Tempo.from_elixir(helsinki(~T[08:56:20.589187]))
+
+      assert Compare.compare_endpoints(
+               micro,
+               Tempo.from_iso8601!("2026-12-01T09:00[Europe/Helsinki]")
+             ) == :earlier
+
+      assert Compare.compare_endpoints(
+               micro,
+               Tempo.from_iso8601!("2026-12-01T08:00[Europe/Helsinki]")
+             ) == :later
     end
   end
 

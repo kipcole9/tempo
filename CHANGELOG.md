@@ -6,6 +6,8 @@
 
 * Set operations between a week-axis value and a month/day-axis value (e.g. `Tempo.intersection(~o"2026Y1W", ~o"2026-01-03")`) no longer raise `FunctionClauseError` — `align/3` canonicalises week-axis endpoints to month-axis calendar dates before the sweep. `Tempo.select/2` with a day-of-week selector over a week-axis base (e.g. `Tempo.select(~o"2026Y{1..13}W", Tempo.weekend(:US))`) now returns the matching days instead of a silently empty set.
 
+* Set operations mixing a sub-second operand with a second-or-coarser operand — e.g. an interval built with `Tempo.from_elixir/1` from a `DateTime` carrying microseconds, intersected with a minute-resolution window — no longer fail; `Tempo.extend_resolution/2` now extends a whole second to `:microsecond` by filling with zero microseconds at full precision.
+
 ## [v0.18.1] — 2026-07-07
 
 ### Fixed
