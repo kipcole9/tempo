@@ -111,7 +111,7 @@ defmodule Tempo.Select do
           | [Tempo.t() | Interval.t()]
           | (base() -> selector())
 
-  @type base :: Tempo.t() | Interval.t() | IntervalSet.t()
+  @type base :: Tempo.t() | Interval.t() | IntervalSet.t() | Tempo.Set.t()
 
   # Time units from coarsest to finest. Used for constraint-vs-base
   # resolution comparison, merged-keyword-list canonical ordering,
@@ -151,6 +151,7 @@ defmodule Tempo.Select do
   | Season (codes 25–32) | `~o"2026Y26M"` | Interval bounded by equinox/solstice |
   | Month/day range in a slot | `~o"2026Y{6..8}M"` | IntervalSet of three members |
   | Stepped range | `~o"2026Y{1..-1//3}M"` | IntervalSet of disjoint members |
+  | Set of intervals | `~o"{2026-01-05/2026-01-12,2026-02-02/2026-02-09}"` | IntervalSet (flat-mapped) |
   | Archaeological mask | `~o"156X"` | decade-long Interval |
 
   Example with a quarter base:
@@ -221,6 +222,18 @@ defmodule Tempo.Select do
     case Tempo.to_interval(tempo) do
       {:ok, %Interval{} = iv} -> select(resolve_grouped_endpoints(iv), selector)
       {:ok, %IntervalSet{} = set} -> select(set, selector)
+      {:error, _} = err -> err
+    end
+  end
+
+  # ---- Tempo.Set base (e.g. a set-of-intervals sigil): materialise,
+  # recurse. Keeps the moduledoc's promise that any Tempo value which
+  # materialises to an Interval or IntervalSet can be a base.
+
+  def select(%Tempo.Set{} = set, selector) do
+    case Tempo.to_interval(set) do
+      {:ok, %Interval{} = iv} -> select(resolve_grouped_endpoints(iv), selector)
+      {:ok, %IntervalSet{} = materialised} -> select(materialised, selector)
       {:error, _} = err -> err
     end
   end

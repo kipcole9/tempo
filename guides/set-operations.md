@@ -273,7 +273,7 @@ Once you hold a result set, three different "how much" questions each have their
 
 * **How many sub-points** (days, hours, … at the members' resolution)? — `Enum.count/1`. The `Enumerable` protocol walks *into* each member and yields its stepped points, so this totals across every window, not the number of windows.
 
-* **How long** (elapsed time)? — `Tempo.duration/1` on a member, or `Tempo.at_least?/2` to keep only windows of a given length. Don't count sub-points for this — across a DST boundary the walk skips the spring-forward hour and emits the fall-back hour twice, so `Enum.count` deliberately diverges from elapsed time.
+* **How long** (elapsed time)? — `Tempo.duration/1` on the whole set (the members' total) or on a member, or `Tempo.at_least?/2` to keep only windows of a given length. Don't count sub-points for this — across a DST boundary the walk skips the spring-forward hour and emits the fall-back hour twice, so `Enum.count` deliberately diverges from elapsed time.
 
 ```elixir
 iex> {:ok, free} = Tempo.union(~o"2026Y1M", ~o"2026Y3M")

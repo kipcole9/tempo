@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## [Unreleased]
+
+### Added
+
+* `Tempo.IntervalSet.duration/1` — the total covered duration of a set, the sum of every member's UTC-measured length. `Tempo.duration/1` now accepts an `IntervalSet` as well as an `Interval`.
+
+* `Tempo.select/2` now accepts a `Tempo.Set` base (e.g. a `~o"{2026-01-05/2026-01-12,…}"` set-of-intervals sigil), materialising it and applying the selector to every member.
 
 ### Fixed
 

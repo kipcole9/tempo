@@ -625,4 +625,25 @@ defmodule Tempo.Select.Test do
                {2026, 2, 16}
     end
   end
+
+  describe "Tempo.Set base" do
+    test "a set-of-intervals sigil materialises and flat-maps the selector" do
+      # Two one-week on-call stints; the weekend days within them.
+      rota = ~o"{2025-12-29/2026-01-05,2026-01-19/2026-01-26}"
+
+      {:ok, weekend_days} = Tempo.select(rota, Tempo.weekend(:US))
+
+      days =
+        weekend_days
+        |> IntervalSet.to_list()
+        |> Enum.map(&{&1.from.time[:month], &1.from.time[:day]})
+
+      # Sat/Sun of 2026-W01 (Jan 3-4) and of 2026-W04 (Jan 24-25).
+      assert days == [{1, 3}, {1, 4}, {1, 24}, {1, 25}]
+    end
+
+    test "an unmaterialisable set returns {:error, _} rather than raising" do
+      assert {:error, _} = Tempo.select(~o"{2026-01-05/2026-01-12}", :nonsense)
+    end
+  end
 end

@@ -907,7 +907,110 @@ Tempo.IntervalSet.count(business_days) / 252
 
 The denominator is always 252, regardless of how many business days a given year actually contains — a fraction slightly above 1 for a calendar year is correct, not a bug. And because the holiday list is normative pricing data, pin a dated copy of the generated `.ics` rather than refreshing it from a live feed.
 
-### Every free minute in a month
+### Ramadan working hours — statutory hours across two calendars
+
+UAE labour law (Article 17 of Federal Decree-Law No. 33 of 2021) reduces the private-sector workday by two hours — from eight to six — for every day of Ramadan, for all employees. The payroll year is Gregorian; Ramadan is the ninth month of the Islamic calendar, and it drifts about eleven days earlier each Gregorian year. Computing statutory hours therefore means intersecting a Gregorian working year with an Islamic month — a set operation *across two calendars*:
+
+```elixir
+work_year = ~o"2026"
+ramadan   = ~o"1447-09[u-ca=islamic-civil]"
+
+standard_hours = 8
+ramadan_hours  = 6
+
+{:ok, workdays}         = Tempo.select(work_year, Tempo.workdays(:AE))
+{:ok, ramadan_workdays} = Tempo.members_overlapping(workdays, ramadan)
+{:ok, normal_workdays}  = Tempo.members_outside(workdays, ramadan)
+
+Tempo.IntervalSet.count(normal_workdays) * standard_hours +
+  Tempo.IntervalSet.count(ramadan_workdays) * ramadan_hours
+#=> 2044   (239 normal workdays × 8h + 22 Ramadan workdays × 6h; 44 hours reduced)
+```
+
+> The **workdays** of 2026 are the working year narrowed to the UAE's Monday–Friday. The **Ramadan workdays** are the ones **overlapping** Ramadan 1447; the **normal workdays** are the ones **outside** it. **Statutory hours** are eight for each normal workday and six for each Ramadan workday.
+
+Three things are doing quiet work here. `Tempo.workdays(:AE)` knows from CLDR that the UAE moved its weekend to Saturday–Sunday in 2022 — no hand-coded weekday list. The intersection of a Gregorian year with `~o"1447-09[u-ca=islamic-civil]"` converts calendars internally — Ramadan 1447 lands on 2026-02-18 through 2026-03-19 without either value being manually converted. And the two member-preserving filters partition the workdays exactly, so the hours arithmetic cannot double-count a day.
+
+Next year the same pipeline needs only new bindings — `~o"2027"` and `~o"1448-09[u-ca=islamic-civil]"` — and Ramadan moves ten days earlier (2027-02-08 through 2027-03-09) with nothing else changing.
+
+Two production caveats. The tabular `islamic-civil` calendar is a planning approximation: the legal month follows the moon-sighting announcement, so for an actual payroll run pin the announced start and end dates (the same advice as pinning the ANBIMA `.ics` above). And public holidays — Eid al-Fitr immediately follows Ramadan — subtract with `Tempo.members_outside/2` exactly as in the Business/252 recipe.
+
+### The 25-hour shift — DST and payroll
+
+A night-shift worker in New York works 21:00–05:00. On the night the clocks fall back (the first Sunday of November) the 01:00–02:00 hour happens twice, and US wage law pays non-exempt workers for hours *actually worked* — nine hours, not eight. On the spring-forward night the 02:00 hour never exists, and the same shift is seven. Naive `end - start` wall-clock arithmetic gets both wrong; Tempo's hour walk gets both right because the timezone database drives the enumeration:
+
+```elixir
+normal      = ~o"2026-10-24T21[America/New_York]/2026-10-25T05[America/New_York]"
+fall_back   = ~o"2026-10-31T21[America/New_York]/2026-11-01T05[America/New_York]"
+spring_fwd  = ~o"2026-03-07T21[America/New_York]/2026-03-08T05[America/New_York]"
+
+Enum.count(normal)     #=> 8
+Enum.count(fall_back)  #=> 9   (01:00 EDT and 01:00 EST both worked — both paid)
+Enum.count(spring_fwd) #=> 7   (02:00 never happened)
+```
+
+> The **shift** is an explicit hour-resolution interval in the worker's zone. **Counting** its hours walks the wall clock the worker actually lived: the fall-back night contains the 01:00 hour **twice**, the spring-forward night skips 02:00 entirely.
+
+The two occurrences of the repeated hour are distinct values, disambiguated by their UTC offset exactly as RFC 9557 prescribes — the first is `~o"2026Y11M1DT1HZ-4H[America/New_York]"` (EDT), the second `~o"2026Y11M1DT1HZ-5H[America/New_York]"` (EST) — so a payroll record built from the walk round-trips each hour to the correct instant.
+
+### Is the on-call rotation fair?
+
+Three engineers rotate weekly on-call, handing over each Monday, thirteen weeks a quarter. By shift count the rota looks nearly fair — 5 / 4 / 4 weeks. But weekends are what on-call actually costs, and each rotation is written as one set-of-intervals sigil, so the question is one `select` per person:
+
+```elixir
+alice = ~o"{2025-12-29/2026-01-05,2026-01-19/2026-01-26,2026-02-09/2026-02-16,2026-03-02/2026-03-09,2026-03-23/2026-03-30}"
+bob   = ~o"{2026-01-05/2026-01-12,2026-01-26/2026-02-02,2026-02-16/2026-02-23,2026-03-09/2026-03-16}"
+carol = ~o"{2026-01-12/2026-01-19,2026-02-02/2026-02-09,2026-02-23/2026-03-02,2026-03-16/2026-03-23}"
+
+for {name, rota} <- [alice: alice, bob: bob, carol: carol] do
+  {:ok, weekend_days} = Tempo.select(rota, Tempo.weekend(:US))
+  {name, Tempo.IntervalSet.count(weekend_days)}
+end
+#=> [alice: 10, bob: 8, carol: 8]   (240 vs 192 vs 192 weekend hours)
+```
+
+> Each engineer's **rota** is the set of weeks they carry the pager. Their **weekend burden** is the rota's days **selected** down to Saturdays and Sundays. Alice's five weekends against four make her weekend load **25% heavier** — from a rotation that looked fair by shift count.
+
+The mechanics: a `{a/b,c/d,…}` sigil is a set of explicit intervals; `Tempo.select/2` materialises it and applies the selector to every member, so "the weekend days of Alice's five separate weeks" needs no loop. The counts convert to hours because each selected member is exactly one day.
+
+### Daylight-limited work — Tempo + Astro
+
+Outdoor crews — surveyors, riggers, film units — can only use site hours that are also daylight. How much workable time does a Helsinki crew have in December 2026, against the same crew in Lisbon? Sunrise and sunset come from the [Astro](https://hex.pm/packages/astro) ephemeris; the rest is set algebra:
+
+```elixir
+workable_daylight = fn december, territory, location, zone ->
+  {:ok, workdays} = Tempo.select(december, Tempo.workdays(territory))
+
+  for day <- workdays do
+    {:ok, date}    = Tempo.to_date(day)
+    {:ok, sunrise} = Astro.sunrise(location, date, time_zone: zone)
+    {:ok, sunset}  = Astro.sunset(location, date, time_zone: zone)
+
+    {:ok, daylight} =
+      Tempo.Interval.new(
+        from: Tempo.from_elixir(DateTime.truncate(sunrise, :second)),
+        to: Tempo.from_elixir(DateTime.truncate(sunset, :second))
+      )
+
+    {:ok, site_hours} = Tempo.select(day, 8..15)
+    {:ok, workable}   = Tempo.intersection(site_hours, daylight)
+    Tempo.duration(workable)
+  end
+end
+
+{:ok, helsinki_december} = Tempo.from_iso8601("2026-12[Europe/Helsinki]")
+{:ok, lisbon_december}   = Tempo.from_iso8601("2026-12[Europe/Lisbon]")
+
+workable_daylight.(helsinki_december, :FI, {24.9384, 60.1699}, "Europe/Helsinki")
+# totals 137.8 hours across 23 workdays
+
+workable_daylight.(lisbon_december, :PT, {-9.1393, 38.7223}, "Europe/Lisbon")
+# totals 184.0 hours — every site hour is daylit
+```
+
+> The **workdays** of a zoned December, each drilled to its 08:00–16:00 **site hours**, **intersected** with that day's **daylight** from the ephemeris, and **totalled**. Lisbon crews get their full 184 site-hours; Helsinki crews get 137.8 — a **34% December capacity gap** from geography alone.
+
+Three details matter. The December value carries its zone (`~o"2026-12[Europe/Helsinki]"`), and `select` propagates it down to the hour members — without it, naive site hours would compare as UTC and shift the overlap by two hours. `Astro.sunrise/3` needs `time_zone:` named explicitly unless `tz_world` is a dependency to resolve zones from coordinates. And the `DateTime.truncate(:second)` keeps sunrise at whole-second resolution, which is as precise as any site schedule needs.
 
 ```elixir
 {:ok, schedule} = Tempo.ICal.from_ical(ics, bound: ~o"2026-06")

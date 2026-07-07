@@ -35,8 +35,9 @@ defmodule Tempo.IntervalSet do
     *into* each member and yields its stepped points, so this totals
     across every window, not the number of windows.
 
-  * **How long** (elapsed time)? — `Tempo.duration/1` on a member, or
-    `Tempo.at_least?/2` to keep only windows of a given length. Never
+  * **How long** (elapsed time)? — `Tempo.duration/1` on the whole
+    set (the members' total) or on a member, or `Tempo.at_least?/2`
+    to keep only windows of a given length. Never
     count sub-points for this: across a DST boundary the walk skips the
     spring-forward hour and emits the fall-back hour twice, so
     `Enum.count` deliberately diverges from elapsed time.
@@ -196,6 +197,44 @@ defmodule Tempo.IntervalSet do
   """
   @spec count(t()) :: non_neg_integer()
   def count(%__MODULE__{intervals: intervals}), do: length(intervals)
+
+  @doc """
+  Total covered duration of the set — the sum of every member's
+  length.
+
+  Each member's length is measured on the UTC time line (the same
+  measurement as `Tempo.Interval.duration/1`), so DST transitions
+  inside a member are accounted for. Members are disjoint by
+  construction when produced by the set operations; if the set was
+  built with overlapping members deliberately preserved, the overlap
+  is counted once per member.
+
+  ### Arguments
+
+  * `set` is a `t:t/0`.
+
+  ### Returns
+
+  * A `t:Tempo.Duration.t/0` holding the total in seconds. The empty
+    set has a duration of zero seconds.
+
+  ### Examples
+
+      iex> {:ok, free} = Tempo.union(~o"2026-06-01T09/2026-06-01T12", ~o"2026-06-01T14/2026-06-01T17")
+      iex> Tempo.IntervalSet.duration(free)
+      ~o"PT21600S"
+
+  """
+  @spec duration(t()) :: Duration.t()
+  def duration(%__MODULE__{intervals: intervals}) do
+    total =
+      Enum.reduce(intervals, 0, fn interval, acc ->
+        %Duration{time: [second: seconds]} = Interval.duration(interval)
+        acc + seconds
+      end)
+
+    %Duration{time: [second: total]}
+  end
 
   @doc """
   Cut each member into consecutive fixed-length bookable slots.
