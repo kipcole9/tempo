@@ -576,22 +576,52 @@ defmodule Tempo.Operations do
         when operand: Tempo.t() | Interval.t() | IntervalSet.t() | Tempo.Set.t()
   def members_overlapping(a, b, opts \\ []) do
     with {:ok, {a_set, b_set}} <- align(a, b, opts) do
-      result =
-        Enum.filter(a_set.intervals, fn a_int ->
-          Enum.any?(b_set.intervals, &intervals_overlap?(a_int, &1))
-        end)
-
+      result = sweep_members(a_set.intervals, b_set.intervals, :overlapping)
       IntervalSet.new(result, metadata: a_set.metadata)
     end
   end
 
-  # Two intervals overlap iff they share at least one instant.
-  # Under Allen's algebra, the non-overlapping relations are
-  # `:precedes`, `:preceded_by`, `:meets`, `:met_by` — the last
-  # two represent boundary-touching without instant overlap
-  # under half-open semantics.
-  defp intervals_overlap?(%Interval{} = a, %Interval{} = b) do
-    Interval.relation(a, b) not in [:precedes, :preceded_by, :meets, :met_by]
+  # Member-preserving overlap scan over two from-sorted member lists
+  # (the `IntervalSet` constructor sorts unconditionally, and `align/3`
+  # only applies per-member monotone transforms, so both lists arrive
+  # sorted). O(len(a) + len(b)): each step either classifies and
+  # advances the leading A member, or permanently discards the leading
+  # B member — a B that ends at-or-before the current A starts can
+  # never overlap any later A member either, because A is from-sorted.
+  #
+  # Two half-open intervals share an instant iff `a.from < b.to` and
+  # `b.from < a.to` — boundary touches (`:meets`/`:met_by`) are not
+  # overlap. `mode` selects which A members survive: `:overlapping`
+  # keeps the sharers, `:outside` keeps the rest.
+
+  defp sweep_members([], _b_list, _mode), do: []
+  defp sweep_members(a_list, [], :outside), do: a_list
+  defp sweep_members(_a_list, [], :overlapping), do: []
+
+  defp sweep_members([a | a_rest] = a_list, [b | b_rest] = b_list, mode) do
+    cond do
+      # B ends at-or-before A starts — discard B for good.
+      Compare.compare_endpoints(b.to, a.from) != :later ->
+        sweep_members(a_list, b_rest, mode)
+
+      # B ends after A starts (from above) and starts before A ends:
+      # they share an instant.
+      Compare.compare_endpoints(b.from, a.to) == :earlier ->
+        emit_member(a, mode == :overlapping, a_rest, b_list, mode)
+
+      # B — and, B being from-sorted, every later B — starts at-or-
+      # after A ends: this A overlaps nothing.
+      true ->
+        emit_member(a, mode == :outside, a_rest, b_list, mode)
+    end
+  end
+
+  defp emit_member(a, true, a_rest, b_list, mode) do
+    [a | sweep_members(a_rest, b_list, mode)]
+  end
+
+  defp emit_member(_a, false, a_rest, b_list, mode) do
+    sweep_members(a_rest, b_list, mode)
   end
 
   # Sweep-line instant-level intersection. Each step finds the
@@ -732,11 +762,7 @@ defmodule Tempo.Operations do
         when operand: Tempo.t() | Interval.t() | IntervalSet.t() | Tempo.Set.t()
   def members_outside(a, b, opts \\ []) do
     with {:ok, {a_set, b_set}} <- align(a, b, opts) do
-      result =
-        Enum.reject(a_set.intervals, fn a_int ->
-          Enum.any?(b_set.intervals, &intervals_overlap?(a_int, &1))
-        end)
-
+      result = sweep_members(a_set.intervals, b_set.intervals, :outside)
       IntervalSet.new(result, metadata: a_set.metadata)
     end
   end

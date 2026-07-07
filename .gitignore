@@ -43,3 +43,8 @@ ical_apple_example_export.ics
 
 # Copyrighted reference paper — not distributed
 /papers/Levy-et-al-ChronoNetworks-JAS.pdf
+
+# ANBIMA holiday data (downloaded source + generated iCalendar) —
+# normative pricing data users pin locally per the cookbook; not distributed
+/scripts/feriados_anbima.ics
+/scripts/feriados_nacionais.xls

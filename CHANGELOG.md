@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.18.1] — 2026-07-07
+
+### Fixed
+
+* `Tempo.members_outside/3` and `Tempo.members_overlapping/3` now scan the two member lists with an `O(n + m)` merge-sweep instead of comparing every pair — the Business/252 cookbook recipe (262 workdays against 1,264 ANBIMA holidays) drops from ~675 ms to ~2 ms. `Tempo.members_in_exactly_one/3` inherits the same speedup.
+
 ## [v0.18.0] — 2026-07-07
 
 ### Changed

@@ -1,5 +1,6 @@
 defmodule Tempo.Operations.Test do
   use ExUnit.Case, async: true
+  use ExUnitProperties
   import Tempo.Sigils
 
   alias Tempo.Compare
@@ -771,5 +772,79 @@ defmodule Tempo.Operations.Test do
     |> IntervalSet.to_list()
     |> Enum.map(&{Compare.to_utc_seconds(&1.from), Compare.to_utc_seconds(&1.to)})
     |> Enum.sort()
+  end
+
+  # 7. Member-preserving sweep vs the naive quadratic reference.
+  #
+  # `members_overlapping/2` and `members_outside/2` are implemented as
+  # an O(n + m) merge-sweep over the from-sorted member lists. These
+  # properties pin the sweep to the definitionally-obvious O(n × m)
+  # reference (every A member against every B member via the full
+  # Allen relation), over sets whose members overlap, nest, touch,
+  # and duplicate — the shapes that stress the sweep's sortedness
+  # assumptions.
+
+  describe "member-preserving filters agree with the quadratic reference" do
+    property "members_overlapping and members_outside partition A by the reference" do
+      check all(
+              a_specs <- interval_spec_list(),
+              b_specs <- interval_spec_list()
+            ) do
+        a_members = Enum.map(a_specs, &day_interval/1)
+        b_members = Enum.map(b_specs, &day_interval/1)
+
+        {:ok, a_set} = IntervalSet.new(a_members)
+        {:ok, b_set} = IntervalSet.new(b_members)
+
+        {:ok, overlapping} = Operations.members_overlapping(a_set, b_set)
+        {:ok, outside} = Operations.members_outside(a_set, b_set)
+
+        expected_overlapping = naive_filter(a_set, b_set, :overlapping)
+        expected_outside = naive_filter(a_set, b_set, :outside)
+
+        assert canonical(overlapping) == canonical_list(expected_overlapping)
+        assert canonical(outside) == canonical_list(expected_outside)
+
+        # The two filters partition A's members.
+        assert IntervalSet.count(overlapping) + IntervalSet.count(outside) ==
+                 IntervalSet.count(a_set)
+      end
+    end
+  end
+
+  # A member spec is `{start_day_offset, length_in_days}` from a fixed
+  # base date; small offsets force plenty of overlap/nesting/touching.
+  defp interval_spec_list do
+    StreamData.list_of(
+      StreamData.tuple({StreamData.integer(0..60), StreamData.integer(1..14)}),
+      max_length: 12
+    )
+  end
+
+  defp day_interval({offset, length}) do
+    from = Date.add(~D[2024-01-01], offset)
+    to = Date.add(from, length)
+    Tempo.from_iso8601!("#{Date.to_iso8601(from)}/#{Date.to_iso8601(to)}")
+  end
+
+  # The pre-sweep implementation, verbatim: keep/drop each A member by
+  # scanning every B member with the full 13-relation classifier.
+  defp naive_filter(a_set, b_set, mode) do
+    overlaps? = fn a_int ->
+      Enum.any?(b_set.intervals, fn b_int ->
+        Interval.relation(a_int, b_int) not in [:precedes, :preceded_by, :meets, :met_by]
+      end)
+    end
+
+    case mode do
+      :overlapping -> Enum.filter(a_set.intervals, overlaps?)
+      :outside -> Enum.reject(a_set.intervals, overlaps?)
+    end
+  end
+
+  defp canonical(%IntervalSet{intervals: intervals}), do: canonical_list(intervals)
+
+  defp canonical_list(intervals) do
+    Enum.map(intervals, &{Compare.to_utc_seconds(&1.from), Compare.to_utc_seconds(&1.to)})
   end
 end
