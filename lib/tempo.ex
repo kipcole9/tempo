@@ -670,12 +670,41 @@ defmodule Tempo do
          {:ok, effective_calendar} <- resolve_calendar(requested_calendar, extended),
          {:ok, parsed} <- Parser.parse(tokens, effective_calendar),
          {:ok, expanded} <- Group.expand_groups(parsed),
+         expanded = maybe_resolve_endpoint_calendars(expanded, requested_calendar),
          {:ok, validated} <- Validation.validate(expanded, effective_calendar),
          attached = attach_extended(validated, extended),
          :ok <- Validation.validate_zone_existence(attached) do
       {:ok, attached}
     end
   end
+
+  # A per-endpoint IXDTF `u-ca` suffix (`1447Y9M1D[u-ca=islamic-civil]/…`,
+  # the form `to_iso8601/1` emits for non-Gregorian interval endpoints)
+  # determines that endpoint's calendar the same way a top-level suffix
+  # does for a whole value — otherwise the endpoint's units would be
+  # interpreted in the default calendar while its tag claims another,
+  # breaking the serialise/re-parse round trip. Applies only when the
+  # caller didn't choose a calendar explicitly: an explicit calendar
+  # always wins and `u-ca` stays metadata-only.
+  defp maybe_resolve_endpoint_calendars(%Tempo.Interval{} = interval, :from_ixdtf_or_default) do
+    %{
+      interval
+      | from: resolve_endpoint_calendar(interval.from),
+        to: resolve_endpoint_calendar(interval.to)
+    }
+  end
+
+  defp maybe_resolve_endpoint_calendars(other, _requested_calendar), do: other
+
+  defp resolve_endpoint_calendar(%__MODULE__{extended: %{calendar: type}} = endpoint)
+       when is_atom(type) and not is_nil(type) do
+    case Calendrical.calendar_from_cldr_calendar_type(type) do
+      {:ok, calendar} -> %{endpoint | calendar: calendar}
+      {:error, _reason} -> endpoint
+    end
+  end
+
+  defp resolve_endpoint_calendar(endpoint), do: endpoint
 
   # Resolve the effective calendar for a parse.
   #
@@ -3978,10 +4007,14 @@ defmodule Tempo do
   defdelegate compose(relation1, relation2), to: Tempo.Interval
 
   @doc """
-  Return the interval's length as a `%Tempo.Duration{}`, or
-  `:infinity` for unbounded intervals. See `Tempo.Interval.duration/1`.
+  Return the length of an interval — or the total covered length of
+  an interval set — as a `%Tempo.Duration{}`.
+
+  Unbounded intervals return `:infinity`. See
+  `Tempo.Interval.duration/1` and `Tempo.IntervalSet.duration/1`.
   """
-  defdelegate duration(interval), to: Tempo.Interval
+  def duration(%IntervalSet{} = set), do: IntervalSet.duration(set)
+  def duration(interval), do: Interval.duration(interval)
 
   @doc """
   `true` when the interval is at least as long as the given

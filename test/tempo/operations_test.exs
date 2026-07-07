@@ -657,6 +657,78 @@ defmodule Tempo.Operations.Test do
     end
   end
 
+  describe "cross-calendar round-trip fidelity" do
+    # Every cross-calendar set-op result must serialise and re-parse
+    # back to the same instants: the IXDTF `u-ca` tag on each endpoint
+    # has to stay in step with the endpoint's (converted) units.
+    defp assert_round_trips(%IntervalSet{} = set) do
+      for interval <- IntervalSet.to_list(set) do
+        for endpoint <- [interval.from, interval.to] do
+          assert {:ok, reparsed} = Tempo.from_iso8601(Tempo.to_iso8601(endpoint))
+          assert Tempo.relation(endpoint, reparsed) == :equals
+        end
+
+        assert {:ok, reparsed} = Tempo.from_iso8601(Tempo.to_iso8601(interval))
+        assert Tempo.relation(interval, reparsed) == :equals
+      end
+    end
+
+    test "conversion to Gregorian drops the source-calendar u-ca tag" do
+      {:ok, result} = Tempo.intersection(~o"2026", ~o"1447-09[u-ca=islamic-civil]")
+
+      [interval] = IntervalSet.to_list(result)
+      assert interval.from.calendar == Calendrical.Gregorian
+      assert interval.from.extended == nil
+      refute Tempo.to_iso8601(interval) =~ "u-ca"
+
+      assert_round_trips(result)
+    end
+
+    test "conversion to a non-Gregorian calendar tags converted endpoints with its u-ca" do
+      # Islamic-civil 1447 spans into Gregorian 2026, so the trimmed
+      # `from` endpoint comes from the converted (Gregorian) operand.
+      {:ok, result} = Tempo.intersection(~o"1447[u-ca=islamic-civil]", ~o"2026")
+
+      [interval] = IntervalSet.to_list(result)
+      assert interval.from.calendar == Calendrical.Islamic.Civil
+      assert interval.from.extended.calendar == :islamic_civil
+      assert Tempo.to_iso8601(interval.from) =~ "[u-ca=islamic-civil]"
+
+      assert_round_trips(result)
+    end
+
+    test "union, difference, and Hebrew intersection results all round-trip" do
+      {:ok, union} = Tempo.union(~o"1447-09[u-ca=islamic-civil]", ~o"2026-06")
+      {:ok, difference} = Tempo.difference(~o"2026", ~o"1447-09[u-ca=islamic-civil]")
+      {:ok, hebrew} = Tempo.intersection(~o"5786[u-ca=hebrew]", ~o"2026")
+
+      assert_round_trips(union)
+      assert_round_trips(difference)
+      assert_round_trips(hebrew)
+    end
+
+    test "per-endpoint u-ca suffixes determine each endpoint's calendar on re-parse" do
+      {:ok, interval} =
+        Tempo.from_iso8601("1447Y9M1D[u-ca=islamic-civil]/1447Y10M1D[u-ca=islamic-civil]")
+
+      assert interval.from.calendar == Calendrical.Islamic.Civil
+      assert interval.to.calendar == Calendrical.Islamic.Civil
+    end
+
+    test "an explicit calendar argument still wins over per-endpoint u-ca suffixes" do
+      {:ok, interval} =
+        Tempo.from_iso8601(
+          "1447Y9M1D[u-ca=islamic-civil]/1447Y10M1D[u-ca=islamic-civil]",
+          Calendrical.Gregorian
+        )
+
+      assert interval.from.calendar == Calendrical.Gregorian
+      assert interval.to.calendar == Calendrical.Gregorian
+      # The tag stays as metadata even though it doesn't drive parsing.
+      assert interval.from.extended.calendar == :islamic_civil
+    end
+  end
+
   describe "midnight-crossing non-anchored intervals" do
     test "intersection with single-day anchor — crossing materialises the pre-midnight portion" do
       {:ok, na} = Tempo.from_iso8601("T23:30/T01:00")

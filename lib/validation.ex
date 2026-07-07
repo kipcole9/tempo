@@ -43,8 +43,8 @@ defmodule Tempo.Validation do
   # accounted for.
 
   def validate(%Tempo.Interval{} = tempo, calendar) do
-    with {:ok, from} <- validate(tempo.from, calendar),
-         {:ok, to} <- validate(tempo.to, calendar),
+    with {:ok, from} <- validate(tempo.from, endpoint_calendar(tempo.from, calendar)),
+         {:ok, to} <- validate(tempo.to, endpoint_calendar(tempo.to, calendar)),
          {:ok, duration} <- validate(tempo.duration, calendar),
          :ok <- validate_endpoint_order(from, to) do
       {:ok, %{tempo | from: from, to: to, duration: duration}}
@@ -77,6 +77,16 @@ defmodule Tempo.Validation do
   def validate(:undefined, _calendar) do
     {:ok, :undefined}
   end
+
+  # An endpoint validates against its own calendar when it carries one —
+  # a per-endpoint IXDTF `u-ca` suffix can make one endpoint of an
+  # interval calendar-distinct from the other — falling back to the
+  # interval-level calendar otherwise.
+  defp endpoint_calendar(%Tempo{calendar: calendar}, _default) when not is_nil(calendar) do
+    calendar
+  end
+
+  defp endpoint_calendar(_endpoint, default), do: default
 
   # ISO 8601 expects an interval's end to follow its start, so reject
   # a genuinely inverted interval such as `2026/2025`. The check is

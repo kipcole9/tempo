@@ -8,6 +8,8 @@
 
 * Set operations mixing a sub-second operand with a second-or-coarser operand — e.g. an interval built with `Tempo.from_elixir/1` from a `DateTime` carrying microseconds, intersected with a minute-resolution window — no longer fail; `Tempo.extend_resolution/2` now extends a whole second to `:microsecond` by filling with zero microseconds at full precision.
 
+* Cross-calendar set operations now keep each converted endpoint's IXDTF `u-ca` tag in step with its converted units — dropped for a Gregorian target, set to the target's CLDR calendar type otherwise — so `to_iso8601/1` output re-parses to the same instants. `Tempo.from_iso8601/1` now also honours per-endpoint `u-ca` suffixes on interval endpoints (an explicit `:calendar` argument still wins).
+
 ## [v0.18.1] — 2026-07-07
 
 ### Fixed
