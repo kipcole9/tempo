@@ -11,7 +11,7 @@ This conceptual shift — *time as interval, not instant* — removes a surprisi
 ```elixir
 def deps do
   [
-    {:ex_tempo, "~> 0.16"},
+    {:ex_tempo, "~> 0.19"},
     # Optional but recommended - needed for iCalendar import
     {:ical, "~> 2.0"}
   ]
@@ -239,4 +239,4 @@ Either [`:tzdata`](https://hex.pm/packages/tzdata) or [`:tz`](https://hex.pm/pac
 
 ## Licence
 
-See [LICENSE.md](https://github.com/kipcole9/tempo/blob/v0.16.1/LICENSE.md). Copyright © Kip Cole.
+See [LICENSE.md](https://github.com/kipcole9/tempo/blob/v0.19.0/LICENSE.md). Copyright © Kip Cole.
