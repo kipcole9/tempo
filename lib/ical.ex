@@ -44,6 +44,22 @@ if Code.ensure_loaded?(ICal) do
     | per       | first `RRULE` on `event.rrule`, so we materialise |
     | `VEVENT`  | that one and silently ignore the rest.            |
 
+    ## Zoned, UTC, and floating times
+
+    A `DATE-TIME` value takes one of three RFC 5545 §3.3.5 forms, and
+    each maps to a faithful `%Tempo{}`:
+
+    * **UTC** (`20220615T100000Z`) → a zoned value with
+      `extended.zone_id: "Etc/UTC"`.
+    * **Zoned** (`TZID=Europe/Paris:20220615T100000`) → a zoned value
+      carrying that IANA zone.
+    * **Floating** (`20220615T100000`, no `Z` and no `TZID`) → a
+      genuinely zone-less value (`extended: nil`) — the same wall
+      clock in whatever zone the reader is in. `ical` 3.0 surfaces
+      floating times as `NaiveDateTime` (2.x coerced them to a zoned
+      `DateTime`); Tempo preserves the floating semantics rather than
+      inventing a zone. Tempo requires `ical ~> 3.0`.
+
     """
 
     alias Tempo.Compare

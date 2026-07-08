@@ -171,7 +171,7 @@ defmodule Tempo.MixProject do
       {:astro, "~> 2.3"},
       {:localize, "~> 0.44"},
       {:tzdata, "~> 1.1"},
-      {:ical, "~> 2.0", optional: true},
+      {:ical, "~> 2.0 or ~> 3.0", optional: true},
       {:ex_doc, "~> 0.38", only: [:dev, :test, :release], optional: true, runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},

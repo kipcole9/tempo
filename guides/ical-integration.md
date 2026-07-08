@@ -49,7 +49,7 @@ Every result is a standard `%Tempo.IntervalSet{}`. Event metadata from the sourc
 def deps do
   [
     {:tempo, "~> 0.2"},
-    {:ical, "~> 2.0"}
+    {:ical, "~> 3.0"}
   ]
 end
 ```
@@ -77,6 +77,7 @@ A `VEVENT` becomes a `%Tempo.Interval{}`:
 |---|---|
 | `DTSTART` (date) | `interval.from` at day resolution |
 | `DTSTART` (datetime) | `interval.from` at datetime resolution |
+| `DTSTART` (floating datetime, no `Z` or `TZID`) | `interval.from` zone-less (`extended: nil`) — RFC 5545 §3.3.5 floating time, preserved as-is rather than anchored to a zone |
 | `DTEND` | `interval.to` at matching resolution |
 | `TZID` (on DTSTART/DTEND) | `interval.from.extended.zone_id` via `Tempo.from_elixir/2` |
 | `UID` | `metadata.uid` |

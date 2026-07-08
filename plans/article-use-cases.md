@@ -20,7 +20,7 @@ Distilled from Business/252 and Ramadan working hours — a candidate earns an a
 
 * **Business/252 — Brazil's business-day year fraction.** Cookbook §13; posted to the forum thread (post 44). Bonus outcome: profiling the recipe exposed the O(n×m) member-preserving filters, fixed to an O(n+m) merge-sweep in 0.18.1 (~675 ms → ~2 ms).
 
-* **Ramadan working hours — statutory hours across two calendars.** Cookbook §13, immediately after Business/252. UAE Art. 17 two-hour reduction; Gregorian work year ∩ Islamic month 1447-09; verified 239 × 8h + 22 × 6h = 2,044 hours for 2026, identical pipeline for 2027/1448 with Ramadan ten days earlier. Bonus outcome: exposed the stale-`u-ca`-tag round-trip bug in cross-calendar set ops (task chip filed). Ready to post.
+* **Ramadan working hours — statutory hours across two calendars.** Cookbook §13, immediately after Business/252. UAE Art. 17 two-hour reduction; Gregorian work year ∩ Islamic month 1447-09; verified 239 × 8h + 22 × 6h = 2,044 hours for 2026, identical pipeline for 2027/1448 with Ramadan ten days earlier. Bonus outcome: exposed the stale-`u-ca`-tag round-trip bug in cross-calendar set ops (task chip filed). Draft post in `articles/ramadan-working-hours-uae.md`.
 
 ## Candidates (in rough order of punch)
 

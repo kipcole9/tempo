@@ -5,6 +5,7 @@ defmodule Tempo.ICal.Test do
 
   alias Tempo.ICal
   alias Tempo.Interval
+  alias Tempo.IntervalSet
 
   doctest Tempo.ICal
 
@@ -283,6 +284,77 @@ defmodule Tempo.ICal.Test do
 
       {:ok, set} = ICal.from_ical(ics)
       assert Enum.map(set.intervals, & &1.metadata.summary) == ["Earlier", "Later"]
+    end
+  end
+
+  describe "from_ical/2 — floating (zone-less) date-times" do
+    # RFC 5545 §3.3.5 "FORM #1": a DATE-TIME with neither a `Z`
+    # suffix nor a `TZID` parameter is a *floating* time — the same
+    # wall-clock reading in whatever zone the observer is in. As of
+    # `ical` 3.0 these parse to `NaiveDateTime` (previously they were
+    # coerced to a zoned `DateTime`); Tempo maps them to a genuinely
+    # zone-less `%Tempo{}` (`extended: nil`), preserving the floating
+    # semantics rather than inventing a zone.
+
+    test "a floating DATE-TIME event becomes a zone-less interval" do
+      ics = """
+      BEGIN:VCALENDAR
+      VERSION:2.0
+      PRODID:-//Test//EN
+      BEGIN:VEVENT
+      UID:floating-1
+      DTSTAMP:20220101T000000Z
+      DTSTART:20220615T100000
+      DTEND:20220615T113000
+      SUMMARY:Floating meeting
+      END:VEVENT
+      END:VCALENDAR
+      """
+
+      assert {:ok, set} = ICal.from_ical(ics)
+      assert [iv] = set.intervals
+
+      # Zone-less: no invented UTC/offset, unlike a `Z`-suffixed value
+      # whose `extended` carries `zone_id: "Etc/UTC"`.
+      assert iv.from.extended == nil
+      assert iv.to.extended == nil
+
+      assert iv.from.time == [year: 2022, month: 6, day: 15, hour: 10, minute: 0, second: 0]
+      assert iv.to.time == [year: 2022, month: 6, day: 15, hour: 11, minute: 30, second: 0]
+      assert iv.metadata.summary == "Floating meeting"
+    end
+
+    test "a floating recurrence with floating RDATE and EXDATE materialises correctly" do
+      ics = """
+      BEGIN:VCALENDAR
+      VERSION:2.0
+      PRODID:-//Test//EN
+      BEGIN:VEVENT
+      UID:floating-rec
+      DTSTAMP:20220101T000000Z
+      DTSTART:20220103T090000
+      DTEND:20220103T100000
+      RRULE:FREQ=WEEKLY;COUNT=3
+      RDATE:20220201T090000
+      EXDATE:20220110T090000
+      SUMMARY:Floating standup
+      END:VEVENT
+      END:VCALENDAR
+      """
+
+      assert {:ok, set} = ICal.from_ical(ics)
+
+      starts =
+        set
+        |> IntervalSet.to_list()
+        |> Enum.map(&{&1.from.time[:month], &1.from.time[:day]})
+
+      # RRULE Jan 3 / 10 / 17, minus EXDATE Jan 10, plus RDATE Feb 1.
+      assert starts == [{1, 3}, {1, 17}, {2, 1}]
+
+      # Every occurrence stays floating — the recurrence machinery
+      # doesn't anchor a zone-less base to a zone.
+      assert Enum.all?(IntervalSet.to_list(set), &(&1.from.extended == nil))
     end
   end
 

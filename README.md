@@ -13,7 +13,7 @@ def deps do
   [
     {:ex_tempo, "~> 0.19"},
     # Optional but recommended - needed for iCalendar import
-    {:ical, "~> 2.0"}
+    {:ical, "~> 3.0"}
   ]
 end
 ```
