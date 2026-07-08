@@ -49,7 +49,7 @@ Every result is a standard `%Tempo.IntervalSet{}`. Event metadata from the sourc
 def deps do
   [
     {:tempo, "~> 0.2"},
-    {:ical, "~> 3.0"}
+    {:ical, "~> 2.0 or ~> 3.0"}
   ]
 end
 ```

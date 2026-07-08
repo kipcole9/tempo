@@ -13,7 +13,7 @@ def deps do
   [
     {:ex_tempo, "~> 0.19"},
     # Optional but recommended - needed for iCalendar import
-    {:ical, "~> 3.0"}
+    {:ical, "~> 2.0 or ~> 3.0"}
   ]
 end
 ```
@@ -239,4 +239,4 @@ Either [`:tzdata`](https://hex.pm/packages/tzdata) or [`:tz`](https://hex.pm/pac
 
 ## Licence
 
-See [LICENSE.md](https://github.com/kipcole9/tempo/blob/v0.19.1/LICENSE.md). Copyright © Kip Cole.
+See [LICENSE.md](https://github.com/kipcole9/tempo/blob/v0.19.2/LICENSE.md). Copyright © Kip Cole.

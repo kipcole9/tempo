@@ -1,10 +1,10 @@
 # Changelog
 
-## [Unreleased]
+## [v0.19.2] — 2026-07-09
 
 ### Changed
 
-* The optional `ical` dependency is now `~> 3.0` (was `~> 2.0`). `Tempo.ICal` now maps RFC 5545 floating date-times (no `Z`, no `TZID`), which `ical` 3.0 surfaces as `NaiveDateTime`, to genuinely zone-less `%Tempo{}` values rather than anchoring them to a zone.
+* The optional `ical` dependency is now `~> 2.0 or ~> 3.0` (was `~> 2.0`). `Tempo.ICal` now maps RFC 5545 floating date-times (no `Z`, no `TZID`), which `ical` 3.0 surfaces as `NaiveDateTime`, to genuinely zone-less `%Tempo{}` values rather than anchoring them to a zone.
 
 ## [v0.19.1] — 2026-07-07
 

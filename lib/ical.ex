@@ -55,10 +55,14 @@ if Code.ensure_loaded?(ICal) do
       carrying that IANA zone.
     * **Floating** (`20220615T100000`, no `Z` and no `TZID`) → a
       genuinely zone-less value (`extended: nil`) — the same wall
-      clock in whatever zone the reader is in. `ical` 3.0 surfaces
-      floating times as `NaiveDateTime` (2.x coerced them to a zoned
-      `DateTime`); Tempo preserves the floating semantics rather than
-      inventing a zone. Tempo requires `ical ~> 3.0`.
+      clock in whatever zone the reader is in.
+
+    Tempo supports `ical ~> 2.0 or ~> 3.0`. The zone-less mapping of
+    floating times holds on `ical` 3.0+, which surfaces them as
+    `NaiveDateTime`; on 2.x the parser coerced floating times to a
+    zoned `DateTime`, so they arrive already anchored to a zone.
+    Tempo maps whatever the installed parser produces — it does not
+    itself invent a zone.
 
     """
 
