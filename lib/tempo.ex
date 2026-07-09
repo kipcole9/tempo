@@ -1882,6 +1882,17 @@ defmodule Tempo do
     |> at_resolution(resolution)
   end
 
+  # Elixir's `Duration` (`~> 1.17`) carries the same units as Tempo's,
+  # under the same atoms, with the identical `{value, precision}`
+  # microsecond tuple — so the mapping is the present (non-zero)
+  # components. `:options` is accepted for signature parity with the
+  # date/time clauses but has no meaning for a duration.
+  def from_elixir(%Elixir.Duration{} = duration, _options) do
+    duration
+    |> elixir_duration_components()
+    |> Duration.new!()
+  end
+
   # Elixir's `Time`, `NaiveDateTime`, and `DateTime` are
   # second-granular by type: a component value of zero (`09:00:00`)
   # is a fully specified second, not an under-specified hour. So
@@ -2343,6 +2354,94 @@ defmodule Tempo do
 
   def to_calendar(%Tempo{} = value) do
     {:error, ConversionError.exception(value: value, target: DateTime)}
+  end
+
+  @doc """
+  Convert a Tempo value to its native Elixir equivalent — the
+  outbound mirror of `from_elixir/2`.
+
+  * A `t:Tempo.Duration.t/0` becomes an Elixir `Duration`: the units
+    and the `{value, precision}` microsecond map one-to-one. Tempo-
+    only components (`:day_of_year`, `:day_of_week`) have no Elixir
+    `Duration` equivalent and return an error.
+
+  * A `t:t/0` becomes its best-fit calendar type via `to_calendar/1`
+    — a `Date`, `Time`, or `NaiveDateTime`. For a specific target
+    (including a zoned `DateTime`) use `to_date/1`, `to_time/1`,
+    `to_date_time/1`, or `to_naive_date_time/1`.
+
+  ### Arguments
+
+  * `value` is a `t:t/0` or a `t:Tempo.Duration.t/0`.
+
+  ### Returns
+
+  * `{:ok, native}` where `native` is an Elixir `Duration`, `Date`,
+    `Time`, or `NaiveDateTime`.
+
+  * `{:error, t:Tempo.ConversionError.t/0}` when the value cannot be
+    represented by a single native type.
+
+  ### Examples
+
+      iex> Tempo.to_elixir(~o"PT8H")
+      {:ok, Duration.new!(hour: 8)}
+
+      iex> Tempo.to_elixir(~o"2026-06-15")
+      {:ok, ~D[2026-06-15]}
+
+  """
+  @spec to_elixir(t() | Duration.t()) ::
+          {:ok, Elixir.Duration.t() | Date.t() | Time.t() | NaiveDateTime.t()}
+          | {:error, Tempo.ConversionError.t()}
+  def to_elixir(%Duration{time: time} = duration) do
+    case Enum.find(time, fn {unit, _value} -> unit in [:day_of_year, :day_of_week] end) do
+      nil ->
+        {:ok, Elixir.Duration.new!(time)}
+
+      {unit, _value} ->
+        {:error,
+         ConversionError.exception(
+           value: duration,
+           target: Elixir.Duration,
+           reason: "duration component #{inspect(unit)} has no Elixir Duration equivalent"
+         )}
+    end
+  end
+
+  def to_elixir(%Tempo{} = tempo) do
+    to_calendar(tempo)
+  end
+
+  # The present (non-zero) components of an Elixir `Duration`, as the
+  # `{unit, value}` list Tempo's `Duration.new!/1` expects. Zero
+  # components are dropped (Tempo carries only the units present); an
+  # all-zero duration becomes `[second: 0]`.
+  defp elixir_duration_components(%Elixir.Duration{} = d) do
+    microsecond =
+      case d.microsecond do
+        {0, _precision} -> []
+        {_value, _precision} = present -> [microsecond: present]
+      end
+
+    integers =
+      [
+        year: d.year,
+        month: d.month,
+        week: d.week,
+        day: d.day,
+        hour: d.hour,
+        minute: d.minute,
+        second: d.second
+      ]
+      |> Enum.reject(fn {_unit, value} -> value == 0 end)
+
+    # `Tempo.Duration.new!/1` re-attaches `second: 0` when only a
+    # microsecond is present, so we don't have to here.
+    case integers ++ microsecond do
+      [] -> [second: 0]
+      components -> components
+    end
   end
 
   ## ---------------------------------------------------------
@@ -4044,6 +4143,82 @@ defmodule Tempo do
   """
   def duration(%IntervalSet{} = set), do: IntervalSet.duration(set)
   def duration(interval), do: Interval.duration(interval)
+
+  @doc """
+  Return the duration between two endpoints as a `%Tempo.Duration{}`.
+
+  A convenience that builds the interval `[from, to)` internally and
+  measures it — `Tempo.duration(now, deadline)` instead of
+  constructing a `t:Tempo.Interval.t/0` first. The length is measured
+  on the UTC time line, so zoned endpoints spanning a DST transition
+  yield the true elapsed duration (a 23- or 25-hour day), not the
+  wall-clock difference.
+
+  Unlike `duration/1`, whose interval argument is valid by
+  construction, this takes raw endpoints that may not form a
+  measurable interval, so it returns a tagged tuple. Use
+  `duration!/2` when the endpoints are known-good.
+
+  ### Arguments
+
+  * `from` is the start `t:Tempo.t/0` — must be anchored (carry a
+    year).
+
+  * `to` is the end `t:Tempo.t/0` — anchored, and strictly later
+    than `from`.
+
+  ### Returns
+
+  * `{:ok, duration}` where `duration` is a `t:Tempo.Duration.t/0`.
+
+  * `{:error, reason}` when an endpoint is non-anchored, the
+    endpoints are of incompatible calendars, or `from` is not
+    strictly earlier than `to`.
+
+  ### Examples
+
+      iex> {:ok, duration} = Tempo.duration(~o"2026-06-15T09", ~o"2026-06-15T17")
+      iex> duration
+      ~o"PT28800S"
+
+      iex> match?({:error, _reason}, Tempo.duration(~o"2026-06-15T17", ~o"2026-06-15T09"))
+      true
+
+  """
+  @spec duration(t(), t()) :: {:ok, Duration.t()} | {:error, Exception.t()}
+  def duration(%__MODULE__{} = from, %__MODULE__{} = to) do
+    cond do
+      not anchored?(from) ->
+        {:error, NonAnchoredError.exception(operation: :duration, value: from)}
+
+      not anchored?(to) ->
+        {:error, NonAnchoredError.exception(operation: :duration, value: to)}
+
+      true ->
+        with {:ok, interval} <- Interval.new(from, to) do
+          {:ok, Interval.duration(interval)}
+        end
+    end
+  end
+
+  @doc """
+  Bang variant of `duration/2`. Raises on invalid endpoints and
+  returns the `%Tempo.Duration{}` directly.
+
+  ### Examples
+
+      iex> Tempo.duration!(~o"2026-06-15T09", ~o"2026-06-15T17")
+      ~o"PT28800S"
+
+  """
+  @spec duration!(t(), t()) :: Duration.t()
+  def duration!(%__MODULE__{} = from, %__MODULE__{} = to) do
+    case duration(from, to) do
+      {:ok, duration} -> duration
+      {:error, exception} when is_exception(exception) -> raise exception
+      {:error, reason} -> raise ArgumentError, "Tempo.duration!/2 failed: #{inspect(reason)}"
+    end
+  end
 
   @doc """
   `true` when the interval is at least as long as the given

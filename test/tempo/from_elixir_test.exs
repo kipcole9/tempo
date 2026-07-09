@@ -231,4 +231,50 @@ defmodule Tempo.FromElixir.Test do
       assert DateTime.compare(round_tripped, paris) == :eq
     end
   end
+
+  describe "from_elixir/2 and to_elixir/1 — Duration" do
+    # `Duration` here is Elixir's stdlib struct (this module does not
+    # alias `Tempo.Duration`).
+
+    test "from_elixir maps an Elixir Duration to a Tempo.Duration" do
+      assert Tempo.from_elixir(Duration.new!(hour: 8)).time == [hour: 8]
+      assert Tempo.from_elixir(Duration.new!(year: 1, month: 6)).time == [year: 1, month: 6]
+    end
+
+    test "from_elixir drops zero components, keeps present ones" do
+      assert Tempo.from_elixir(Duration.new!(day: 3, second: 30)).time == [day: 3, second: 30]
+    end
+
+    test "to_elixir maps a Tempo.Duration to an Elixir Duration" do
+      assert Tempo.to_elixir(~o"PT8H") == {:ok, Duration.new!(hour: 8)}
+
+      assert Tempo.to_elixir(~o"P1Y2M3DT4H5M6S") ==
+               {:ok, Duration.new!(year: 1, month: 2, day: 3, hour: 4, minute: 5, second: 6)}
+    end
+
+    test "microsecond precision survives the round-trip" do
+      elixir = Duration.new!(microsecond: {123_456, 6})
+      assert {:ok, ^elixir} = Tempo.to_elixir(Tempo.from_elixir(elixir))
+    end
+
+    test "round-trips every ISO 8601 duration form" do
+      for iso <- ["PT8H", "P1Y6M", "PT0.5S", "PT0.123456S", "P1W", "P1Y2M3DT4H5M6S"] do
+        {:ok, tempo} = Tempo.from_iso8601(iso)
+        {:ok, elixir} = Tempo.to_elixir(tempo)
+        round_tripped = Tempo.from_elixir(elixir)
+
+        assert Tempo.to_iso8601(round_tripped) == Tempo.to_iso8601(tempo),
+               "round-trip failed for #{iso}"
+      end
+    end
+
+    test "to_elixir of a Tempo value delegates to to_calendar" do
+      assert Tempo.to_elixir(~o"2026-06-15") == {:ok, ~D[2026-06-15]}
+    end
+
+    test "to_elixir errors on a Tempo-only duration component" do
+      weekday_duration = %Tempo.Duration{time: [day_of_week: 3]}
+      assert {:error, %Tempo.ConversionError{}} = Tempo.to_elixir(weekday_duration)
+    end
+  end
 end

@@ -1,5 +1,21 @@
 # Changelog
 
+## [v0.20.0] — 2026-07-10
+
+### Added
+
+* `Tempo.Interval.new/2` and `new!/2` — positional constructors for the common case, `Tempo.Interval.new(from, to)`, alongside the keyword `new/1` (which keeps the `:duration`, `:recurrence`, and open-ended forms).
+
+* `Tempo.duration/2` and `duration!/2` — the duration between two endpoints, building the interval internally: `Tempo.duration(now, deadline)`. Measured on the UTC time line, so DST-spanning zoned endpoints yield the true elapsed duration.
+
+* `Tempo.from_elixir/2` now accepts an Elixir `Duration`, and `Tempo.to_elixir/1` converts a `%Tempo.Duration{}` back to one (and a `%Tempo{}` to its best-fit calendar type) — closing the round-trip with the standard library's duration type.
+
+* `Tempo.Duration.to_unit/3` and `to_unit!/3` — express a duration as a magnitude in a fixed-length unit (`Tempo.Duration.to_unit(dur, :hour)`). Month/year components are refused rather than approximated; pass `relative_to: a_date` to resolve them exactly against the calendar (DST-exact when the reference is zoned).
+
+### Fixed
+
+* `Tempo.Duration.new/1` with only a `:microsecond` component now keeps `second: 0`, so a sub-second-only duration renders through `Tempo.to_iso8601/1` (e.g. `~o"PT0.5S"`) instead of raising.
+
 ## [v0.19.2] — 2026-07-09
 
 ### Changed

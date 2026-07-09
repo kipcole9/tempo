@@ -6,6 +6,7 @@ defmodule Tempo.Duration do
   cadence), and arithmetic helpers in `Tempo.Math`.
   """
 
+  alias Tempo.Compare
   alias Tempo.Microsecond
 
   @type unit ::
@@ -108,11 +109,26 @@ defmodule Tempo.Duration do
     with :ok <- ensure_keyword(components),
          :ok <- validate_components(components) do
       ordered =
-        Enum.sort_by(components, fn {unit, _v} ->
+        components
+        |> ensure_second_for_microsecond()
+        |> Enum.sort_by(fn {unit, _v} ->
           Enum.find_index(@canonical_unit_order, &(&1 == unit))
         end)
 
       {:ok, %__MODULE__{time: ordered}}
+    end
+  end
+
+  # A fractional second is stored as a `:microsecond` component riding
+  # on its `:second`. Keep `second: 0` present whenever microseconds
+  # are — otherwise `to_iso8601/1` has no whole-second part to attach
+  # the fraction to and cannot render the value.
+  defp ensure_second_for_microsecond(components) do
+    if Keyword.has_key?(components, :microsecond) and
+         not Keyword.has_key?(components, :second) do
+      components ++ [second: 0]
+    else
+      components
     end
   end
 
@@ -125,6 +141,174 @@ defmodule Tempo.Duration do
       {:ok, d} -> d
       {:error, exception} when is_exception(exception) -> raise exception
       {:error, reason} -> raise ArgumentError, "Tempo.Duration.new!/1 failed: #{inspect(reason)}"
+    end
+  end
+
+  # Seconds per fixed-length unit. `:month` and `:year` are
+  # deliberately absent — they have no fixed length (28–31 days,
+  # 365–366 days), so they can only be converted against a reference
+  # date.
+  @microsecond_seconds 1.0e-6
+  @fixed_unit_seconds %{
+    microsecond: @microsecond_seconds,
+    second: 1.0,
+    minute: 60.0,
+    hour: 3_600.0,
+    day: 86_400.0,
+    week: 604_800.0
+  }
+  @fixed_units Map.keys(@fixed_unit_seconds)
+
+  @doc """
+  Express a duration as a single magnitude in `unit`, as a float.
+
+  For a duration built only from fixed-length units (microsecond
+  through week, with `day = 24 h` and `week = 7 d`), the conversion
+  is exact and needs no context. A duration carrying `:month` or
+  `:year` has no fixed length, so it converts only against a
+  reference date supplied as `:relative_to` — the duration is applied
+  to that date and the elapsed time measured on the UTC time line
+  (DST-exact when the reference is zoned). Tempo never assumes a
+  nominal month or year; it returns an error instead.
+
+  ### Arguments
+
+  * `duration` is a `t:t/0`.
+
+  * `unit` is the target unit — one of `:microsecond`, `:second`,
+    `:minute`, `:hour`, `:day`, `:week`. (`:month`/`:year` are not
+    fixed magnitudes and cannot be a target.)
+
+  ### Options
+
+  * `:relative_to` is a `t:Tempo.t/0` reference date. Required to
+    convert a duration containing `:month` or `:year`; optional
+    otherwise, where a zoned reference makes `:day`/`:week` DST-exact.
+
+  ### Returns
+
+  * `{:ok, magnitude}` where `magnitude` is a `float()`.
+
+  * `{:error, reason}` when the duration needs a `:relative_to` it
+    was not given, the target unit is not fixed-length, or the
+    reference is invalid.
+
+  ### Examples
+
+      iex> Tempo.Duration.to_unit(~o"PT90M", :hour)
+      {:ok, 1.5}
+
+      iex> Tempo.Duration.to_unit(~o"P2D", :hour)
+      {:ok, 48.0}
+
+      iex> Tempo.Duration.to_unit(~o"P1M", :day, relative_to: ~o"2026-02-01")
+      {:ok, 28.0}
+
+  """
+  @spec to_unit(t(), unit(), keyword()) :: {:ok, float()} | {:error, Exception.t()}
+  def to_unit(duration, unit, options \\ [])
+
+  def to_unit(%__MODULE__{} = duration, unit, options) when unit in @fixed_units do
+    case Keyword.get(options, :relative_to) do
+      nil -> to_unit_nominal(duration, unit)
+      anchor -> to_unit_relative(duration, unit, anchor)
+    end
+  end
+
+  def to_unit(%__MODULE__{}, unit, _options) do
+    {:error,
+     ArgumentError.exception(
+       "Tempo.Duration.to_unit/3 target #{inspect(unit)} is not a fixed-length unit. Use " <>
+         "one of #{inspect(Enum.sort(@fixed_units))} — a :month or :year has no fixed " <>
+         "magnitude, so a duration cannot be expressed *in* them."
+     )}
+  end
+
+  @doc """
+  Bang variant of `to_unit/3` — returns the float or raises.
+
+  ### Examples
+
+      iex> Tempo.Duration.to_unit!(~o"PT8H", :hour)
+      8.0
+
+  """
+  @spec to_unit!(t(), unit(), keyword()) :: float()
+  def to_unit!(%__MODULE__{} = duration, unit, options \\ []) do
+    case to_unit(duration, unit, options) do
+      {:ok, magnitude} ->
+        magnitude
+
+      {:error, exception} when is_exception(exception) ->
+        raise exception
+
+      {:error, reason} ->
+        raise ArgumentError, "Tempo.Duration.to_unit!/3 failed: #{inspect(reason)}"
+    end
+  end
+
+  # Nominal conversion using the fixed ratios. A `:month`/`:year`
+  # component has no fixed length, so it errors and points the caller
+  # at `:relative_to`.
+  defp to_unit_nominal(%__MODULE__{time: time}, unit) do
+    case sum_fixed_seconds(time) do
+      {:ok, seconds} ->
+        {:ok, seconds / @fixed_unit_seconds[unit]}
+
+      {:error, offending} ->
+        {:error,
+         ArgumentError.exception(
+           "a duration containing #{inspect(offending)} has no fixed length, so it cannot be " <>
+             "converted to #{inspect(unit)} without a reference date — pass " <>
+             "`relative_to: some_tempo` to resolve it against the calendar."
+         )}
+    end
+  end
+
+  defp sum_fixed_seconds(time) do
+    Enum.reduce_while(time, {:ok, 0.0}, fn {unit, value}, {:ok, acc} ->
+      case component_seconds(unit, value) do
+        {:ok, seconds} -> {:cont, {:ok, acc + seconds}}
+        :error -> {:halt, {:error, unit}}
+      end
+    end)
+  end
+
+  defp component_seconds(:microsecond, {microseconds, _precision}) do
+    {:ok, microseconds * @microsecond_seconds}
+  end
+
+  defp component_seconds(:microsecond, microseconds) when is_integer(microseconds) do
+    {:ok, microseconds * @microsecond_seconds}
+  end
+
+  defp component_seconds(unit, value) when unit in [:second, :minute, :hour, :day, :week] do
+    {:ok, value * @fixed_unit_seconds[unit]}
+  end
+
+  defp component_seconds(_unit, _value), do: :error
+
+  # Anchor-relative conversion: apply the duration to the reference
+  # date, then measure the elapsed seconds on the UTC time line and
+  # express them in `unit`. A zoned reference makes day/week DST-exact
+  # and resolves month/year against the calendar. Runtime calls into
+  # `Tempo` (no struct match) keep this module free of a compile cycle.
+  defp to_unit_relative(duration, unit, anchor) do
+    cond do
+      not is_struct(anchor, Tempo) ->
+        {:error,
+         ArgumentError.exception(":relative_to must be a Tempo value; got #{inspect(anchor)}")}
+
+      not Tempo.anchored?(anchor) ->
+        {:error,
+         ArgumentError.exception(
+           ":relative_to must be anchored (carry a year); got #{inspect(anchor)}"
+         )}
+
+      true ->
+        ended = Tempo.shift(anchor, duration)
+        seconds = Compare.to_utc_seconds(ended) - Compare.to_utc_seconds(anchor)
+        {:ok, seconds / @fixed_unit_seconds[unit]}
     end
   end
 

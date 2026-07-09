@@ -239,6 +239,76 @@ defmodule Tempo.NewTest do
     end
   end
 
+  describe "Tempo.Interval.new/2 (positional)" do
+    setup do
+      from = Tempo.new!(year: 2026, month: 6, day: 15, hour: 9)
+      to = Tempo.new!(year: 2026, month: 6, day: 15, hour: 17)
+      %{from: from, to: to}
+    end
+
+    test "is equivalent to the keyword form", %{from: from, to: to} do
+      assert Interval.new(from, to) == Interval.new(from: from, to: to)
+    end
+
+    test "from >= to is rejected", %{from: from, to: to} do
+      assert {:error, %Tempo.IntervalEndpointsError{}} = Interval.new(to, from)
+    end
+
+    test "cross-calendar endpoints are rejected", %{from: from} do
+      hebrew = Tempo.from_iso8601!("5786-01-01", Calendrical.Hebrew)
+      assert {:error, %Tempo.IntervalEndpointsError{}} = Interval.new(from, hebrew)
+    end
+
+    test "new!/2 returns the bare struct on success", %{from: from, to: to} do
+      assert %Tempo.Interval{} = Interval.new!(from, to)
+    end
+
+    test "new!/2 raises on invalid input", %{from: from, to: to} do
+      assert_raise Tempo.IntervalEndpointsError, fn -> Interval.new!(to, from) end
+    end
+  end
+
+  describe "Tempo.duration/2 and duration!/2" do
+    setup do
+      Calendar.put_time_zone_database(Tzdata.TimeZoneDatabase)
+      :ok
+    end
+
+    test "measures the interval between two endpoints" do
+      assert {:ok, ~o"PT28800S"} = Tempo.duration(~o"2026-06-15T09", ~o"2026-06-15T17")
+    end
+
+    test "agrees with building the interval then measuring it" do
+      from = ~o"2026-06-15T09"
+      to = ~o"2026-06-15T17"
+      {:ok, iv} = Interval.new(from, to)
+      assert Tempo.duration(from, to) == {:ok, Tempo.duration(iv)}
+    end
+
+    test "is DST-aware: a spring-forward day is 23 hours" do
+      # Sat 17:00 → Sun 17:00 across the US spring-forward (2026-03-08).
+      now = ~o"2026-03-07T17:00:00[America/New_York]"
+      deadline = ~o"2026-03-08T17:00:00[America/New_York]"
+      assert {:ok, %Tempo.Duration{time: [second: 82_800]}} = Tempo.duration(now, deadline)
+    end
+
+    test "inverted endpoints return an error, never raising" do
+      assert {:error, _} = Tempo.duration(~o"2026-06-15T17", ~o"2026-06-15T09")
+    end
+
+    test "a non-anchored endpoint returns a NonAnchoredError, never raising" do
+      assert {:error, %Tempo.NonAnchoredError{}} = Tempo.duration(~o"T10", ~o"T14")
+    end
+
+    test "duration!/2 returns the bare Duration on success" do
+      assert Tempo.duration!(~o"2026-06-15T09", ~o"2026-06-15T17") == ~o"PT28800S"
+    end
+
+    test "duration!/2 raises on invalid endpoints" do
+      assert_raise Tempo.NonAnchoredError, fn -> Tempo.duration!(~o"T10", ~o"T14") end
+    end
+  end
+
   describe "Tempo.Duration.new/1" do
     test "basic duration" do
       {:ok, d} = Duration.new(year: 1, month: 6)
@@ -248,6 +318,12 @@ defmodule Tempo.NewTest do
     test "components reorder coarse-to-fine" do
       {:ok, d} = Duration.new(second: 30, year: 1, hour: 2)
       assert d.time == [year: 1, hour: 2, second: 30]
+    end
+
+    test "a lone microsecond gains second: 0 so it renders (regression)" do
+      {:ok, d} = Duration.new(microsecond: {500_000, 1})
+      assert d.time == [second: 0, microsecond: {500_000, 1}]
+      assert Tempo.to_iso8601(d) == "PT0.5S"
     end
 
     test "negative components (reverse-direction duration)" do
@@ -272,6 +348,63 @@ defmodule Tempo.NewTest do
       assert_raise ArgumentError, fn ->
         Duration.new!(fortnight: 1)
       end
+    end
+  end
+
+  describe "Tempo.Duration.to_unit/3" do
+    setup do
+      Calendar.put_time_zone_database(Tzdata.TimeZoneDatabase)
+      :ok
+    end
+
+    test "converts among fixed-length units exactly, no reference needed" do
+      assert Duration.to_unit(~o"PT90M", :hour) == {:ok, 1.5}
+      assert Duration.to_unit(~o"PT28800S", :hour) == {:ok, 8.0}
+      assert Duration.to_unit(~o"P2D", :hour) == {:ok, 48.0}
+      assert Duration.to_unit(~o"P1W", :day) == {:ok, 7.0}
+      assert Duration.to_unit(~o"PT0.5S", :second) == {:ok, 0.5}
+    end
+
+    test "a month/year component without :relative_to is refused, not approximated" do
+      assert {:error, %ArgumentError{message: msg}} = Duration.to_unit(~o"P1M", :day)
+      assert msg =~ "relative_to"
+      assert {:error, %ArgumentError{}} = Duration.to_unit(~o"P1Y", :hour)
+    end
+
+    test ":relative_to resolves a month against the calendar (28 vs 31)" do
+      assert Duration.to_unit(~o"P1M", :day, relative_to: ~o"2026-02-01") == {:ok, 28.0}
+      assert Duration.to_unit(~o"P1M", :day, relative_to: ~o"2026-01-01") == {:ok, 31.0}
+    end
+
+    test ":relative_to resolves a year, leap-aware (366 in 2024)" do
+      assert Duration.to_unit(~o"P1Y", :day, relative_to: ~o"2024-01-01") == {:ok, 366.0}
+      assert Duration.to_unit(~o"P1Y", :day, relative_to: ~o"2026-01-01") == {:ok, 365.0}
+    end
+
+    test "a zoned :relative_to makes a day DST-exact (23 / 25 hours)" do
+      assert Duration.to_unit(~o"P1D", :hour,
+               relative_to: ~o"2026-03-08T00:00:00[America/New_York]"
+             ) ==
+               {:ok, 23.0}
+
+      assert Duration.to_unit(~o"P1D", :hour,
+               relative_to: ~o"2026-11-01T00:00:00[America/New_York]"
+             ) ==
+               {:ok, 25.0}
+    end
+
+    test ":month and :year are rejected as target units" do
+      assert {:error, %ArgumentError{message: msg}} = Duration.to_unit(~o"PT8H", :month)
+      assert msg =~ "fixed-length"
+    end
+
+    test "a non-anchored :relative_to is rejected, never raising" do
+      assert {:error, %ArgumentError{}} = Duration.to_unit(~o"P1M", :day, relative_to: ~o"T10")
+    end
+
+    test "to_unit!/3 returns the bare float or raises" do
+      assert Duration.to_unit!(~o"PT8H", :hour) == 8.0
+      assert_raise ArgumentError, fn -> Duration.to_unit!(~o"P1M", :day) end
     end
   end
 

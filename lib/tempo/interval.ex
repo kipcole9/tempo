@@ -213,6 +213,57 @@ defmodule Tempo.Interval do
     end
   end
 
+  @doc """
+  Construct a bounded `t:t/0` from two concrete endpoints.
+
+  The positional companion to `new/1` for the common case — a
+  closed interval `[from, to)` from two `%Tempo{}` values. Equivalent
+  to `new(from: from, to: to)`, but reads as the two nouns it is.
+  For the `:duration`, `:recurrence`, `:repeat_rule`, or `:metadata`
+  forms — or an open-ended endpoint (`:undefined`) — use the
+  keyword `new/1`, where the labels earn their place.
+
+  ### Arguments
+
+  * `from` is the start `t:Tempo.t/0` (inclusive).
+
+  * `to` is the end `t:Tempo.t/0` (exclusive), and must be strictly
+    later than `from`.
+
+  ### Returns
+
+  * `{:ok, interval}` on success.
+
+  * `{:error, reason}` when the endpoints are of incompatible
+    calendars, or `from` is not strictly earlier than `to`.
+
+  ### Examples
+
+      iex> {:ok, iv} = Tempo.Interval.new(~o"2026-06-15T09", ~o"2026-06-15T17")
+      iex> iv.from.time
+      [year: 2026, month: 6, day: 15, hour: 9]
+
+  """
+  @spec new(Tempo.t(), Tempo.t()) :: {:ok, t()} | {:error, Exception.t()}
+  def new(%Tempo{} = from, %Tempo{} = to) do
+    new(from: from, to: to)
+  end
+
+  @doc """
+  Bang variant of `new/2`. Raises on invalid input.
+
+  ### Examples
+
+      iex> iv = Tempo.Interval.new!(~o"2026-06-15T09", ~o"2026-06-15T17")
+      iex> iv.to.time
+      [year: 2026, month: 6, day: 15, hour: 17]
+
+  """
+  @spec new!(Tempo.t(), Tempo.t()) :: t()
+  def new!(%Tempo{} = from, %Tempo{} = to) do
+    new!(from: from, to: to)
+  end
+
   defp ensure_keyword_options(options) do
     cond do
       not Keyword.keyword?(options) ->
