@@ -12,6 +12,36 @@ A single `Tempo.from_iso8601/1` call therefore always returns a bounded value, n
 
 ## 2. ISO 8601 Part 1 — core representations
 
+### Two forms, three spellings: implicit and explicit
+
+ISO 8601 lets you write the *same* value more than one way. The choice runs on two independent axes — worth knowing both, because **Tempo accepts all of them as input but always prints the explicit form**: `inspect(~o"2022-06-15")` shows `~o"2022Y6M15D"`, which surprises people the first time.
+
+**Axis 1 — what identifies each component (the *form*).**
+
+* **Implicit form** — a component's identity is implied by its **position**. In `2022-06-15`, `06` is the month because it sits in the month slot. This is the everyday form, defined in ISO 8601 Part 1.
+
+* **Explicit form** — each component carries a **designator letter** naming it: `Y` year, `M` month, `D` day, `W` week, and after the `T`, `H` hour, `M` minute, `S` second. `2022Y6M15D` needs no fixed positions because every field is labelled. Defined in ISO 8601 Part 2.
+
+**Axis 2 — separators (the *format*; applies to the implicit form only).**
+
+* **Extended format** — components separated by `-` and `:`: `2022-06-15`, `T14:30:00`. The human-readable default.
+
+* **Basic format** — no separators: `20220615`, `T143000`. Compact, for fixed-width contexts (filenames, identifiers).
+
+The explicit form needs no separators — the designators already say which field is which — so "basic vs extended" is a property of the implicit form. That yields **three concrete spellings** of any value:
+
+| Value | Implicit · extended | Implicit · basic | Explicit |
+|---|---|---|---|
+| 15 June 2022 | `2022-06-15` | `20220615` | `2022Y6M15D` |
+| 14:30:00 | `T14:30:00` | `T143000` | `T14H30M0S` |
+| that date **and** time | `2022-06-15T14:30:00` | `20220615T143000` | `2022Y6M15DT14H30M0S` |
+
+All three parse to the identical `%Tempo{}`; `Tempo.to_iso8601/1`, `inspect/1`, and the `~o` sigil all emit the explicit form.
+
+**Why Tempo prints explicit form.** It is self-describing and order-independent, so it round-trips unambiguously — and it is the only form in which Tempo's richer constructs (durations like `P1Y6M`, groups, selections, and the recurrence designators) compose. It is also why the same letter `M` can mean both **month** and **minute**: the `T` beginning the time part disambiguates them. Before the `T`, `M` is a month (`6M` in `2022Y6M15D` = June); after it, `M` is a minute (`30M` in `T14H30M` = thirty minutes) — the same rule durations use (`P6M` is six months, `PT6M` is six minutes).
+
+**Which should you write?** Prefer **implicit extended** (`2022-06-15T14:30`) for input — it is the most familiar and what most other systems emit. Reach for **explicit** only when you need what it uniquely offers: position independence, or Tempo's extended group/selection syntax.
+
 ### Supported
 
 | Feature | Examples |

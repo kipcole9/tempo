@@ -16,6 +16,8 @@ Every form below is a string you can hand to the `~o"…"` sigil or `Tempo.from_
 
 **Resolution = meaning.** A value's span is one unit of its finest *stated* field. Give only as much precision as the fact has.
 
+**Implicit vs explicit form.** The same value has three spellings: implicit *extended* (`2022-06-15`, separators — the everyday input form), implicit *basic* (`20220615`, no separators), and *explicit* (`2022Y6M15D`, a designator letter per field: `Y M D W` and, after `T`, `H M S`). All parse to the same `%Tempo{}`; **Tempo always outputs the explicit form**, so `inspect(~o"2022-06-15")` returns `~o"2022Y6M15D"` — expect it. `M` is month before the `T` and minute after it (like `P6M` vs `PT6M`). Explicit form is what makes durations, groups, and selections composable; full explanation in `guides/iso8601-conformance.md` §2.
+
 ## Durations, intervals, recurrence
 
 | String | Means |
