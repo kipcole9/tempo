@@ -165,6 +165,17 @@ Tempo.relation(grounded, ~o"2030-03-01T08:00:00[Europe/Paris]")   #=> :equals
 
 This is the comparison corollary of "same wall clock is not the same instant" (see the [Falsehoods](./falsehoods.md) guide): if two grounded readings in different zones are already different instants, then a *floating* reading — which fixes no zone at all — has no instant to compare, and the right response is to decline rather than guess.
 
+### A zone on an interval
+
+When you write an interval as an ISO 8601 string, the zone goes once at the end, where IXDTF binds it to the upper endpoint — and it grounds the whole span. Tempo propagates that trailing zone backward onto a floating lower endpoint, so a single-zone interval never straddles the floating and universal time lines:
+
+```elixir
+{:ok, iv} = Tempo.from_iso8601("2030-03-01T08:00/2030-03-05T08:00[Europe/Paris]")
+{Tempo.grounded?(iv.from), Tempo.grounded?(iv.to)}   #=> {true, true}
+```
+
+Propagation is one-directional and non-destructive: it flows only from the upper endpoint (`to`) back to a floating lower one (`from`), never forward, and never over a zone an endpoint already carries — so `2030-03-01T08:00[Europe/Paris]/2030-03-05T08:00[Europe/London]` keeps both zones as written. It applies only to parsed interval *strings*; `Tempo.Interval.new/2` builds exactly the endpoints you hand it, mixed frames included.
+
 ### Principle
 
 **The interpretation of a wall-clock reading is metadata, not an afterthought.** Tempo forces you to make that choice at parse time, preserves it through every operation, and refuses operations that would need a choice you have not yet made.
