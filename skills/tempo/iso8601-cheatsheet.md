@@ -72,7 +72,10 @@ A one-of set is epistemic: Tempo refuses to silently flatten it into a span, bec
 ## Advanced (see `guides/iso8601-conformance.md` for the code tables)
 
 * **Seasons / quarters / halves** — numeric sub-year codes (e.g. `2022-21` ≈ spring). Look up the exact code rather than guessing.
-* **Groups & selections** — `nGspanUNITU` groups and `L…N` selections express calendrical patterns natively: `~o"R/2025-01-01/P1M/FL2I1KN"` is "the 2nd Monday of every month" (`2I` = 2nd instance, `1K` = Monday). RRULE and cron compile to exactly this form and it round-trips, so `inspect/1` on any recurrence returns the canonical selection string. Two RRULE filters have no ISO 8601 form, so Tempo emits **project-specific** designators for them: `V` = BYSETPOS (`-1V` = last occurrence) and `Q` = WKST (`7Q` = week starts Sunday). See `guides/iso8601-conformance.md` §5.
+* **Groups & selections** — `nGspanUNITU` groups and `L…N` selections express calendrical patterns natively: `~o"R/2025-01-01/P1M/FL2I1KN"` is "the 2nd Monday of every month" (`2I` = 2nd instance, `1K` = Monday). RRULE and cron compile to exactly this form and it round-trips, so `inspect/1` on any recurrence returns the canonical selection string.
+* **`V` and `Q` — ratified project-specific designators** for the two RRULE filters with no ISO 8601 form. Both round-trip through `to_iso8601/1`; they are *not* standard ISO 8601, so for cross-system interchange emit RFC 5545 with `Tempo.to_rrule/1` instead. See `guides/iso8601-conformance.md` §5.
+  * **`V` = BYSETPOS** — the Nth of the whole **merged** per-period candidate set, applied last. This is the one people get wrong: `-1V` over `BYDAY=MO..FR` is the last **weekday** of the month (e.g. Aug 31 Wed), *not* the last Friday. Contrast the ISO ordinal `I`, which ranks a **single** weekday (`-1I5K` / `-1FR` = last Friday, Aug 26). `{1,3}V` picks the 1st and 3rd; negatives count from the end.
+  * **`Q` = WKST** — the weekday a week **starts** on (`7Q` = Sunday; Monday is the default and is omitted). A no-op for `FREQ=WEEKLY;INTERVAL=1`; it only changes results when the week boundary decides which weeks are on — `INTERVAL≥2` or `BYWEEKNO`.
 
 ## IXDTF suffixes (RFC 9557 extended info)
 

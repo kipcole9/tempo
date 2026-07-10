@@ -61,6 +61,19 @@ Tempo.IntervalSet.to_list(months)   #=> the 12 second-Mondays
 
 ---
 
+### "The last weekday of every month" — BYSETPOS (`V`)
+
+```elixir
+rule = Tempo.RRule.parse!("FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1", from: ~o"2025-01-01")
+Tempo.explain(rule)              #=> "… Selects: on a weekday [1..5], keeping the last occurrence. …"
+{:ok, days} = Tempo.to_interval(rule, bound: ~o"2025")
+Tempo.IntervalSet.to_list(days)  #=> Jan 31, Feb 28, Mar 31, … (last weekday of each month)
+```
+
+> *"The last **weekday** of the month — not the last Friday."* `BYSETPOS` (native designator `V`) ranks the *whole* Mon–Fri candidate set each month and keeps the last; the ISO ordinal `BYDAY=-1FR` would instead pick the last *Friday*, a different date. `V` and `Q` (WKST) are ratified Tempo extensions with no plain-ISO 8601 equivalent — they round-trip through `to_iso8601/1`, but for cross-system interchange emit RFC 5545 with `Tempo.to_rrule/1`. See `guides/iso8601-conformance.md` §5.
+
+---
+
 ### "List every month in the year" — Enumeration
 
 ```elixir
