@@ -418,6 +418,29 @@ defmodule Tempo.Validation do
     end
   end
 
+  # A bare (yearless) month + integer day is a partial date — a
+  # first-class Tempo value, but only when it could occur in *some*
+  # year. `~o"3M2D"` is fine; `~o"2M30D"` (February 30th) happens in
+  # no year and is rejected. The bound is the month's maximum length
+  # across all years (see `max_day_in_month/2`); a month whose length
+  # cannot be bounded without a year is left as-is, since Tempo cannot
+  # prove it impossible.
+  def resolve([{:month, month}, {:day, day} | rest], calendar)
+      when is_integer(month) and is_integer(day) do
+    case max_day_in_month(calendar, month) do
+      {:ok, max_day} ->
+        with {:ok, day} <- conform(day, 1..max_day),
+             rest when is_list(rest) <- resolve(rest, calendar) do
+          [{:month, month}, {:day, day} | rest]
+        end
+
+      :unknown ->
+        with rest when is_list(rest) <- resolve(rest, calendar) do
+          [{:month, month}, {:day, day} | rest]
+        end
+    end
+  end
+
   # Calculating the result of fractional time units
   # TODO Support negative time fractions
 
@@ -655,6 +678,20 @@ defmodule Tempo.Validation do
            month: month,
            reason: "month #{month} does not exist in #{inspect(calendar)} year #{year}"
          )}
+    end
+  end
+
+  # The maximum day number a month can hold across all years — the
+  # bound for validating a yearless partial. `days_in_month/1` returns
+  # an integer for a fixed-length month, `{:ambiguous, lo..hi}` for one
+  # that varies (February's `28..29`, whose leap-year `hi` is the
+  # maximum), or an error when the length can't be bounded without a
+  # year (many lunisolar months), in which case the day is not checked.
+  defp max_day_in_month(calendar, month) do
+    case calendar.days_in_month(month) do
+      days when is_integer(days) and days > 0 -> {:ok, days}
+      {:ambiguous, first..last//_step} -> {:ok, max(first, last)}
+      _unbounded -> :unknown
     end
   end
 

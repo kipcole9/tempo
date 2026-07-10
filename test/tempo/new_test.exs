@@ -440,4 +440,31 @@ defmodule Tempo.NewTest do
       assert result.time[:day] == 22
     end
   end
+
+  describe "Tempo.new/1 — partial dates respect the calendar" do
+    test "accepts a yearless month+day that occurs in some year" do
+      assert {:ok, feb29} = Tempo.new(month: 2, day: 29)
+      assert feb29.time == [month: 2, day: 29]
+      assert {:ok, _} = Tempo.new(month: 3, day: 2)
+      assert {:ok, _} = Tempo.new(month: 3, day: 31)
+      assert {:ok, _} = Tempo.new(month: 4, day: 30)
+    end
+
+    test "rejects a yearless month+day that occurs in no year" do
+      assert {:error, %Tempo.InvalidDateError{}} = Tempo.new(month: 2, day: 30)
+      assert {:error, %Tempo.InvalidDateError{}} = Tempo.new(month: 4, day: 31)
+      assert {:error, %Tempo.InvalidDateError{}} = Tempo.new(month: 6, day: 31)
+    end
+
+    test "still validates against the year when one is present" do
+      assert {:ok, _} = Tempo.new(year: 2024, month: 2, day: 29)
+      assert {:error, %Tempo.InvalidDateError{}} = Tempo.new(year: 2026, month: 2, day: 29)
+    end
+
+    test "leaves a partial unchecked when the month can't be bounded without a year" do
+      # Hebrew month lengths vary too much to bound without a year, so
+      # the partial is accepted rather than falsely rejected.
+      assert {:ok, _} = Tempo.new(month: 8, day: 30, calendar: Calendrical.Hebrew)
+    end
+  end
 end

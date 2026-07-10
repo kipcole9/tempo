@@ -1687,63 +1687,208 @@ defmodule Tempo do
   end
 
   @doc """
-  Combine a date-like value with a time-of-day value into a
-  datetime.
+  Place a non-anchored value onto the timeline by supplying its
+  missing higher-order components — a *left-fill*.
 
-  This is **axis composition**, not a set operation. Set
-  operations require both operands to share an anchor class;
-  `anchor/2` is how the user explicitly composes cross-axis
-  values before set operations run. No set-algebra laws apply
-  to `anchor/2` — it's a constructor, not an operator.
+  `anchor/2` is for a value that cannot yet be located on the
+  timeline because it lacks a year — a bare time-of-day like
+  `~o"T17"` or `~o"T09:30"`. The `reference` supplies the coarser
+  components (year, and month/day as needed) until the value is
+  anchored — see `anchored?/1` for what "anchored" means.
+
+  It is the mirror of `at/2`, which *right-fills* — adding finer
+  components to a value already on the timeline. `time |> anchor(date)`
+  places the time; `date |> at(time)` sets the time.
 
   ### Arguments
 
-  * `anchored` is an anchored `t:#{__MODULE__}.t/0` (has a year
-    component) — typically a date like `~o"2026-01-04"`.
+  * `non_anchored` is a non-anchored `t:#{__MODULE__}.t/0` — the
+    value being placed. It flows through the pipe as the subject.
 
-  * `non_anchored` is a non-anchored `t:#{__MODULE__}.t/0` (pure
-    time-of-day) — typically a time like `~o"T10:30"`.
+  * `reference` is an anchored `t:#{__MODULE__}.t/0` (carries a
+    year) whose higher-order components fill in the subject's.
 
   ### Returns
 
-  * A new `t:t/0` combining the two. The date components come
-    from `anchored`; the time components come from `non_anchored`.
+  * A new anchored `t:t/0` — the reference's components coarser
+    than the subject's coarsest, plus the subject's own.
+
+  * `{:error, reason}` when the composed value fails calendar
+    validation.
 
   ### Raises
 
-  * `ArgumentError` when either argument has the wrong anchor
-    class — if `anchored` is non-anchored or `non_anchored` is
-    already anchored.
+  * `ArgumentError` when the subject is already anchored (there is
+    nothing to place — use `at/2` to set finer components), or when
+    `reference` is not anchored (it cannot supply a year).
 
   ### Examples
 
-      iex> Tempo.anchor(~o"2026-01-04", ~o"T10:30")
+      iex> Tempo.anchor(~o"T10:30", ~o"2026-01-04")
       ~o"2026Y1M4DT10H30M"
 
   """
-  # Same pattern as `from_date/1` — `merge/2` passes through any
-  # non-`{:ok, _}` return from `Validation.validate/2`, which
-  # dialyzer widens to include `nil | :undefined`. The spec
-  # reflects what the function is actually contracted to return;
-  # suppress the underspecs warning rather than widening.
+  # `graft/2` passes through any non-`{:ok, _}` return from
+  # `Validation.validate/2`, which dialyzer widens to include
+  # `nil | :undefined`. The spec reflects what the function is
+  # actually contracted to return; suppress the underspecs warning
+  # rather than widening.
   @dialyzer {:nowarn_function, anchor: 2}
 
   @spec anchor(t(), t()) :: t() | {:error, error_reason()}
-  def anchor(%__MODULE__{} = anchored, %__MODULE__{} = non_anchored) do
+  def anchor(%__MODULE__{} = non_anchored, %__MODULE__{} = reference) do
     cond do
-      not anchored?(anchored) ->
-        raise ArgumentError,
-              "anchor/2: first argument must be anchored (have a year component). " <>
-                "Got: #{inspect(anchored)}"
-
       anchored?(non_anchored) ->
         raise ArgumentError,
-              "anchor/2: second argument must be non-anchored (time-of-day only). " <>
-                "Got: #{inspect(non_anchored)}"
+              "anchor/2: the first argument must be non-anchored (a value to place " <>
+                "on the timeline). Got: #{inspect(non_anchored)}. To set finer " <>
+                "components on an already-anchored value, use at/2."
+
+      not anchored?(reference) ->
+        raise ArgumentError,
+              "anchor/2: the reference (second argument) must be anchored (carry a " <>
+                "year) so it can place the value. Got: #{inspect(reference)}"
 
       true ->
-        merge(anchored, non_anchored)
+        graft(reference, non_anchored)
     end
+  end
+
+  @doc """
+  Set finer components on a value already located on the timeline —
+  a *right-fill*.
+
+  `at/2` replaces a value's lower-order tail with `addition`,
+  keeping everything coarser untouched. `~o"2026-06-15" |> at(~o"T17")`
+  reads *"June 15th **at** 17:00"*. The whole time-of-day is
+  replaced, so a value that already carried a finer time loses it
+  cleanly rather than merging — `~o"2026-06-15T09:30" |> at(~o"T17")`
+  is `17:00`, not `17:30`.
+
+  It is the mirror of `anchor/2`: `anchor` left-fills a floating
+  value with coarser components; `at` right-fills a placed value
+  with finer ones.
+
+  Partial values are first-class, so the subject need not be
+  anchored — `~o"3M" |> at(~o"2D")` is the yearless `~o"3M2D"`
+  ("the 2nd of March, in some year"). When the subject *is*
+  anchored, the composed value is validated against the calendar,
+  so `~o"2026-02" |> at(~o"29D")` fails because 2026 is not a leap
+  year. See `on/2` for the same operation phrased for date units
+  (*on the 2nd*).
+
+  ### Arguments
+
+  * `subject` is the `t:#{__MODULE__}.t/0` being refined — it flows
+    through the pipe.
+
+  * `addition` is a non-anchored `t:#{__MODULE__}.t/0` fragment
+    whose components are grafted onto the subject, replacing any at
+    the same or finer resolution.
+
+  ### Returns
+
+  * `{:ok, tempo}` with the refined value.
+
+  * `{:error, reason}` when `addition` is anchored, or when an
+    anchored result fails calendar validation.
+
+  ### Examples
+
+      iex> Tempo.at(~o"2026-06-15", ~o"T17")
+      {:ok, ~o"2026Y6M15DT17H"}
+
+      iex> Tempo.at(~o"3M", ~o"2D")
+      {:ok, ~o"3M2D"}
+
+  """
+  @dialyzer {:nowarn_function, at: 2}
+
+  @spec at(t(), t()) :: {:ok, t()} | {:error, error_reason()}
+  def at(%__MODULE__{} = subject, %__MODULE__{} = addition) do
+    if anchored?(addition) do
+      {:error,
+       ArgumentError.exception(
+         "at/2: the second argument must be a non-anchored fragment — a bare " <>
+           "time-of-day or day — not an already-anchored value: #{inspect(addition)}."
+       )}
+    else
+      case graft(subject, addition) do
+        %__MODULE__{} = tempo -> {:ok, tempo}
+        error -> error
+      end
+    end
+  end
+
+  @doc """
+  Bang variant of `at/2` — returns the refined value or raises.
+
+  ### Examples
+
+      iex> Tempo.at!(~o"2026-06-15", ~o"T17")
+      ~o"2026Y6M15DT17H"
+
+  """
+  @spec at!(t(), t()) :: t()
+  def at!(%__MODULE__{} = subject, %__MODULE__{} = addition) do
+    case at(subject, addition) do
+      {:ok, tempo} -> tempo
+      {:error, exception} when is_exception(exception) -> raise exception
+      {:error, reason} -> raise ArgumentError, "at!/2 failed: #{inspect(reason)}"
+    end
+  end
+
+  @doc """
+  Right-fill a value with a fragment — `at/2`, spelled for how
+  English reads dates.
+
+  `at/2` reads naturally for a time-of-day (*"June 15th **at**
+  17:00"*); `on/2` reads naturally for a day (*"March, **on** the
+  2nd"*). They are the same function — interchangeable, both
+  respecting partial values — so pick whichever suits the fragment.
+
+  ### Arguments
+
+  * `subject` is the `t:#{__MODULE__}.t/0` being refined.
+
+  * `addition` is a non-anchored `t:#{__MODULE__}.t/0` fragment.
+
+  ### Returns
+
+  * `{:ok, tempo}` or `{:error, reason}` — see `at/2`.
+
+  ### Examples
+
+      iex> Tempo.on(~o"3M", ~o"2D")
+      {:ok, ~o"3M2D"}
+
+  """
+  @spec on(t(), t()) :: {:ok, t()} | {:error, error_reason()}
+  def on(%__MODULE__{} = subject, %__MODULE__{} = addition), do: at(subject, addition)
+
+  @doc """
+  Bang variant of `on/2` — the `at!/2` spelling for date fragments.
+  See `on/2`.
+
+  ### Examples
+
+      iex> Tempo.on!(~o"3M", ~o"2D")
+      ~o"3M2D"
+
+  """
+  @spec on!(t(), t()) :: t()
+  def on!(%__MODULE__{} = subject, %__MODULE__{} = addition), do: at!(subject, addition)
+
+  # Compose two values along the resolution axis: keep `high_source`'s
+  # components strictly coarser than `low_value`'s coarsest, then graft
+  # `low_value` on. Shared engine for `at/2` (subject is the high
+  # source) and `anchor/2` (reference is the high source). Reusing
+  # `merge/2` keeps a single validated path; pre-trimming `high_source`
+  # is what makes it a clean replace rather than a leaky overlay.
+  defp graft(%__MODULE__{} = high_source, %__MODULE__{time: [{unit, _value} | _]} = low_value) do
+    cutoff = Unit.sort_key(unit)
+    trimmed = Enum.filter(high_source.time, fn {other, _v} -> Unit.sort_key(other) > cutoff end)
+    merge(%{high_source | time: trimmed}, low_value)
   end
 
   @doc """

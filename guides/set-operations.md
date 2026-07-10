@@ -137,12 +137,21 @@ Tempo.intersection(~o"2026-01-04", ~o"T10:30", bound: ~o"2026-01-04")
 
 The `:bound` option is also required on `complement/2` — for the same reason. An unbounded complement is infinite; Tempo refuses to pick a universe.
 
-### The `anchor/2` primitive
+### Composing across axes — `at/2` and `anchor/2`
 
-When you want to *compose* a date with a time-of-day rather than intersect them, use `Tempo.anchor/2`. This is axis composition, not a set operation, and no algebraic laws apply — it's a constructor.
+When you want to *compose* a date with a time-of-day rather than intersect them, use `at/2` or its mirror `anchor/2`. This is axis composition, not a set operation, and no algebraic laws apply — these are constructors.
+
+`at/2` *right-fills*: it sets the time-of-day on a value already on the timeline, replacing any finer components it carried (a value that was `09:30` becomes exactly `10:30`, not a merge of the two).
 
 ```elixir
-iex> Tempo.anchor(~o"2026-01-04", ~o"T10:30")
+iex> Tempo.at(~o"2026-01-04", ~o"T10:30")
+{:ok, ~o"2026Y1M4DT10H30M"}
+```
+
+`anchor/2` *left-fills*: it places a floating time onto a reference date, supplying the missing year so the value can sit on the timeline.
+
+```elixir
+iex> Tempo.anchor(~o"T10:30", ~o"2026-01-04")
 ~o"2026Y1M4DT10H30M"
 ```
 

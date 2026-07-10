@@ -572,21 +572,75 @@ defmodule Tempo.Operations.Test do
     end
   end
 
-  describe "anchor/2" do
-    test "combines date + time into datetime" do
-      assert Tempo.anchor(~o"2026-01-04", ~o"T10:30") == ~o"2026Y1M4DT10H30M"
+  describe "anchor/2 (left-fill)" do
+    test "places a floating time onto a reference date" do
+      assert Tempo.anchor(~o"T10:30", ~o"2026-01-04") == ~o"2026Y1M4DT10H30M"
     end
 
-    test "rejects a non-anchored first operand" do
-      assert_raise ArgumentError, ~r/first argument/, fn ->
+    test "takes the reference's zone" do
+      assert Tempo.anchor(~o"T17", ~o"2026-06-15[Australia/Sydney]") ==
+               ~o"2026Y6M15DT17H[Australia/Sydney]"
+    end
+
+    test "raises when the subject is already anchored, pointing at at/2" do
+      assert_raise ArgumentError, ~r/must be non-anchored.*at\/2/s, fn ->
+        Tempo.anchor(~o"2026-01-04", ~o"T10:30")
+      end
+    end
+
+    test "raises when the reference is not anchored" do
+      assert_raise ArgumentError, ~r/reference.*must be anchored/s, fn ->
         Tempo.anchor(~o"T10:30", ~o"T14:00")
       end
     end
+  end
 
-    test "rejects an anchored second operand" do
-      assert_raise ArgumentError, ~r/second argument/, fn ->
-        Tempo.anchor(~o"2026-01-04", ~o"2026-01-04")
-      end
+  describe "at/2 (right-fill)" do
+    test "sets the time-of-day on a date" do
+      assert Tempo.at(~o"2026-06-15", ~o"T17") == {:ok, ~o"2026Y6M15DT17H"}
+    end
+
+    test "replaces the whole time-of-day rather than merging it (no leak)" do
+      assert Tempo.at(~o"2026-06-15T09:30", ~o"T17") == {:ok, ~o"2026Y6M15DT17H"}
+    end
+
+    test "keeps the subject's zone" do
+      assert Tempo.at(~o"2026-06-15[Australia/Sydney]", ~o"T17") ==
+               {:ok, ~o"2026Y6M15DT17H[Australia/Sydney]"}
+    end
+
+    test "refines a non-anchored subject when the addition is calendar-independent" do
+      assert Tempo.at(~o"T09", ~o"T14:30") == {:ok, ~o"T14H30M"}
+    end
+
+    test "respects partials — refines a non-anchored subject with a date unit" do
+      assert Tempo.at(~o"3M", ~o"2D") == {:ok, ~o"3M2D"}
+      assert Tempo.at(~o"2M", ~o"29D") == {:ok, ~o"2M29D"}
+    end
+
+    test "validates against the calendar when the subject is anchored" do
+      assert Tempo.at(~o"2024-02", ~o"29D") == {:ok, ~o"2024Y2M29D"}
+      assert {:error, %Tempo.InvalidDateError{}} = Tempo.at(~o"2026-02", ~o"29D")
+    end
+
+    test "rejects an anchored addition" do
+      assert {:error, %ArgumentError{}} = Tempo.at(~o"2026-06-15", ~o"2027-01-01")
+    end
+
+    test "at!/2 returns the value or raises" do
+      assert Tempo.at!(~o"2026-06-15", ~o"T17") == ~o"2026Y6M15DT17H"
+      assert_raise ArgumentError, fn -> Tempo.at!(~o"2026-06-15", ~o"2027-01-01") end
+    end
+  end
+
+  describe "on/2 (right-fill, date phrasing)" do
+    test "is an alias of at/2" do
+      assert Tempo.on(~o"3M", ~o"2D") == Tempo.at(~o"3M", ~o"2D")
+      assert Tempo.on(~o"3M", ~o"2D") == {:ok, ~o"3M2D"}
+    end
+
+    test "on!/2 returns the value" do
+      assert Tempo.on!(~o"3M", ~o"2D") == ~o"3M2D"
     end
   end
 
