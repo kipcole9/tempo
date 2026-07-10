@@ -52,6 +52,7 @@ defmodule Tempo.Interval do
 
   alias Tempo.Compare
   alias Tempo.Duration
+  alias Tempo.FloatingTempoError
   alias Tempo.Interval.Composition
   alias Tempo.IntervalEndpointsError
   alias Tempo.IntervalSet
@@ -833,6 +834,8 @@ defmodule Tempo.Interval do
   """
   @spec relation(interval_like(), interval_like()) :: relation() | {:error, term()}
   def relation(a, b) do
+    reject_mixed_frame!(a, b)
+
     with {:ok, iv_a} <- to_single_interval(a, :a),
          {:ok, iv_b} <- to_single_interval(b, :b) do
       classify(iv_a, iv_b)
@@ -1973,11 +1976,51 @@ defmodule Tempo.Interval do
   ## Graded-relation internals
 
   defp concept_certainty(a, b, concept) do
+    reject_mixed_frame!(a, b)
+
     case possible_relations(a, b) do
       {:error, _} = error -> error
       possible -> certainty(possible, concept)
     end
   end
+
+  @doc false
+  # A floating value has no position on the universal time line, so it
+  # cannot be compared with a grounded one — every crisp relation and
+  # certainty query rejects the mixed frame rather than silently
+  # grounding the floating side to UTC. Ground it first with
+  # `Tempo.in_zone/2` (or an offset). Two floating or two grounded
+  # operands compare normally. Shared with `Tempo.Operations` so the
+  # set-theoretic predicates (`overlaps?/2`, `disjoint?/2`, …) reject
+  # the same mismatch.
+  def reject_mixed_frame!(a, b) do
+    case floating_conflict(a, b) do
+      %Tempo{} = floating ->
+        raise FloatingTempoError.exception(operation: :compare, value: floating)
+
+      nil ->
+        :ok
+    end
+  end
+
+  # Returns the floating endpoint Tempo when `a` and `b` are a
+  # floating-vs-grounded mismatch, else `nil` (same frame, or a frame
+  # can't be determined — e.g. a fully open interval).
+  defp floating_conflict(a, b) do
+    with %Tempo{} = ta <- frame_tempo(a),
+         %Tempo{} = tb <- frame_tempo(b),
+         true <- Tempo.floating?(ta) != Tempo.floating?(tb) do
+      if Tempo.floating?(ta), do: ta, else: tb
+    else
+      _ -> nil
+    end
+  end
+
+  defp frame_tempo(%Tempo{} = tempo), do: tempo
+  defp frame_tempo(%__MODULE__{from: %Tempo{} = from}), do: from
+  defp frame_tempo(%__MODULE__{to: %Tempo{} = to}), do: to
+  defp frame_tempo(%IntervalSet{intervals: [interval | _rest]}), do: frame_tempo(interval)
+  defp frame_tempo(_other), do: nil
 
   defp certainty(possible, concept) do
     cond do

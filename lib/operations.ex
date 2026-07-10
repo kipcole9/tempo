@@ -1045,6 +1045,8 @@ defmodule Tempo.Operations do
   @spec disjoint?(operand, operand, keyword()) :: boolean()
         when operand: Tempo.t() | Interval.t() | IntervalSet.t() | Tempo.Set.t()
   def disjoint?(a, b, opts \\ []) do
+    Interval.reject_mixed_frame!(a, b)
+
     case intersection(a, b, opts) do
       {:ok, %IntervalSet{intervals: []}} -> true
       {:ok, _} -> false
@@ -1067,6 +1069,8 @@ defmodule Tempo.Operations do
   @spec subset?(operand, operand, keyword()) :: boolean()
         when operand: Tempo.t() | Interval.t() | IntervalSet.t() | Tempo.Set.t()
   def subset?(a, b, opts \\ []) do
+    Interval.reject_mixed_frame!(a, b)
+
     case difference(a, b, opts) do
       {:ok, %IntervalSet{intervals: []}} -> true
       {:ok, _} -> false

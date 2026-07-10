@@ -111,6 +111,7 @@ defmodule Tempo do
   alias Tempo.Enumeration
   alias Tempo.Explain
   alias Tempo.FloatingTempoError
+  alias Tempo.GroundedTempoError
   alias Tempo.Interval
   alias Tempo.IntervalSet
   alias Tempo.InvalidCalendarError
@@ -2715,6 +2716,67 @@ defmodule Tempo do
   end
 
   ## ---------------------------------------------------------
+  ## Zone grounding — place a floating Tempo into a zone
+  ## ---------------------------------------------------------
+
+  @doc """
+  Ground a floating `Tempo` by placing its wall-clock reading into an
+  IANA time zone.
+
+  A floating value (`~o"2024-01-01"`) names a civil reading but not
+  *which* observer's — it has no position on the universal time line.
+  `in_zone/2` interprets that reading as the local time in `zone`,
+  producing a grounded value that projects to UTC. The wall-clock
+  fields are unchanged; only the zone is attached. This is the runtime
+  equivalent of writing the `[zone]` suffix in the source
+  (`~o"2024-01-01[Australia/Sydney]"`).
+
+  Use `in_zone/2` to *place* a floating value into a zone; use
+  `shift_zone/2` to *move* an already-grounded value to a different
+  zone (which re-computes the wall clock to preserve the instant).
+
+  ### Arguments
+
+  * `tempo` is a floating `t:t/0` (no zone and no offset — see
+    `floating?/1`).
+
+  * `zone` is an IANA zone name (`"Europe/Paris"`, `"Australia/Sydney"`,
+    `"Etc/UTC"`, …).
+
+  ### Returns
+
+  * `{:ok, tempo}` grounded in `zone`, with the same wall-clock fields.
+
+  * `{:error, reason}` when `tempo` is already grounded (use
+    `shift_zone/2` instead) or `zone` is unknown to Tzdata.
+
+  ### Examples
+
+      iex> {:ok, sydney} = Tempo.in_zone(Tempo.from_iso8601!("2024-01-01"), "Australia/Sydney")
+      iex> sydney.extended.zone_id
+      "Australia/Sydney"
+
+      iex> {:error, _} = Tempo.in_zone(Tempo.from_iso8601!("2024-01-01[Australia/Sydney]"), "Europe/Paris")
+
+  """
+  @spec in_zone(t(), String.t()) :: {:ok, t()} | {:error, error_reason()}
+  def in_zone(%Tempo{} = tempo, zone) when is_binary(zone) do
+    cond do
+      not floating?(tempo) ->
+        {:error, GroundedTempoError.exception(operation: :in_zone, value: tempo)}
+
+      not Tzdata.zone_exists?(zone) ->
+        {:error, UnknownZoneError.exception(zone_id: zone)}
+
+      true ->
+        {:ok, %{tempo | extended: put_zone_id(tempo.extended, zone)}}
+    end
+  end
+
+  defp put_zone_id(nil, zone), do: %{zone_id: zone, zone_offset: nil, calendar: nil, tags: %{}}
+  defp put_zone_id(%{} = extended, zone), do: %{extended | zone_id: zone}
+
+  ## ---------------------------------------------------------
   ## Zone shifting — project a zoned Tempo into another zone
   ## ---------------------------------------------------------
 
@@ -2769,9 +2831,78 @@ defmodule Tempo do
     end
   end
 
-  defp floating?(%Tempo{shift: nil, extended: nil}), do: true
-  defp floating?(%Tempo{shift: nil, extended: %{zone_id: nil, zone_offset: nil}}), do: true
-  defp floating?(%Tempo{}), do: false
+  @doc """
+  Return whether a `Tempo` value is *floating* — a wall-clock reading
+  with no zone or offset, so it cannot be placed on the universal
+  (UTC) time line.
+
+  A floating value carries no `[IANA/Zone]` tag, no `Z`, and no numeric
+  offset. `~o"2024-01-01"` is floating: it names a civil day but not
+  *which* observer's civil day, so it has no single universal instant.
+  Attaching a zone with `in_zone/2` (or an offset such as `Z`) grounds
+  it. The complement is `grounded?/1`.
+
+  Floating and grounded values cannot be compared — a floating value
+  has no universal position — so `relation/2` and the interval
+  predicates raise a `Tempo.FloatingTempoError` when only one operand
+  is floating.
+
+  ### Arguments
+
+  * `tempo` is a `%Tempo{}` value.
+
+  ### Returns
+
+  * `true` when the value has no zone and no offset.
+
+  * `false` when the value carries a zone (`[IANA/Zone]`) or an offset
+    (`Z` or `+HH:MM`).
+
+  ### Examples
+
+      iex> Tempo.floating?(Tempo.from_iso8601!("2024-01-01"))
+      true
+
+      iex> Tempo.floating?(Tempo.from_iso8601!("2024-01-01Z"))
+      false
+
+      iex> Tempo.floating?(Tempo.from_iso8601!("2024-01-01[Australia/Sydney]"))
+      false
+
+  """
+  @spec floating?(t()) :: boolean()
+  def floating?(%Tempo{shift: nil, extended: nil}), do: true
+  def floating?(%Tempo{shift: nil, extended: %{zone_id: nil, zone_offset: nil}}), do: true
+  def floating?(%Tempo{}), do: false
+
+  @doc """
+  Return whether a `Tempo` value is *grounded* — it carries a zone or
+  offset and so has a position on the universal (UTC) time line.
+
+  Grounded is the exact complement of `floating?/1`: a value is grounded
+  when it has an `[IANA/Zone]` tag, a `Z`, or a numeric offset.
+
+  ### Arguments
+
+  * `tempo` is a `%Tempo{}` value.
+
+  ### Returns
+
+  * `true` when the value carries a zone or offset.
+
+  * `false` when the value is floating.
+
+  ### Examples
+
+      iex> Tempo.grounded?(Tempo.from_iso8601!("2024-01-01[Australia/Sydney]"))
+      true
+
+      iex> Tempo.grounded?(Tempo.from_iso8601!("2024-01-01"))
+      false
+
+  """
+  @spec grounded?(t()) :: boolean()
+  def grounded?(%Tempo{} = tempo), do: not floating?(tempo)
 
   defp do_shift_zone(%Tempo{calendar: calendar} = tempo, "Etc/UTC") do
     utc_seconds = Compare.to_utc_seconds(tempo)
