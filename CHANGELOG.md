@@ -6,15 +6,27 @@
 
 * `Tempo.at/2`, `at!/2`, and the date-phrased aliases `on/2` and `on!/2` — set finer components on a value already on the timeline (`Tempo.at(~o"2026-06-15", ~o"T17")`, `Tempo.on(~o"3M", ~o"2D")`), replacing the whole tail rather than merging it. Partial values are first-class, so a non-anchored subject is refined without forcing a year, and only anchored results are validated against the calendar.
 
+* `Tempo.floating?/1` and `Tempo.grounded?/1` — predicates for whether a value sits on the universal (UTC) time line: floating values carry no zone or offset, grounded values carry an `[IANA/Zone]`, a `Z`, or a numeric offset.
+
+* `Tempo.in_zone/2` — ground a floating value by placing its wall clock into an IANA zone (`Tempo.in_zone(~o"2030-03-01T08:00", "Europe/Paris")`). It is the counterpart to `shift_zone/2`, which *moves* an already-grounded value between zones.
+
 ### Changed
 
 * **Breaking:** `Tempo.anchor/2` now takes the non-anchored value first and the reference second (`Tempo.anchor(~o"T10:30", ~o"2026-01-04")`) and raises when its subject is already anchored — it is strictly a left-fill that places a floating value on the timeline. Use the new `at/2` for the right-fill (setting a time-of-day on a date), which also fixes the previous behaviour of leaking the base's stray sub-units.
+
+* **Breaking:** comparing a floating value with a grounded one now raises `Tempo.FloatingTempoError` — across `relation/2`, the Allen and set predicates, and the certainty API — rather than silently grounding the floating side to UTC. Ground the floating side first with `in_zone/2`.
+
+* A trailing IXDTF zone on an interval *string* now propagates backward onto a floating lower endpoint, so `Tempo.from_iso8601("2030-03-01T08:00/2030-03-05T08:00[Europe/Paris]")` grounds both endpoints. Propagation is one-directional (`to` → `from`), never overwrites an existing zone, and does not affect `Tempo.Interval.new/2`.
+
+* A critical IXDTF zone (`[!Europe/Paris]`) now enforces RFC 9557 §4.2 offset consistency: an offset that disagrees with the critical zone is rejected with `Tempo.ZoneOffsetMismatchError`. Criticality is retained on `extended.zone_critical` and round-trips through `to_iso8601/1`; `strict: true` still rejects elective disagreement too.
 
 * The minimum `calendrical` dependency is now `~> 0.12`, whose `days_in_month/1` reports a month's maximum length across all years.
 
 ### Fixed
 
 * A yearless partial date that occurs in no year is now rejected — `~o"2M30D"` (February 30th) and `Tempo.new(month: 4, day: 31)` return an error, while genuine partials such as `~o"3M2D"` and the leap-year `~o"2M29D"` still succeed. Months whose length can't be bounded without a year (many lunisolar months) are left unchecked rather than falsely rejected.
+
+* Two grounded values with the same wall clock but different numeric offsets (`2026-04-15T10:30+05:30` vs `+09:00`) now compare by their true UTC instants instead of testing equal — structural comparison was ignoring the offset.
 
 ## [v0.20.0] — 2026-07-10
 
