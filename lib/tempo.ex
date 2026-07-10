@@ -4332,6 +4332,103 @@ defmodule Tempo do
   end
 
   @doc """
+  Map `fun` over an enumerable of Tempo values, collecting the results into
+  a `t:Tempo.IntervalSet.t/0`.
+
+  The Tempo analogue of `Enum.map/2`: it walks any enumerable Tempo value
+  (a `t:Tempo.IntervalSet.t/0`, a `t:Tempo.Set.t/0`, a plain list of
+  values, …), applies `fun` to each element, and gathers the results into
+  an interval set instead of a list. Each result is materialised with
+  `Tempo.to_interval/1`, so `fun` may return either a `t:t/0` — a day
+  becomes its `[day, next_day)` span — or an interval. Members are kept
+  distinct (no coalescing); apply `Tempo.IntervalSet.coalesce/1` afterward
+  if you want touching spans merged.
+
+  Raises if a mapped value cannot be materialised into a bounded interval.
+  Use `try_map/2` for the error-returning form.
+
+  ### Arguments
+
+  * `enumerable` is any enumerable of Tempo values.
+
+  * `fun` is a one-arity function applied to each element.
+
+  ### Returns
+
+  * a `t:Tempo.IntervalSet.t/0` of the mapped, materialised values.
+
+  ### Examples
+
+      iex> [~o"2025-07-04", ~o"2026-07-04", ~o"2027-07-04"]
+      ...> |> Tempo.map(&Tempo.nearest_working_day(&1, :US))
+      ...> |> Tempo.IntervalSet.count()
+      3
+
+  """
+  @spec map(Enumerable.t(), (term() -> term())) :: Tempo.IntervalSet.t()
+  def map(enumerable, fun) when is_function(fun, 1) do
+    case try_map(enumerable, fun) do
+      {:ok, set} ->
+        set
+
+      {:error, exception} when is_exception(exception) ->
+        raise exception
+
+      {:error, reason} ->
+        raise ArgumentError, "Tempo.map/2 could not build the set: #{inspect(reason)}"
+    end
+  end
+
+  @doc """
+  Like `map/2`, but returns `{:ok, interval_set}` or halts at the first
+  value that cannot be materialised, returning its `{:error, reason}`.
+
+  This is the "traverse" form — map every element, or stop at the first
+  failure and report it — analogous to Gleam's `list.try_map` or a Rust
+  `collect::<Result<_, _>>()`. `fun` returns a plain Tempo value (exactly
+  as for `map/2`); the error is the first result that `Tempo.to_interval/1`
+  rejects (an unbounded, non-anchored, or otherwise un-materialisable
+  value), so a partially-resolvable set never yields a partial result.
+
+  ### Arguments
+
+  * `enumerable` is any enumerable of Tempo values.
+
+  * `fun` is a one-arity function applied to each element.
+
+  ### Returns
+
+  * `{:ok, interval_set}` when every mapped value materialises, or
+
+  * `{:error, reason}` for the first that does not.
+
+  ### Examples
+
+      iex> {:ok, set} = Tempo.try_map([~o"2025-07-04", ~o"2026-07-04"], &Tempo.nearest_working_day(&1, :US))
+      iex> Tempo.IntervalSet.count(set)
+      2
+
+      iex> match?({:error, _}, Tempo.try_map([~o"P1D"], & &1))
+      true
+
+  """
+  @spec try_map(Enumerable.t(), (term() -> term())) ::
+          {:ok, Tempo.IntervalSet.t()} | {:error, error_reason()}
+  def try_map(enumerable, fun) when is_function(fun, 1) do
+    enumerable
+    |> Enum.reduce_while([], fn element, acc ->
+      case to_interval(fun.(element)) do
+        {:ok, interval} -> {:cont, [interval | acc]}
+        {:error, _} = error -> {:halt, error}
+      end
+    end)
+    |> case do
+      {:error, _} = error -> error
+      intervals -> IntervalSet.new(Enum.reverse(intervals))
+    end
+  end
+
+  @doc """
   Raising version of `to_interval/1`.
 
   ### Arguments
@@ -5010,6 +5107,77 @@ defmodule Tempo do
   @spec previous_working_day(t(), Tempo.Territory.input()) :: t()
   def previous_working_day(%Tempo{} = tempo, territory \\ nil) do
     add_working_days(tempo, -1, territory)
+  end
+
+  @doc """
+  The nearest working day to `tempo` in the territory — `tempo` itself
+  when it already is a working day, otherwise the closest day that is not
+  in the territory's weekend.
+
+  Distance is measured outward in both directions and the nearer working
+  day wins, ties broken toward the preceding day. For the usual two-day
+  weekend this reproduces the common "observed holiday" rule — a Saturday
+  rolls back to Friday, a Sunday forward to Monday — which is how a
+  fixed-date public holiday such as US Independence Day is observed when
+  it lands on a weekend.
+
+  Like the rest of the working-day family this is weekend-aware but not
+  holiday-aware: the weekend is the territory's (via `Localize`). Subtract
+  a holiday `t:Tempo.IntervalSet.t/0` with set operations if you also need
+  to step over holidays.
+
+  ### Arguments
+
+  * `tempo` is a `t:t/0` that denotes a single day; a coarser or
+    non-anchored value raises `ArgumentError`.
+
+  * `territory` is resolved through `Tempo.Territory.resolve/1` and sets
+    which days are the weekend.
+
+  ### Returns
+
+  * `tempo` unchanged when it already is a working day, otherwise the
+    nearest working day.
+
+  ### Examples
+
+      iex> Tempo.nearest_working_day(~o"2026-07-04", :US)
+      ~o"2026Y7M3D"
+
+      iex> Tempo.nearest_working_day(~o"2027-07-04", :US)
+      ~o"2027Y7M5D"
+
+      iex> Tempo.nearest_working_day(~o"2025-07-04", :US)
+      ~o"2025Y7M4D"
+
+  """
+  @spec nearest_working_day(t(), Tempo.Territory.input()) :: t()
+  def nearest_working_day(%Tempo{} = tempo, territory \\ nil) do
+    # weekend?/2 validates day resolution and resolves the territory, so a
+    # coarse value or bad territory fails up front.
+    if weekend?(tempo, territory) do
+      find_nearest_working_day(tempo, territory, 1)
+    else
+      tempo
+    end
+  end
+
+  defp find_nearest_working_day(tempo, territory, distance) when distance <= 7 do
+    preceding = shift(tempo, day: -distance)
+    following = shift(tempo, day: distance)
+
+    cond do
+      not weekend?(preceding, territory) -> preceding
+      not weekend?(following, territory) -> following
+      true -> find_nearest_working_day(tempo, territory, distance + 1)
+    end
+  end
+
+  defp find_nearest_working_day(tempo, _territory, _distance) do
+    # Unreachable for any real territory — weekends are one or two days —
+    # but guard against a pathological all-weekend calendar rather than
+    # recurse without end.
+    raise ArgumentError, "no working day found within a week of #{inspect(tempo)}"
   end
 
   @doc """

@@ -4,6 +4,7 @@ defmodule Tempo.Inspect do
   import Kernel, except: [inspect: 1]
 
   alias Localize.Validity.U
+  alias Tempo.Iso8601EncodeError
   alias Tempo.Microsecond
 
   @from_iso8601 "Tempo.from_iso8601!(\""
@@ -652,6 +653,15 @@ defmodule Tempo.Inspect do
   # crashing; the canonical external form remains the RRULE string.
   defp inspect_value({:set_position, position}), do: [inspect_list(position), ?V]
   defp inspect_value({:wkst, weekday}), do: [inspect_list(weekday), ?Q]
+
+  # A nearest-weekday selection (cron `W`, parsed to `:nearest_weekday`) has
+  # no ISO 8601 designator and — unlike `V`/`Q` above — was deliberately not
+  # given a project-specific one (the day-level operation is
+  # `Tempo.nearest_working_day/2`). Raise a clear error instead of a
+  # `FunctionClauseError`; the Inspect protocol catches it and falls back.
+  defp inspect_value({:nearest_weekday, _targets}) do
+    raise Iso8601EncodeError.exception(construct: :nearest_weekday)
+  end
 
   defp inspect_value({:interval, interval}), do: inspect_value(interval)
   defp inspect_value({:duration, duration}), do: inspect_value(duration)

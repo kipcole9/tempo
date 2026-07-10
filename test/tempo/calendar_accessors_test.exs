@@ -238,6 +238,26 @@ defmodule Tempo.CalendarAccessorsTest do
       assert Tempo.previous_working_day(~o"2026-06-15", :US) == ~o"2026-06-12"
     end
 
+    test "nearest_working_day rolls a weekend to the closest working day" do
+      # US Sat/Sun weekend — the observed-holiday rule.
+      assert Tempo.nearest_working_day(~o"2026-07-04", :US) == ~o"2026-07-03"
+      assert Tempo.nearest_working_day(~o"2027-07-04", :US) == ~o"2027-07-05"
+      # Already a working day → unchanged.
+      assert Tempo.nearest_working_day(~o"2025-07-04", :US) == ~o"2025-07-04"
+    end
+
+    test "nearest_working_day honours the territory's weekend" do
+      # Saudi Arabia's weekend is Friday/Saturday.
+      assert Tempo.nearest_working_day(~o"2026-07-04", :SA) == ~o"2026-07-05"
+      assert Tempo.nearest_working_day(~o"2026-07-03", :SA) == ~o"2026-07-02"
+    end
+
+    test "nearest_working_day raises on a value coarser than a day" do
+      assert_raise ArgumentError, ~r/denotes a day/, fn ->
+        Tempo.nearest_working_day(~o"2026-07", :US)
+      end
+    end
+
     test "working_days_in counts working days in a half-open interval" do
       {:ok, june} = Interval.new(from: ~o"2026-06-01", to: ~o"2026-07-01")
       assert Tempo.working_days_in(june, :US) == 22

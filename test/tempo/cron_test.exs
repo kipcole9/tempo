@@ -301,6 +301,18 @@ defmodule Tempo.CronTest do
       assert {1, 30} in days
       assert {2, 27} in days
     end
+
+    test "a nearest-weekday rule has no ISO 8601 form — clear error, no crash" do
+      {:ok, rule} = Cron.parse("0 0 9 15W * *")
+
+      # to_iso8601 raises a descriptive error rather than a FunctionClauseError.
+      assert_raise Tempo.Iso8601EncodeError, ~r/nearest-weekday/, fn ->
+        Tempo.to_iso8601(rule)
+      end
+
+      # inspect never crashes — it falls back to a labelled struct view.
+      assert inspect(rule) == "#Tempo.Interval<not ISO 8601 expressible>"
+    end
   end
 
   describe "POSIX day-of-month OR day-of-week" do

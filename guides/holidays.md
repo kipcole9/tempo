@@ -56,6 +56,48 @@ end)
 
 **Caching** — don't fetch on every request. The calendar updates weekly at most; store the parsed `%Tempo.IntervalSet{}` in an Agent, GenServer, `:persistent_term`, or your application's config cache and refresh on a schedule.
 
+## Expressing fixed-rule holidays directly in ISO 8601
+
+Many holidays need no feed at all: the ones with a purely calendrical rule — "the third Monday in January" — are recurrences Tempo can express as a native ISO 8601 string. Each round-trips through `Tempo.from_iso8601/1` and materialises to concrete dates once anchored to a year. Here are the eight US federal holidays with a fixed rule, given as the **observed public holiday** (not the underlying event date — see the notes below):
+
+| Holiday | When it occurs (public holiday) | ISO 8601 expression |
+|---|---|---|
+| Martin Luther King Jr. Day | 3rd Monday in January | `R/../P1Y/FL1M3I1KN` |
+| Presidents Day | 3rd Monday in February | `R/../P1Y/FL2M3I1KN` |
+| Memorial Day | last Monday in May | `R/../P1Y/FL5M-1I1KN` |
+| Independence Day | July 4 | `R/../P1Y/FL7M4DN` |
+| Columbus Day | 2nd Monday in October | `R/../P1Y/FL10M2I1KN` |
+| Veterans Day | November 11 | `R/../P1Y/FL11M11DN` |
+| Thanksgiving | 4th Thursday in November | `R/../P1Y/FL11M4I4KN` |
+| Christmas Day | December 25 | `R/../P1Y/FL12M25DN` |
+
+**Reading the expression.** `R/../P1Y` is an unbounded yearly recurrence (`../` = no fixed start, `P1Y` = one-year cadence); `FL…N` wraps the per-year selection. Inside it, `nM` is the month (`1M` = January), `nD` is a day of the month (`4D` = the 4th), `nI` is the nth instance (`3I` = 3rd, `-1I` = last), and `nK` is a weekday (`1K` = Monday … `7K` = Sunday). So `FL1M3I1KN` reads "in January, the 3rd Monday" and `FL7M4DN` reads "in July, the 4th day". The full grammar is in the [ISO 8601 conformance guide](./iso8601-conformance.md).
+
+**Observed day vs event day.** MLK Day, Presidents Day, Columbus Day, and Memorial Day are observed on a *weekday of the month*, deliberately different from the underlying event: Dr King's birthday is January 15, Washington's is February 22, the 1492 landing was October 12, and Memorial Day replaced a fixed May 30. The table gives the observed public-holiday rule, as intended.
+
+**Weekend "in lieu" shifts are not part of the rule.** The three fixed-date holidays — Independence Day, Veterans Day, Christmas — are federally observed on the nearest weekday when the date lands on a weekend (July 4 on a Saturday is observed Friday July 3, which is why the feed above lists `7/3: Independence Day (in lieu)`). That shift is an observational rule, not a calendrical recurrence, so the ISO 8601 expression names the nominal date; where in-lieu days matter, the `.ics` feed remains authoritative.
+
+### Computing the observed day yourself
+
+You don't have to defer to the feed for the weekend shift — `Tempo.nearest_working_day/2` applies exactly the federal in-lieu rule (a Saturday rolls back to Friday, a Sunday forward to Monday), territory-aware for which days are the weekend:
+
+```elixir
+# 4 July 2026 is a Saturday
+Tempo.nearest_working_day(~o"2026-07-04", :US)
+#=> ~o"2026Y7M3D"    (observed Friday, 3 July)
+```
+
+It is a single-day transform, so map it over as many years as you like — the working-day family is weekend-aware, not holiday-aware, which is precisely right here because the in-lieu rule only cares about weekends:
+
+```elixir
+[2025, 2026, 2027]
+|> Enum.map(&Tempo.nearest_working_day(Tempo.from_iso8601!("#{&1}-07-04"), :US))
+#=> [~o"2025Y7M4D", ~o"2026Y7M3D", ~o"2027Y7M5D"]
+#     Fri 4 (weekday)  Fri 3 (from Sat)  Mon 5 (from Sun)
+```
+
+`nearest_working_day/2` requires a value that denotes a day and raises otherwise; its siblings `next_working_day/2` and `previous_working_day/2` move by a fixed number of working days instead of snapping to the closest.
+
 ## Three planning questions
 
 Assume the calendar has been fetched and parsed into `holidays`.
