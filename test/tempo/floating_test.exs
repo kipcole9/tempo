@@ -86,6 +86,25 @@ defmodule Tempo.FloatingTest do
     end
   end
 
+  describe "fixed-offset comparison honours the offset (regression)" do
+    test "same wall clock, different offsets are different instants" do
+      a = ~o"2026-04-15T10:30:00+05:30"
+      b = ~o"2026-04-15T10:30:00+09:00"
+      # b is 3.5h earlier in UTC, so it precedes a.
+      assert Tempo.relation(a, b) == :preceded_by
+      assert Tempo.relation(b, a) == :precedes
+    end
+
+    test "same wall clock and same offset are equal" do
+      assert Tempo.relation(~o"2026-04-15T10:30:00+05:30", ~o"2026-04-15T10:30:00+05:30") ==
+               :equals
+    end
+
+    test "Z and +00:00 name the same instant" do
+      assert Tempo.relation(~o"2026-04-15T10:30:00Z", ~o"2026-04-15T10:30:00+00:00") == :equals
+    end
+  end
+
   describe "comparisons within a single frame are unaffected" do
     test "two floating values compare structurally" do
       assert Tempo.relation(~o"2024-01-01", ~o"2024-06-01") == :precedes

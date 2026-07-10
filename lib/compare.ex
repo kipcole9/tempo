@@ -209,18 +209,28 @@ defmodule Tempo.Compare do
   # zone_id (or both have no zone info). Same-zone comparison
   # doesn't need UTC projection — the wall-clock values are
   # directly comparable.
-  defp zones_compatible?(%Tempo{extended: nil}, %Tempo{extended: nil}), do: true
+  # Two Tempos compare structurally (by wall clock) only when they share
+  # the same frame — the same zone id AND the same numeric UTC offset. A
+  # zoned value (`[Europe/Paris]`) resolves its offset on demand and
+  # holds `shift: nil`, so two same-zone values stay structural. But two
+  # fixed-offset values with different offsets (`+05:30` vs `+09:00`)
+  # read one wall clock as two different instants, so they must project
+  # to UTC; comparing their wall-clock lists directly would wrongly
+  # report them equal.
+  defp zones_compatible?(a, b), do: same_zone_id?(a, b) and same_offset?(a, b)
 
-  defp zones_compatible?(%Tempo{extended: %{zone_id: z}}, %Tempo{extended: %{zone_id: z}}),
-    do: true
+  defp same_zone_id?(%Tempo{extended: a}, %Tempo{extended: b}), do: zone_id(a) == zone_id(b)
 
-  defp zones_compatible?(%Tempo{extended: nil}, %Tempo{extended: %{zone_id: nil}}), do: true
-  defp zones_compatible?(%Tempo{extended: %{zone_id: nil}}, %Tempo{extended: nil}), do: true
+  defp zone_id(nil), do: nil
+  defp zone_id(%{zone_id: zone_id}), do: zone_id
 
-  defp zones_compatible?(%Tempo{extended: %{zone_id: nil}}, %Tempo{extended: %{zone_id: nil}}),
-    do: true
+  defp same_offset?(%Tempo{shift: a}, %Tempo{shift: b}),
+    do: offset_minutes(a) == offset_minutes(b)
 
-  defp zones_compatible?(_, _), do: false
+  defp offset_minutes(nil), do: nil
+
+  defp offset_minutes(shift),
+    do: Keyword.get(shift, :hour, 0) * 60 + Keyword.get(shift, :minute, 0)
 
   defp compare_via_utc(a, b) do
     a_secs = to_utc_seconds(a)

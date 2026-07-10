@@ -97,50 +97,77 @@ store_in_database(cached_utc)
 
 When Tzdata ships a DST rule change for 2030, your cached number is now wrong — but you've lost the wall-clock information needed to recompute. Serialise the Tempo value itself (`Tempo.to_iso8601/1` round-trips faithfully) and project to UTC only at display or comparison time.
 
-## 3. Floating vs zoned events
+## 3. Floating vs grounded values
 
-Apple Calendar's **"floating"** events (they call them "All-day" in the UI, but the concept applies to timed events too in iCal RFC 5545) stay at the same wall-clock reading regardless of the viewer's zone — a "6am workout" on holiday is still 6am local.
+Every Tempo value is one of two kinds, and the distinction governs whether it can be placed on the universal (UTC) time line at all:
 
-Tempo distinguishes floating and zoned through **presence of the zone tag**:
+* A **grounded** value carries a zone or an offset — `[Europe/Paris]`, `Z`, or `+05:30` — so it names a position every observer agrees on. `Tempo.grounded?/1` returns `true`.
+
+* A **floating** value carries neither. `~o"2030-03-01T08:00:00"` is a wall-clock reading with no observer attached — "8am wherever the reader happens to be". It has no single universal instant. `Tempo.floating?/1` returns `true`.
+
+Apple Calendar's **"floating"** events (they call them "All-day" in the UI, but the concept applies to timed events too in iCal RFC 5545) are exactly this kind: a "6am workout" on holiday is still 6am local, whatever zone you fly to.
+
+Tempo makes the distinction through **what is on the value**, not a flag — and exposes it through two predicates rather than field-poking:
 
 ```elixir
-floating = ~o"2030-03-01T08:00:00"
-floating.extended
-#=> nil
-
-paris = ~o"2030-03-01T08:00:00[Europe/Paris]"
-paris.extended.zone_id
-#=> "Europe/Paris"
-
-utc = ~o"2030-03-01T08:00:00Z"
-utc.shift
-#=> [hour: 0]
-
-fixed = ~o"2030-03-01T08:00:00+05:30"
-fixed.shift
-#=> [hour: 5, minute: 30]
+Tempo.floating?(~o"2030-03-01T08:00:00")                 #=> true
+Tempo.grounded?(~o"2030-03-01T08:00:00[Europe/Paris]")   #=> true
+Tempo.grounded?(~o"2030-03-01T08:00:00Z")                #=> true
+Tempo.grounded?(~o"2030-03-01T08:00:00+05:30")           #=> true
 ```
 
-| Form | Meaning |
-|---|---|
-| `~o"2030-03-01T08:00:00"` | **Floating** — 8am in whatever zone the reader is in |
-| `~o"2030-03-01T08:00:00[Europe/Paris]"` | **Zoned** — 8am Paris wall time, UTC derived on demand |
-| `~o"2030-03-01T08:00:00Z"` | **UTC-anchored** — a specific UTC instant, wall times vary by zone |
-| `~o"2030-03-01T08:00:00+05:30"` | **Fixed-offset** — UTC+05:30 regardless of zone-rule changes |
+Grounded values come in three flavours; the table lays out all four forms:
+
+| Form | Kind | Meaning |
+|---|---|---|
+| `~o"2030-03-01T08:00:00"` | **Floating** | 8am in whatever zone the reader is in — no universal instant |
+| `~o"2030-03-01T08:00:00[Europe/Paris]"` | Grounded — zoned | 8am Paris wall time, UTC derived on demand |
+| `~o"2030-03-01T08:00:00Z"` | Grounded — UTC-anchored | a specific UTC instant, wall times vary by zone |
+| `~o"2030-03-01T08:00:00+05:30"` | Grounded — fixed-offset | UTC+05:30 regardless of zone-rule changes |
 
 The right choice depends on what the user said:
 
 * "Morning workout at 6am" when travelling — floating.
 
-* "Meeting at 2pm Paris" — zoned (`[Europe/Paris]`).
+* "Meeting at 2pm Paris" — grounded, zoned (`[Europe/Paris]`).
 
-* "Server job at 03:00 UTC" — UTC-anchored (`Z`).
+* "Server job at 03:00 UTC" — grounded, UTC-anchored (`Z`).
 
-* "Event at UTC+05:30" (fixed-offset calendar system) — fixed-offset.
+* "Event at UTC+05:30" (fixed-offset calendar system) — grounded, fixed-offset.
+
+### Grounding a floating value
+
+When a floating value needs to go on the time line — to compare it, project it to UTC, or shift it to another zone — place it into a zone with `Tempo.in_zone/2`. This interprets its wall-clock reading as the local time in that zone; the numbers on the clock do not move, only the frame is attached:
+
+```elixir
+floating = ~o"2030-03-01T08:00:00"
+{:ok, paris} = Tempo.in_zone(floating, "Europe/Paris")   # read 8am as Paris local
+Tempo.grounded?(paris)                                   #=> true
+```
+
+`in_zone/2` *places* a floating value into a zone. Its counterpart `shift_zone/2` *moves* an already-grounded value to a different zone, recomputing the wall clock to preserve the instant. The two are mirror images: `in_zone/2` rejects an already-grounded value (use `shift_zone/2` to move it), and `shift_zone/2` rejects a floating one (use `in_zone/2` to place it).
+
+### Comparing floating and grounded values
+
+A floating value has no position on the universal time line, so **it cannot be compared with a grounded one** — there is no fact of the matter about whether "8am somewhere" falls before or after "8am in Paris" until you say *which* somewhere. Rather than silently grounding the floating side to UTC and inventing an answer, Tempo refuses the comparison:
+
+```elixir
+Tempo.relation(~o"2030-03-01T08:00:00", ~o"2030-03-01T08:00:00[Europe/Paris]")
+#=> ** (Tempo.FloatingTempoError) Cannot compare on a floating Tempo (no zone or offset information) ...
+```
+
+The same rejection applies to every comparison verb built on the relation — `before?/2`, `after?/2`, `overlaps?/2`, `within?/2`, the set predicates (`disjoint?/2`, `contains?/2`, …), and the certainty API (`overlap_certainty/2`, `certainly_before?/2`, …). Only the *mixed* case is refused: two floating values compare structurally on their shared wall-clock frame, and two grounded values compare by their instants (projected to UTC). Ground the floating side first and the comparison is well-defined:
+
+```elixir
+{:ok, grounded} = Tempo.in_zone(~o"2030-03-01T08:00:00", "Europe/Paris")
+Tempo.relation(grounded, ~o"2030-03-01T08:00:00[Europe/Paris]")   #=> :equals
+```
+
+This is the comparison corollary of "same wall clock is not the same instant" (see the [Falsehoods](./falsehoods.md) guide): if two grounded readings in different zones are already different instants, then a *floating* reading — which fixes no zone at all — has no instant to compare, and the right response is to decline rather than guess.
 
 ### Principle
 
-**The interpretation of a wall-clock reading is metadata, not an afterthought.** Tempo forces you to make that choice at parse time and preserves it through every operation.
+**The interpretation of a wall-clock reading is metadata, not an afterthought.** Tempo forces you to make that choice at parse time, preserves it through every operation, and refuses operations that would need a choice you have not yet made.
 
 ## 4. Future dates survive zone-rule changes
 

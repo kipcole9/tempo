@@ -200,10 +200,19 @@ Any timestamp in that zone on that date is rejected. The same mechanism that cat
 iex> a = Tempo.from_iso8601!("2026-04-15T10:30:00+05:30")
 iex> b = Tempo.from_iso8601!("2026-04-15T10:30:00+09:00")
 iex> Tempo.relation(a, b)
-{:ok, :preceded_by}
+:preceded_by
 ```
 
 `b` is 3.5 hours earlier in UTC — it precedes `a`. The comparison goes through UTC projection so the Allen relation reflects the real ordering on the time line, not the face value of the clock reading.
+
+**Corollary — a value with *no* zone has no instant to compare at all.** If two grounded readings in different zones are different instants, then a *floating* reading — one that fixes no zone or offset — has no position on the universal time line, and there is no fact of the matter about how it orders against a grounded value. Tempo declines the comparison rather than silently grounding the floating side to UTC:
+
+```elixir
+iex> Tempo.relation(~o"2026-04-15T10:30:00", ~o"2026-04-15T10:30:00[Europe/Paris]")
+** (Tempo.FloatingTempoError) Cannot compare on a floating Tempo (no zone or offset information) ...
+```
+
+Ground the floating value first with `Tempo.in_zone/2` (place its wall clock into a zone) or `Z`/`+HH:MM` (attach an offset), and the comparison becomes well-defined. See the [Scheduling](./scheduling.md) guide's "Floating vs grounded values" section for the full treatment.
 
 ---
 
