@@ -120,15 +120,65 @@ These syntaxes are Tempo conveniences, not part of any standard:
 * **Step in range** — `{1990..1999//2}Y` or `2023Y{1..-1//2}W` means "every second week in 2023".
 * **Explicit suffixes** — `2022Y11M20D` instead of `2022-11-20`. Used by the `~o` sigil as the canonical output form.
 * **Repeat rule** — `/F` combinator inside a parsed expression.
-* **Selection instance count** — `L…N` with an `I` modifier for the nth instance (`2I1K` = "the 2nd Monday").
-* **RRULE selection designators** — a recurrence selection may carry two RFC 5545 (iCalendar RRULE / cron) filters that have **no ISO 8601 representation**. Tempo assigns them project-specific designators so a parsed rule round-trips through `inspect/1`/`Tempo.to_iso8601/1` instead of being lost:
-
-  * **`V` — set position** (RRULE `BYSETPOS`): keep the Nth occurrence(s) of the per-period candidate set, e.g. `-1V` = the last, `{1,3}V` = the 1st and 3rd.
-  * **`Q` — week start** (RRULE `WKST`): the weekday a week begins on, e.g. `7Q` = Sunday.
-
-  So "the last weekday of each month" (`FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1`) inspects as `~o"R/../P1M/FL{1..5}K-1VN"`. These two designators are the **only** non-standard letters Tempo emits inside a selection; the canonical external form for such a rule is still the RRULE string via `Tempo.to_rrule/1`.
+* **Selection instance count** — `L…N` with an `I` modifier for the nth instance of a *single* weekday (`2I1K` = "the 2nd Monday"). `I` is ISO 8601-2, not a Tempo invention; it is mentioned here only to contrast it with `V` below, which it is easily confused with.
 
 None of these break ISO 8601 compatibility — Tempo accepts the standard forms too.
+
+### Ratified RRULE selection designators — `V` and `Q`
+
+A recurrence selection may carry two RFC 5545 (iCalendar RRULE / cron) filters that have **no ISO 8601 representation**: `BYSETPOS` and `WKST`. Tempo gives them project-specific designators — `V` and `Q` — so a rule that uses them round-trips through `inspect/1` and `Tempo.to_iso8601/1` instead of being silently lost. These are **ratified** as permanent extensions: the letters and their meanings are stable and will not change.
+
+They are kept, rather than dropped for the sake of a spec-pure output, for two reasons:
+
+1. They express selections that ISO 8601 genuinely cannot. Neither the ISO ordinal designator `I` nor Tempo's set operations (`Tempo.intersection/2`, `Tempo.difference/2`, …) can reproduce them — see the contrasts below.
+
+2. They give Tempo's native string form the same reach as the RRULE it parses, so `RRULE → to_iso8601 → from_iso8601 → to_rrule` is loss-free and symmetric with the recurrence vocabulary.
+
+#### `V` — set position (RRULE `BYSETPOS`)
+
+`nV` keeps the **Nth occurrence of the whole per-period candidate set**, after every other `BY`-rule has run and the survivors are sorted. Negative counts index from the end and a set picks several: `-1V` is the last, `{1,3}V` is the 1st and 3rd.
+
+The subtlety — and the reason it is more than the ordinary ordinal — is that it ranks the *merged* set, not one weekday. "The last **weekday** of the month" is `V`; "the last **Friday**" is the ISO ordinal `I`. They are different selections:
+
+```elixir
+# Last WEEKDAY of each month — R/../P1M/FL{1..5}K-1VN
+# -1V over the merged Mon–Fri set
+Tempo.RRule.parse!("FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1")
+#   from 2022-06 → June 30 (Thu), July 29 (Fri), Aug 31 (Wed)
+
+# Last FRIDAY of each month — the ISO ordinal `I`, a genuinely different result
+Tempo.RRule.parse!("FREQ=MONTHLY;BYDAY=-1FR")
+#   from 2022-06 → June 24, July 29, Aug 26
+```
+
+They coincide only when the last weekday happens to be a Friday (July, above). RFC 5545's own worked example — "the third instance of Tuesday, Wednesday, or Thursday each month" — is `3V`:
+
+```elixir
+# R/../P1M/FL{2..4}K3VN
+Tempo.RRule.parse!("FREQ=MONTHLY;BYDAY=TU,WE,TH;BYSETPOS=3")
+#   from 1997-09 → Sept 4, Oct 7, Nov 6
+```
+
+#### `Q` — week start (RRULE `WKST`)
+
+`nQ` sets the weekday a week **begins** on (`1Q` = Monday, the default; `7Q` = Sunday). Because ISO 8601 weeks start on Monday by definition, any other week start has no ISO representation. The designator is emitted only when it is *not* the Monday default.
+
+`WKST` is a no-op for most rules: it changes nothing for `FREQ=WEEKLY;INTERVAL=1`, since one day per week is picked wherever the boundary sits. It becomes observable only when the week boundary decides *which* weeks are on — an `INTERVAL` of two or more, or a `BYWEEKNO`. This is RFC 5545's canonical example, with the week start as the only difference:
+
+```elixir
+# Every other week, Tue + Sun, from Tue 1997-08-05
+Tempo.RRule.parse!("FREQ=WEEKLY;INTERVAL=2;COUNT=4;BYDAY=TU,SU;WKST=MO")
+#   → Aug 5, 10, 19, 24   (R4/../P2W/FL{2,7}KN — no Q, Monday is the default)
+
+Tempo.RRule.parse!("FREQ=WEEKLY;INTERVAL=2;COUNT=4;BYDAY=TU,SU;WKST=SU")
+#   → Aug 5, 17, 19, 31   (R4/../P2W/FL{2,7}K7QN)
+```
+
+Moving the week start from Monday to Sunday changes which fortnight each candidate falls in, so a different set of dates survives the `INTERVAL=2` filter.
+
+#### Interchange risk
+
+`V` and `Q` are the **only** non-standard letters Tempo emits inside a selection. Because they are not ISO 8601, a *different* system reading Tempo's ISO string would not understand them. We rate this risk **low**: we have not identified any other system that consumes ISO 8601-2 recurrence at all, let alone one a Tempo `V`/`Q` string would reach in practice. Where a standard interchange form is needed — sharing a rule with a calendar server, for instance — use `Tempo.to_rrule/1`, which emits `BYSETPOS`/`WKST` in their portable RFC 5545 spelling. Treat the `V`/`Q` string as Tempo's native, loss-free persistence form and the RRULE string as the wire format.
 
 ## 6. Ambiguity resolution
 
