@@ -247,6 +247,7 @@ defmodule Tempo.Iso8601.Tokenizer.Extended do
     calendar: nil,
     zone_id: nil,
     zone_offset: nil,
+    zone_critical: false,
     tags: %{}
   }
 
@@ -328,7 +329,10 @@ defmodule Tempo.Iso8601.Tokenizer.Extended do
 
   defp apply_zone(zone, critical, acc) do
     if valid_zone?(zone) do
-      {:ok, %{acc | zone_id: zone}}
+      # Retain the critical flag: RFC 9557 §4.2 makes offset/zone
+      # consistency mandatory for a critical zone, so the flag must
+      # survive tokenizing to drive that check downstream.
+      {:ok, %{acc | zone_id: zone, zone_critical: critical}}
     else
       if critical do
         {:error, UnknownZoneError.exception(zone_id: zone)}

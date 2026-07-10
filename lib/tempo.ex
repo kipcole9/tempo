@@ -175,6 +175,7 @@ defmodule Tempo do
           calendar: atom() | nil,
           zone_id: String.t() | nil,
           zone_offset: integer() | nil,
+          zone_critical: boolean(),
           tags: %{optional(String.t()) => [String.t()]}
         }
 
@@ -528,10 +529,17 @@ defmodule Tempo do
 
     extended =
       cond do
-        zone && metadata -> %{calendar: nil, zone_id: zone, zone_offset: nil, tags: metadata}
-        zone -> %{calendar: nil, zone_id: zone, zone_offset: nil, tags: %{}}
-        metadata -> %{calendar: nil, zone_id: nil, zone_offset: nil, tags: metadata}
-        true -> nil
+        zone && metadata ->
+          %{calendar: nil, zone_id: zone, zone_offset: nil, zone_critical: false, tags: metadata}
+
+        zone ->
+          %{calendar: nil, zone_id: zone, zone_offset: nil, zone_critical: false, tags: %{}}
+
+        metadata ->
+          %{calendar: nil, zone_id: nil, zone_offset: nil, zone_critical: false, tags: metadata}
+
+        true ->
+          nil
       end
 
     {:ok,
@@ -570,7 +578,12 @@ defmodule Tempo do
   by zero or more tagged suffixes (`[u-ca=hebrew]`, `[_key=value]`).
   Any bracket may be prefixed with `!` to mark it critical —
   unrecognised critical suffixes cause the parse to fail; elective
-  suffixes are retained verbatim under `extended.tags`.
+  suffixes are retained verbatim under `extended.tags`. A critical
+  flag on a time zone additionally enforces RFC 9557 §4.2 offset
+  consistency: a numeric offset that disagrees with the critical
+  zone is rejected with a `Tempo.ZoneOffsetMismatchError`. An
+  elective zone leaves the offset authoritative; pass `strict: true`
+  (see the options form) to reject an elective disagreement too.
 
   ### Arguments
 
@@ -676,7 +689,8 @@ defmodule Tempo do
          {:ok, validated} <- Validation.validate(expanded, effective_calendar),
          attached = attach_extended(validated, extended),
          propagated = propagate_endpoint_frame(attached),
-         :ok <- Validation.validate_zone_existence(propagated) do
+         :ok <- Validation.validate_zone_existence(propagated),
+         :ok <- enforce_critical_zone_offset(propagated) do
       {:ok, propagated}
     end
   end
@@ -713,12 +727,23 @@ defmodule Tempo do
 
   defp put_zone_fields(target_extended, nil), do: target_extended
 
-  defp put_zone_fields(nil, %{zone_id: zone_id, zone_offset: zone_offset}) do
-    %{zone_id: zone_id, zone_offset: zone_offset, calendar: nil, tags: %{}}
+  defp put_zone_fields(nil, %{zone_id: zone_id, zone_offset: zone_offset} = source) do
+    %{
+      zone_id: zone_id,
+      zone_offset: zone_offset,
+      zone_critical: Map.get(source, :zone_critical, false),
+      calendar: nil,
+      tags: %{}
+    }
   end
 
-  defp put_zone_fields(target_extended, %{zone_id: zone_id, zone_offset: zone_offset}) do
-    %{target_extended | zone_id: zone_id, zone_offset: zone_offset}
+  defp put_zone_fields(target_extended, %{zone_id: zone_id, zone_offset: zone_offset} = source) do
+    %{
+      target_extended
+      | zone_id: zone_id,
+        zone_offset: zone_offset,
+        zone_critical: Map.get(source, :zone_critical, false)
+    }
   end
 
   # A per-endpoint IXDTF `u-ca` suffix (`1447Y9M1D[u-ca=islamic-civil]/…`,
@@ -878,6 +903,29 @@ defmodule Tempo do
       {:ok, tempo}
     end
   end
+
+  # RFC 9557 §4.2: marking a zone critical (`[!Europe/Paris]`) makes
+  # offset/zone consistency mandatory — a disagreeing offset is rejected
+  # unconditionally, independent of the `strict:` option (which is the
+  # stricter, opt-in superset that also rejects *elective* disagreement).
+  # An elective (non-critical) zone leaves the offset authoritative and
+  # the zone advisory, so nothing is enforced.
+  defp enforce_critical_zone_offset(%__MODULE__{} = tempo) do
+    if zone_critical?(tempo), do: Compare.validate_zone_offset(tempo), else: :ok
+  end
+
+  defp enforce_critical_zone_offset(%Interval{from: from, to: to}) do
+    with :ok <- enforce_critical_zone_offset(from) do
+      enforce_critical_zone_offset(to)
+    end
+  end
+
+  defp enforce_critical_zone_offset(_other), do: :ok
+
+  defp zone_critical?(%__MODULE__{extended: extended}) when is_map(extended),
+    do: Map.get(extended, :zone_critical, false)
+
+  defp zone_critical?(_other), do: false
 
   @doc """
   Parse a locale-formatted date, time, datetime, or interval
@@ -1325,6 +1373,7 @@ defmodule Tempo do
         zone_id: time_zone,
         zone_offset: div(total_offset, 60),
         calendar: nil,
+        zone_critical: false,
         tags: %{}
       }
     }
@@ -2814,7 +2863,9 @@ defmodule Tempo do
     end
   end
 
-  defp put_zone_id(nil, zone), do: %{zone_id: zone, zone_offset: nil, calendar: nil, tags: %{}}
+  defp put_zone_id(nil, zone),
+    do: %{zone_id: zone, zone_offset: nil, calendar: nil, zone_critical: false, tags: %{}}
+
   defp put_zone_id(%{} = extended, zone), do: %{extended | zone_id: zone}
 
   ## ---------------------------------------------------------
@@ -2963,7 +3014,13 @@ defmodule Tempo do
        ],
        shift: [hour: 0],
        calendar: calendar || Calendrical.Gregorian,
-       extended: %{zone_id: "Etc/UTC", zone_offset: 0, calendar: nil, tags: %{}}
+       extended: %{
+         zone_id: "Etc/UTC",
+         zone_offset: 0,
+         calendar: nil,
+         zone_critical: false,
+         tags: %{}
+       }
      }}
   end
 
@@ -2994,6 +3051,7 @@ defmodule Tempo do
              zone_id: target_zone,
              zone_offset: div(offset_seconds, 60),
              calendar: nil,
+             zone_critical: false,
              tags: %{}
            }
          }}

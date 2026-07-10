@@ -92,8 +92,11 @@ defmodule Tempo.Inspect do
     |> IO.iodata_to_binary()
   end
 
-  defp zone_id_trailer(%{zone_id: zone_id}) when is_binary(zone_id) and zone_id != "" do
-    ["[", zone_id, "]"]
+  defp zone_id_trailer(%{zone_id: zone_id} = extended)
+       when is_binary(zone_id) and zone_id != "" do
+    # Re-emit the RFC 9557 critical flag so a `[!zone]` round-trips.
+    critical = if Map.get(extended, :zone_critical, false), do: "!", else: ""
+    ["[", critical, zone_id, "]"]
   end
 
   defp zone_id_trailer(_), do: []

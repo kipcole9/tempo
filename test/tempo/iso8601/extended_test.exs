@@ -242,6 +242,50 @@ defmodule Tempo.Iso8601.Extended.Test do
     end
   end
 
+  ## RFC 9557 §4.2 — a critical `!` zone makes offset consistency mandatory.
+  ## New York is -05:00 in January, so `+05:00` disagrees with the zone.
+
+  describe "critical zone offset consistency (RFC 9557 §4.2)" do
+    test "critical zone retains its flag on the extended map" do
+      assert {:ok, tempo} = Tempo.from_iso8601("2022-01-01T00:00:00-05:00[!America/New_York]")
+      assert tempo.extended.zone_critical == true
+    end
+
+    test "an elective zone is not critical" do
+      assert {:ok, tempo} = Tempo.from_iso8601("2022-01-01T00:00:00-05:00[America/New_York]")
+      assert tempo.extended.zone_critical == false
+    end
+
+    test "critical zone with an agreeing offset is accepted" do
+      assert {:ok, _tempo} =
+               Tempo.from_iso8601("2022-01-01T00:00:00-05:00[!America/New_York]")
+    end
+
+    test "critical zone with a disagreeing offset is rejected unconditionally" do
+      assert {:error, %Tempo.ZoneOffsetMismatchError{}} =
+               Tempo.from_iso8601("2022-01-01T00:00:00+05:00[!America/New_York]")
+    end
+
+    test "critical zone with no explicit offset has nothing to check" do
+      assert {:ok, _tempo} = Tempo.from_iso8601("2022-01-01T00:00:00[!America/New_York]")
+    end
+
+    test "elective zone with a disagreeing offset is accepted (offset authoritative)" do
+      assert {:ok, _tempo} =
+               Tempo.from_iso8601("2022-01-01T00:00:00+05:00[America/New_York]")
+    end
+
+    test "strict: true is a superset — it rejects an elective disagreement too" do
+      assert {:error, %Tempo.ZoneOffsetMismatchError{}} =
+               Tempo.from_iso8601("2022-01-01T00:00:00+05:00[America/New_York]", strict: true)
+    end
+
+    test "the critical flag round-trips through to_iso8601/1" do
+      assert {:ok, tempo} = Tempo.from_iso8601("2022-01-01T00:00:00-05:00[!America/New_York]")
+      assert Tempo.to_iso8601(tempo) =~ "[!America/New_York]"
+    end
+  end
+
   ## Invalid / malformed
 
   describe "malformed suffix" do

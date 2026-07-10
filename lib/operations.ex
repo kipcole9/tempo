@@ -458,7 +458,13 @@ defmodule Tempo.Operations do
     end
   end
 
-  @empty_extended %{calendar: nil, zone_id: nil, zone_offset: nil, tags: %{}}
+  @empty_extended %{
+    calendar: nil,
+    zone_id: nil,
+    zone_offset: nil,
+    zone_critical: false,
+    tags: %{}
+  }
 
   # A calendar conversion invalidates any IXDTF `u-ca` tag riding on
   # `:extended` — the tag still names the source calendar while the
