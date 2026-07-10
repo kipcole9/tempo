@@ -3,7 +3,9 @@ defmodule Tempo.CoreCoverageTest do
 
   import Tempo.Sigils
 
+  alias Tempo.IntervalSet
   alias Tempo.InvalidDateError
+  alias Tempo.MaterialisationError
 
   describe "duration predicates (delegated to Tempo.Interval)" do
     @one_day ~o"2020Y1M1D/2020Y1M2D"
@@ -52,6 +54,37 @@ defmodule Tempo.CoreCoverageTest do
 
     test "working_days_in counts business days in an interval" do
       assert Tempo.working_days_in(~o"2026-06-15/2026-06-20") == 5
+    end
+  end
+
+  describe "map/2 and try_map/2 collect into an IntervalSet" do
+    @july4 [~o"2025-07-04", ~o"2026-07-04", ~o"2027-07-04"]
+
+    defp member_dates(set) do
+      set
+      |> IntervalSet.to_list()
+      |> Enum.map(fn iv -> {iv.from.time[:month], iv.from.time[:day]} end)
+    end
+
+    test "map returns an IntervalSet, one member per element" do
+      observed = Tempo.map(@july4, &Tempo.nearest_working_day(&1, :US))
+      assert %IntervalSet{} = observed
+      # July 4 stays (Fri), rolls to Fri 3 (from Sat), Mon 5 (from Sun).
+      assert member_dates(observed) == [{7, 4}, {7, 3}, {7, 5}]
+    end
+
+    test "try_map returns {:ok, set} when every element resolves" do
+      assert {:ok, set} = Tempo.try_map(@july4, &Tempo.nearest_working_day(&1, :US))
+      assert member_dates(set) == [{7, 4}, {7, 3}, {7, 5}]
+    end
+
+    test "try_map halts at the first un-materialisable value" do
+      assert {:error, %MaterialisationError{reason: :bare_duration}} =
+               Tempo.try_map([~o"2025-07-04", ~o"P1D"], & &1)
+    end
+
+    test "map raises on an un-materialisable value" do
+      assert_raise MaterialisationError, fn -> Tempo.map([~o"P1D"], & &1) end
     end
   end
 
