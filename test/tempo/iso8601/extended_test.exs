@@ -325,12 +325,50 @@ defmodule Tempo.Iso8601.Extended.Test do
       assert interval.to.extended.zone_id == "Europe/London"
     end
 
-    test "asymmetric — only the upper endpoint carries IXDTF info" do
+    test "a zone on the upper endpoint propagates backward to a floating lower" do
       assert {:ok, interval} =
                Tempo.from_iso8601("2022-06-15T10:00/2022-06-15T12:00[Europe/Paris]")
 
-      assert interval.from.extended == nil
+      # IXDTF writes the zone once, at the end of the interval, binding it
+      # to the upper endpoint; it applies to the whole span, so the
+      # floating lower endpoint is grounded in the same zone.
+      assert interval.from.extended.zone_id == "Europe/Paris"
       assert interval.to.extended.zone_id == "Europe/Paris"
+    end
+
+    test "an offset on the upper endpoint propagates backward to a floating lower" do
+      assert {:ok, interval} =
+               Tempo.from_iso8601("2022-06-15T10:00/2022-06-15T12:00Z")
+
+      assert interval.from.shift == [hour: 0]
+      assert interval.to.shift == [hour: 0]
+    end
+
+    test "a zone on the lower endpoint does not flow forward to the upper" do
+      assert {:ok, interval} =
+               Tempo.from_iso8601("2022-06-15T10:00[Europe/Paris]/2022-06-15T12:00")
+
+      # Propagation is `to` → `from` only. A zone on `from` alone leaves
+      # `to` floating.
+      assert interval.from.extended.zone_id == "Europe/Paris"
+      assert interval.to.extended == nil
+    end
+
+    test "endpoints with different zones are left as written" do
+      assert {:ok, interval} =
+               Tempo.from_iso8601(
+                 "2022-06-15T10:00[Europe/Paris]/2022-06-15T12:00[Europe/London]"
+               )
+
+      assert interval.from.extended.zone_id == "Europe/Paris"
+      assert interval.to.extended.zone_id == "Europe/London"
+    end
+
+    test "a fully floating interval stays floating" do
+      assert {:ok, interval} = Tempo.from_iso8601("2022-06-15T10:00/2022-06-15T12:00")
+
+      assert interval.from.extended == nil
+      assert interval.to.extended == nil
     end
 
     test "open-upper interval with IXDTF on the lower endpoint" do

@@ -675,9 +675,50 @@ defmodule Tempo do
          expanded = maybe_resolve_endpoint_calendars(expanded, requested_calendar),
          {:ok, validated} <- Validation.validate(expanded, effective_calendar),
          attached = attach_extended(validated, extended),
-         :ok <- Validation.validate_zone_existence(attached) do
-      {:ok, attached}
+         propagated = propagate_endpoint_frame(attached),
+         :ok <- Validation.validate_zone_existence(propagated) do
+      {:ok, propagated}
     end
+  end
+
+  # IXDTF writes an interval's `[zone]` or offset suffix at the end,
+  # binding it to the upper (`to`) endpoint — so
+  # `2022-06-15T10:00/2022-06-15T12:00[Europe/Paris]` leaves the lower
+  # endpoint floating and the upper grounded in Paris. A single interval
+  # names one span and cannot straddle the floating and universal time
+  # lines, so the trailing frame propagates backward onto a floating
+  # `from`, giving the single-zone interval a zone-written-once implies.
+  # Propagation is one-directional (`to` → `from` only) and never
+  # overwrites: if `from` already carries its own zone or offset it is
+  # left untouched, and a zone on `from` alone never flows forward to
+  # `to`.
+  defp propagate_endpoint_frame(
+         %Interval{from: %__MODULE__{} = from, to: %__MODULE__{} = to} = interval
+       ) do
+    if floating?(from) and not floating?(to) do
+      %{interval | from: copy_frame(to, from)}
+    else
+      interval
+    end
+  end
+
+  defp propagate_endpoint_frame(other), do: other
+
+  # Overlay `source`'s grounding frame — its numeric `shift` and the zone
+  # fields of its `extended` — onto `target`, leaving target's own units,
+  # calendar, and tags untouched.
+  defp copy_frame(%__MODULE__{} = source, %__MODULE__{} = target) do
+    %{target | shift: source.shift, extended: put_zone_fields(target.extended, source.extended)}
+  end
+
+  defp put_zone_fields(target_extended, nil), do: target_extended
+
+  defp put_zone_fields(nil, %{zone_id: zone_id, zone_offset: zone_offset}) do
+    %{zone_id: zone_id, zone_offset: zone_offset, calendar: nil, tags: %{}}
+  end
+
+  defp put_zone_fields(target_extended, %{zone_id: zone_id, zone_offset: zone_offset}) do
+    %{target_extended | zone_id: zone_id, zone_offset: zone_offset}
   end
 
   # A per-endpoint IXDTF `u-ca` suffix (`1447Y9M1D[u-ca=islamic-civil]/…`,

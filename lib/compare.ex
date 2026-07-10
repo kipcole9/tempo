@@ -205,10 +205,6 @@ defmodule Tempo.Compare do
     end)
   end
 
-  # Two Tempos are zone-compatible when they carry the same
-  # zone_id (or both have no zone info). Same-zone comparison
-  # doesn't need UTC projection — the wall-clock values are
-  # directly comparable.
   # Two Tempos compare structurally (by wall clock) only when they share
   # the same frame — the same zone id AND the same numeric UTC offset. A
   # zoned value (`[Europe/Paris]`) resolves its offset on demand and
