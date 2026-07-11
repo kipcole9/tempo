@@ -218,26 +218,25 @@ Ground the floating value first with `Tempo.in_zone/2` (place its wall clock int
 
 ## Where Tempo won't help (yet)
 
-The guide above shows Tempo making correct behaviour automatic. Here are three areas where it does not (yet) improve the situation, with recommendations.
+The guide above shows Tempo making correct behaviour automatic. Here are two areas where it does not (yet) improve the situation, with recommendations. (Two earlier entries have since been resolved: sub-second comparison and set operations now work — see below — and clock mocking landed as the `Tempo.Clock` behaviour with a `Tempo.Clock.Test` stub for deterministic "now" in tests.)
 
-### Sub-second precision in arithmetic and comparison
+### Sub-second durations
 
-Tempo parses fractional seconds and stores them, but comparison and arithmetic at sub-second resolution currently fail:
+Comparison, set operations, and shifting all work at sub-second resolution — the digit count is the resolution, so `.1` and `.2` are adjacent tenth-of-a-second spans:
 
 ```elixir
 iex> Tempo.relation(~o"2024-06-15T12:00:00.1", ~o"2024-06-15T12:00:00.2")
-{:error, "Cannot materialise a Tempo at :second resolution into an explicit interval"}
+:meets
+
+iex> Tempo.shift(~o"2024-06-15T12:00:00.1", ~o"PT0.5S")
+~o"2024Y6M15DT12H0M0.6S"
 ```
 
-If your domain requires millisecond or microsecond arithmetic, you still need `DateTime` and `DateTime.diff/3` with `:millisecond`. **Recommendation**: extend the resolution ladder to `:millisecond` and `:microsecond` so that sub-second Tempo values materialise and compare correctly. The necessary unit arithmetic already exists in Calendar; the gap is in the resolution normalisation step.
+The remaining gap is `Tempo.duration/2`, which reports whole seconds only — the duration between `.1` and `.9` of the same second comes back as `~o"PT0S"`, truncating the 0.8-second remainder. If your domain measures sub-second elapsed time, use `DateTime.diff/3` with `:millisecond`/`:microsecond` for now. **Recommendation**: carry the sub-second remainder into `Tempo.Duration` (the type already stores microseconds — `~o"PT0.5S"` round-trips) so `duration/2` is exact at every resolution the parser admits.
 
 ### Monotonic time
 
 Tempo has no abstraction over `System.monotonic_time/0`. Elapsed-duration measurements in benchmarks, timeouts, or retry loops should use `System.monotonic_time(:millisecond)` directly — using wall-clock intervals for that purpose is wrong in any library. **Recommendation**: document this boundary clearly (a `Time.Monotonic` note in the README is enough) so users know when to step outside Tempo. This is not a library gap so much as a boundary that should be named.
-
-### Clock mocking in tests
-
-Tempo has no equivalent of Elixir's `ExUnit.mock_time` or Erlang's `meck`. Tests that depend on "what is today" remain hard to write in a time-independent way. **Recommendation**: add a `Tempo.Clock` behaviour with a default `SystemClock` implementation and a `TestClock` stub that pins the current time. This is a narrow shim — five or six lines — and would make the "today" idioms in the cookbook and scheduling guide fully testable.
 
 ---
 

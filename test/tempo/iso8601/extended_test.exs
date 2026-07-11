@@ -2,6 +2,7 @@ defmodule Tempo.Iso8601.Extended.Test do
   use ExUnit.Case, async: true
 
   alias Tempo.Compare
+  alias Tempo.Interval
   alias Tempo.Iso8601.Tokenizer
 
   ## Backward compatibility — no suffix
@@ -406,6 +407,33 @@ defmodule Tempo.Iso8601.Extended.Test do
 
       assert interval.from.extended.zone_id == "Europe/Paris"
       assert interval.to.extended.zone_id == "Europe/London"
+    end
+
+    test "Interval.new/1 applies the same propagation as the parser" do
+      # The constructor and the parser share the propagation rule, so a
+      # constructed interval and the re-parse of its own ISO 8601 string
+      # agree about their endpoint frames.
+      {:ok, from} = Tempo.from_iso8601("2022-06-15")
+      {:ok, to} = Tempo.from_iso8601("2022-06-20[Europe/Paris]")
+      {:ok, built} = Interval.new(from: from, to: to)
+
+      assert built.from.extended.zone_id == "Europe/Paris"
+
+      {:ok, reparsed} = Tempo.from_iso8601(Tempo.to_iso8601(built))
+      assert reparsed.from.extended == built.from.extended
+      assert reparsed.to.extended == built.to.extended
+    end
+
+    test "Interval.new/1 does not flow a :from frame forward or overwrite" do
+      {:ok, paris} = Tempo.from_iso8601("2022-06-15[Europe/Paris]")
+      {:ok, floating} = Tempo.from_iso8601("2022-06-20")
+      {:ok, forward} = Interval.new(from: paris, to: floating)
+      assert Tempo.floating?(forward.to)
+
+      {:ok, london} = Tempo.from_iso8601("2022-06-20[Europe/London]")
+      {:ok, both} = Interval.new(from: paris, to: london)
+      assert both.from.extended.zone_id == "Europe/Paris"
+      assert both.to.extended.zone_id == "Europe/London"
     end
 
     test "a fully floating interval stays floating" do

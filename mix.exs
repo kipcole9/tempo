@@ -113,12 +113,14 @@ defmodule Tempo.MixProject do
 
   def groups_for_modules do
     [
-      Core: ~r/^Tempo(?:\.(Interval|IntervalSet|Duration|Range|Set))?$/,
+      Core: ~r/^Tempo(?:\.(Interval|IntervalSet|Duration|Set))?$/,
       "Clock and current time": ~r/^Tempo\.Clock(\.|$)/,
       "Set algebra and comparison": ~r/^Tempo\.(Operations|Compare|Math|Select|Territory)$/,
       "Recurrence (RRULE)": ~r/^Tempo\.RRule(\.|$)/,
       "iCalendar integration": ~r/^Tempo\.ICal(\.|$)/,
-      "ISO 8601 and IXDTF": ~r/^Tempo\.Iso8601(\.|$)/,
+      # `Tempo.Range` is the ISO 8601-2 set-member range element, not a
+      # core algebra type — see its moduledoc.
+      "ISO 8601 and IXDTF": ~r/^Tempo\.Iso8601(\.|$)|^Tempo\.Range$/,
       Enumeration: ~r/^Tempo\.Enumeration$|^Enumerable\.Tempo/,
       "Explanation and inspection":
         ~r/^Tempo\.(Explain|Explanation|Inspect|Format|Sigil|Validation)$/,

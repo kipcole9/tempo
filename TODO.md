@@ -348,3 +348,9 @@ These surfaced while implementing ISO 8601 round-tripping and un-anchored `shift
 A pre-1.0 readiness review (security/robustness, ISO 8601 + RRULE conformance, documentation, code quality) found the library in strong shape. The input-robustness blockers (an exponential set/group parse, an unbounded input length) and the recurrence-materialisation quadratic (`R10000/…/P1D` was ~6 s; now ~20 ms via absolute-day arithmetic in `Tempo.Math`) were fixed in that round. The following are parked — none block 1.0, each is a deliberate engineering or governance call:
 
 * ~~**Ratify the `V`/`Q` selection designators.**~~ **Ratified** — kept as permanent extensions; see the v0.15.1 review note above and conformance guide §5.
+
+## Conceptual-model review — deferred items (2026-07-11)
+
+* **Decide what `Enum` over a recurring interval yields.** Today `Enum.count(R5/2022-01-01/P1M)` walks the *first occurrence's days* (31) — the recurrence count is ignored, which is wrong on two axes. The candidates: yield the N occurrences (as intervals, matching what `to_interval/1` materialises), or refuse like `relation/2` and `duration/1` now do (both direct the caller to `to_interval/2` + the set-level API). The crisp single-span API refuses recurrences uniformly since 2026-07-11; Enumerable is the remaining surface that silently misreads them.
+
+* **Decide what a bare un-anchored partial value *means*** — carried from the v0.15.1 review above (`~o"15D"` is one abstract day-span while `~o"1985-XX-15"` is twelve disjoint days; same intuitive referent, two models). Revisit deliberately before 1.0.

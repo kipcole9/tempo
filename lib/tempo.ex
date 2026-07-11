@@ -633,16 +633,14 @@ defmodule Tempo do
            t()
            | Tempo.Interval.t()
            | Tempo.Duration.t()
-           | Tempo.Set.t()
-           | Tempo.Range.t()}
+           | Tempo.Set.t()}
           | {:error, error_reason()}
   @spec from_iso8601(string :: String.t(), calendar :: Calendar.calendar()) ::
           {:ok,
            t()
            | Tempo.Interval.t()
            | Tempo.Duration.t()
-           | Tempo.Set.t()
-           | Tempo.Range.t()}
+           | Tempo.Set.t()}
           | {:error, error_reason()}
   def from_iso8601(string) when is_binary(string) do
     # No explicit calendar — the IXDTF `[u-ca=NAME]` suffix wins
@@ -655,8 +653,7 @@ defmodule Tempo do
            t()
            | Tempo.Interval.t()
            | Tempo.Duration.t()
-           | Tempo.Set.t()
-           | Tempo.Range.t()}
+           | Tempo.Set.t()}
           | {:error, error_reason()}
   def from_iso8601(string, options) when is_binary(string) and is_list(options) do
     # Options form. `:calendar` selects the calendar (default: IXDTF or
@@ -696,55 +693,17 @@ defmodule Tempo do
   end
 
   # IXDTF writes an interval's `[zone]` or offset suffix at the end,
-  # binding it to the upper (`to`) endpoint — so
-  # `2022-06-15T10:00/2022-06-15T12:00[Europe/Paris]` leaves the lower
-  # endpoint floating and the upper grounded in Paris. A single interval
-  # names one span and cannot straddle the floating and universal time
-  # lines, so the trailing frame propagates backward onto a floating
-  # `from`, giving the single-zone interval a zone-written-once implies.
-  # Propagation is one-directional (`to` → `from` only) and never
-  # overwrites: if `from` already carries its own zone or offset it is
-  # left untouched, and a zone on `from` alone never flows forward to
-  # `to`.
-  defp propagate_endpoint_frame(
-         %Interval{from: %__MODULE__{} = from, to: %__MODULE__{} = to} = interval
-       ) do
-    if floating?(from) and not floating?(to) do
-      %{interval | from: copy_frame(to, from)}
-    else
-      interval
-    end
+  # binding it to the upper (`to`) endpoint. The pair-level propagation
+  # rule (a grounded `to` frame flows backward onto a floating `from`,
+  # never the reverse, never overwriting) lives on `Tempo.Interval` so
+  # the parser and `Interval.new/1` cannot disagree about what the same
+  # endpoints mean.
+  defp propagate_endpoint_frame(%Interval{from: from, to: to} = interval) do
+    {from, to} = Interval.propagate_endpoint_frame(from, to)
+    %{interval | from: from, to: to}
   end
 
   defp propagate_endpoint_frame(other), do: other
-
-  # Overlay `source`'s grounding frame — its numeric `shift` and the zone
-  # fields of its `extended` — onto `target`, leaving target's own units,
-  # calendar, and tags untouched.
-  defp copy_frame(%__MODULE__{} = source, %__MODULE__{} = target) do
-    %{target | shift: source.shift, extended: put_zone_fields(target.extended, source.extended)}
-  end
-
-  defp put_zone_fields(target_extended, nil), do: target_extended
-
-  defp put_zone_fields(nil, %{zone_id: zone_id, zone_offset: zone_offset} = source) do
-    %{
-      zone_id: zone_id,
-      zone_offset: zone_offset,
-      zone_critical: Map.get(source, :zone_critical, false),
-      calendar: nil,
-      tags: %{}
-    }
-  end
-
-  defp put_zone_fields(target_extended, %{zone_id: zone_id, zone_offset: zone_offset} = source) do
-    %{
-      target_extended
-      | zone_id: zone_id,
-        zone_offset: zone_offset,
-        zone_critical: Map.get(source, :zone_critical, false)
-    }
-  end
 
   # A per-endpoint IXDTF `u-ca` suffix (`1447Y9M1D[u-ca=islamic-civil]/…`,
   # the form `to_iso8601/1` emits for non-Gregorian interval endpoints)

@@ -171,9 +171,9 @@ defmodule Tempo.Interval.CompareTest do
 
       b = %Interval{from: ~o"2026-06-04", to: ~o"2026-06-06"}
 
-      assert {:error, msg} = Interval.relation(set, b)
-      assert msg =~ "IntervalSet with 2 members"
-      assert msg =~ "relation_matrix"
+      assert {:error, %ArgumentError{} = error} = Interval.relation(set, b)
+      assert Exception.message(error) =~ "IntervalSet with 2 members"
+      assert Exception.message(error) =~ "relation_matrix"
     end
   end
 

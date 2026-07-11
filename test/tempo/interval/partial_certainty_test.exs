@@ -78,10 +78,17 @@ defmodule Tempo.Interval.PartialCertaintyTest do
                Interval.relation_certainty(~o"2M", ~o"2050Y", :precedes)
     end
 
-    test "the boolean predicates degrade an un-anchorable comparison to false" do
-      # No raise: certainly/possibly are simply not affirmable without a year.
-      refute Interval.certainly_before?(~o"2M", ~o"2050Y")
-      refute Interval.possibly_before?(~o"2M", ~o"2050Y")
+    test "the boolean predicates surface an un-anchorable comparison as an error" do
+      # A silent `false` would assert "impossible" — a claim the error
+      # explicitly could not make. The boolean forms raise the same error
+      # the tuple-returning certainty functions report.
+      assert_raise RequiresAnchorError, fn ->
+        Interval.certainly_before?(~o"2M", ~o"2050Y")
+      end
+
+      assert_raise RequiresAnchorError, fn ->
+        Interval.possibly_before?(~o"2M", ~o"2050Y")
+      end
     end
   end
 

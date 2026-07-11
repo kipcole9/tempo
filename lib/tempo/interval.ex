@@ -184,6 +184,7 @@ defmodule Tempo.Interval do
          from <- Keyword.get(options, :from),
          to <- Keyword.get(options, :to),
          :ok <- validate_endpoint_types(from, to),
+         {from, to} = propagate_endpoint_frame(from, to),
          :ok <- validate_from_to_order(from, to),
          {:ok, unit} <- validate_unit(Keyword.get(options, :unit), from) do
       recurrence = Keyword.get(options, :recurrence, 1)
@@ -322,6 +323,53 @@ defmodule Tempo.Interval do
       true ->
         :ok
     end
+  end
+
+  @doc false
+  # A single interval names one span, and a span cannot straddle the
+  # floating and universal time lines — so a grounded `to` frame (zone
+  # or offset) propagates backward onto a floating `from`. Propagation
+  # is one-directional (`to` → `from` only) and never overwrites a
+  # frame `from` already carries; a zone on `from` alone never flows
+  # forward. The same rule serves the IXDTF parser (where a trailing
+  # `[zone]` binds to the upper endpoint) and `new/1`, so a constructed
+  # interval and its re-parsed ISO 8601 string cannot disagree.
+  def propagate_endpoint_frame(%Tempo{} = from, %Tempo{} = to) do
+    if Tempo.floating?(from) and not Tempo.floating?(to) do
+      {copy_frame(to, from), to}
+    else
+      {from, to}
+    end
+  end
+
+  def propagate_endpoint_frame(from, to), do: {from, to}
+
+  # Overlay `source`'s grounding frame — its numeric `shift` and the zone
+  # fields of its `extended` — onto `target`, leaving target's own units,
+  # calendar, and tags untouched.
+  defp copy_frame(%Tempo{} = source, %Tempo{} = target) do
+    %{target | shift: source.shift, extended: put_zone_fields(target.extended, source.extended)}
+  end
+
+  defp put_zone_fields(target_extended, nil), do: target_extended
+
+  defp put_zone_fields(nil, %{zone_id: zone_id, zone_offset: zone_offset} = source) do
+    %{
+      zone_id: zone_id,
+      zone_offset: zone_offset,
+      zone_critical: Map.get(source, :zone_critical, false),
+      calendar: nil,
+      tags: %{}
+    }
+  end
+
+  defp put_zone_fields(target_extended, %{zone_id: zone_id, zone_offset: zone_offset} = source) do
+    %{
+      target_extended
+      | zone_id: zone_id,
+        zone_offset: zone_offset,
+        zone_critical: Map.get(source, :zone_critical, false)
+    }
   end
 
   # The iteration `:unit` must be a walkable unit and — when `:from` is a
@@ -791,8 +839,11 @@ defmodule Tempo.Interval do
     # happen in practice (the parser always resolves a year before
     # finer units can appear), but raise a clear error if it does.
     {:error,
-     "Cannot materialise a masked Tempo with no un-masked coarser unit — " <>
-       "nothing to anchor the span against."}
+     MaterialisationError.exception(
+       reason:
+         "Cannot materialise a masked Tempo with no un-masked coarser unit — " <>
+           "nothing to anchor the span against."
+     )}
   end
 
   defp parent_widen(prefix) do
@@ -809,8 +860,11 @@ defmodule Tempo.Interval do
       {:widen, prefix, unit}
     else
       {:error,
-       "Cannot materialise a masked Tempo whose un-masked prefix contains ranges, " <>
-         "selections, or other non-scalar values."}
+       MaterialisationError.exception(
+         reason:
+           "Cannot materialise a masked Tempo whose un-masked prefix contains ranges, " <>
+             "selections, or other non-scalar values."
+       )}
     end
   end
 
@@ -1016,16 +1070,26 @@ defmodule Tempo.Interval do
   defp classify_relation(_, _, :later, :same), do: :finishes
   defp classify_relation(_, _, :later, :later), do: :overlapped_by
 
+  # A recurring interval is a rule generating occurrences, not a single
+  # span — classifying it as one would silently read only the base
+  # extent. The error directs to materialisation and the set-level API.
+  defp to_single_interval(%__MODULE__{recurrence: recurrence} = interval, _label)
+       when recurrence == :infinity or (is_integer(recurrence) and recurrence > 1) do
+    {:error, MaterialisationError.exception(value: interval, reason: :recurring_interval)}
+  end
+
   defp to_single_interval(%__MODULE__{from: %Tempo{}, to: %Tempo{}} = iv, _label), do: {:ok, iv}
 
   defp to_single_interval(%IntervalSet{intervals: [iv]}, _label), do: {:ok, iv}
 
   defp to_single_interval(%IntervalSet{intervals: ivs}, label) do
     {:error,
-     "Tempo.Interval.relation/2 requires a single bounded interval on each side. " <>
-       "Operand #{inspect(label)} is an IntervalSet with #{length(ivs)} members. " <>
-       "For set-level questions use `Tempo.overlaps?/2`, `Tempo.disjoint?/2`, " <>
-       "`Tempo.intersection/2`, or `Tempo.IntervalSet.relation_matrix/2`."}
+     ArgumentError.exception(
+       "Tempo.Interval.relation/2 requires a single bounded interval on each side. " <>
+         "Operand #{inspect(label)} is an IntervalSet with #{length(ivs)} members. " <>
+         "For set-level questions use `Tempo.overlaps?/2`, `Tempo.disjoint?/2`, " <>
+         "`Tempo.intersection/2`, or `Tempo.IntervalSet.relation_matrix/2`."
+     )}
   end
 
   defp to_single_interval(%Tempo{} = point, label) do
@@ -1038,14 +1102,26 @@ defmodule Tempo.Interval do
 
   defp to_single_interval(%__MODULE__{}, label) do
     {:error,
-     "Tempo.Interval.relation/2 needs bounded intervals on both sides. " <>
-       "Operand #{inspect(label)} has an open-ended endpoint (`:undefined`)."}
+     ArgumentError.exception(
+       "Tempo.Interval.relation/2 needs bounded intervals on both sides. " <>
+         "Operand #{inspect(label)} has an open-ended endpoint (`:undefined`)."
+     )}
+  end
+
+  # A one-of set is an epistemic disjunction — it has no single crisp
+  # relation, only a set of possible ones. The crisp API refuses with the
+  # same error `to_interval/1` gives; the certainty API (`relation_certainty/3`,
+  # `possibly_before?/2`, …) answers the question the set can actually support.
+  defp to_single_interval(%Tempo.Set{type: :one} = set, _label) do
+    {:error, MaterialisationError.exception(value: set, reason: :one_of_set)}
   end
 
   defp to_single_interval(other, label) do
     {:error,
-     "Tempo.Interval.relation/2 cannot classify operand #{inspect(label)}: " <>
-       "#{inspect(other)}"}
+     ArgumentError.exception(
+       "Tempo.Interval.relation/2 cannot classify operand #{inspect(label)}: " <>
+         "#{inspect(other)}"
+     )}
   end
 
   ## ----------------------------------------------------------
@@ -1380,6 +1456,17 @@ defmodule Tempo.Interval do
   """
   @spec duration(t(), keyword()) :: Duration.t() | :infinity
   def duration(interval, opts \\ [])
+
+  # A finite recurring interval's duration is the total across its
+  # occurrences, which only the materialised set can report — reading
+  # the base span (or the open `to` as infinity) would be wrong on
+  # both counts. Unbounded recurrences fall through to `:infinity`,
+  # which is their true total extent.
+  def duration(%__MODULE__{recurrence: recurrence} = interval, _opts)
+      when is_integer(recurrence) and recurrence > 1 do
+    raise MaterialisationError.exception(value: interval, reason: :recurring_duration)
+  end
+
   def duration(%__MODULE__{from: :undefined}, _opts), do: :infinity
   def duration(%__MODULE__{to: :undefined}, _opts), do: :infinity
   def duration(%__MODULE__{from: nil}, _opts), do: :infinity
@@ -1738,10 +1825,15 @@ defmodule Tempo.Interval do
   @spec within?(interval_like(), interval_like()) :: boolean()
   def within?(a, b), do: match_relation(a, b, [:equals, :starts, :during, :finishes])
 
+  # A relation error must surface, not read as `false` — a silent false
+  # asserts "the relation does not hold", a claim the error explicitly
+  # could not make. One-of sets, for example, have no crisp relation at
+  # all; the raised error points the caller at the certainty API.
   defp match_relation(a, b, allowed_relations) do
     case relation(a, b) do
       r when is_atom(r) -> r in allowed_relations
-      _ -> false
+      {:error, exception} when is_exception(exception) -> raise exception
+      {:error, reason} -> raise ArgumentError, to_string(reason)
     end
   end
 
@@ -1926,7 +2018,7 @@ defmodule Tempo.Interval do
 
   """
   @spec certainly_overlaps?(interval_like(), interval_like()) :: boolean()
-  def certainly_overlaps?(a, b), do: overlap_certainty(a, b) == :certain
+  def certainly_overlaps?(a, b), do: certainty_in?(overlap_certainty(a, b), [:certain])
 
   @doc """
   `true` when `a` and `b` *could* intersect for some placement of their
@@ -1942,7 +2034,7 @@ defmodule Tempo.Interval do
 
   """
   @spec possibly_overlaps?(interval_like(), interval_like()) :: boolean()
-  def possibly_overlaps?(a, b), do: overlap_certainty(a, b) in [:certain, :possible]
+  def possibly_overlaps?(a, b), do: certainty_in?(overlap_certainty(a, b), [:certain, :possible])
 
   @doc """
   `true` when `a` falls within `b` for *every* placement of their `±`
@@ -1955,7 +2047,7 @@ defmodule Tempo.Interval do
 
   """
   @spec certainly_within?(interval_like(), interval_like()) :: boolean()
-  def certainly_within?(a, b), do: within_certainty(a, b) == :certain
+  def certainly_within?(a, b), do: certainty_in?(within_certainty(a, b), [:certain])
 
   @doc """
   `true` when `a` *could* fall within `b` for some placement of their
@@ -1968,7 +2060,7 @@ defmodule Tempo.Interval do
 
   """
   @spec possibly_within?(interval_like(), interval_like()) :: boolean()
-  def possibly_within?(a, b), do: within_certainty(a, b) in [:certain, :possible]
+  def possibly_within?(a, b), do: certainty_in?(within_certainty(a, b), [:certain, :possible])
 
   @doc """
   `true` when `a` ends before `b` starts, with a gap (Allen `:precedes`),
@@ -1985,7 +2077,7 @@ defmodule Tempo.Interval do
 
   """
   @spec certainly_before?(interval_like(), interval_like()) :: boolean()
-  def certainly_before?(a, b), do: relation_certainty(a, b, :precedes) == :certain
+  def certainly_before?(a, b), do: certainty_in?(relation_certainty(a, b, :precedes), [:certain])
 
   @doc """
   `true` when `a` *could* end before `b` starts for some placement of
@@ -1998,7 +2090,8 @@ defmodule Tempo.Interval do
 
   """
   @spec possibly_before?(interval_like(), interval_like()) :: boolean()
-  def possibly_before?(a, b), do: relation_certainty(a, b, :precedes) in [:certain, :possible]
+  def possibly_before?(a, b),
+    do: certainty_in?(relation_certainty(a, b, :precedes), [:certain, :possible])
 
   @doc """
   `true` when `a` starts after `b` ends, with a gap (Allen
@@ -2012,7 +2105,8 @@ defmodule Tempo.Interval do
 
   """
   @spec certainly_after?(interval_like(), interval_like()) :: boolean()
-  def certainly_after?(a, b), do: relation_certainty(a, b, :preceded_by) == :certain
+  def certainly_after?(a, b),
+    do: certainty_in?(relation_certainty(a, b, :preceded_by), [:certain])
 
   @doc """
   `true` when `a` *could* start after `b` ends for some placement of
@@ -2025,7 +2119,16 @@ defmodule Tempo.Interval do
 
   """
   @spec possibly_after?(interval_like(), interval_like()) :: boolean()
-  def possibly_after?(a, b), do: relation_certainty(a, b, :preceded_by) in [:certain, :possible]
+  def possibly_after?(a, b),
+    do: certainty_in?(relation_certainty(a, b, :preceded_by), [:certain, :possible])
+
+  # A certainty error must surface, not read as `false` — a silent false
+  # asserts "impossible", a claim the error explicitly could not make.
+  defp certainty_in?({:error, exception}, _accepted) when is_exception(exception),
+    do: raise(exception)
+
+  defp certainty_in?({:error, reason}, _accepted), do: raise(ArgumentError, to_string(reason))
+  defp certainty_in?(certainty, accepted), do: certainty in accepted
 
   ## Graded-relation internals
 
@@ -2098,6 +2201,15 @@ defmodule Tempo.Interval do
   # back to the sound (looser) endpoint-range method.
   defp possible_relations(a, b) do
     cond do
+      one_of_operand?(a) or one_of_operand?(b) ->
+        # An epistemic one-of set (`[1984,1986]`) is a finite envelope:
+        # the value is exactly one member, we don't know which. The
+        # relations the pair can stand in are the union over every
+        # member choice; `certainty/2` then reads the concept as usual —
+        # possible when some choice admits it, certain only when every
+        # choice does.
+        one_of_relations(a, b)
+
       not anchored_operand?(a) or not anchored_operand?(b) ->
         unanchored_possible_relations(a, b)
 
@@ -2115,6 +2227,32 @@ defmodule Tempo.Interval do
         end
     end
   end
+
+  defp one_of_operand?(%Tempo.Set{type: :one}), do: true
+  defp one_of_operand?(_operand), do: false
+
+  # Union of the possible relations over the cartesian product of member
+  # choices. Members recurse through `possible_relations/2`, so a member
+  # that is itself masked or margined composes its own envelope.
+  defp one_of_relations(a, b) do
+    pairs =
+      for choice_a <- one_of_choices(a), choice_b <- one_of_choices(b), do: {choice_a, choice_b}
+
+    pairs
+    |> Enum.reduce_while({:ok, MapSet.new()}, fn {choice_a, choice_b}, {:ok, acc} ->
+      case possible_relations(choice_a, choice_b) do
+        {:error, _} = error -> {:halt, error}
+        possible -> {:cont, {:ok, MapSet.union(acc, possible)}}
+      end
+    end)
+    |> case do
+      {:ok, possible} -> possible
+      error -> error
+    end
+  end
+
+  defp one_of_choices(%Tempo.Set{type: :one, set: members}), do: members
+  defp one_of_choices(operand), do: [operand]
 
   # Two un-anchored values (no year) compare only on a shared leading unit —
   # the same-axis rule the set operations use. Same axis: the positional

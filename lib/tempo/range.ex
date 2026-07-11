@@ -1,12 +1,18 @@
 defmodule Tempo.Range do
   @moduledoc """
-  A pair of Tempo values denoting a range, produced by the ISO
-  8601-2 range operator (`2022..2024`). The first and last
-  bounds are inclusive — contrast with `%Tempo.Interval{}`
-  which uses the half-open `[from, to)` convention.
+  A pair of Tempo values denoting an inclusive range, produced by the
+  ISO 8601-2 range operator (`..`) **inside a set** — `[1667,1670..1672]`
+  (one of 1667, 1670, 1671, or 1672) or `{1M2S..1M5S}` (ISO 8601-2 §6.4).
+  Both bounds are inclusive — contrast with `%Tempo.Interval{}`, which
+  uses the half-open `[from, to)` convention.
 
-  Open-ended ranges are represented by `:undefined` on either
-  endpoint (`../2024`, `2022/..`, `../..`).
+  A range is a *member-level* element: it appears inside a
+  `t:Tempo.Set.t/0` (and in `~o` sigil match patterns), never as a
+  top-level parsed value, and it is not an operand of the interval
+  algebra — the enclosing set's own expansion and certainty machinery
+  interpret it. Open-ended ranges are represented by `:undefined` on
+  either endpoint (`[1760-12..]` — December 1760 or later).
+
   """
 
   alias Tempo.Iso8601.AST

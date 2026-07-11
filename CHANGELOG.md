@@ -10,13 +10,25 @@
 
 * `Tempo.Interval` now carries an explicit iteration granularity on `:unit` (also settable via `Interval.new/1`) — a day-resolution interval with `unit: :hour` walks 24 hours while its bounds stay at day resolution.
 
+* One-of sets feed the certainty API: `relation_certainty/3`, `overlap_certainty/2`, and the `possibly_*`/`certainly_*` predicates read `~o"[1984,1986]"` as a finite envelope (the union of possible relations over member choices). Previously they errored or silently answered `false`.
+
 ### Changed
 
 * **Breaking:** `Tempo.to_interval/1` bounds keep the value's own resolution instead of drilling into the next-finer unit — `to_interval(~o"2025-07-04")` is now `2025-07-04/2025-07-05` with `unit: :hour`, not `…T0H` bounds. Enumeration counts are unchanged (the walk fills to `:unit` at iteration time); code reading drilled components off materialised bounds must use the stated resolution.
 
+* **Breaking:** the crisp and certainty boolean predicates (`before?/2`, `within?/2`, `certainly_overlaps?/2`, …) raise on an operand they cannot classify instead of silently returning `false` — a silent false asserted a relation verdict the error could not make.
+
+* **Breaking:** `relation/2` and `duration/1` refuse a recurring interval (`R5/…`) with a directing `Tempo.MaterialisationError` — a recurrence is a rule generating occurrences, not a single span. Materialise with `to_interval/2` and use the set-level API; `duration/1` previously answered `:infinity` for a finite recurrence.
+
+* `Tempo.Interval.new/1` applies the parser's frame-propagation rule: a grounded `:to` grounds a floating `:from` (never the reverse, never overwriting), so a constructed interval and the re-parse of its own ISO 8601 string agree.
+
+* Comparison-operand errors are exception structs rather than raw strings, and `Tempo.Range`'s docs now state its actual role: the ISO 8601-2 set-member range element, not a top-level value.
+
 ### Fixed
 
 * `Tempo.to_iso8601/1` on a cron nearest-weekday rule (`15W`) now raises a descriptive `Tempo.Iso8601EncodeError` instead of a `FunctionClauseError`, and `inspect/1` falls back to a labelled struct view rather than crashing.
+
+* The falsehoods guide's "Where Tempo won't help (yet)" section no longer lists sub-second comparison and clock mocking as gaps — both work (`relation/2` at sub-second resolution; `Tempo.Clock`). The remaining sub-second gap is `duration/2`, which truncates to whole seconds.
 
 ## [v0.21.0] — 2026-07-10
 

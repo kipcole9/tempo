@@ -426,20 +426,18 @@ defmodule Tempo.Sigils do
     interval_pattern(interval)
   end
 
-  defp build_match_pattern(%Tempo.Range{} = range, bindings) do
-    reject_container_bindings!(bindings, Tempo.Range)
-    range_pattern(range)
-  end
-
   defp build_match_pattern(%Tempo.Set{} = set, bindings) do
     reject_container_bindings!(bindings, Tempo.Set)
     set_pattern(set)
   end
 
+  # A `%Tempo.Range{}` is a set-member element, never a top-level
+  # parse result — ranges in patterns are handled by
+  # `set_member_pattern/1` inside `set_pattern/1`. Likewise a
   # `%Tempo.IntervalSet{}` is produced by `Tempo.to_interval/1`,
   # not by `Tempo.from_iso8601/2` — so a sigil string can't
-  # materialise to one in practice. The catch-all below raises
-  # a clear error if a future grammar extension ever does.
+  # materialise to either in practice. The catch-all below raises
+  # a clear error if a future grammar extension ever changes that.
 
   defp build_match_pattern(other, _bindings) do
     raise ArgumentError,

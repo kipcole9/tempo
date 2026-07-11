@@ -39,8 +39,22 @@ defmodule Tempo.MaterialisationError do
 
   def message(%__MODULE__{reason: :one_of_set}) do
     "Cannot materialise a one-of Tempo.Set into an interval — epistemic " <>
-      "disjunction is not an interval list. Pick one member or handle the " <>
-      "disjunction explicitly."
+      "disjunction is not an interval list. Pick one member, handle the " <>
+      "disjunction explicitly, or ask a certainty question " <>
+      "(`Tempo.relation_certainty/3`, `Tempo.possibly_before?/2`, …)."
+  end
+
+  def message(%__MODULE__{reason: :recurring_interval}) do
+    "A recurring interval is a rule generating occurrences, not a single span. " <>
+      "Materialise it with `Tempo.to_interval/2` (pass `:bound` for an unbounded " <>
+      "recurrence) and use the set-level API (`Tempo.overlaps?/2`, " <>
+      "`Tempo.IntervalSet.relation_matrix/2`)."
+  end
+
+  def message(%__MODULE__{reason: :recurring_duration}) do
+    "The duration of a finite recurring interval is the total across its " <>
+      "occurrences — materialise with `Tempo.to_interval/1` and use " <>
+      "`Tempo.IntervalSet.duration/1`."
   end
 
   def message(%__MODULE__{reason: :finest_resolution, value: value}) when not is_nil(value) do

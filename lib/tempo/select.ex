@@ -103,6 +103,7 @@ defmodule Tempo.Select do
   alias Tempo.IntervalEndpointsError
   alias Tempo.IntervalSet
   alias Tempo.Iso8601.Unit
+  alias Tempo.MaterialisationError
 
   @type selector ::
           [integer()]
@@ -428,8 +429,12 @@ defmodule Tempo.Select do
     case Unit.implicit_enumerator(base_unit, calendar) do
       nil ->
         {:error,
-         "Cannot select indices under #{inspect(base_unit)} — no finer unit is " <>
-           "defined for that resolution."}
+         MaterialisationError.exception(
+           value: source,
+           reason:
+             "Cannot select indices under #{inspect(base_unit)} — no finer unit is " <>
+               "defined for that resolution."
+         )}
 
       {next_unit, _range} ->
         intervals =

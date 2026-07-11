@@ -4,6 +4,7 @@ defmodule Tempo.Interval.PredicatesTest do
 
   alias Tempo.Interval
   alias Tempo.IntervalSet
+  alias Tempo.MaterialisationError
 
   describe "bounded?/1" do
     test "both endpoints concrete" do
@@ -152,7 +153,10 @@ defmodule Tempo.Interval.PredicatesTest do
       refute Interval.within?(outside, @y)
     end
 
-    test "relation predicates return false on error (e.g. multi-member set)" do
+    test "relation predicates raise on an unclassifiable operand (e.g. multi-member set)" do
+      # A silent `false` would assert "the relation does not hold" about a
+      # comparison that never happened. The error names the set-level
+      # alternatives (`Tempo.overlaps?/2`, `relation_matrix/2`, …).
       multi =
         IntervalSet.new!(
           [
@@ -162,8 +166,13 @@ defmodule Tempo.Interval.PredicatesTest do
           coalesce: false
         )
 
-      refute Interval.before?(multi, @y)
-      refute Interval.within?(multi, @y)
+      assert_raise ArgumentError, ~r/single bounded interval/, fn ->
+        Interval.before?(multi, @y)
+      end
+
+      assert_raise ArgumentError, ~r/single bounded interval/, fn ->
+        Interval.within?(multi, @y)
+      end
     end
   end
 
@@ -412,7 +421,12 @@ defmodule Tempo.Interval.PredicatesTest do
     test "open-ended and multi-member operands return an error" do
       open = %Interval{from: ~o"2000", to: :undefined}
       assert {:error, _} = Interval.overlap_certainty(open, ~o"2000Y")
-      refute Interval.certainly_overlaps?(open, ~o"2000Y")
+
+      # The boolean form raises that error rather than reading it as
+      # `false` — a silent false would assert "impossible".
+      assert_raise ArgumentError, ~r/open-ended/, fn ->
+        Interval.certainly_overlaps?(open, ~o"2000Y")
+      end
     end
 
     test "before/after modal predicates" do
@@ -445,6 +459,79 @@ defmodule Tempo.Interval.PredicatesTest do
       # would spuriously admit overlaps/during/contains and report `:possible`.
       year_relations = [:equals, :meets, :met_by, :precedes, :preceded_by]
       assert Interval.relation_certainty(~o"2000±5Y", ~o"2000±5Y", year_relations) == :certain
+    end
+  end
+
+  describe "recurring intervals are rules, not single spans" do
+    test "relation/2 refuses a recurring interval with a directing error" do
+      {:ok, r5} = Tempo.from_iso8601("R5/2022-01-01/P1M")
+
+      assert {:error, %MaterialisationError{reason: :recurring_interval}} =
+               Interval.relation(r5, ~o"2022")
+
+      assert_raise MaterialisationError, ~r/set-level API/, fn ->
+        Interval.before?(r5, ~o"2023")
+      end
+    end
+
+    test "duration/1 refuses a finite recurring interval" do
+      # The total is across occurrences — only the materialised set can
+      # report it. `:infinity` (the old answer, read off the open `to`)
+      # was wrong for a finite recurrence.
+      {:ok, r5} = Tempo.from_iso8601("R5/2022-01-01/P1M")
+
+      assert_raise MaterialisationError, ~r/IntervalSet.duration/, fn ->
+        Interval.duration(r5)
+      end
+
+      # The materialised path reports the true total.
+      {:ok, set} = Tempo.to_interval(r5)
+      assert IntervalSet.count(set) == 5
+    end
+
+    test "an unbounded recurrence still has infinite duration" do
+      {:ok, r} = Tempo.from_iso8601("R/2022-01-01/P1M")
+      assert Interval.duration(r) == :infinity
+    end
+  end
+
+  describe "graded relations over one-of sets" do
+    # An epistemic one-of set (`[a,b]`) is a finite envelope: the value is
+    # exactly one member, unknown which. The possible relations are the
+    # union over member choices; certainty is set containment as usual.
+
+    test "possibly when one member admits the relation, not certainly" do
+      # 1983 strictly precedes 1985 (gap year); 1986 does not.
+      one_of = ~o"[1983,1986]"
+      assert Interval.possibly_before?(one_of, ~o"1985")
+      refute Interval.certainly_before?(one_of, ~o"1985")
+      assert Interval.relation_certainty(one_of, ~o"1985", :precedes) == :possible
+    end
+
+    test "certainly when every member admits the relation" do
+      assert Interval.certainly_before?(~o"[1983,1986]", ~o"1990")
+    end
+
+    test "impossible when no member admits the relation" do
+      # Adjacent years meet — they never strictly precede.
+      assert Interval.relation_certainty(~o"[1984,1986]", ~o"1985", :precedes) == :impossible
+    end
+
+    test "both operands may be one-of sets (cartesian union of choices)" do
+      assert Interval.overlap_certainty(~o"[1984,1986]", ~o"[1986,1988]") == :possible
+    end
+
+    test "a member that is itself masked composes its envelope" do
+      assert Interval.relation_certainty(~o"[198X,2005]", ~o"1990", :precedes) == :possible
+    end
+
+    test "the crisp API refuses a one-of set with a materialisation error" do
+      assert {:error, %MaterialisationError{reason: :one_of_set}} =
+               Interval.relation(~o"[1984,1986]", ~o"1985")
+
+      assert_raise MaterialisationError, fn ->
+        Interval.before?(~o"[1984,1986]", ~o"1985")
+      end
     end
   end
 end
