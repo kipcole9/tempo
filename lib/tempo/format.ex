@@ -52,6 +52,7 @@ defmodule Tempo.Format do
 
   alias Localize.DateTime.Relative
   alias Tempo.Compare
+  alias Tempo.Interval.Steps
   alias Tempo.IntervalSet
   alias Tempo.Math
   alias Tempo.NonAnchoredError
@@ -224,7 +225,13 @@ defmodule Tempo.Format do
     iter_unit = next_finer_unit(unit)
 
     case Tempo.to_interval(tempo) do
-      {:ok, %Tempo.Interval{from: from, to: to}} ->
+      {:ok, %Tempo.Interval{from: %Tempo{} = from, to: %Tempo{} = to, unit: unit}} ->
+        # The rendered range spans the implicit sub-units ("Jan – Dec
+        # 2026" for a year), so fill the own-resolution bounds down to
+        # the interval's iteration unit before truncating.
+        calendar = Compare.effective_calendar(from.calendar)
+        from = Steps.fill_to_unit(from, unit, calendar)
+        to = Steps.fill_to_unit(to, unit, calendar)
         first = Tempo.trunc(from, iter_unit)
 
         closed_last =
@@ -447,8 +454,18 @@ defmodule Tempo.Format do
   # pair of endpoints is enough for Localize.Interval; recurrence
   # / duration-only intervals would need materialisation first and
   # are out of scope for this dispatcher.
-  defp interval_endpoints_for_format(%Tempo.Interval{from: %Tempo{} = from, to: %Tempo{} = to}) do
-    {from, to}
+  defp interval_endpoints_for_format(%Tempo.Interval{
+         from: %Tempo{} = from,
+         to: %Tempo{} = to,
+         unit: unit
+       }) do
+    # A materialised implicit span carries its iteration granularity
+    # on `:unit` with bounds at the value's own resolution. The
+    # rendered range spans the sub-units ("Jan – Dec 2026" for a
+    # year), so fill both endpoints down to the unit first; a nil
+    # unit (a user-written explicit interval) is a no-op.
+    calendar = Compare.effective_calendar(from.calendar)
+    {Steps.fill_to_unit(from, unit, calendar), Steps.fill_to_unit(to, unit, calendar)}
   end
 
   defp interval_endpoints_for_format(%Tempo.Interval{} = interval) do

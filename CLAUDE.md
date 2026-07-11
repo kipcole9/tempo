@@ -30,7 +30,9 @@ Map and reduce on implicit spans is already implemented. The iteration unit is t
 
 ### Explicit span
 
-An explicit span is a pair of datetimes written with a range operator, such as `2026-01-01..2026-02-01`. It is always iterated at **its own highest resolution** — the resolution of the boundaries. Iterating `2026-01-01..2026-02-01` yields days, not months.
+An explicit span is a pair of datetimes written with a range operator, such as `2026-01-01..2026-02-01`. By default it is iterated at **its own highest resolution** — the resolution of the boundaries. Iterating `2026-01-01..2026-02-01` yields days, not months.
+
+The exception is an explicit iteration unit: `%Tempo.Interval{}` carries a `:unit` field that, when set, overrides the derived granularity. Materialising an implicit span sets it — `Tempo.to_interval(~o"2025-07-04")` yields bounds `2025-07-04/2025-07-05` (the value's own resolution, per *resolution = meaning*) with `unit: :hour`, so the materialised span still walks hours like its implicit twin. The walk fills the anchor down to the unit at iteration time; the bounds never carry drilled components. An interval has three separable properties: **extent** (the half-open span), **resolution** (how precisely the bounds are stated), and **granularity** (`:unit`, the unit a walk yields).
 
 ### Half-open convention
 

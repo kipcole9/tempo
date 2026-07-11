@@ -52,17 +52,12 @@ defmodule Tempo.Inspect do
       "\", " <> Kernel.inspect(calendar) <> ")"
   end
 
-  def inspect(%Tempo.Interval{metadata: metadata} = interval)
-      when metadata == %{} or is_nil(metadata) do
-    @sigil_o <> Tempo.to_iso8601(interval) <> "\""
-  end
-
-  def inspect(%Tempo.Interval{metadata: metadata} = interval) do
+  def inspect(%Tempo.Interval{} = interval) do
     body = @sigil_o <> Tempo.to_iso8601(interval) <> "\""
 
-    case interval_metadata_tag(metadata) do
+    case interval_tags(interval) do
       "" -> body
-      tag -> "#Tempo.Interval<" <> body <> " " <> tag <> ">"
+      tags -> "#Tempo.Interval<" <> body <> " " <> tags <> ">"
     end
   end
 
@@ -73,6 +68,21 @@ defmodule Tempo.Inspect do
   def inspect(%Tempo.Set{} = set) do
     @sigil_o <> Tempo.to_iso8601(set) <> "\""
   end
+
+  # Non-syntactic interval state renders as a decoration outside the
+  # sigil body: the sigil shows the extent, which re-parses without
+  # this state, and the decoration signals the difference. `unit` is
+  # the explicit iteration granularity a materialised implicit span
+  # carries (see `Tempo.Interval` `:unit`); metadata is e.g. iCal
+  # event data.
+  defp interval_tags(%Tempo.Interval{unit: unit, metadata: metadata}) do
+    [unit_tag(unit), interval_metadata_tag(metadata)]
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.join(" ")
+  end
+
+  defp unit_tag(nil), do: ""
+  defp unit_tag(unit), do: "unit: " <> Atom.to_string(unit)
 
   # --------------------------------------------------------------
   # IXDTF trailer helpers — used by the Tempo clauses above to
@@ -151,8 +161,6 @@ defmodule Tempo.Inspect do
   # Interval metadata compact label. Shown as the trailing tag
   # inside `#Tempo.Interval<...>` when metadata is non-empty.
   # --------------------------------------------------------------
-
-  defp interval_metadata_tag(nil), do: ""
 
   defp interval_metadata_tag(metadata) when map_size(metadata) == 0, do: ""
 

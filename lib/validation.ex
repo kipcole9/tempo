@@ -108,7 +108,7 @@ defmodule Tempo.Validation do
   # exactly where 2026 begins).
   defp validate_endpoint_order(%Tempo{} = from, %Tempo{} = to) do
     with true <- orderable?(from) and orderable?(to),
-         {:ok, {_lower, to_upper}} <- Interval.next_unit_boundary(to),
+         {:ok, {_lower, to_upper}, _unit} <- Interval.next_unit_boundary(to),
          order when order != :earlier <- Compare.compare_endpoints(from, to_upper) do
       {:error,
        IntervalEndpointsError.exception(

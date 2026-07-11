@@ -20,9 +20,9 @@ defmodule Tempo.IntervalSet.Test do
       assert length(set.intervals) == 3
 
       assert Enum.map(set.intervals, & &1.from.time) == [
-               [year: 2022, month: 1, day: 1],
-               [year: 2022, month: 3, day: 1],
-               [year: 2022, month: 5, day: 1]
+               [year: 2022, month: 1],
+               [year: 2022, month: 3],
+               [year: 2022, month: 5]
              ]
     end
 
@@ -38,8 +38,8 @@ defmodule Tempo.IntervalSet.Test do
       coalesced = Tempo.IntervalSet.coalesce(set)
       assert length(coalesced.intervals) == 1
       [interval] = coalesced.intervals
-      assert interval.from.time == [year: 2022, month: 1, day: 1]
-      assert interval.to.time == [year: 2022, month: 3, day: 1]
+      assert interval.from.time == [year: 2022, month: 1]
+      assert interval.to.time == [year: 2022, month: 3]
     end
 
     test "overlapping intervals stay distinct by default; coalesce to merge" do
@@ -52,7 +52,7 @@ defmodule Tempo.IntervalSet.Test do
       coalesced = Tempo.IntervalSet.coalesce(set)
       assert length(coalesced.intervals) == 1
       [interval] = coalesced.intervals
-      assert interval.from.time == [year: 2022, month: 1, day: 1]
+      assert interval.from.time == [year: 2022, month: 1]
       assert interval.to.time == [year: 2022, month: 3, day: 15]
     end
 
@@ -149,8 +149,8 @@ defmodule Tempo.IntervalSet.Test do
 
       assert [a, b] = Tempo.IntervalSet.to_list(set)
       assert %Tempo.Interval{} = a
-      assert a.from.time == [year: 2022, month: 1, day: 1]
-      assert b.from.time == [year: 2022, month: 3, day: 1]
+      assert a.from.time == [year: 2022, month: 1]
+      assert b.from.time == [year: 2022, month: 3]
     end
 
     test "pipes into Enum for member-level filtering" do
@@ -254,8 +254,8 @@ defmodule Tempo.IntervalSet.Test do
       coalesced = Tempo.IntervalSet.coalesce(set)
       assert length(coalesced.intervals) == 1
       [q1] = coalesced.intervals
-      assert q1.from.time == [year: 2022, month: 1, day: 1]
-      assert q1.to.time == [year: 2022, month: 4, day: 1]
+      assert q1.from.time == [year: 2022, month: 1]
+      assert q1.to.time == [year: 2022, month: 4]
     end
 
     test "stepped range → multiple disjoint intervals" do

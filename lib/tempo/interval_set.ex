@@ -106,7 +106,7 @@ defmodule Tempo.IntervalSet do
       iex> length(set.intervals)
       2
       iex> hd(set.intervals).from.time
-      [year: 2022, month: 1, day: 1]
+      [year: 2022, month: 1]
 
   """
   @spec new([Interval.t()], keyword()) :: {:ok, t()} | {:error, term()}

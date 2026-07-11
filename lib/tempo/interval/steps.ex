@@ -29,12 +29,41 @@ defmodule Tempo.Interval.Steps do
   alias Tempo.Compare
   alias Tempo.Enumeration.Zone
   alias Tempo.Iso8601.AST
+  alias Tempo.Iso8601.Unit
 
   @seconds_per_minute 60
   @seconds_per_hour 3_600
   @seconds_per_day 86_400
   @microseconds_per_second 1_000_000
   @max_precision 6
+
+  @doc false
+  # Extend `tempo` with next-finer units (at their minimum values) until
+  # its resolution reaches `unit`. This is the walk-time counterpart of
+  # the drill that materialisation used to persist into interval bounds:
+  # an interval carrying an explicit iteration `:unit` finer than its
+  # endpoint resolution fills the endpoint once at the start of the walk
+  # (`2025-07-04` walked at `:hour` starts from `2025-07-04T0H`), leaving
+  # the stored bounds at their stated resolution. A `nil` unit, or one
+  # already at (or coarser than) the value's resolution, is a no-op.
+  @spec fill_to_unit(Tempo.t(), atom() | nil, module()) :: Tempo.t()
+  def fill_to_unit(%Tempo{} = tempo, nil, _calendar), do: tempo
+
+  def fill_to_unit(%Tempo{time: time} = tempo, unit, calendar) do
+    {resolution_unit, _span} = Tempo.resolution(tempo)
+
+    with :lt <- Unit.compare(unit, resolution_unit),
+         {next_unit, range} <- Unit.implicit_enumerator(resolution_unit, calendar) do
+      filled = %Tempo{tempo | time: time ++ [{next_unit, range_first(range)}]}
+      fill_to_unit(filled, unit, calendar)
+    else
+      # :eq / :gt — already at or finer than the requested unit; nil —
+      # no finer unit exists to fill with (the chain bottoms out).
+      _ -> tempo
+    end
+  end
+
+  defp range_first(%Range{first: first}), do: first
 
   @doc """
   Count the number of `unit`-wide steps in the half-open span

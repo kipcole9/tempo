@@ -9,61 +9,69 @@ defmodule Tempo.ToInterval.Test do
   # `plans/implicit-to-explicit-interval-conversion.md` plus mask
   # widening, metadata propagation, and iteration parity.
 
+  # Bounds keep the value's own resolution; the implicit iteration
+  # granularity (the next-finer unit) travels on the interval's
+  # `:unit` field instead of being drilled into the endpoints.
+
   describe "concrete date resolutions" do
-    test "year only → year-month endpoints" do
+    test "year only → year endpoints walked at :month" do
       {:ok, tempo} = Tempo.from_iso8601("2026")
       {:ok, interval} = Tempo.to_interval(tempo)
-      assert interval.from.time == [year: 2026, month: 1]
-      assert interval.to.time == [year: 2027, month: 1]
+      assert interval.from.time == [year: 2026]
+      assert interval.to.time == [year: 2027]
+      assert interval.unit == :month
     end
 
-    test "year-month → year-month-day endpoints" do
+    test "year-month → year-month endpoints walked at :day" do
       {:ok, tempo} = Tempo.from_iso8601("2026-01")
       {:ok, interval} = Tempo.to_interval(tempo)
-      assert interval.from.time == [year: 2026, month: 1, day: 1]
-      assert interval.to.time == [year: 2026, month: 2, day: 1]
+      assert interval.from.time == [year: 2026, month: 1]
+      assert interval.to.time == [year: 2026, month: 2]
+      assert interval.unit == :day
     end
 
-    test "year-month-day → year-month-day-hour endpoints" do
+    test "year-month-day → year-month-day endpoints walked at :hour" do
       {:ok, tempo} = Tempo.from_iso8601("2026-01-15")
       {:ok, interval} = Tempo.to_interval(tempo)
-      assert interval.from.time == [year: 2026, month: 1, day: 15, hour: 0]
-      assert interval.to.time == [year: 2026, month: 1, day: 16, hour: 0]
+      assert interval.from.time == [year: 2026, month: 1, day: 15]
+      assert interval.to.time == [year: 2026, month: 1, day: 16]
+      assert interval.unit == :hour
     end
 
     test "month carry to next year" do
       {:ok, tempo} = Tempo.from_iso8601("2026-12")
       {:ok, interval} = Tempo.to_interval(tempo)
-      assert interval.to.time == [year: 2027, month: 1, day: 1]
+      assert interval.to.time == [year: 2027, month: 1]
     end
 
     test "day carry across leap year Feb → Mar" do
       {:ok, tempo} = Tempo.from_iso8601("2024-02-29")
       {:ok, interval} = Tempo.to_interval(tempo)
-      assert interval.from.time == [year: 2024, month: 2, day: 29, hour: 0]
-      assert interval.to.time == [year: 2024, month: 3, day: 1, hour: 0]
+      assert interval.from.time == [year: 2024, month: 2, day: 29]
+      assert interval.to.time == [year: 2024, month: 3, day: 1]
     end
   end
 
   describe "concrete datetime resolutions" do
-    test "hour → hour-minute endpoints" do
+    test "hour → hour endpoints walked at :minute" do
       {:ok, tempo} = Tempo.from_iso8601("2026-01-15T10")
       {:ok, interval} = Tempo.to_interval(tempo)
-      assert interval.from.time == [year: 2026, month: 1, day: 15, hour: 10, minute: 0]
-      assert interval.to.time == [year: 2026, month: 1, day: 15, hour: 11, minute: 0]
+      assert interval.from.time == [year: 2026, month: 1, day: 15, hour: 10]
+      assert interval.to.time == [year: 2026, month: 1, day: 15, hour: 11]
+      assert interval.unit == :minute
     end
 
-    test "minute → minute-second endpoints" do
+    test "minute → minute endpoints walked at :second" do
       {:ok, tempo} = Tempo.from_iso8601("2026-01-15T10:30")
       {:ok, interval} = Tempo.to_interval(tempo)
+      assert interval.unit == :second
 
       assert interval.from.time == [
                year: 2026,
                month: 1,
                day: 15,
                hour: 10,
-               minute: 30,
-               second: 0
+               minute: 30
              ]
 
       assert interval.to.time == [
@@ -71,8 +79,7 @@ defmodule Tempo.ToInterval.Test do
                month: 1,
                day: 15,
                hour: 10,
-               minute: 31,
-               second: 0
+               minute: 31
              ]
     end
 
@@ -382,8 +389,8 @@ defmodule Tempo.ToInterval.Test do
       # Coalesced: the touching years merge into a single 3-year span.
       coalesced = IntervalSet.coalesce(set)
       [interval] = coalesced.intervals
-      assert interval.from.time == [year: 2020, month: 1]
-      assert interval.to.time == [year: 2023, month: 1]
+      assert interval.from.time == [year: 2020]
+      assert interval.to.time == [year: 2023]
     end
   end
 

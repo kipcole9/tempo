@@ -1104,10 +1104,19 @@ defmodule Tempo.Operations do
       {:ok, {a_set, b_set}} ->
         coalesced_a = IntervalSet.coalesce(a_set)
         coalesced_b = IntervalSet.coalesce(b_set)
-        coalesced_a.intervals == coalesced_b.intervals
+        strip_units(coalesced_a.intervals) == strip_units(coalesced_b.intervals)
 
       {:error, exception} ->
         raise exception
     end
+  end
+
+  # Instant-set equality is about extents. A member that passed through
+  # a set operation unchanged keeps the iteration `:unit` a
+  # materialisation gave it (so `Enum` over a union still drills into
+  # its members), but that walk state must not make extent-equal sets
+  # compare unequal here.
+  defp strip_units(intervals) when is_list(intervals) do
+    Enum.map(intervals, &%{&1 | unit: nil})
   end
 end

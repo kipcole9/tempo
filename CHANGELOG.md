@@ -1,5 +1,23 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+* `Tempo.nearest_working_day/2` — the closest working day to a date, territory-aware for which days are the weekend. Reproduces the observed-holiday rule: a Saturday rolls back to Friday, a Sunday forward to Monday.
+
+* `Tempo.map/2` and `Tempo.try_map/2` — `Enum.map` analogues that collect mapped Tempo values into a `Tempo.IntervalSet`. `try_map/2` halts at the first value that cannot be materialised and returns its `{:error, reason}`.
+
+* `Tempo.Interval` now carries an explicit iteration granularity on `:unit` (also settable via `Interval.new/1`) — a day-resolution interval with `unit: :hour` walks 24 hours while its bounds stay at day resolution.
+
+### Changed
+
+* **Breaking:** `Tempo.to_interval/1` bounds keep the value's own resolution instead of drilling into the next-finer unit — `to_interval(~o"2025-07-04")` is now `2025-07-04/2025-07-05` with `unit: :hour`, not `…T0H` bounds. Enumeration counts are unchanged (the walk fills to `:unit` at iteration time); code reading drilled components off materialised bounds must use the stated resolution.
+
+### Fixed
+
+* `Tempo.to_iso8601/1` on a cron nearest-weekday rule (`15W`) now raises a descriptive `Tempo.Iso8601EncodeError` instead of a `FunctionClauseError`, and `inspect/1` falls back to a labelled struct view rather than crashing.
+
 ## [v0.21.0] — 2026-07-10
 
 ### Added

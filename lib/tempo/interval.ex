@@ -56,6 +56,7 @@ defmodule Tempo.Interval do
   alias Tempo.Interval.Composition
   alias Tempo.IntervalEndpointsError
   alias Tempo.IntervalSet
+  alias Tempo.InvalidUnitError
   alias Tempo.Iso8601.AST
   alias Tempo.Iso8601.Unit
   alias Tempo.LeapSeconds
@@ -71,6 +72,7 @@ defmodule Tempo.Interval do
           to: Tempo.t() | :undefined | nil,
           duration: Tempo.Duration.t() | nil,
           repeat_rule: Tempo.t() | nil,
+          unit: atom() | nil,
           metadata: map()
         }
 
@@ -104,9 +106,17 @@ defmodule Tempo.Interval do
             to: nil,
             duration: nil,
             repeat_rule: nil,
+            unit: nil,
             metadata: %{}
 
-  @public_new_options [:from, :to, :duration, :recurrence, :repeat_rule, :metadata]
+  @public_new_options [:from, :to, :duration, :recurrence, :repeat_rule, :unit, :metadata]
+
+  # Units a caller may request as iteration granularity via `new/1` —
+  # the month-based calendar/clock chain the walk-time fill can reach.
+  # Selector-only units (`:instance`, `:day_of_week`, …) are not
+  # iteration units; `:week`/`:day_of_week` are reachable only from
+  # week-calendar values, where materialisation sets them itself.
+  @iteration_units [:year, :month, :day, :hour, :minute, :second]
 
   @doc """
   Construct a `t:Tempo.Interval.t/0` from a keyword list of options.
@@ -174,7 +184,8 @@ defmodule Tempo.Interval do
          from <- Keyword.get(options, :from),
          to <- Keyword.get(options, :to),
          :ok <- validate_endpoint_types(from, to),
-         :ok <- validate_from_to_order(from, to) do
+         :ok <- validate_from_to_order(from, to),
+         {:ok, unit} <- validate_unit(Keyword.get(options, :unit), from) do
       recurrence = Keyword.get(options, :recurrence, 1)
       duration = Keyword.get(options, :duration)
       repeat_rule = Keyword.get(options, :repeat_rule)
@@ -187,6 +198,7 @@ defmodule Tempo.Interval do
          duration: duration,
          recurrence: recurrence,
          repeat_rule: repeat_rule,
+         unit: unit,
          metadata: metadata
        }}
     end
@@ -310,6 +322,42 @@ defmodule Tempo.Interval do
       true ->
         :ok
     end
+  end
+
+  # The iteration `:unit` must be a walkable unit and — when `:from` is a
+  # concrete endpoint — equal to or finer than its resolution: the walk
+  # fills the endpoint down to `unit`, and there is nothing to fill toward
+  # a coarser unit. A unit equal to the endpoint resolution adds nothing
+  # over the derived default, so it normalises to `nil`.
+  defp validate_unit(nil, _from), do: {:ok, nil}
+
+  defp validate_unit(unit, from) when is_atom(unit) and unit in @iteration_units do
+    case endpoint_resolution_unit(from) do
+      nil ->
+        {:ok, unit}
+
+      resolution_unit ->
+        case Unit.compare(unit, resolution_unit) do
+          # Finer units carry a smaller sort key, so :lt means finer.
+          :lt -> {:ok, unit}
+          :eq -> {:ok, nil}
+          :gt -> {:error, coarser_unit_error(unit, resolution_unit)}
+        end
+    end
+  end
+
+  defp validate_unit(unit, _from) do
+    {:error, InvalidUnitError.exception(unit: unit, valid_units: @iteration_units)}
+  end
+
+  defp endpoint_resolution_unit(%Tempo{} = from), do: from |> Tempo.resolution() |> elem(0)
+  defp endpoint_resolution_unit(_from), do: nil
+
+  defp coarser_unit_error(unit, resolution_unit) do
+    ArgumentError.exception(
+      ":unit must be equal to or finer than the resolution of :from " <>
+        "(#{inspect(resolution_unit)}), got #{inspect(unit)}"
+    )
   end
 
   defp valid_endpoint?(nil), do: true
@@ -451,18 +499,21 @@ defmodule Tempo.Interval do
   Given a fully-resolved `%Tempo{}`, compute the two endpoints of
   its implicit span under the half-open `[from, to)` convention.
 
-  Returns `{:ok, {lower, upper}}` where both are `%Tempo{}` values,
-  or `{:error, reason}` when the input has no finer unit that could
-  produce a bounded span (e.g. a fully-specified second-resolution
-  datetime).
+  Returns `{:ok, {lower, upper}, unit}` where both bounds are
+  `%Tempo{}` values at the input's own resolution and `unit` is the
+  iteration granularity the implicit span walks at — the next-finer
+  unit below the input's resolution (`nil` when the walk unit is
+  simply the bounds' resolution, as for masked and grouped values).
+  Returns `{:error, reason}` when the input has no finer unit that
+  could produce a bounded span.
 
-  The lower bound is the input's time extended with the minimum of
-  the next-finer unit (so `[year: 2022]` becomes `[year: 2022,
-  month: 1]` on a month-based calendar). The upper bound is the
-  lower bound incremented by one unit at the input's own resolution,
-  carrying via the calendar module. Masked values widen to the
-  coarsest un-masked prefix and use the internal mask-bounds
-  helper to determine the enclosing span.
+  The bounds are *not* drilled into the finer unit: `[year: 2022]`
+  yields `[year: 2022] / [year: 2023]` with unit `:month`, not
+  `2022-01 / 2023-01`. Extent keeps its stated resolution;
+  granularity travels separately so `Tempo.to_interval/1` can carry
+  it on the interval's `:unit` field. Masked values widen to the
+  coarsest un-masked prefix and use the internal mask-bounds helper
+  to determine the enclosing span.
 
   """
   def next_unit_boundary(%Tempo{time: time, calendar: calendar} = tempo) do
@@ -486,11 +537,11 @@ defmodule Tempo.Interval do
       _ ->
         case masked_widening(time) do
           {:ok, {lower_time, upper_time}} ->
-            {:ok, build_bounds(tempo, lower_time, upper_time)}
+            {:ok, build_bounds(tempo, lower_time, upper_time), nil}
 
           {:widen, prefix, unit} ->
             upper_time = Math.add_unit(prefix, unit, calendar)
-            {:ok, build_bounds(tempo, prefix, upper_time)}
+            {:ok, build_bounds(tempo, prefix, upper_time), nil}
 
           {:error, _} = err ->
             err
@@ -544,7 +595,7 @@ defmodule Tempo.Interval do
   defp materialise_group(tempo, prefix, unit, first, last, calendar) do
     lower_time = prefix ++ [{unit, first}]
     upper_time = Math.add_unit(prefix ++ [{unit, last}], unit, calendar)
-    {:ok, build_bounds(tempo, lower_time, upper_time)}
+    {:ok, build_bounds(tempo, lower_time, upper_time), nil}
   end
 
   defp anchored_prefix?(prefix, unit) do
@@ -611,7 +662,7 @@ defmodule Tempo.Interval do
       # (precision 6) spans a single microsecond.
       {:microsecond, {_value, _precision}} ->
         upper_time = Math.add_unit(time, :microsecond, calendar)
-        {:ok, build_bounds(tempo, time, upper_time)}
+        {:ok, build_bounds(tempo, time, upper_time), nil}
 
       # A second-resolution value is no longer the finest unit once
       # sub-second (microsecond) resolution exists below it, so it
@@ -621,7 +672,7 @@ defmodule Tempo.Interval do
       # second resolution instead of drilling into microseconds.
       {:second, _value} ->
         upper_time = Math.add_unit(time, :second, calendar)
-        {:ok, build_bounds(tempo, time, upper_time)}
+        {:ok, build_bounds(tempo, time, upper_time), nil}
 
       _ ->
         {unit, _span} = Tempo.resolution(tempo)
@@ -630,18 +681,21 @@ defmodule Tempo.Interval do
           nil ->
             {:error, MaterialisationError.exception(value: tempo, reason: :finest_resolution)}
 
-          {next_unit, range} ->
-            lower_time = time ++ [{next_unit, range_first(range)}]
-            upper_time = Math.add_unit(lower_time, unit, calendar)
-            {:ok, build_bounds(tempo, lower_time, upper_time)}
+          {next_unit, _range} ->
+            # The implicit span is one unit wide at the value's own
+            # resolution — a day spans `[day, day+1)`, not
+            # `[day T0H, day+1 T0H)`. The next-finer unit the old code
+            # drilled into the endpoints is returned separately as the
+            # iteration granularity; the walk fills the anchor to it
+            # at iteration time (`Steps.fill_to_unit/3`).
+            upper_time = Math.add_unit(time, unit, calendar)
+            {:ok, build_bounds(tempo, time, upper_time), next_unit}
         end
     end
   end
 
   # A `Range` supplied by `Unit.implicit_enumerator/2` — we take
   # its first value as the unit's start-of-span.
-  defp range_first(%Range{first: first}), do: first
-
   # ISO 8601-2 significant digits (`1950S3`) denote the block of values
   # sharing the leading `n` digits — `1950S3` is the decade `1950..1959`,
   # exactly the mask `195X`. For crisp materialisation the annotation is

@@ -3713,9 +3713,11 @@ defmodule Tempo do
       iex> {:ok, tempo} = Tempo.from_iso8601("2026-01")
       iex> {:ok, interval} = Tempo.to_interval(tempo)
       iex> interval.from.time
-      [year: 2026, month: 1, day: 1]
+      [year: 2026, month: 1]
       iex> interval.to.time
-      [year: 2026, month: 2, day: 1]
+      [year: 2026, month: 2]
+      iex> interval.unit
+      :day
 
       iex> {:ok, tempo} = Tempo.from_iso8601("156X")
       iex> {:ok, interval} = Tempo.to_interval(tempo)
@@ -3897,8 +3899,11 @@ defmodule Tempo do
     if multi_tempo?(tempo) do
       materialise_multi(tempo)
     else
+      # The bounds keep the value's own resolution; the iteration
+      # granularity of the implicit span travels on `:unit` (see
+      # `Tempo.Interval.next_unit_boundary/1`).
       case Interval.next_unit_boundary(tempo) do
-        {:ok, {lower, upper}} -> {:ok, %Tempo.Interval{from: lower, to: upper}}
+        {:ok, {lower, upper}, unit} -> {:ok, %Tempo.Interval{from: lower, to: upper, unit: unit}}
         {:error, _} = err -> err
       end
     end
@@ -4451,7 +4456,7 @@ defmodule Tempo do
       iex> {:ok, tempo} = Tempo.from_iso8601("2026")
       iex> interval = Tempo.to_interval!(tempo)
       iex> {interval.from.time, interval.to.time}
-      {[year: 2026, month: 1], [year: 2027, month: 1]}
+      {[year: 2026], [year: 2027]}
 
   """
   @spec to_interval!(

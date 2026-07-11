@@ -116,8 +116,8 @@ defmodule Tempo.Operations.Test do
       coalesced = IntervalSet.coalesce(r)
       assert length(coalesced.intervals) == 1
       [iv] = coalesced.intervals
-      assert iv.from.time == [year: 2022, month: 1]
-      assert iv.to.time == [year: 2024, month: 1]
+      assert iv.from.time == [year: 2022]
+      assert iv.to.time == [year: 2024]
     end
 
     test "overlapping operands keep both members distinct" do
@@ -261,10 +261,10 @@ defmodule Tempo.Operations.Test do
       {:ok, r} = Tempo.complement(~o"2022-06", bound: ~o"2022Y")
       assert length(r.intervals) == 2
       [jan_may, jul_dec] = r.intervals
-      assert jan_may.from.time == [year: 2022, month: 1, day: 1]
-      assert jan_may.to.time == [year: 2022, month: 6, day: 1]
-      assert jul_dec.from.time == [year: 2022, month: 7, day: 1]
-      assert jul_dec.to.time == [year: 2023, month: 1, day: 1]
+      assert jan_may.from.time == [year: 2022, month: 1]
+      assert jan_may.to.time == [year: 2022, month: 6]
+      assert jul_dec.from.time == [year: 2022, month: 7]
+      assert jul_dec.to.time == [year: 2023, month: 1]
     end
 
     test "complement of ∅ within U = U" do

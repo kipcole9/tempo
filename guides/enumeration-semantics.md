@@ -127,18 +127,22 @@ Mismatched-resolution endpoints are compared as their concrete start-moments: mi
 
 Every enumerable `%Tempo{}` has an explicit equivalent — either a single `%Tempo.Interval{}` (contiguous span) or a `%Tempo.IntervalSet{}` (sorted, member-preserving list of intervals). `Tempo.to_interval/1` materialises the appropriate form under the half-open `[from, to)` convention. The conversion preserves every piece of source metadata (`:qualification`, `:qualifications`, `:extended`, `:shift`, `:calendar`) on both endpoints.
 
+The bounds keep the **value's own resolution** — *resolution = meaning*, so a day materialises as `[day, day+1)`, not as drilled `T0H` endpoints. The iteration granularity of the implicit span (the next-finer unit) travels separately on the interval's **`:unit` field**, and the walk fills its anchor down to that unit at iteration time. So the materialised interval enumerates exactly like its implicit twin (`Enum.count` of both `~o"2026-01-15"` and its interval is 24 hours) while its endpoints state only what the source stated. An interval whose `:unit` is set inspects with a decoration — `#Tempo.Interval<~o"2026-01-15/2026-01-16" unit: hour>` — because the unit is non-syntactic state the bare sigil would not round-trip.
+
 Call `Tempo.to_interval_set/1` if you always want the IntervalSet form (a single interval is wrapped in a one-element set).
 
-| Input | `from.time` | `to.time` |
-|---|---|---|
-| `2026` | `[year: 2026, month: 1]` | `[year: 2027, month: 1]` |
-| `2026-01` | `[year: 2026, month: 1, day: 1]` | `[year: 2026, month: 2, day: 1]` |
-| `2026-01-15` | `[year: 2026, month: 1, day: 15, hour: 0]` | `[year: 2026, month: 1, day: 16, hour: 0]` |
-| `2026-01-15T10` | `[…, hour: 10, minute: 0]` | `[…, hour: 11, minute: 0]` |
-| `156X` | `[year: 1560]` | `[year: 1570]` |
-| `-1XXX` | `[year: -1999]` | `[year: -999]` |
-| `1985-XX-XX` | `[year: 1985]` | `[year: 1986]` |
-| `1985-06-XX` | `[year: 1985, month: 6]` | `[year: 1985, month: 7]` |
+| Input | `from.time` | `to.time` | `unit` |
+|---|---|---|---|
+| `2026` | `[year: 2026]` | `[year: 2027]` | `:month` |
+| `2026-01` | `[year: 2026, month: 1]` | `[year: 2026, month: 2]` | `:day` |
+| `2026-01-15` | `[year: 2026, month: 1, day: 15]` | `[year: 2026, month: 1, day: 16]` | `:hour` |
+| `2026-01-15T10` | `[…, hour: 10]` | `[…, hour: 11]` | `:minute` |
+| `156X` | `[year: 1560]` | `[year: 1570]` | `nil` (walks years) |
+| `-1XXX` | `[year: -1999]` | `[year: -999]` | `nil` |
+| `1985-XX-XX` | `[year: 1985]` | `[year: 1986]` | `nil` |
+| `1985-06-XX` | `[year: 1985, month: 6]` | `[year: 1985, month: 7]` | `nil` |
+
+A `nil` unit means the walk derives its step from the endpoint resolution — the default for user-written explicit intervals (`~o"2026-01-01/2026-02-01"` iterates days) and for masked/grouped values whose widened bounds already sit at the iteration resolution. You can also set the unit yourself: `Tempo.Interval.new(from: ~o"2025-07-04", to: ~o"2025-07-05", unit: :hour)` walks a day-resolution extent at hour granularity.
 
 Mask rules:
 
@@ -321,7 +325,7 @@ true
 
 Known divergences:
 
-* **Second-resolution values.** `to_interval/1` materialises a one-second span (`~o"2026-01-15T10:30:00"` → `[10:30:00, 10:30:01)`), but implicit iteration drills one unit finer into sub-second tenths — so `Enum.to_list(~o"2026-01-15T10:30:00")` yields ten deciseconds (`.0`–`.9`) while the interval forward-steps as a single second. Coarser resolutions don't diverge because `to_interval/1` drills their endpoints one unit finer too; the second case keeps second-resolution endpoints (a clean `[t, t+1s)` span for set operations).
+* **Second-resolution values.** `to_interval/1` materialises a one-second span (`~o"2026-01-15T10:30:00"` → `[10:30:00, 10:30:01)`), but implicit iteration drills one unit finer into sub-second tenths — so `Enum.to_list(~o"2026-01-15T10:30:00")` yields ten deciseconds (`.0`–`.9`) while the interval forward-steps as a single second. Coarser resolutions don't diverge because their materialised interval carries the drill unit on `:unit` (a day walks hours); the second case deliberately carries none (a clean `[t, t+1s)` span for set operations).
 
 * **Masked values iterated implicitly.** The current implicit enumeration of masked values (`1985-XX-XX`) has known quirks — it does not always walk the full cartesian product of valid month/day pairs. `to_interval/1` widens to the coarsest un-masked prefix and produces a clean span; iterating that interval yields the straightforward forward-stepped sequence. Prefer the explicit form for set operations on masked values.
 

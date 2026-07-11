@@ -15,13 +15,14 @@ defmodule Tempo.EnumerationMaterialisationTest do
       assert Enum.member?(~o"2020Y", ~o"2020Y1M")
       assert Enum.member?(~o"2020Y", ~o"2020Y12M")
       assert {:ok, interval} = Tempo.to_interval(~o"2020Y")
-      assert inspect(interval) == ~S|~o"2020Y1M/2021Y1M"|
+      # Bounds keep year resolution; the drill unit travels as data.
+      assert inspect(interval) == ~S|#Tempo.Interval<~o"2020Y/2021Y" unit: month>|
     end
 
     test "day drills to hours" do
       assert Enum.count(~o"2020-06-15") == 24
       assert {:ok, interval} = Tempo.to_interval(~o"2020-06-15")
-      assert inspect(interval) == ~S|~o"2020Y6M15DT0H/2020Y6M16DT0H"|
+      assert inspect(interval) == ~S|#Tempo.Interval<~o"2020Y6M15D/2020Y6M16D" unit: hour>|
     end
   end
 

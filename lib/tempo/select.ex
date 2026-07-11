@@ -99,6 +99,7 @@ defmodule Tempo.Select do
 
   alias Tempo.Compare
   alias Tempo.Interval
+  alias Tempo.Interval.Steps
   alias Tempo.IntervalEndpointsError
   alias Tempo.IntervalSet
   alias Tempo.Iso8601.Unit
@@ -512,6 +513,14 @@ defmodule Tempo.Select do
   end
 
   defp project_merge(%Interval{from: %Tempo{calendar: calendar} = base_from} = base, c_time) do
+    # Projection merges the constraint into the base's lower bound, so
+    # it needs the walk-ready anchor: a materialised base carries its
+    # iteration granularity on `:unit` with bounds at the value's own
+    # resolution, and merging `day: 10` into an unfilled `[year: 2026]`
+    # would produce an ordinal-shaped list no calendar math accepts.
+    # Fill to the unit first (`[year: 2026, month: 1]`), exactly the
+    # anchor the walk itself starts from.
+    %Tempo{} = base_from = Steps.fill_to_unit(base_from, base.unit, calendar)
     base_time = base_from.time
     base_res = Interval.resolution(base)
 
