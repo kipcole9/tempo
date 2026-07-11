@@ -145,7 +145,23 @@ Two caveats:
 
 * **Microsecond precision normalises to 6.** A second-resolution value round-trips through `{0, 0}` → `{0, 6}` microseconds; the instant, zone, and wall reading are identical, only the precision tag widens.
 
-## 5. Where to convert
+## 5. Serialising intervals — granularity is not in the string
+
+An interval's ISO 8601 string carries its **extent** only. The iteration granularity a materialised implicit span carries on `:unit` (why `to_interval(~o"2025-07-04")` enumerates 24 hours despite day-resolution bounds) has no ISO 8601 spelling, so `to_iso8601/1` cannot preserve it and the re-parsed interval walks at its bounds resolution instead:
+
+```elixir
+{:ok, day} = Tempo.to_interval(~o"2025-07-04")
+Enum.count(day)
+#=> 24    # walks hours — unit: :hour travels on the struct
+
+reparsed = Tempo.from_iso8601!(Tempo.to_iso8601(day))
+Enum.count(reparsed)
+#=> 1     # walks at day resolution — the string carried only the extent
+```
+
+This is why such an interval inspects in the decorated form (`#Tempo.Interval<~o"2025-07-04/2025-07-05" unit: hour>`) rather than as a bare sigil: the decoration marks state the string cannot round-trip, exactly as it does for iCal metadata. If walk behaviour must survive persistence, store the *source* value (`~o"2025-07-04"` — its implicit enumeration is derived, so it round-trips fully) or re-attach the granularity on load with `Tempo.Interval.new(from: from, to: to, unit: :hour)`.
+
+## 6. Where to convert
 
 Convert at the **edges**, compute in the **middle**:
 

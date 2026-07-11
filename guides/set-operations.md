@@ -68,9 +68,9 @@ Worked examples:
 
 The rule of thumb: **if you're going to say *"time"* or *"the period"* about the result, use the default; if you're going to say *"events"*, *"meetings"*, or *"members"*, use the `members_*` companion.
 
-## 1. The three rules
+## 1. The four rules
 
-Before any operation runs, both operands are **aligned** by a shared preflight. Three rules govern that alignment.
+Before any operation runs, both operands are **aligned** by a shared preflight. Three rules govern that alignment; a fourth governs what results carry.
 
 ### 1.1. Resolution — finer wins
 
@@ -104,6 +104,24 @@ Tempo.overlaps?(hebrew_day, ~o"2022-06-15")
 Tempo.disjoint?(hebrew_day, ~o"2023-01")
 # => true
 ```
+
+### 1.4. Iteration granularity — members keep it, new extents derive it
+
+A materialised operand carries its iteration granularity on the interval's `:unit` field (a month materialises with `unit: :day`, so `Enum` walks its days — see the [enumeration guide](enumeration-semantics.html)). Set operations treat that as part of member identity: a member that passes through an operation **unchanged** keeps its unit, while an interval the sweep **constructs** — an intersection overlap, a difference remainder, a complement gap, a coalesced merge (which inherits the first merged member's unit) — is a new extent that walks at its own bounds resolution.
+
+```elixir
+# Members pass through union unchanged — each month still walks its days.
+{:ok, months} = Tempo.union(~o"2022Y1M", ~o"2022Y3M")
+Enum.count(months)
+#=> 62    # 31 + 31 days
+
+# Difference constructs new extents — the fragments walk at month resolution.
+{:ok, gaps} = Tempo.difference(~o"2022", ~o"2022-06")
+Enum.count(gaps)
+#=> 11    # Jan–May and Jul–Dec, as months
+```
+
+The practical rule: **event-list questions** (the member-preserving operations) keep each member enumerating exactly as it did before the operation; **covered-time questions** (the instant-level operations) return extents, and an extent walks at the resolution its bounds state. `equal?/2` ignores `:unit` entirely — instant-set equality is about extents.
 
 ## 2. The anchor-class rule
 
