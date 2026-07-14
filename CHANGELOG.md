@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [v0.21.0] — 2026-07-15
 
 ### Added
 
@@ -12,6 +12,12 @@
 
 * One-of sets feed the certainty API: `relation_certainty/3`, `overlap_certainty/2`, and the `possibly_*`/`certainly_*` predicates read `~o"[1984,1986]"` as a finite envelope (the union of possible relations over member choices). Previously they errored or silently answered `false`.
 
+* `Tempo.at/2`, `at!/2`, and the date-phrased aliases `on/2` and `on!/2` — set finer components on a value already on the timeline (`Tempo.at(~o"2026-06-15", ~o"T17")`, `Tempo.on(~o"3M", ~o"2D")`), replacing the whole tail rather than merging it. Partial values are first-class, so a non-anchored subject is refined without forcing a year, and only anchored results are validated against the calendar.
+
+* `Tempo.floating?/1` and `Tempo.grounded?/1` — predicates for whether a value sits on the universal (UTC) time line: floating values carry no zone or offset, grounded values carry an `[IANA/Zone]`, a `Z`, or a numeric offset.
+
+* `Tempo.in_zone/2` — ground a floating value by placing its wall clock into an IANA zone (`Tempo.in_zone(~o"2030-03-01T08:00", "Europe/Paris")`). It is the counterpart to `shift_zone/2`, which *moves* an already-grounded value between zones.
+
 ### Changed
 
 * **Breaking:** Tempo is now time zone database agnostic and no longer depends on `:tzdata` (whose `:hackney` dependency chain is gone from the tree). Add any `Calendar.TimeZoneDatabase` implementation (`:tz`, `:tzdata`, `:time_zone_info`, `:zoneinfo`) and configure it — `config :elixir, :time_zone_database, Tz.TimeZoneDatabase` — or set `config :ex_tempo, :time_zone_database, ...`; see `Tempo.TimeZoneDatabase`. Without one, parsing works fully but zone-rule operations error.
@@ -21,28 +27,6 @@
 * **Breaking:** the crisp and certainty boolean predicates (`before?/2`, `within?/2`, `certainly_overlaps?/2`, …) raise on an operand they cannot classify instead of silently returning `false` — a silent false asserted a relation verdict the error could not make.
 
 * **Breaking:** `relation/2` and `duration/1` refuse a recurring interval (`R5/…`) with a directing `Tempo.MaterialisationError` — a recurrence is a rule generating occurrences, not a single span. Materialise with `to_interval/2` and use the set-level API; `duration/1` previously answered `:infinity` for a finite recurrence.
-
-* `Tempo.Interval.new/1` applies the parser's frame-propagation rule: a grounded `:to` grounds a floating `:from` (never the reverse, never overwriting), so a constructed interval and the re-parse of its own ISO 8601 string agree.
-
-* Comparison-operand errors are exception structs rather than raw strings, and `Tempo.Range`'s docs now state its actual role: the ISO 8601-2 set-member range element, not a top-level value.
-
-### Fixed
-
-* `Tempo.to_iso8601/1` on a cron nearest-weekday rule (`15W`) now raises a descriptive `Tempo.Iso8601EncodeError` instead of a `FunctionClauseError`, and `inspect/1` falls back to a labelled struct view rather than crashing.
-
-* The falsehoods guide's "Where Tempo won't help (yet)" section no longer lists sub-second comparison and clock mocking as gaps — both work (`relation/2` at sub-second resolution; `Tempo.Clock`). The remaining sub-second gap is `duration/2`, which truncates to whole seconds.
-
-## [v0.21.0] — 2026-07-10
-
-### Added
-
-* `Tempo.at/2`, `at!/2`, and the date-phrased aliases `on/2` and `on!/2` — set finer components on a value already on the timeline (`Tempo.at(~o"2026-06-15", ~o"T17")`, `Tempo.on(~o"3M", ~o"2D")`), replacing the whole tail rather than merging it. Partial values are first-class, so a non-anchored subject is refined without forcing a year, and only anchored results are validated against the calendar.
-
-* `Tempo.floating?/1` and `Tempo.grounded?/1` — predicates for whether a value sits on the universal (UTC) time line: floating values carry no zone or offset, grounded values carry an `[IANA/Zone]`, a `Z`, or a numeric offset.
-
-* `Tempo.in_zone/2` — ground a floating value by placing its wall clock into an IANA zone (`Tempo.in_zone(~o"2030-03-01T08:00", "Europe/Paris")`). It is the counterpart to `shift_zone/2`, which *moves* an already-grounded value between zones.
-
-### Changed
 
 * **Breaking:** `Tempo.anchor/2` now takes the non-anchored value first and the reference second (`Tempo.anchor(~o"T10:30", ~o"2026-01-04")`) and raises when its subject is already anchored — it is strictly a left-fill that places a floating value on the timeline. Use the new `at/2` for the right-fill (setting a time-of-day on a date), which also fixes the previous behaviour of leaking the base's stray sub-units.
 
@@ -54,7 +38,15 @@
 
 * The minimum `calendrical` dependency is now `~> 0.12`, whose `days_in_month/1` reports a month's maximum length across all years.
 
+* `Tempo.Interval.new/1` applies the parser's frame-propagation rule: a grounded `:to` grounds a floating `:from` (never the reverse, never overwriting), so a constructed interval and the re-parse of its own ISO 8601 string agree.
+
+* Comparison-operand errors are exception structs rather than raw strings, and `Tempo.Range`'s docs now state its actual role: the ISO 8601-2 set-member range element, not a top-level value.
+
 ### Fixed
+
+* `Tempo.to_iso8601/1` on a cron nearest-weekday rule (`15W`) now raises a descriptive `Tempo.Iso8601EncodeError` instead of a `FunctionClauseError`, and `inspect/1` falls back to a labelled struct view rather than crashing.
+
+* The falsehoods guide's "Where Tempo won't help (yet)" section no longer lists sub-second comparison and clock mocking as gaps — both work (`relation/2` at sub-second resolution; `Tempo.Clock`). The remaining sub-second gap is `duration/2`, which truncates to whole seconds.
 
 * A yearless partial date that occurs in no year is now rejected — `~o"2M30D"` (February 30th) and `Tempo.new(month: 4, day: 31)` return an error, while genuine partials such as `~o"3M2D"` and the leap-year `~o"2M29D"` still succeed. Months whose length can't be bounded without a year (many lunisolar months) are left unchecked rather than falsely rejected.
 
