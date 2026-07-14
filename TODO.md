@@ -110,8 +110,12 @@
   %Tempo.ZoneOffsetMismatchError{}}`, and `Tempo.from_iso8601/2`
   accepts `strict: true` (composing with `calendar:`) to reject a
   disagreeing value at parse time. A DST fall-back offset is treated as
-  disambiguation, not disagreement. The `!` critical flag is not yet
-  wired to auto-strict — left as a possible refinement. Analysis below.
+  disambiguation, not disagreement. The `!` critical flag refinement
+  also landed (2026-07-11): a critical zone (`[!America/New_York]`)
+  enforces RFC 9557 §4.2 offset consistency unconditionally, with the
+  flag retained on `extended.zone_critical` and round-tripping through
+  `to_iso8601/1`; `strict: true` remains the superset that also rejects
+  elective disagreement. Analysis below.
 
   When an IXDTF string carries both a numeric offset and a zone identifier
   (e.g. `2022-11-20T10:37:00+05:00[Europe/Paris]`), the two can disagree —
