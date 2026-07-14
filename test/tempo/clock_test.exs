@@ -15,7 +15,7 @@ defmodule Tempo.ClockTest do
 
     test "put/1 converts a non-UTC DateTime to UTC before storing" do
       # 12:00 Paris (UTC+2 in June) is 10:00 UTC.
-      paris = DateTime.new!(~D[2026-06-15], ~T[12:00:00], "Europe/Paris", Tzdata.TimeZoneDatabase)
+      paris = DateTime.new!(~D[2026-06-15], ~T[12:00:00], "Europe/Paris", Tz.TimeZoneDatabase)
       assert :ok = Test.put(paris)
       assert Test.utc_now() == ~U[2026-06-15 10:00:00Z]
     end

@@ -62,10 +62,10 @@ Configure a database in the host application's `config/config.exs` (or per-envir
 
 ```elixir
 # config/config.exs
-config :elixir, :time_zone_database, Tzdata.TimeZoneDatabase
+config :elixir, :time_zone_database, Tz.TimeZoneDatabase
 ```
 
-Either [`:tzdata`](https://hex.pm/packages/tzdata) (which Tempo already depends on) or [`:tz`](https://hex.pm/packages/tz) works. Tempo's own dev and test environments pull in `:tz` and configure `Tz.TimeZoneDatabase` via `config/dev.exs` and `config/test.exs`, which is how the project's demo schedules (`demo/calendars/*.ics`) round-trip zoned events in `mix test` runs.
+Any `Calendar.TimeZoneDatabase` implementation works — [`:tz`](https://hex.pm/packages/tz), [`:tzdata`](https://hex.pm/packages/tzdata), [`:time_zone_info`](https://hex.pm/packages/time_zone_info), or [`:zoneinfo`](https://hex.pm/packages/zoneinfo); Tempo does not bundle one. Tempo's own dev and test environments pull in `:tz` and configure `Tz.TimeZoneDatabase` via `config/dev.exs` and `config/test.exs`, which is how the project's demo schedules (`demo/calendars/*.ics`) round-trip zoned events in `mix test` runs.
 
 UTC-anchored datetimes (the `20260401T090000Z` form) and floating/naive datetimes do not need a zone database — only the `TZID=`-parameterised form does.
 
@@ -256,7 +256,7 @@ Every arithmetic operation goes through the candidate's own calendar (`calendar.
 
 - **Duration-only events.** `VEVENT`s with `DURATION` but no `DTEND` — the `ical` library exposes the duration in its own record shape that doesn't line up with Tempo's `%Tempo.Duration{}`. Bridging the two is a small follow-up.
 
-- **VTIMEZONE definitions.** `VTIMEZONE` blocks in the input are used by the `ical` library to resolve zoned DTSTART/DTEND values, but Tempo itself relies on Tzdata for zone calculations. Zones not in Tzdata (historical / non-standard zones defined in the `VTIMEZONE`) may not round-trip cleanly.
+- **VTIMEZONE definitions.** `VTIMEZONE` blocks in the input are used by the `ical` library to resolve zoned DTSTART/DTEND values, but Tempo itself relies on the configured time zone database for zone calculations. Zones absent from the IANA data (historical / non-standard zones defined in the `VTIMEZONE`) may not round-trip cleanly.
 
 - **Export.** `Tempo → iCalendar` (going the other way) isn't implemented. Tempo emits RRULE via `to_rrule/1` for individual values; a full `to_ical/1` that produces a VCALENDAR envelope with VEVENTs is a future step.
 

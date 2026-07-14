@@ -141,7 +141,7 @@ Each bracket may be prefixed with `!` to mark it **critical**. Unrecognised crit
 
 A critical flag on a *time zone* also triggers RFC 9557 §4.2 offset consistency: `2022-01-01T00:00:00+05:00[!America/New_York]` is rejected with a `Tempo.ZoneOffsetMismatchError` because `+05:00` is not New York's offset on that date. Marking the zone critical is retained on `extended.zone_critical` and round-trips back out through `to_iso8601/1`. An *elective* zone leaves the numeric offset authoritative and the zone advisory, so a disagreement parses cleanly. To reject disagreement even for elective zones, pass `strict: true` to `from_iso8601/2` — a superset of the mandatory critical check.
 
-Time zones are validated against `Tzdata.zone_exists?/1`. Calendars are validated against `Localize.validate_calendar/1`, which also handles the `"gregory"` → `:gregorian` alias per BCP 47.
+Time zones are validated against the configured time zone database (`Tempo.TimeZoneDatabase.zone_exists?/1`); with no database configured, syntactically valid zone names are accepted without registry validation. Calendars are validated against `Localize.validate_calendar/1`, which also handles the `"gregory"` → `:gregorian` alias per BCP 47.
 
 ## 5. Project-specific extensions (not in ISO 8601)
 

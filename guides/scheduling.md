@@ -16,7 +16,7 @@ The first question has the sharpest edges — future dates, wall-clock vs UTC, a
 
 * **"Floating" events vs zoned events** — Tempo distinguishes them through what's on the value, not a flag.
 
-* **Future dates survive zone-rule changes** — because Tempo never caches a UTC value, re-reading a future event automatically uses the current Tzdata.
+* **Future dates survive zone-rule changes** — because Tempo never caches a UTC value, re-reading a future event automatically uses the current zone data.
 
 ## Setup — required for every example
 
@@ -79,7 +79,7 @@ t.extended.zone_id
 #=> "Europe/Paris"
 ```
 
-No UTC seconds are cached on the struct. When you ask for the UTC projection, Tempo consults Tzdata at the time of the call, and the result reflects whatever zone rules Tzdata currently knows about 2030. Re-run the same call after Tzdata updates and the number may change — that's the correct behaviour for future dates.
+No UTC seconds are cached on the struct. When you ask for the UTC projection, Tempo consults the configured time zone database at the time of the call, and the result reflects whatever zone rules it currently knows about 2030. Re-run the same call after a data update and the number may change — that's the correct behaviour for future dates.
 
 ### Principle
 
@@ -95,7 +95,7 @@ cached_utc = Tempo.Compare.to_utc_seconds(event)
 store_in_database(cached_utc)
 ```
 
-When Tzdata ships a DST rule change for 2030, your cached number is now wrong — but you've lost the wall-clock information needed to recompute. Serialise the Tempo value itself (`Tempo.to_iso8601/1` round-trips faithfully) and project to UTC only at display or comparison time.
+When the IANA database ships a DST rule change for 2030, your cached number is now wrong — but you've lost the wall-clock information needed to recompute. Serialise the Tempo value itself (`Tempo.to_iso8601/1` round-trips faithfully) and project to UTC only at display or comparison time.
 
 ## 3. Floating vs grounded values
 
@@ -184,16 +184,16 @@ Propagation is one-directional and non-destructive: it flows only from the upper
 
 When Paris last moved its DST rules in 1996, any calendar entry stored as a frozen UTC instant for a post-1996 date had to be rewritten. Modern calendars (Google, Apple, Outlook) avoid this by storing wall-clock + zone and deriving UTC on demand — which is exactly what Tempo does.
 
-Concretely: a Paris event stored today for 2030 will be re-evaluated with whatever Tzdata knows about Paris's rules in 2030 *at the time of the computation*:
+Concretely: a Paris event stored today for 2030 will be re-evaluated with whatever the zone database knows about Paris's rules in 2030 *at the time of the computation*:
 
 ```elixir
 event = ~o"2030-03-01T08:00:00[Europe/Paris]"
 
-# Today, Tzdata thinks this is UTC+1 (standard time in March).
+# Today, the IANA data says this is UTC+1 (standard time in March).
 Tempo.Compare.to_utc_seconds(event)
 #=> 64052726400
 
-# If Tzdata 2028a ships saying France abolished DST in 2027,
+# If IANA 2028a ships saying France abolished DST in 2027,
 # the next call to to_utc_seconds returns a different number
 # — the event is "still 8am Paris wall time, but the UTC shifts."
 ```
@@ -308,7 +308,7 @@ Schedule.occurrences_in(retrospective, ~o"2025-07-01", ~o"2025-10-01")
 
 > **`Tempo.from_elixir/2` converts native Elixir date/time structs.** When a value arrives as a `Date`, `Time`, `NaiveDateTime`, or `DateTime` — from a database row, an API payload, a form — convert it with `from_elixir/2` rather than picking its fields apart by hand or re-formatting it to an ISO 8601 string and parsing it back. The time zone carries across faithfully, and the `:resolution` option lets you say how precise the value really is: a `DateTime` is second-precise, but a weekly meeting is a *to-the-minute* thing, so `resolution: :minute` makes the value — and every occurrence derived from it — a one-minute span rather than a one-second one. (For a value you are assembling from loose components rather than a struct, `Tempo.new/1` is the runtime companion to the `~o` sigil.)
 
-> **Store** the recurrence as a value — a zoned repeating interval, `~o"R/2025Y6M1DT14H0MZ+1H[Europe/London]/P1W"`. **Materialise** into an IntervalSet only when you need concrete occurrences, bounded to the query window. **Display** by projecting each endpoint's wall time through the viewer's preferred zone. Nothing about the stored value changes when Tzdata does.
+> **Store** the recurrence as a value — a zoned repeating interval, `~o"R/2025Y6M1DT14H0MZ+1H[Europe/London]/P1W"`. **Materialise** into an IntervalSet only when you need concrete occurrences, bounded to the query window. **Display** by projecting each endpoint's wall time through the viewer's preferred zone. Nothing about the stored value changes when the zone data does.
 
 ## Related reading
 

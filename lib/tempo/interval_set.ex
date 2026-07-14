@@ -57,7 +57,7 @@ defmodule Tempo.IntervalSet do
   intervals on the struct. Any set operation that needs to compare
   endpoints across zones derives a UTC projection on demand; no
   UTC cache is stored on the struct. This keeps results stable when
-  `Tzdata` updates — re-running the operation simply uses whatever
+  the zone database updates — re-running the operation simply uses whatever
   zone rules are current at the time of the call.
 
   See `guides/enumeration-semantics.md` for the full discussion of

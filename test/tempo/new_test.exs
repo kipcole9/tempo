@@ -270,7 +270,7 @@ defmodule Tempo.NewTest do
 
   describe "Tempo.duration/2 and duration!/2" do
     setup do
-      Calendar.put_time_zone_database(Tzdata.TimeZoneDatabase)
+      Calendar.put_time_zone_database(Tz.TimeZoneDatabase)
       :ok
     end
 
@@ -353,7 +353,7 @@ defmodule Tempo.NewTest do
 
   describe "Tempo.Duration.to_unit/3" do
     setup do
-      Calendar.put_time_zone_database(Tzdata.TimeZoneDatabase)
+      Calendar.put_time_zone_database(Tz.TimeZoneDatabase)
       :ok
     end
 

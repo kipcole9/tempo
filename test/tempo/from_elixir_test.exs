@@ -13,7 +13,7 @@ defmodule Tempo.FromElixir.Test do
 
   setup_all do
     # DateTime construction with IANA zones needs a time zone DB.
-    Calendar.put_time_zone_database(Tzdata.TimeZoneDatabase)
+    Calendar.put_time_zone_database(Tz.TimeZoneDatabase)
     :ok
   end
 

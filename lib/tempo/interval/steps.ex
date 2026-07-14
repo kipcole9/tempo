@@ -30,6 +30,7 @@ defmodule Tempo.Interval.Steps do
   alias Tempo.Enumeration.Zone
   alias Tempo.Iso8601.AST
   alias Tempo.Iso8601.Unit
+  alias Tempo.TimeZoneDatabase
 
   @seconds_per_minute 60
   @seconds_per_hour 3_600
@@ -384,13 +385,13 @@ defmodule Tempo.Interval.Steps do
   end
 
   # Elapsed seconds between two endpoints, DST-aware when both share
-  # the same named time zone on Gregorian (where Tzdata applies).
+  # the same named time zone on Gregorian (where the zone database applies).
   # For UTC, fixed-offset, unzoned, or non-Gregorian-calendar values,
   # the offset cancels in the wall-clock difference and the simpler
   # `wall_seconds` arithmetic is correct.
   #
   # `Tempo.Compare.to_utc_seconds/1` is typed as `integer() | float()`
-  # because upstream Tzdata field specs leak `number()` into its
+  # because upstream zone-database field specs leak `number()` into its
   # success typing. We narrow at this call site via `trunc/1` so the
   # `count_steps/4` return type stays `non_neg_integer()`.
   @spec elapsed_seconds(Tempo.t(), Tempo.t(), module()) :: integer()
@@ -483,7 +484,7 @@ defmodule Tempo.Interval.Steps do
 
   # DST correction needed when both endpoints carry the same named
   # IANA zone and the calendar is Gregorian (the universe where
-  # Tzdata applies).
+  # the zone database applies).
   defp dst_correct?(%Tempo{} = from, %Tempo{} = to, Calendrical.Gregorian) do
     zone_id(from) != nil and zone_id(from) == zone_id(to)
   end
@@ -496,21 +497,12 @@ defmodule Tempo.Interval.Steps do
   defp zone_id(%Tempo{extended: %{zone_id: zone}}) when is_binary(zone) and zone != "", do: zone
   defp zone_id(_), do: nil
 
-  # UTC seconds at 0001-01-01T00:00:00. Pre-common-era instants
-  # precede every tzdata rule — and Tzdata's internals crash on
-  # OTP ≤ 28 for negative years — so they take the same `0` offset
-  # as the no-period fallback (local-mean-time era).
-  @gregorian_seconds_year_1 :calendar.datetime_to_gregorian_seconds({{1, 1, 1}, {0, 0, 0}})
-
-  defp zone_offset_at_utc(_zone, utc_seconds)
-       when utc_seconds < @gregorian_seconds_year_1 do
-    0
-  end
-
   defp zone_offset_at_utc(zone, utc_seconds) do
-    case Tzdata.periods_for_time(zone, utc_seconds, :utc) do
-      [period | _] -> period.utc_off + period.std_off
-      _ -> 0
+    # Pre-common-era instants are handled inside the adapter
+    # (local-mean-time, zero offset).
+    case TimeZoneDatabase.period_at_utc(zone, utc_seconds) do
+      {:ok, period} -> TimeZoneDatabase.total_offset(period)
+      {:error, _} -> 0
     end
   end
 

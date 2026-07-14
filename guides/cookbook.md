@@ -606,7 +606,7 @@ Tempo.overlaps?(paris, utc_window)
 
 > **Paris 10:00 CEST** **overlaps** the **UTC 07:00-09:00 window** — it projects to UTC 08:00, which is inside.
 
-Tempo projects to UTC via `Tzdata` for cross-zone comparisons. The wall-clock representation on the struct is preserved; the projection happens per-call.
+Tempo projects to UTC via the configured time zone database for cross-zone comparisons. The wall-clock representation on the struct is preserved; the projection happens per-call.
 
 ### How do I convert a Tempo to a specific calendar?
 
@@ -1071,7 +1071,7 @@ iex> Tempo.from_iso8601("2024-03-10T02:30:00[America/New_York]")
  "Wall time 2024-03-10T02:30:00 does not exist in \"America/New_York\" — it falls inside a daylight-saving or zone-transition gap."}
 ```
 
-> At 02:00 local time on the second Sunday of March, US clocks **jump to 03:00** — the hour 02:00–03:00 never exists. Tempo consults Tzdata at parse time and rejects wall times inside the gap, so downstream operations never encounter a phantom instant. Fall-back ambiguity (the repeated hour in November) is accepted by default — callers can disambiguate with an explicit offset.
+> At 02:00 local time on the second Sunday of March, US clocks **jump to 03:00** — the hour 02:00–03:00 never exists. Tempo consults the time zone database at parse time and rejects wall times inside the gap, so downstream operations never encounter a phantom instant. Fall-back ambiguity (the repeated hour in November) is accepted by default — callers can disambiguate with an explicit offset.
 
 ### Samoa skipping the international date line, 2011
 
@@ -1081,7 +1081,7 @@ iex> Tempo.from_iso8601("2011-09-24T12:00:00[Pacific/Apia]")
  "Wall time 2011-09-24T12:00:00 does not exist in \"Pacific/Apia\" — it falls inside a daylight-saving or zone-transition gap."}
 ```
 
-> In 2011, Samoa shifted from east of the international date line to west of it — their timeline **skipped forward 25 hours**. Tempo consults Tzdata for the exact gap boundaries. (Current IANA data has the gap spanning Sep 24 03:00 → Sep 25 04:00 local, 25 hours; the news coverage at the time described the shift as end-of-December 2011. Wherever IANA places the transition, Tempo uses it as authoritative.)
+> In 2011, Samoa shifted from east of the international date line to west of it — their timeline **skipped forward 25 hours**. Tempo consults the time zone database for the exact gap boundaries. (Current IANA data has the gap spanning Sep 24 03:00 → Sep 25 04:00 local, 25 hours; the news coverage at the time described the shift as end-of-December 2011. Wherever IANA places the transition, Tempo uses it as authoritative.)
 
 ### Julian vs Gregorian — the same nominal date, different calendars
 
@@ -1128,7 +1128,7 @@ iex> Tempo.relation(~o"2022-06", ~o"2023-06")
 ## Related reading
 
 * [When to use Tempo](./when-to-use-tempo.md) — a short decision guide on choosing between Tempo and the Elixir standard library.
-* [Scheduling](./scheduling.md) — bounded enumeration, wall-clock-vs-UTC authority, floating vs zoned events, and how future dates survive Tzdata rule changes.
+* [Scheduling](./scheduling.md) — bounded enumeration, wall-clock-vs-UTC authority, floating vs zoned events, and how future dates survive zone-rule changes.
 * [Working with workdays and weekends](./workdays-and-weekends.md) — business-day queries (N days from today, next workday, workdays between two dates) built from `Tempo.workdays/1` and set algebra.
 * [Holidays — planning with a real holiday calendar](./holidays.md) — fetch an ICS holiday feed, parse it with `Tempo.ICal.from_ical/1`, and compose it with `Tempo.workdays/1` for territory-aware scheduling.
 * [Falsehoods programmers believe about time](./falsehoods.md) — the ten most impactful wrong assumptions, each with the Tempo idiom that makes the right behaviour automatic.

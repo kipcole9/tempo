@@ -65,7 +65,7 @@ defmodule Tempo.IntervalUnitTest do
 
   describe "explicit :unit across DST transitions" do
     setup do
-      Calendar.put_time_zone_database(Tzdata.TimeZoneDatabase)
+      Calendar.put_time_zone_database(Tz.TimeZoneDatabase)
       :ok
     end
 

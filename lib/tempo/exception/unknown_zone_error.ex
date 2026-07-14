@@ -1,7 +1,7 @@
 defmodule Tempo.UnknownZoneError do
   @moduledoc """
   Exception raised when a time-zone identifier is not present in
-  the loaded `Tzdata` database.
+  the configured time zone database.
 
   """
 

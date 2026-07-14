@@ -14,6 +14,8 @@
 
 ### Changed
 
+* **Breaking:** Tempo is now time zone database agnostic and no longer depends on `:tzdata` (whose `:hackney` dependency chain is gone from the tree). Add any `Calendar.TimeZoneDatabase` implementation (`:tz`, `:tzdata`, `:time_zone_info`, `:zoneinfo`) and configure it — `config :elixir, :time_zone_database, Tz.TimeZoneDatabase` — or set `config :ex_tempo, :time_zone_database, ...`; see `Tempo.TimeZoneDatabase`. Without one, parsing works fully but zone-rule operations error.
+
 * **Breaking:** `Tempo.to_interval/1` bounds keep the value's own resolution instead of drilling into the next-finer unit — `to_interval(~o"2025-07-04")` is now `2025-07-04/2025-07-05` with `unit: :hour`, not `…T0H` bounds. Enumeration counts are unchanged (the walk fills to `:unit` at iteration time); code reading drilled components off materialised bounds must use the stated resolution.
 
 * **Breaking:** the crisp and certainty boolean predicates (`before?/2`, `within?/2`, `certainly_overlaps?/2`, …) raise on an operand they cannot classify instead of silently returning `false` — a silent false asserted a relation verdict the error could not make.

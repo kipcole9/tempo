@@ -21,7 +21,7 @@ defmodule Tempo.Iso8601.Tokenizer.Extended do
 
   Calendar identifiers under the `u-ca` key are validated with
   `Localize.validate_calendar/1`.  Time zone names are validated
-  with `Tzdata.zone_exists?/1`.
+  with `Tempo.TimeZoneDatabase.zone_exists?/1`.
 
   """
 
@@ -30,6 +30,7 @@ defmodule Tempo.Iso8601.Tokenizer.Extended do
 
   alias Tempo.DuplicateZoneError
   alias Tempo.ParseError
+  alias Tempo.TimeZoneDatabase
   alias Tempo.UnknownZoneError
   alias Tempo.Validation
 
@@ -404,6 +405,6 @@ defmodule Tempo.Iso8601.Tokenizer.Extended do
   end
 
   defp valid_zone?(zone) do
-    Tzdata.zone_exists?(zone)
+    TimeZoneDatabase.zone_exists?(zone)
   end
 end

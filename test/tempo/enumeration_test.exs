@@ -331,7 +331,7 @@ defmodule Tempo.Enumeration.Test do
 
   describe "Enumerable count/member?/slice under DST" do
     setup do
-      Calendar.put_time_zone_database(Tzdata.TimeZoneDatabase)
+      Calendar.put_time_zone_database(Tz.TimeZoneDatabase)
       :ok
     end
 

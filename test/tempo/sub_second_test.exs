@@ -169,7 +169,7 @@ defmodule Tempo.SubSecondTest do
     end
 
     defp helsinki(time) do
-      DateTime.new!(~D[2026-12-01], time, "Europe/Helsinki", Tzdata.TimeZoneDatabase)
+      DateTime.new!(~D[2026-12-01], time, "Europe/Helsinki", Tz.TimeZoneDatabase)
     end
 
     test "intersection keeps the sub-second endpoints without truncation" do

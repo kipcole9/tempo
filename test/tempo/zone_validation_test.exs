@@ -12,7 +12,7 @@ defmodule Tempo.ZoneValidationTest do
   # operations never encounter a phantom value.
   #
   # The test fixtures use America/New_York because its DST
-  # schedule is well-defined in Tzdata and stable:
+  # schedule is well-defined in the IANA data and stable:
   #
   #   * Spring forward: second Sunday of March at 02:00 →  03:00.
   #     2024-03-10 02:00..03:00 local doesn't exist.
@@ -242,18 +242,18 @@ defmodule Tempo.ZoneValidationTest do
     end
 
     test "numeric-offset zones (not IANA) → no check" do
-      # `+05:30` isn't an IANA zone — no Tzdata lookup possible,
+      # `+05:30` isn't an IANA zone — no zone-database lookup possible,
       # and the offset is a first-class wall-clock shift.
       assert {:ok, _} = Tempo.from_iso8601("2024-03-10T02:30:00+05:30")
     end
   end
 
   describe "IANA backward-compat aliases" do
-    # Tzdata carries the `backward` alias file which maps
+    # The IANA data carries the `backward` alias file which maps
     # retired/renamed zone names to their modern equivalents.
     # Tempo accepts these transparently — the alias label is
     # preserved on the struct; `to_utc_seconds/1` resolves via
-    # Tzdata using the alias's canonical zone.
+    # the zone database using the alias's canonical zone.
 
     test "US/Pacific parses and round-trips" do
       assert {:ok, tempo} = Tempo.from_iso8601("2024-06-15T12:00:00[US/Pacific]")
@@ -275,7 +275,7 @@ defmodule Tempo.ZoneValidationTest do
     test "Europe/London during British Double Summer Time (1941) projects to UTC+2" do
       # BDST applied 1941-05-04 to 1945-07-15 — clocks ran 2h
       # ahead of UTC instead of the usual 1h summer offset. A
-      # correct implementation must consult Tzdata's historical
+      # correct implementation must consult the zone database's historical
       # period table rather than today's offset.
       {:ok, london} = Tempo.from_iso8601("1941-06-15T12:00:00[Europe/London]")
       {:ok, utc} = Tempo.from_iso8601("1941-06-15T12:00:00Z")

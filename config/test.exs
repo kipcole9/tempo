@@ -15,12 +15,3 @@ config :elixir, :time_zone_database, Tz.TimeZoneDatabase
 # chain, so pinning it here wins without our having to scrub the
 # shell env at test startup.
 config :localize, :default_locale, :en
-
-# Tests use `Tz.TimeZoneDatabase` (above), so tzdata's TZ data is
-# never consulted — but tzdata still starts as an application and its
-# auto-update GenServer phones home for a newer release. That is
-# non-deterministic in CI and, on OTP 29, crashes outright: tzdata
-# 1.1.3 builds periods with a `{24, 0, 0}` end-of-day time that
-# OTP 29's stricter `:calendar.time_to_seconds/1` rejects. Disable
-# the updater for the test suite.
-config :tzdata, :autoupdate, :disabled

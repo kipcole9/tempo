@@ -20,7 +20,7 @@ defmodule Tempo.Operations.Test do
 
   setup_all do
     # Needed for zoned DateTime construction in tests.
-    Calendar.put_time_zone_database(Tzdata.TimeZoneDatabase)
+    Calendar.put_time_zone_database(Tz.TimeZoneDatabase)
     :ok
   end
 

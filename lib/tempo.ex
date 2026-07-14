@@ -132,6 +132,7 @@ defmodule Tempo do
   alias Tempo.RRule.Selection
   alias Tempo.Split
   alias Tempo.Territory
+  alias Tempo.TimeZoneDatabase
   alias Tempo.UnboundedRecurrenceError
   alias Tempo.UnknownZoneError
   alias Tempo.Validation
@@ -2461,12 +2462,13 @@ defmodule Tempo do
   end
 
   # Rebuild a `DateTime` from a wall-clock `NaiveDateTime` and a
-  # named zone. `DateTime.new/4` re-derives the offset from Tzdata.
+  # named zone. `DateTime.from_naive/3` re-derives the offset from
+  # the configured time zone database.
   # A DST fall-back (`:ambiguous`) is disambiguated by the offset
   # the Tempo already carries; a spring-forward `:gap` names a
   # wall-clock time that does not exist, so it is an error.
   defp naive_to_zoned_date_time(naive, zone_id, %Tempo{} = tempo) do
-    case DateTime.from_naive(naive, zone_id, Tzdata.TimeZoneDatabase) do
+    case DateTime.from_naive(naive, zone_id, TimeZoneDatabase.database()) do
       {:ok, date_time} ->
         {:ok, date_time}
 
@@ -2713,7 +2715,7 @@ defmodule Tempo do
 
       _other ->
         utc
-        |> DateTime.shift_zone!(zone, Tzdata.TimeZoneDatabase)
+        |> DateTime.shift_zone!(zone, TimeZoneDatabase.database())
         |> from_date_time()
     end
   end
@@ -2797,7 +2799,8 @@ defmodule Tempo do
   * `{:ok, tempo}` grounded in `zone`, with the same wall-clock fields.
 
   * `{:error, reason}` when `tempo` is already grounded (use
-    `shift_zone/2` instead) or `zone` is unknown to Tzdata.
+    `shift_zone/2` instead) or `zone` is unknown to the configured
+    time zone database.
 
   ### Examples
 
@@ -2814,7 +2817,7 @@ defmodule Tempo do
       not floating?(tempo) ->
         {:error, GroundedTempoError.exception(operation: :in_zone, value: tempo)}
 
-      not Tzdata.zone_exists?(zone) ->
+      not TimeZoneDatabase.zone_exists?(zone) ->
         {:error, UnknownZoneError.exception(zone_id: zone)}
 
       true ->
@@ -2839,7 +2842,8 @@ defmodule Tempo do
   wall-clock reading is the one an observer in `target_zone` would
   see. This is the stdlib analogue of `DateTime.shift_zone/2`: in
   Tempo it routes through `Tempo.Compare.to_utc_seconds/1` so zone
-  rules are re-evaluated from Tzdata at call time.
+  rules are re-evaluated from the configured time zone database at
+  call time.
 
   ### Arguments
 
@@ -2856,7 +2860,7 @@ defmodule Tempo do
   * `{:ok, tempo}` at second resolution in `target_zone`, or
 
   * `{:error, reason}` when `tempo` is not zoned or `target_zone`
-    is unknown to Tzdata.
+    is unknown to the configured time zone database.
 
   ### Examples
 
@@ -2986,9 +2990,9 @@ defmodule Tempo do
   defp do_shift_zone(%Tempo{calendar: calendar} = tempo, target_zone) do
     utc_seconds = Compare.to_utc_seconds(tempo)
 
-    case zone_periods_at_utc(target_zone, utc_seconds) do
-      [period | _] ->
-        offset_seconds = period.utc_off + period.std_off
+    case TimeZoneDatabase.period_at_utc(target_zone, utc_seconds) do
+      {:ok, period} ->
+        offset_seconds = TimeZoneDatabase.total_offset(period)
         wall_seconds = utc_seconds + offset_seconds
 
         {{year, month, day}, {hour, minute, second}} =
@@ -3015,7 +3019,7 @@ defmodule Tempo do
            }
          }}
 
-      [] ->
+      {:error, _reason} ->
         {:error, UnknownZoneError.exception(zone_id: target_zone)}
     end
   end
@@ -3032,20 +3036,6 @@ defmodule Tempo do
 
     {{year, month, day},
      {div(time_of_day, 3_600), time_of_day |> rem(3_600) |> div(60), rem(time_of_day, 60)}}
-  end
-
-  # Pre-common-era instants precede every tzdata rule (and crash
-  # Tzdata's internals on OTP ≤ 28) — local-mean-time era, so present
-  # the zone as a single zero-offset period.
-  @gregorian_seconds_year_1 :calendar.datetime_to_gregorian_seconds({{1, 1, 1}, {0, 0, 0}})
-
-  defp zone_periods_at_utc(_zone, utc_seconds)
-       when utc_seconds < @gregorian_seconds_year_1 do
-    [%{utc_off: 0, std_off: 0}]
-  end
-
-  defp zone_periods_at_utc(zone, utc_seconds) do
-    Tzdata.periods_for_time(zone, utc_seconds, :utc)
   end
 
   ## ---------------------------------------------------------

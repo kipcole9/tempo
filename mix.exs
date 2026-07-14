@@ -162,7 +162,7 @@ defmodule Tempo.MixProject do
 
   def application do
     [
-      extra_applications: [:logger, :inets, :tzdata, :localize]
+      extra_applications: [:logger, :localize]
     ]
   end
 
@@ -172,17 +172,16 @@ defmodule Tempo.MixProject do
       {:calendrical, "~> 0.12"},
       {:astro, "~> 2.3"},
       {:localize, "~> 0.44"},
-      {:tzdata, "~> 1.1"},
       {:ical, "~> 2.0 or ~> 3.0", optional: true},
       {:ex_doc, "~> 0.38", only: [:dev, :test, :release], optional: true, runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:stream_data, "~> 1.0", only: [:dev, :test], runtime: false},
-      # `tz` provides a `Calendar.TimeZoneDatabase` implementation used
-      # only in dev/test so iCal 2.0 can resolve `DTSTART;TZID=...`
-      # properties and Tempo examples can round-trip zoned values.
-      # Runtime consumers supply their own zone DB (e.g. `:tzdata`,
-      # which Tempo already depends on).
+      # Tempo is time zone database agnostic: it works against the
+      # `Calendar.TimeZoneDatabase` behaviour and consumers configure
+      # their own implementation (`:tz`, `:tzdata`, `:time_zone_info`,
+      # `:zoneinfo`) — see `Tempo.TimeZoneDatabase`. `tz` is used
+      # locally for dev and test.
       {:tz, "~> 0.28", only: [:dev, :test]}
     ] ++ maybe_json_polyfill()
   end

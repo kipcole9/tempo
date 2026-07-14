@@ -88,7 +88,7 @@ The result's endpoints are at day precision — the finer of the two inputs (the
 
 Each operand keeps its wall-clock time and zone as authoritative. When set operations need to compare endpoints across zones, Tempo computes UTC projections on demand — per-operation, never cached. The result's `extended.zone_id` comes from the first operand, so the caller controls the display frame.
 
-A Paris 12:00 CEST interval compares equal to a UTC 10:00 interval because they map to the same UTC instant. Tzdata updates don't invalidate stored values — nothing UTC-shaped is stored — so results stay stable when IANA pushes new zone rules.
+A Paris 12:00 CEST interval compares equal to a UTC 10:00 interval because they map to the same UTC instant. Zone-data updates don't invalidate stored values — nothing UTC-shaped is stored — so results stay stable when IANA pushes new zone rules.
 
 ### 1.3. Calendar — first operand's calendar wins
 
@@ -347,7 +347,7 @@ Note that `≡` here is covered-instant equality (via `Tempo.equal?/2`), not mem
 ## 6. Not in scope
 
 - **Rule-algebra** — intersecting two infinite recurrences to produce a closed-form rule. Intentionally deferred; see `plans/set-operations.md` for the rationale.
-- **UTC caching on IntervalSet** — projections are recomputed per operation. Enables stability across Tzdata updates; revisit if profiling shows the recomputation matters.
+- **UTC caching on IntervalSet** — projections are recomputed per operation. Enables stability across zone-data updates; revisit if profiling shows the recomputation matters.
 
 ## 7. Implementation notes
 

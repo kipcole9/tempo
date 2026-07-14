@@ -28,6 +28,7 @@ defmodule Tempo.Compare do
   """
 
   alias Calendar.ISO
+  alias Tempo.TimeZoneDatabase
   alias Tempo.ZoneOffsetMismatchError
 
   @doc """
@@ -262,9 +263,9 @@ defmodule Tempo.Compare do
   year 0 (matching Erlang's `:calendar.datetime_to_gregorian_seconds/1`
   epoch).
 
-  The projection is per-call, never cached. When `Tzdata` is
-  updated with new zone rules, the next call automatically uses
-  them. Stored IntervalSet endpoints carry wall-clock + zone as
+  The projection is per-call, never cached. When the configured
+  time zone database is updated with new zone rules, the next call
+  automatically uses them. Stored IntervalSet endpoints carry wall-clock + zone as
   authoritative — see `plans/set-operations.md` for the full
   rationale on why no UTC cache exists.
 
@@ -365,9 +366,9 @@ defmodule Tempo.Compare do
   end
 
   # Wall seconds at 0001-01-01T00:00:00 — the floor below which no
-  # tzdata rule exists (local mean time era) and below which Tzdata's
+  # IANA rule exists (local mean time era) and below which some databases'
   # internals crash on OTP ≤ 28 (`:calendar.last_day_of_the_month/2`
-  # rejects negative years). Pre-common-era instants skip the tzdata
+  # rejects negative years). Pre-common-era instants skip the database
   # lookups entirely.
   @gregorian_seconds_year_1 :calendar.datetime_to_gregorian_seconds({{1, 1, 1}, {0, 0, 0}})
 
@@ -375,8 +376,8 @@ defmodule Tempo.Compare do
     wall = wall_seconds(time, Keyword.get(time, :year), calendar)
 
     if wall < @gregorian_seconds_year_1 do
-      # Pre-common-era: tzdata has no rules to confirm or refute the
-      # stated offset, so accept it rather than crash inside Tzdata.
+      # Pre-common-era: the IANA data has no rules to confirm or refute
+      # the stated offset, so accept it rather than consult the database.
       :ok
     else
       do_check_zone_offset(wall, zone_id, stated)
@@ -384,10 +385,19 @@ defmodule Tempo.Compare do
   end
 
   defp do_check_zone_offset(wall, zone_id, stated) do
+    # A gap reading names no instant in the zone, so no offset can
+    # agree with it — the empty candidate list falls through to the
+    # mismatch error, preserving the pre-behaviour semantics.
     offsets =
-      case Tzdata.periods_for_time(zone_id, wall, :wall) do
-        [] -> []
-        periods -> Enum.map(periods, &(&1.utc_off + &1.std_off))
+      case TimeZoneDatabase.period_at_wall(zone_id, wall) do
+        {:ok, period} ->
+          [TimeZoneDatabase.total_offset(period)]
+
+        {:ambiguous, first, second} ->
+          [first, second] |> Enum.map(&TimeZoneDatabase.total_offset/1)
+
+        _gap_or_error ->
+          []
       end
 
     if stated in offsets do
@@ -481,8 +491,9 @@ defmodule Tempo.Compare do
 
   # The offset to subtract from wall-clock to get UTC. Priority:
   #
-  # 1. An IANA zone on `extended.zone_id` — look up via Tzdata at
-  #    the given wall instant (DST-era-correct). When Tzdata
+  # 1. An IANA zone on `extended.zone_id` — look up via the configured
+  #    time zone database at
+  #    the given wall instant (DST-era-correct). When the database
   #    returns multiple periods (DST fall-back ambiguity), an
   #    explicit numeric offset from `extended.zone_offset` or
   #    from the ISO 8601 `shift` disambiguates — we pick the
@@ -493,8 +504,8 @@ defmodule Tempo.Compare do
   #    directly.
   # 3. A `shift` keyword list (legacy-style) — convert to seconds.
   # 4. No info → 0 (treat as UTC).
-  # Pre-common-era wall instants precede every tzdata rule (and crash
-  # Tzdata's internals on OTP ≤ 28) — local-mean-time era, so treat as
+  # Pre-common-era wall instants precede every IANA rule — local-mean-
+  # time era, so treat as
   # UTC exactly like the no-info fallback below.
   defp resolve_offset_seconds(%{zone_id: zone_id}, _shift, wall_seconds)
        when is_binary(zone_id) and zone_id != "" and
@@ -504,17 +515,18 @@ defmodule Tempo.Compare do
 
   defp resolve_offset_seconds(%{zone_id: zone_id} = extended, shift, wall_seconds)
        when is_binary(zone_id) and zone_id != "" do
-    case Tzdata.periods_for_time(zone_id, wall_seconds, :wall) do
-      [only] ->
-        period_offset(only)
+    case TimeZoneDatabase.period_at_wall(zone_id, wall_seconds) do
+      {:ok, period} ->
+        TimeZoneDatabase.total_offset(period)
 
-      [_, _ | _] = periods ->
-        ambiguous_offset(periods, explicit_offset_seconds(extended, shift))
+      {:ambiguous, first, second} ->
+        ambiguous_offset([first, second], explicit_offset_seconds(extended, shift))
 
-      [] ->
-        # Gap (spring-forward) or missing period. Fall back to
-        # UTC; zone-existence validation at parse time rejects
-        # these, so this branch is unreachable in practice.
+      _gap_or_error ->
+        # Gap (spring-forward), unknown zone, or no configured
+        # database. Fall back to UTC; zone validation at parse time
+        # rejects the gap case, so this branch is unreachable in
+        # practice.
         0
     end
   end
@@ -533,18 +545,16 @@ defmodule Tempo.Compare do
   # Ambiguous wall time (DST fall-back): prefer the period whose
   # offset matches the explicit disambiguator, else the first period.
   defp ambiguous_offset(periods, preferred) do
-    case Enum.find(periods, &(period_offset(&1) == preferred)) do
-      nil -> period_offset(hd(periods))
-      period -> period_offset(period)
+    case Enum.find(periods, &(TimeZoneDatabase.total_offset(&1) == preferred)) do
+      nil -> TimeZoneDatabase.total_offset(hd(periods))
+      period -> TimeZoneDatabase.total_offset(period)
     end
   end
-
-  defp period_offset(period), do: period.utc_off + period.std_off
 
   # Extract an explicit offset in seconds from either the extended
   # `zone_offset` (minutes) or the ISO 8601 `shift` (keyword list).
   # Returns `nil` when no explicit offset is supplied — the caller
-  # then falls back to Tzdata's first period.
+  # then falls back to the database's unambiguous period.
   defp explicit_offset_seconds(%{zone_offset: minutes}, _shift) when is_integer(minutes) do
     minutes * 60
   end

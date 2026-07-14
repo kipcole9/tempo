@@ -91,7 +91,7 @@ iex> event.extended.zone_id
 "Europe/Paris"
 ```
 
-No UTC is stored on the struct. `Tempo.Compare.to_utc_seconds/1` consults Tzdata at call time, so re-evaluating after a Tzdata update automatically reflects any rule change. Serialise with `Tempo.to_iso8601/1`; the round-trip is faithful.
+No UTC is stored on the struct. `Tempo.Compare.to_utc_seconds/1` consults the configured time zone database at call time, so re-evaluating after a data update automatically reflects any rule change. Serialise with `Tempo.to_iso8601/1`; the round-trip is faithful.
 
 ```elixir
 iex> Tempo.to_iso8601(event)
@@ -171,7 +171,7 @@ iex> Tempo.from_iso8601("5784-02-30[u-ca=hebrew]")
 {:error, "30 is not valid for day in 5784-02 (valid range 1..29)"}
 ```
 
-The calendar module in Tzdata supplies the correct `days_in_month/2` for each calendar system. Tempo delegates to it rather than hard-coding 28/29.
+The calendar module supplies the correct `days_in_month/2` for each calendar system. Tempo delegates to it rather than hard-coding 28/29.
 
 ---
 
@@ -186,7 +186,7 @@ iex> Tempo.from_iso8601("2011-12-29T12:00:00[Pacific/Apia]")
 {:error, "Wall time 2011-12-29T12:00:00 does not exist in \"Pacific/Apia\" (DST gap: the calendar date was skipped when Samoa moved from UTC-11 to UTC+13 on 29 December 2011)."}
 ```
 
-Any timestamp in that zone on that date is rejected. The same mechanism that catches DST gaps (falsehood #2) catches this one — the wall time is invalid in Tzdata and Tempo surfaces the error.
+Any timestamp in that zone on that date is rejected. The same mechanism that catches DST gaps (falsehood #2) catches this one — the wall time is invalid in the IANA data and Tempo surfaces the error.
 
 ---
 

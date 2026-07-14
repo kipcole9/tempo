@@ -50,7 +50,7 @@ ISO 8601-2 EDTF: `~o"156X"` (the 1560s), `~o"2022?"` (approximately 2022), `~o"2
 
 ### You want wall-clock + zone preservation for future events
 
-`~o"2030-03-01T08:00:00[Europe/Paris]"` stores the wall time and the zone, and projects UTC on demand — so your event survives DST rule changes that happen between now and 2030. Stdlib's `DateTime` caches a frozen UTC offset, which becomes stale the moment Tzdata updates.
+`~o"2030-03-01T08:00:00[Europe/Paris]"` stores the wall time and the zone, and projects UTC on demand — so your event survives DST rule changes that happen between now and 2030. Stdlib's `DateTime` caches a frozen UTC offset, which becomes stale the moment the zone data updates.
 
 ## Elixir stdlib is the right call when…
 

@@ -10,6 +10,7 @@ defmodule Tempo.Validation do
   alias Tempo.InvalidTimeError
   alias Tempo.Microsecond
   alias Tempo.ParseError
+  alias Tempo.TimeZoneDatabase
   alias Tempo.ZoneGapError
 
   # This function performs two roles (and maybe should be split):
@@ -922,7 +923,7 @@ defmodule Tempo.Validation do
 
   # Bounds-check an ISO 8601 / RFC 3339 time-zone offset. The
   # tokenizer accepts any signed 2-4 digit magnitude; real zones
-  # are bounded to ±24h wall-clock. Tzdata itself carries historical
+  # are bounded to ±24h wall-clock. The IANA data carries historical
   # offsets that never exceed about +14 (Pacific/Kiritimati) or
   # −12 (Pacific/Midway pre-2011), so ±24h is permissive.
   @max_offset_minutes 24 * 60
@@ -1038,9 +1039,9 @@ defmodule Tempo.Validation do
   defp check_wall_time_in_zone(%Tempo{time: time}, zone) do
     case fully_anchored_datetime(time) do
       # Pre-common-era wall times cannot fall into a zone-transition
-      # gap — standardised time (and every tzdata rule) begins many
+      # gap — standardised time (and every IANA rule) begins many
       # centuries later, so local mean time applies throughout. The
-      # guard also matters mechanically: `Tzdata` feeds the year to
+      # guard also matters mechanically: the zone database feeds the year to
       # `:calendar.last_day_of_the_month/2`, whose OTP ≤ 28 guards
       # reject negative years with a `FunctionClauseError`. A value
       # like `~o"2022-06-15T10:00[Europe/Paris][u-ca=hebrew]"` — the
@@ -1052,8 +1053,8 @@ defmodule Tempo.Validation do
       {:ok, {{year, month, day}, {hour, minute, second}} = datetime} ->
         wall = :calendar.datetime_to_gregorian_seconds(datetime)
 
-        case Tzdata.periods_for_time(zone, wall, :wall) do
-          [] ->
+        case TimeZoneDatabase.period_at_wall(zone, wall) do
+          {:gap, _before, _after} ->
             {:error,
              ZoneGapError.exception(
                wall_time:
@@ -1063,10 +1064,11 @@ defmodule Tempo.Validation do
                detail: "it falls inside a daylight-saving or zone-transition gap"
              )}
 
-          _periods ->
-            # One period = unambiguous. Two = fall-back ambiguity,
-            # which we accept silently (the caller can disambiguate
-            # with an explicit offset).
+          _ok_ambiguous_or_no_database ->
+            # `{:ok, _}` = unambiguous. `{:ambiguous, _, _}` = fall-back
+            # ambiguity, accepted silently (the caller can disambiguate
+            # with an explicit offset). `{:error, _}` = no configured
+            # database or unknown zone — nothing to check against.
             :ok
         end
 
