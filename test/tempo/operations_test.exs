@@ -479,6 +479,18 @@ defmodule Tempo.Operations.Test do
       assert Exception.message(e) =~ "bound"
       assert Exception.message(e) =~ "anchored"
     end
+
+    test "month/day-axis partial with a :bound is rejected, not silently absorbed" do
+      # Day anchoring grafts a non-anchored value onto every day of the
+      # bound, which only makes sense for time-of-day values. `~o"15D"`
+      # grafted that way matched all 90 days of the quarter (regression).
+      quarter = ~o"2026-01-01/2026-04-01"
+
+      assert {:error, %Tempo.NonAnchoredError{} = e} =
+               Tempo.intersection(~o"15D", quarter, bound: quarter)
+
+      assert Exception.message(e) =~ "time-of-day"
+    end
   end
 
   describe "week-axis operands against month-axis operands" do

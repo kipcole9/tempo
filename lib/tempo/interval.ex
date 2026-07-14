@@ -2199,32 +2199,56 @@ defmodule Tempo.Interval do
   # pairing yields the *exact* conceptual neighbourhood. For
   # pathologically wide margins the pairing count is capped and we fall
   # back to the sound (looser) endpoint-range method.
+  # Each operand is classified once, and the pair dispatches on whichever
+  # class dominates (earliest in the priority order below).
   defp possible_relations(a, b) do
+    relations_for(dominant_class(operand_class(a), operand_class(b)), a, b)
+  end
+
+  defp operand_class(operand) do
     cond do
-      one_of_operand?(a) or one_of_operand?(b) ->
-        # An epistemic one-of set (`[1984,1986]`) is a finite envelope:
-        # the value is exactly one member, we don't know which. The
-        # relations the pair can stand in are the union over every
-        # member choice; `certainty/2` then reads the concept as usual —
-        # possible when some choice admits it, certain only when every
-        # choice does.
-        one_of_relations(a, b)
+      one_of_operand?(operand) -> :one_of
+      non_contiguous_mask?(operand) -> :candidates
+      not anchored_operand?(operand) -> :unanchored
+      masked_operand?(operand) -> :masked
+      true -> :concrete
+    end
+  end
 
-      not anchored_operand?(a) or not anchored_operand?(b) ->
-        unanchored_possible_relations(a, b)
+  defp dominant_class(class, class), do: class
 
-      masked_operand?(a) or masked_operand?(b) ->
-        # An unspecified-digit value (`~o"20XXY"`) denotes an unknown grounding
-        # within a bounded span. Its grounding envelope feeds the same
-        # endpoint-range machinery the wide-± fallback uses, so the concept
-        # certainty is read over every year the mask admits, not the block.
-        envelope_relations(a, b)
+  defp dominant_class(class_a, class_b) do
+    Enum.find(
+      [:one_of, :candidates, :unanchored, :masked, :concrete],
+      &(&1 in [class_a, class_b])
+    )
+  end
 
-      true ->
-        with {:ok, a_places} <- placements(a),
-             {:ok, b_places} <- placements(b) do
-          classify_placements(a, b, a_places, b_places)
-        end
+  # An epistemic one-of set (`[1984,1986]`) is a finite envelope: the value
+  # is exactly one member, we don't know which. The relations the pair can
+  # stand in are the union over every member choice; `certainty/2` then
+  # reads the concept as usual — possible when some choice admits it,
+  # certain only when every choice does.
+  defp relations_for(:one_of, a, b), do: one_of_relations(a, b)
+
+  # A mask above concrete finer units (`~o"1985-XX-15"`) admits a finite
+  # set of concrete groundings, not a contiguous span, so the envelope
+  # machinery cannot represent it. Expand the candidates and union,
+  # exactly as for a one-of set.
+  defp relations_for(:candidates, a, b), do: candidate_relations(a, b)
+
+  defp relations_for(:unanchored, a, b), do: unanchored_possible_relations(a, b)
+
+  # An unspecified-digit value (`~o"20XXY"`) denotes an unknown grounding
+  # within a bounded span. Its grounding envelope feeds the same
+  # endpoint-range machinery the wide-± fallback uses, so the concept
+  # certainty is read over every year the mask admits, not the block.
+  defp relations_for(:masked, a, b), do: envelope_relations(a, b)
+
+  defp relations_for(:concrete, a, b) do
+    with {:ok, a_places} <- placements(a),
+         {:ok, b_places} <- placements(b) do
+      classify_placements(a, b, a_places, b_places)
     end
   end
 
@@ -2235,8 +2259,11 @@ defmodule Tempo.Interval do
   # choices. Members recurse through `possible_relations/2`, so a member
   # that is itself masked or margined composes its own envelope.
   defp one_of_relations(a, b) do
-    pairs =
-      for choice_a <- one_of_choices(a), choice_b <- one_of_choices(b), do: {choice_a, choice_b}
+    union_over_choices(one_of_choices(a), one_of_choices(b))
+  end
+
+  defp union_over_choices(choices_a, choices_b) do
+    pairs = for choice_a <- choices_a, choice_b <- choices_b, do: {choice_a, choice_b}
 
     pairs
     |> Enum.reduce_while({:ok, MapSet.new()}, fn {choice_a, choice_b}, {:ok, acc} ->
@@ -2253,6 +2280,42 @@ defmodule Tempo.Interval do
 
   defp one_of_choices(%Tempo.Set{type: :one, set: members}), do: members
   defp one_of_choices(operand), do: [operand]
+
+  # A non-contiguous mask expands to a finite candidate set — one concrete
+  # interval per grounding the mask admits — so the pair's possible relations
+  # are the union over candidates, exactly as for a one-of set. The candidates
+  # come out of `Tempo.to_interval/1` with concrete bounds, so the recursive
+  # `possible_relations/2` calls take the placement path.
+  defp candidate_relations(a, b) do
+    with {:ok, choices_a} <- mask_candidates(a),
+         {:ok, choices_b} <- mask_candidates(b) do
+      union_over_choices(choices_a, choices_b)
+    end
+  end
+
+  defp mask_candidates(operand) do
+    if non_contiguous_mask?(operand) do
+      case Tempo.to_interval(operand) do
+        {:ok, %IntervalSet{intervals: intervals}} -> {:ok, intervals}
+        {:ok, %__MODULE__{} = interval} -> {:ok, [interval]}
+        {:error, _} = error -> error
+      end
+    else
+      {:ok, [operand]}
+    end
+  end
+
+  # A mask above concrete finer units (`~o"1985-XX-15"`) does not denote a
+  # contiguous grounding span: each admitted month contributes one concrete
+  # day, with gaps between them. A trailing mask (`~o"20XX"`) is contiguous
+  # and keeps the envelope treatment.
+  defp non_contiguous_mask?(%Tempo{time: time}) do
+    time
+    |> Enum.drop_while(&(not masked_field?(&1)))
+    |> Enum.any?(&(not masked_field?(&1)))
+  end
+
+  defp non_contiguous_mask?(_operand), do: false
 
   # Two un-anchored values (no year) compare only on a shared leading unit —
   # the same-axis rule the set operations use. Same axis: the positional
@@ -2416,6 +2479,13 @@ defmodule Tempo.Interval do
       from_range = {span_start, Math.subtract(span_end, width)}
       to_range = {Math.add(span_start, width), span_end}
       {:ok, {from_range, to_range}}
+    else
+      # A materialisation that isn't a single contiguous interval (an
+      # IntervalSet of candidates) has no grounding envelope; those
+      # values are routed through `candidate_relations/2` before this
+      # path is reached.
+      {:ok, _non_contiguous} -> {:error, :no_resolution}
+      {:error, _} = error -> error
     end
   end
 

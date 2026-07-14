@@ -62,6 +62,34 @@ defmodule Tempo.Interval.PartialCertaintyTest do
     end
   end
 
+  describe "non-contiguous masks expand to their candidate groundings" do
+    # ~o"1985-XX-15" is the 15th of some unknown month of 1985 — twelve
+    # non-adjacent candidate days, not a contiguous span, so certainty reads
+    # over the candidate set (regression: was a FunctionClauseError).
+
+    test "possibly precedes a day inside the candidate range" do
+      # Jan–Jun 15ths precede June 20; Jul–Dec 15ths follow it.
+      assert Interval.relation_certainty(~o"1985-XX-15", ~o"1985-06-20", :precedes) ==
+               :possible
+    end
+
+    test "certainly precedes a day past every candidate" do
+      assert Interval.certainly_before?(~o"1985-XX-15", ~o"1986-01-01")
+    end
+
+    test "possibly equals a single candidate" do
+      assert Interval.relation_certainty(~o"1985-XX-15", ~o"1985-06-15", :equals) == :possible
+    end
+
+    test "certainly within the enclosing year" do
+      assert Interval.within_certainty(~o"1985-XX-15", ~o"1985Y") == :certain
+    end
+
+    test "cannot overlap a year outside every candidate" do
+      assert Interval.overlap_certainty(~o"1985-XX-15", ~o"1984Y") == :impossible
+    end
+  end
+
   describe "un-anchored operands" do
     test "same-axis month-days compare positionally and definitely" do
       assert Interval.certainly_before?(~o"1M31D", ~o"3M15D")

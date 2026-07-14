@@ -184,8 +184,25 @@ defmodule Tempo.Operations do
     end
   end
 
-  defp anchor_if_non_anchored(:non_anchored, value, bound_set),
-    do: anchor_to_days(value, bound_set)
+  # `:bound` anchoring walks the bound's days and grafts each non-anchored
+  # interval onto every day, which is only meaningful for time-of-day values.
+  # A month- or day-axis partial (`~o"15D"`, `~o"06-15"`) grafted onto a day
+  # would silently match every day of the bound, so reject it and point at
+  # the vocabulary that expresses the recurring reading properly.
+  defp anchor_if_non_anchored(:non_anchored, value, bound_set) do
+    if leading_unit(value) in [:hour, :minute, :second] do
+      anchor_to_days(value, bound_set)
+    else
+      {:error,
+       NonAnchoredError.exception(
+         operation:
+           "anchor a non-anchored operand with leading #{inspect(leading_unit(value))} " <>
+             "to a :bound (day anchoring covers time-of-day values only — " <>
+             "anchor it with `Tempo.anchor/2`, or express the recurring " <>
+             "reading with a selection or RRULE)"
+       )}
+    end
+  end
 
   defp anchor_if_non_anchored(_class, value, _bound_set), do: {:ok, value}
 

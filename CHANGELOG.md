@@ -6,6 +6,12 @@
 
 * **Breaking:** `Enum` over a *bounded* recurring interval now enumerates the sub-points of every occurrence (delegating to the materialised `IntervalSet`), instead of silently walking only the first occurrence. An *unbounded* recurrence raises `Tempo.UnboundedRecurrenceError` — materialise with `to_interval/2` and a `:bound` first.
 
+* **Breaking:** `:bound` day-anchoring in set operations rejects non-time-of-day partials with a `Tempo.NonAnchoredError`. Previously `~o"15D"` with a `:bound` silently matched every day of the bound; express the recurring reading with a selection or RRULE instead.
+
+### Fixed
+
+* The certainty API (`relation_certainty/3`, `overlap_certainty/2`, `possibly_*`/`certainly_*`) reads a non-contiguous mask such as `~o"1985-XX-15"` as its finite candidate set, like a one-of set. Previously it raised a `FunctionClauseError`.
+
 
 ## [v0.21.0] — 2026-07-15
 
