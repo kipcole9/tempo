@@ -35,33 +35,7 @@
     territory's weekend, calendar-correct), `next_working_day/2`,
     `previous_working_day/2`, and `working_days_in/2`.
 
-* Resolve the tension in `Enumerable.Tempo.IntervalSet` semantics. An
-  IntervalSet can sensibly be enumerated two ways, and we currently
-  expose both behind separate names:
-
-  1. **Sub-point walking** (current `Enumerable` default) — consistent
-     with `Enumerable.Tempo` and `Enumerable.Tempo.Interval`: every
-     Tempo value is a span; iterating walks the sub-points at the
-     next-finer resolution. Good for calendar rendering and free/busy
-     scans at minute/hour resolution.
-  2. **Member-interval walking** via `Tempo.IntervalSet.to_list/1` —
-     returns `[%Tempo.Interval{}]` that can be piped into `Enum` for
-     scheduling, filtering, and counting use cases. Mirrors
-     `Map.to_list/1` / `MapSet.to_list/1`.
-
-  Works today but feels slightly asymmetric — users writing scheduling
-  code have to remember to pipe through `to_list/1`. Options to revisit:
-
-  * Leave as-is (preserves philosophical consistency — a Tempo value is
-    always iterated as its span's sub-points; the "give me the members"
-    view is a named helper).
-  * Flip the default — `Enumerable` yields intervals, a named
-    `to_points_stream/1` helper exposes the walk.
-  * Protocol split — `Enumerable` stays as is; a separate
-    `Tempo.Walkable` protocol explicitly expresses "walk the span."
-
-  The right answer depends on which use case dominates in practice;
-  defer until we have more real-world examples.
+* ~~Resolve the tension in `Enumerable.Tempo.IntervalSet` semantics.~~ **Resolved (2026-07-15): leave as-is — sub-point walking is the `Enumerable` default, the member view is named vocabulary.** The deferral waited on which use case dominates; the recurring-`Enum` decision answered it by consequence. `Enum` over a bounded recurrence delegates to the materialised IntervalSet, and its documented, tested semantics is the sub-point count (`Enum.count(~o"R5/2022-01-01/P1M")` = 151) with the guide directing occurrence-counting to `to_interval!/1` + `Tempo.IntervalSet.count/1` — flipping the default to member-walking would silently turn 151 into 5 and contradict that decision. The `:unit` field also removed the original sting: the walk granularity is user-settable and preserved by member-preserving set operations, no longer a fixed next-finer heuristic, and the member view mirrors `MapSet.to_list/1` exactly as the named-helper option envisioned. A `Tempo.Walkable` protocol split remains available additively if member-first ergonomics ever warrant it.
 
 * **Cron parser — AST gaps identified during implementation of `Tempo.Cron`.**
 
@@ -339,7 +313,7 @@ These surfaced while implementing ISO 8601 round-tripping and un-anchored `shift
 
 * ~~**Consolidate the two parallel selection builders.**~~ **Done.** Both paths now build the selection through `Tempo.RRule.Rule.to_selection/1` — the single source of truth for the RRULE/cron → selection mapping. `Tempo.RRule.build_repeat_rule/1` builds a `%Rule{}` from its parsed parts (`struct(Rule, parts)`) and delegates; `Tempo.RRule.Expander.repeat_rule/1` delegates directly. The duplicated `push_by`/`push_byday`/`push_wkst`/`push_or_day` helpers were removed from both callers. The original observation: they "independently assembled the `[selection: …]` keyword list" and the v0.15.1 work had to apply the *same* fix to both twice over (byday-before-time ordering, then range consolidation) — that drift trap is now closed.
 
-* **`function_exported?/3` without `Code.ensure_loaded?/1` is a non-determinism class, not a one-off.** `months_in_year_unanchored/1` in [lib/math.ex](lib/math.ex) took the wrong branch when the calendar module was not yet loaded (`function_exported?` answers `false` for a cold module), so un-anchored month arithmetic passed on a warm module and failed on a cold one. Fixed there with `Code.ensure_loaded?`. Sweep the sibling libs (`calendrical`, `localize`) for the same pattern now that calendrical exposes optional callbacks (`months_in_year/0`) that downstreams probe this way — the failure hides behind green tests because the test run warms the module.
+* ~~**`function_exported?/3` without `Code.ensure_loaded?/1` is a non-determinism class, not a one-off.**~~ **Swept (2026-07-15).** All 25 call sites across tempo, calendrical, localize, and astro were reviewed. Tempo and astro were already clean. Twelve unprotected sites were fixed: five in calendrical (`strftime_options!`, `era_calendar_type`, `cardinal_month`, `cardinal_day_of_week`, `month_names` — each silently fell back to `:gregorian` naming or uncorrected month/day mapping on a cold calendar module) and seven in localize (`calendar_type_from`, `day_of_era`, `iso_day_of_week` in calendar.ex; `allow_download?` in locale/provider.ex; `era_year`, `iso_week_of_year`, `compute_day_of_year` in datetime/formatter.ex). Each probe now ensures the module is loaded first, matching each file's established idiom. Original instance: `months_in_year_unanchored/1` in [lib/math.ex](lib/math.ex).
 
 * ~~**Decide what a bare un-anchored partial value *means*.**~~ **Ratified (2026-07-15): a bare partial is a single abstract span on its own resolution axis.** The "same intuitive referent, two models" tension dissolves once the values are typed by boundedness: `~o"1985-XX-15"` is *epistemic* — one actual day occurred, the mask closes over a bounded domain of twelve candidates, so expansion and certainty queries are well-defined; `~o"15D"` is a *relative value* — its extension over the timeline is unbounded, so there is nothing finite to expand into. The recurring reading ("the 15th of every month") is a composition of value + domain, expressed through selections and RRULE (`BYMONTHDAY=15`), not a property of the bare value — the same posture as the recurring-`Enum` decision (unbounded extension → supply the domain) and the time-of-day precedent (`~o"T10:30"` is not "10:30 every day"). The abstract-span algebra is load-bearing: `relation(~o"15D", ~o"20D")` → `:precedes` on the shared monthly axis would have no single answer under a recurring-set reading. Ratification hardened two adjacent surfaces: `:bound` day-anchoring now rejects non-time-of-day partials with a `NonAnchoredError` (was: `~o"15D"` silently matched every day of the bound), and the certainty API expands non-contiguous masks (`1985-XX-15`) to their candidate set like a one-of set (was: `FunctionClauseError`).
 
