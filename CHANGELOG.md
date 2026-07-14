@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+* **Breaking:** `Enum` over a *bounded* recurring interval now enumerates the sub-points of every occurrence (delegating to the materialised `IntervalSet`), instead of silently walking only the first occurrence. An *unbounded* recurrence raises `Tempo.UnboundedRecurrenceError` — materialise with `to_interval/2` and a `:bound` first.
+
+
 ## [v0.21.0] — 2026-07-15
 
 ### Added

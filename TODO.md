@@ -355,6 +355,6 @@ A pre-1.0 readiness review (security/robustness, ISO 8601 + RRULE conformance, d
 
 ## Conceptual-model review — deferred items (2026-07-11)
 
-* **Decide what `Enum` over a recurring interval yields.** Today `Enum.count(R5/2022-01-01/P1M)` walks the *first occurrence's days* (31) — the recurrence count is ignored, which is wrong on two axes. The candidates: yield the N occurrences (as intervals, matching what `to_interval/1` materialises), or refuse like `relation/2` and `duration/1` now do (both direct the caller to `to_interval/2` + the set-level API). The crisp single-span API refuses recurrences uniformly since 2026-07-11; Enumerable is the remaining surface that silently misreads them.
+* ~~**Decide what `Enum` over a recurring interval yields.**~~ **Decided and implemented (2026-07-15).** A bounded recurring interval fully enumerates — `reduce/3` delegates to the materialised IntervalSet, so `Enum.count(R5/2022-01-01/P1M)` is the 151 sub-points of all five occurrences, identical to enumerating `to_interval!/1`'s expansion. An unbounded recurrence raises `UnboundedRecurrenceError` directing to `to_interval/2` with `:bound`; the unexpandable `Rn/from/to` shape is refused like the crisp API refuses it. No surface silently misreads recurrences any more.
 
 * **Decide what a bare un-anchored partial value *means*** — carried from the v0.15.1 review above (`~o"15D"` is one abstract day-span while `~o"1985-XX-15"` is twelve disjoint days; same intuitive referent, two models). Revisit deliberately before 1.0.

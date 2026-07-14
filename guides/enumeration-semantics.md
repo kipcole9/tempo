@@ -52,7 +52,11 @@ Any component may carry a range, a range with step, a set of values, or a cartes
 | One-of set | `[1984,1986,1988]` | exactly those three years |
 | Cartesian product | `2022Y{1..2}M{1..2}D` | Jan 1, Jan 2, Feb 1, Feb 2 |
 
-### 2.3. Missing / unknown digits (EDTF masks)
+### 2.3. Recurring intervals
+
+A *bounded* recurring interval enumerates exactly as its materialised occurrences do — the walk delegates to `Tempo.to_interval/1`'s `IntervalSet`, yielding the sub-points of every occurrence. `Enum.count(~o"R5/2022-01-01/P1M")` is `151` (the days of January through May), identical to counting the materialised set; for the *occurrence* count use `to_interval!/1` and `Tempo.IntervalSet.count/1`. An *unbounded* recurrence (`R/…`) raises `Tempo.UnboundedRecurrenceError` — materialise it with `Tempo.to_interval(r, bound: …)` first — matching how `relation/2` and `duration/1` refuse recurrences.
+
+### 2.4. Missing / unknown digits (EDTF masks)
 
 A digit marked `X` means "any value in this position." Tempo expands the mask to the range of candidate values and iterates it — the value is just as enumerable as an explicit range written with the same bounds.
 
@@ -65,7 +69,7 @@ A digit marked `X` means "any value in this position." Tempo expands the mask to
 | Month-day masked | `1985-XX-XX` | year fixed, month/day iterate |
 | Month only masked | `1985-XX-15` | year and day fixed, month iterates |
 
-### 2.4. EDTF long-year shapes
+### 2.5. EDTF long-year shapes
 
 | Construct | Example | Notes |
 |---|---|---|
@@ -77,14 +81,14 @@ A digit marked `X` means "any value in this position." Tempo expands the mask to
 
 Significant-digits blocks are capped at **10 000 candidates**. Larger blocks (e.g. `Y171010000S3`, which would be 10⁶ candidates) raise a clear `ArgumentError` — the parsed value is still usable as a data value, you just cannot iterate it.
 
-### 2.5. Groups and selections
+### 2.6. Groups and selections
 
 | Construct | Example | Behaviour |
 |---|---|---|
 | Group | `2022Y5G2MU` | "5th group of 2 months" = months 9–10; then iterates days |
 | Selection | `2022YL1MN` | "the 1st month of 2022" — selection tuple preserved on every yielded value |
 
-### 2.6. Qualifications (EDTF Level 1 and Level 2)
+### 2.7. Qualifications (EDTF Level 1 and Level 2)
 
 Qualifications describe epistemic state (`?` uncertain, `~` approximate, `%` both) and never affect whether a value is enumerable. They propagate verbatim to every yielded value.
 
@@ -96,7 +100,7 @@ Qualifications describe epistemic state (`?` uncertain, `~` approximate, `%` bot
 | Component-level | `2022-?06-15` | `qualifications: %{month: :uncertain}` |
 | Mixed components | `2022?-?06-%15` | per-component map |
 
-### 2.7. IXDTF metadata
+### 2.8. IXDTF metadata
 
 Time zone, calendar, and tagged suffixes attach to the `:extended` field and flow through enumeration unchanged.
 
@@ -109,7 +113,7 @@ Time zone, calendar, and tagged suffixes attach to the `:extended` field and flo
 
 The endpoint that anchors iteration (`from`) provides the metadata carried on each yielded value.
 
-### 2.8. Intervals — closed and forward-open
+### 2.9. Intervals — closed and forward-open
 
 | Shape | Example | Iteration |
 |---|---|---|
@@ -123,7 +127,7 @@ The endpoint that anchors iteration (`from`) provides the metadata carried on ea
 
 Mismatched-resolution endpoints are compared as their concrete start-moments: missing trailing units fill with their unit minimum (`:month` / `:day` / `:week` from 1, everything else from 0).
 
-### 2.9. Implicit-to-explicit conversion (`Tempo.to_interval/1`)
+### 2.10. Implicit-to-explicit conversion (`Tempo.to_interval/1`)
 
 Every enumerable `%Tempo{}` has an explicit equivalent — either a single `%Tempo.Interval{}` (contiguous span) or a `%Tempo.IntervalSet{}` (sorted, member-preserving list of intervals). `Tempo.to_interval/1` materialises the appropriate form under the half-open `[from, to)` convention. The conversion preserves every piece of source metadata (`:qualification`, `:qualifications`, `:extended`, `:shift`, `:calendar`) on both endpoints.
 
@@ -165,7 +169,7 @@ Mask rules:
 
 For the canonical instant-set form (touching members merged into one span), pipe the result through `Tempo.IntervalSet.coalesce/1`.
 
-### 2.10. `%Tempo.IntervalSet{}` — multi-interval values
+### 2.11. `%Tempo.IntervalSet{}` — multi-interval values
 
 `%Tempo.IntervalSet{intervals: [%Tempo.Interval{}, ...]}` holds a sorted list of member intervals. By default the constructor preserves member identity — each interval stays a distinct member with its own metadata. `Tempo.IntervalSet.new/1` sorts by `from` endpoint; it does NOT coalesce adjacent or overlapping intervals unless called as `new(intervals, coalesce: true)` or passed through `Tempo.IntervalSet.coalesce/1`.
 
@@ -180,7 +184,7 @@ Enumeration walks each interval in time order, crossing interval boundaries seam
 
 IntervalSet is the form used by set operations — `Tempo.union/2`, `Tempo.intersection/2`, `Tempo.complement/2`, `Tempo.difference/2`, and predicates. See `guides/set-operations.md` for the full treatment. Any call that needs a uniform-shape input can use `Tempo.to_interval_set/1`.
 
-### 2.10. Seasons
+### 2.12. Seasons
 
 The parser expands season codes into intervals before enumeration sees them.
 
@@ -272,9 +276,9 @@ Three similar-sounding situations have distinct enumeration meanings:
 
 * **Missing (not specified).** `2022Y` simply omits finer units. The value is the *interval* of all of 2022 (§2.1) and implicit enumeration walks its months. **Fully enumerable.**
 
-* **Unknown digit (`X` mask).** `156X` declares "this position is any valid digit." The mask expands to a **range** of candidate values (§2.3). **Fully enumerable.**
+* **Unknown digit (`X` mask).** `156X` declares "this position is any valid digit." The mask expands to a **range** of candidate values (§2.4). **Fully enumerable.**
 
-* **Qualified (`?`, `~`, `%`).** `2022Y?` is a concrete, fully-specified value — the year 2022 — annotated with uncertainty about the source. The qualification attaches to metadata; it does not change what is iterated (§2.6). **Fully enumerable.**
+* **Qualified (`?`, `~`, `%`).** `2022Y?` is a concrete, fully-specified value — the year 2022 — annotated with uncertainty about the source. The qualification attaches to metadata; it does not change what is iterated (§2.7). **Fully enumerable.**
 
 These three are semantically distinct and should not be conflated:
 

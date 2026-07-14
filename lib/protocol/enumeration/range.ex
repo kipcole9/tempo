@@ -27,8 +27,20 @@ defimpl Enumerable, for: Tempo.Interval do
   #
   # Open-lower and fully-open intervals have no anchor to iterate
   # from, so `reduce/3` raises a clear `ArgumentError`.
+  #
+  # A *recurring* interval (`recurrence` > 1 or `:infinity`) enumerates
+  # exactly as its materialised occurrences do: `reduce/3` delegates to
+  # the `Tempo.IntervalSet` walk over `Tempo.to_interval/1`'s expansion,
+  # so a bounded recurrence yields the sub-points of every occurrence.
+  # An unbounded recurrence cannot be materialised and raises
+  # `Tempo.UnboundedRecurrenceError` directing the caller to
+  # `Tempo.to_interval/2` with a `:bound`.
 
   @impl Enumerable
+  def count(%Tempo.Interval{recurrence: recurrence}) when recurrence != 1 do
+    {:error, __MODULE__}
+  end
+
   def count(
         %Tempo.Interval{from: %Tempo{calendar: calendar} = from, to: %Tempo{} = to} = interval
       ) do
@@ -48,6 +60,10 @@ defimpl Enumerable, for: Tempo.Interval do
   def count(_interval), do: {:error, __MODULE__}
 
   @impl Enumerable
+  def member?(%Tempo.Interval{recurrence: recurrence}, _element) when recurrence != 1 do
+    {:error, __MODULE__}
+  end
+
   def member?(
         %Tempo.Interval{from: %Tempo{calendar: calendar} = from, to: %Tempo{} = to} = interval,
         %Tempo{} = element
@@ -73,6 +89,10 @@ defimpl Enumerable, for: Tempo.Interval do
   def member?(_interval, _element), do: {:error, __MODULE__}
 
   @impl Enumerable
+  def slice(%Tempo.Interval{recurrence: recurrence}) when recurrence != 1 do
+    {:error, __MODULE__}
+  end
+
   def slice(
         %Tempo.Interval{from: %Tempo{calendar: calendar} = from, to: %Tempo{} = to} = interval
       ) do
@@ -105,6 +125,29 @@ defimpl Enumerable, for: Tempo.Interval do
   end
 
   @impl Enumerable
+  def reduce(%Tempo.Interval{recurrence: recurrence} = interval, acc, fun)
+      when recurrence != 1 do
+    # A recurring interval enumerates as its materialised occurrences.
+    # `to_interval/1` expands a bounded recurrence to an IntervalSet;
+    # an unbounded one returns `UnboundedRecurrenceError` (raised with
+    # its own `:bound` direction); a shape it cannot expand (an
+    # `Rn/from/to` repetition) comes back unchanged and is refused
+    # like the crisp API refuses it — never re-entered.
+    case Tempo.to_interval(interval) do
+      {:ok, %Tempo.IntervalSet{} = occurrences} ->
+        Enumerable.reduce(occurrences, acc, fun)
+
+      {:ok, %Tempo.Interval{}} ->
+        raise Tempo.MaterialisationError.exception(
+                value: interval,
+                reason: :recurring_interval
+              )
+
+      {:error, exception} when is_exception(exception) ->
+        raise exception
+    end
+  end
+
   def reduce(%Tempo.Interval{from: :undefined, to: :undefined}, _acc, _fun) do
     raise ArgumentError,
           "Cannot enumerate a fully open interval `../..` — " <>

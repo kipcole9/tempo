@@ -411,4 +411,50 @@ defmodule Tempo.Enumeration.Test do
       assert Enum.count(month) == 30
     end
   end
+
+  describe "recurring intervals" do
+    # A bounded recurring interval enumerates exactly as its
+    # materialised occurrences do — the sub-points of every
+    # occurrence, delegated to the IntervalSet walk. Unbounded and
+    # unexpandable shapes are refused like the crisp API refuses
+    # them (`relation/2`, `duration/1`).
+
+    test "a bounded recurrence enumerates the sub-points of every occurrence" do
+      {:ok, r5} = Tempo.from_iso8601("R5/2022-01-01/P1M")
+
+      # Jan 31 + Feb 28 + Mar 31 + Apr 30 + May 31 days.
+      assert Enum.count(r5) == 151
+      assert Enum.at(r5, 0) == ~o"2022-01-01"
+      assert Enum.at(r5, 150) == ~o"2022-05-31"
+    end
+
+    test "enumeration agrees with the materialised set" do
+      {:ok, r5} = Tempo.from_iso8601("R5/2022-01-01/P1M")
+      {:ok, set} = Tempo.to_interval(r5)
+
+      assert Enum.count(r5) == Enum.count(set)
+      assert Enum.take(r5, 5) == Enum.take(set, 5)
+    end
+
+    test "an unbounded recurrence raises with the :bound direction" do
+      {:ok, r} = Tempo.from_iso8601("R/2022-01-01/P1M")
+
+      assert_raise Tempo.UnboundedRecurrenceError, ~r/:bound/, fn ->
+        Enum.take(r, 3)
+      end
+    end
+
+    test "an Rn/from/to repetition is refused, not walked as a single span" do
+      {:ok, r3} = Tempo.from_iso8601("R3/2022-01-01/2022-01-08")
+
+      assert_raise Tempo.MaterialisationError, fn ->
+        Enum.count(r3)
+      end
+    end
+
+    test "a plain interval (recurrence 1) is unaffected" do
+      {:ok, january} = Tempo.from_iso8601("2022-01-01/2022-02-01")
+      assert Enum.count(january) == 31
+    end
+  end
 end
