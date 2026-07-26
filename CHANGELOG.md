@@ -8,6 +8,8 @@
 
 * **Breaking:** `:bound` day-anchoring in set operations rejects non-time-of-day partials with a `Tempo.NonAnchoredError`. Previously `~o"15D"` with a `:bound` silently matched every day of the bound; express the recurring reading with a selection or RRULE instead.
 
+* **Breaking:** the duration width option for `Tempo.to_string/2` is now `format: :long | :short | :narrow` (was `style:`), following Localize 1.0 and ECMA-402. Duration parts also now join with CLDR's unit list patterns (`"3 days, 2 hr"`, narrow `"3d 2h"`) instead of the prose conjunction (`"3 days and 2 hr"`).
+
 ### Fixed
 
 * The certainty API (`relation_certainty/3`, `overlap_certainty/2`, `possibly_*`/`certainly_*`) reads a non-contiguous mask such as `~o"1985-XX-15"` as its finite candidate set, like a one-of set. Previously it raised a `FunctionClauseError`.

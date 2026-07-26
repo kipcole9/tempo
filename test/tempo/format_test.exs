@@ -185,11 +185,11 @@ defmodule Tempo.FormatTest do
 
   describe "Tempo.to_string/2 on Tempo.Duration — Localize-backed" do
     test "year + month duration" do
-      assert Tempo.to_string(~o"P1Y6M") == "1 year and 6 months"
+      assert Tempo.to_string(~o"P1Y6M") == "1 year, 6 months"
     end
 
     test "day + hour duration" do
-      assert Tempo.to_string(~o"P3DT2H") == "3 days and 2 hours"
+      assert Tempo.to_string(~o"P3DT2H") == "3 days, 2 hours"
     end
 
     test "weeks normalise to days" do
@@ -200,16 +200,16 @@ defmodule Tempo.FormatTest do
       assert Tempo.to_string(~o"P0D") == "0 seconds"
     end
 
-    test ":style short abbreviates" do
-      assert Tempo.to_string(~o"P3DT2H", style: :short) == "3 days and 2 hr"
+    test ":format short abbreviates" do
+      assert Tempo.to_string(~o"P3DT2H", format: :short) == "3 days, 2 hr"
     end
 
     test "locale honoured" do
-      assert Tempo.to_string(~o"P1Y6M", locale: :de) == "1 Jahr und 6 Monate"
+      assert Tempo.to_string(~o"P1Y6M", locale: :de) == "1 Jahr, 6 Monate"
     end
 
     test "String.Chars interpolates duration" do
-      assert "Elapsed: #{~o"P1Y6M"}" == "Elapsed: 1 year and 6 months"
+      assert "Elapsed: #{~o"P1Y6M"}" == "Elapsed: 1 year, 6 months"
     end
   end
 

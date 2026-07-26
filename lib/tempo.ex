@@ -3528,10 +3528,10 @@ defmodule Tempo do
       "January\u2009\u2013\u2009December 2026"
 
       iex> Tempo.to_string(~o"P1Y6M")
-      "1 year and 6 months"
+      "1 year, 6 months"
 
-      iex> Tempo.to_string(~o"P3DT2H", style: :short)
-      "3 days and 2 hr"
+      iex> Tempo.to_string(~o"P3DT2H", format: :short)
+      "3 days, 2 hr"
 
   """
   @spec to_string(
