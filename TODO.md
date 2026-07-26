@@ -158,22 +158,9 @@
 
   Reference: [Tempo vs. other interval-algebra libraries](papers/library-comparisons.md#what-tempo-could-learn).
 
-* Investigate an interval-tree backing store for `IntervalSet` to
-  accelerate stabbing and overlap queries on large sets.
+* **Pluggable `IntervalSet` backends — committed for 1.0 (2026-07-27).** Current `IntervalSet` is a sorted, coalesced list — O(n log n) construction, O(n) for some traversal operations. Generalise the internal representation behind the existing `Tempo.IntervalSet` API (which stays identical): the list stays the default; an interval-tree backend accelerates stabbing and overlap queries on large sets (multi-year iCalendar feeds with tens of thousands of events; Rust's `interavl` crate demonstrates AVL-backed trees with subtree-pruning give orders-of-magnitude faster stabbing queries); and a lazy stream backend serves very large or unbounded schedules without materialising them (Tempus's `Slots.Stream` backend demonstrates the demand and a workable shape — "next free slot in an endless recurrence" as an O(1)-memory walk). The lazy backend must preserve Tempo's refusal semantics: an operation whose answer would require consuming an unbounded stream without a `:bound` still refuses, it does not silently hang.
 
-  Current `IntervalSet` is a sorted, coalesced list — O(n log n)
-  construction, O(n) for some traversal operations. Users with
-  multi-year iCalendar feeds (tens of thousands of events) would
-  benefit from an interval-tree internal representation.
-
-  Rust's `interavl` crate demonstrates that AVL-backed interval
-  trees give millions-to-billions of stabbing queries per second
-  with subtree-pruning optimisations. The change is purely internal:
-  the `Tempo.IntervalSet` API stays identical; the change is the
-  shape of `:intervals` (or an additional cached tree).
-
-  Effort: significant. Worth doing only when a real user reports
-  the need — premature without a benchmark target.
+* **A named "shift skipping a busy set" operation — committed for 1.0 (2026-07-27).** Tempus's headline `add(slots, origin, amount, unit)` — advance a point in time by a duration of *free* time, jumping over busy slots — has no single named Tempo operation. It is expressible today (difference against the busy set then walk; `Tempo.Network` for the constrained version; business-day arithmetic for the workday case) but fails the pipeline-prose test as a composition. Likely shape: extend `Tempo.shift/2` with a `skipping:` option (`Tempo.shift(start, ~o"PT10M", skipping: busy)` — "shift by ten minutes of working time, skipping busy periods"), landing after the duration is consumed from free intervals only. Design questions: unify with business-day arithmetic (workdays are the special case where the busy set is weekends + holidays); behaviour when the origin sits inside a busy slot (Tempus advances to the slot end first — adopt); backward shifts; and refusal when the busy set is unbounded ahead of the origin without a `:bound`.
 
   Reference: [Tempo vs. other interval-algebra libraries](papers/library-comparisons.md#what-tempo-could-learn).
 
