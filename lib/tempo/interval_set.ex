@@ -117,8 +117,10 @@ defmodule Tempo.IntervalSet do
   * `:metadata` is a map of set-level metadata. The default is `%{}`.
 
   * `:backend` is the storage backend module (see
-    `Tempo.IntervalSet.Backend`), or the shorthand `:list`. The
-    default is `Tempo.IntervalSet.Backend.List`.
+    `Tempo.IntervalSet.Backend`), or a shorthand — `:list` (the
+    default, `Tempo.IntervalSet.Backend.List`) or `:tree`
+    (`Tempo.IntervalSet.Backend.Tree`, an interval tree for large,
+    query-heavy sets of anchored members).
 
   ### Returns
 
@@ -163,6 +165,7 @@ defmodule Tempo.IntervalSet do
   end
 
   defp resolve_backend(:list), do: Backend.List
+  defp resolve_backend(:tree), do: Backend.Tree
   defp resolve_backend(module) when is_atom(module), do: module
 
   @doc """
@@ -728,8 +731,27 @@ defmodule Tempo.IntervalSet do
 
   """
   @spec covered?(t(), Tempo.t()) :: boolean()
-  def covered?(%__MODULE__{} = set, %Tempo{} = point) do
-    set |> to_list() |> Enum.any?(fn interval -> Interval.within?(point, interval) end)
+  def covered?(%__MODULE__{backend: backend, intervals: state} = set, %Tempo{} = point) do
+    # The backend prunes to candidate members (an interval tree answers
+    # in O(log n + k)); the exact resolution-aware containment check
+    # stays here. A non-anchored point has no timeline position to
+    # prune by, so it scans.
+    candidates =
+      case point_span_seconds(point) do
+        {:ok, seconds_range} -> backend.overlapping(state, seconds_range)
+        :error -> to_list(set)
+      end
+
+    Enum.any?(candidates, fn interval -> Interval.within?(point, interval) end)
+  end
+
+  defp point_span_seconds(%Tempo{} = point) do
+    with true <- Tempo.anchored?(point),
+         {:ok, %Interval{from: %Tempo{} = from, to: %Tempo{} = to}} <- Tempo.to_interval(point) do
+      {:ok, {Compare.to_utc_seconds(from), Compare.to_utc_seconds(to)}}
+    else
+      _other -> :error
+    end
   end
 
   @doc """

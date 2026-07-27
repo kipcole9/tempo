@@ -106,6 +106,19 @@ defmodule Tempo.IntervalSet.Backend do
   """
   @callback first(state()) :: Interval.t() | nil
 
+  @doc """
+  Candidate members whose extent may intersect the half-open UTC-second
+  range `[lo, hi)`.
+
+  A **pruning** callback, not a semantic one: the contract is to return
+  *at least* every member whose `[from, to)` intersects the range — a
+  backend may return extra members, or all of them (the default). The
+  caller applies the exact resolution-aware check to the candidates, so
+  a backend that prunes well (an interval tree) accelerates stabbing
+  and overlap queries without owning their semantics.
+  """
+  @callback overlapping(state(), {number(), number()}) :: [Interval.t()]
+
   defmacro __using__(_opts) do
     quote do
       @behaviour Tempo.IntervalSet.Backend
@@ -119,7 +132,10 @@ defmodule Tempo.IntervalSet.Backend do
       @impl true
       def first(state), do: state |> walk() |> Enum.take(1) |> List.first()
 
-      defoverridable count: 1, empty?: 1, first: 1
+      @impl true
+      def overlapping(state, _seconds_range), do: to_list(state)
+
+      defoverridable count: 1, empty?: 1, first: 1, overlapping: 2
     end
   end
 end

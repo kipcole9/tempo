@@ -8,6 +8,8 @@
 
 * `Tempo.IntervalSet` storage is pluggable through the `Tempo.IntervalSet.Backend` behaviour (`new(intervals, backend: ...)`); the default list backend is unchanged and struct literals remain valid list-backed sets. `IntervalSet.walk/1`, `empty?/1`, and `first/1` are new accessors.
 
+* `Tempo.IntervalSet.Backend.Tree` (`backend: :tree`) — an interval-tree backend for large, query-heavy sets of anchored members. Stabbing via `covered?/2` runs in O(log n + k); on 10k members it benchmarks ~2,900× faster than the list scan for ~9% extra construction cost.
+
 ### Changed
 
 * **Breaking:** `Enum` over a *bounded* recurring interval now enumerates the sub-points of every occurrence (delegating to the materialised `IntervalSet`), instead of silently walking only the first occurrence. An *unbounded* recurrence raises `Tempo.UnboundedRecurrenceError` — materialise with `to_interval/2` and a `:bound` first.
