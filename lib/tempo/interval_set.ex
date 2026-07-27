@@ -1,6 +1,6 @@
 defmodule Tempo.IntervalSet do
   @moduledoc """
-  A sorted, non-overlapping, coalesced list of `t:Tempo.Interval.t/0`
+  A sorted, non-overlapping collection of `t:Tempo.Interval.t/0`
   values — the multi-interval counterpart to `Tempo.Interval`.
 
   `IntervalSet` is the operational form for set operations. Every
@@ -8,6 +8,15 @@ defmodule Tempo.IntervalSet do
   (non-contiguous masks, stepped ranges, iterated groups, bounded
   recurrences, all-of sets) materialises to an `IntervalSet` via
   `Tempo.to_interval/1`.
+
+  ## Storage backends
+
+  The representation is pluggable through `Tempo.IntervalSet.Backend`:
+  the struct carries a `:backend` module and opaque backend state, and
+  every function here reaches the members through that contract. The
+  default is `Tempo.IntervalSet.Backend.List` — a sorted plain list.
+  Select a backend at construction with `new(intervals, backend: ...)`;
+  member-preserving operations keep their operand's backend.
 
   ## Invariants
 
@@ -70,13 +79,22 @@ defmodule Tempo.IntervalSet do
   alias Tempo.Duration
   alias Tempo.Interval
   alias Tempo.IntervalEndpointsError
+  alias Tempo.IntervalSet.Backend
 
+  @typedoc """
+  The set struct. `:intervals` holds the backend's state — for the
+  default `Tempo.IntervalSet.Backend.List` that is the member list
+  itself; other backends store their own representation there. Reach
+  members through the named accessors (`to_list/1`, `walk/1`,
+  `count/1`, `empty?/1`, `first/1`), never the field.
+  """
   @type t :: %__MODULE__{
-          intervals: [Interval.t()],
-          metadata: map()
+          intervals: Backend.state(),
+          metadata: map(),
+          backend: module()
         }
 
-  defstruct intervals: [], metadata: %{}
+  defstruct intervals: [], metadata: %{}, backend: Backend.List
 
   @doc """
   Construct a `t:t/0` from a list of intervals.
@@ -91,6 +109,17 @@ defmodule Tempo.IntervalSet do
     ended intervals (`from: :undefined` or `to: :undefined`) are
     rejected.
 
+  ### Options
+
+  * `:coalesce` merges touching or overlapping members into larger
+    spans. The default is `false` — member identity is preserved.
+
+  * `:metadata` is a map of set-level metadata. The default is `%{}`.
+
+  * `:backend` is the storage backend module (see
+    `Tempo.IntervalSet.Backend`), or the shorthand `:list`. The
+    default is `Tempo.IntervalSet.Backend.List`.
+
   ### Returns
 
   * `{:ok, interval_set}` where `interval_set` is a `t:t/0`, or
@@ -103,9 +132,9 @@ defmodule Tempo.IntervalSet do
       iex> {:ok, a} = Tempo.to_interval(~o"2022Y1M")
       iex> {:ok, b} = Tempo.to_interval(~o"2022Y3M")
       iex> {:ok, set} = Tempo.IntervalSet.new([b, a])
-      iex> length(set.intervals)
+      iex> Tempo.IntervalSet.count(set)
       2
-      iex> hd(set.intervals).from.time
+      iex> Tempo.IntervalSet.first(set).from.time
       [year: 2022, month: 1]
 
   """
@@ -118,14 +147,23 @@ defmodule Tempo.IntervalSet do
       # into larger spans) must either pass `coalesce: true` here
       # or apply `coalesce/1` explicitly after construction.
       coalesce? = Keyword.get(opts, :coalesce, false)
+      backend = resolve_backend(Keyword.get(opts, :backend, Backend.List))
 
       sorted = Enum.sort(intervals, &compare_from/2)
       final = if coalesce?, do: coalesce_intervals(sorted), else: sorted
       metadata = Keyword.get(opts, :metadata, %{})
 
-      {:ok, %__MODULE__{intervals: final, metadata: metadata}}
+      {:ok,
+       %__MODULE__{
+         intervals: backend.from_list(final, opts),
+         metadata: metadata,
+         backend: backend
+       }}
     end
   end
+
+  defp resolve_backend(:list), do: Backend.List
+  defp resolve_backend(module) when is_atom(module), do: module
 
   @doc """
   Raising version of `new/1`.
@@ -168,7 +206,34 @@ defmodule Tempo.IntervalSet do
 
   """
   @spec to_list(t()) :: [Interval.t()]
-  def to_list(%__MODULE__{intervals: intervals}), do: intervals
+  def to_list(%__MODULE__{backend: backend, intervals: state}), do: backend.to_list(state)
+
+  @doc """
+  An enumerable yielding the member intervals in time order.
+
+  The lazy-safe counterpart to `to_list/1`: on the default list
+  backend it is the member list; on a lazy backend it is a stream
+  that never materialises more members than the caller consumes.
+
+  ### Arguments
+
+  * `set` is a `t:t/0`.
+
+  ### Returns
+
+  * An `Enumerable` of `t:Tempo.Interval.t/0` members in time order.
+
+  ### Examples
+
+      iex> set = Tempo.IntervalSet.new!([
+      ...>   %Tempo.Interval{from: ~o"2026-06-01", to: ~o"2026-06-10"}
+      ...> ])
+      iex> set |> Tempo.IntervalSet.walk() |> Enum.count()
+      1
+
+  """
+  @spec walk(t()) :: Enumerable.t()
+  def walk(%__MODULE__{backend: backend, intervals: state}), do: backend.walk(state)
 
   @doc """
   Return the number of member intervals in the set.
@@ -196,7 +261,7 @@ defmodule Tempo.IntervalSet do
 
   """
   @spec count(t()) :: non_neg_integer()
-  def count(%__MODULE__{intervals: intervals}), do: length(intervals)
+  def count(%__MODULE__{backend: backend, intervals: state}), do: backend.count(state)
 
   @doc """
   Whether the set has no member intervals.
@@ -222,7 +287,7 @@ defmodule Tempo.IntervalSet do
 
   """
   @spec empty?(t()) :: boolean()
-  def empty?(%__MODULE__{intervals: intervals}), do: intervals == []
+  def empty?(%__MODULE__{backend: backend, intervals: state}), do: backend.empty?(state)
 
   @doc """
   The earliest member interval of the set, or `nil` when the set
@@ -253,8 +318,7 @@ defmodule Tempo.IntervalSet do
 
   """
   @spec first(t()) :: Interval.t() | nil
-  def first(%__MODULE__{intervals: []}), do: nil
-  def first(%__MODULE__{intervals: [first | _rest]}), do: first
+  def first(%__MODULE__{backend: backend, intervals: state}), do: backend.first(state)
 
   @doc false
   # Replace the member list, keeping the set's metadata (and, once
@@ -262,8 +326,8 @@ defmodule Tempo.IntervalSet do
   # for representation-preserving rewrites; members must already be
   # sorted and disjoint.
   @spec with_intervals(t(), [Interval.t()]) :: t()
-  def with_intervals(%__MODULE__{} = set, intervals) when is_list(intervals) do
-    %{set | intervals: intervals}
+  def with_intervals(%__MODULE__{backend: backend} = set, intervals) when is_list(intervals) do
+    %{set | intervals: backend.from_list(intervals, [])}
   end
 
   @doc """
@@ -294,7 +358,9 @@ defmodule Tempo.IntervalSet do
 
   """
   @spec duration(t()) :: Duration.t()
-  def duration(%__MODULE__{intervals: intervals}) do
+  def duration(%__MODULE__{} = set) do
+    intervals = to_list(set)
+
     total =
       Enum.reduce(intervals, 0, fn interval, acc ->
         %Duration{time: [second: seconds]} = Interval.duration(interval)
@@ -355,7 +421,9 @@ defmodule Tempo.IntervalSet do
     slots(%__MODULE__{intervals: [interval]}, duration, options)
   end
 
-  def slots(%__MODULE__{intervals: intervals}, %Tempo.Duration{} = duration, options) do
+  def slots(%__MODULE__{} = set, %Tempo.Duration{} = duration, options) do
+    intervals = to_list(set)
+
     every = Keyword.get(options, :every, duration)
 
     intervals
@@ -420,8 +488,8 @@ defmodule Tempo.IntervalSet do
 
   """
   @spec map(t(), (Interval.t() -> any())) :: [any()]
-  def map(%__MODULE__{intervals: intervals}, fun) when is_function(fun, 1) do
-    Enum.map(intervals, fun)
+  def map(%__MODULE__{} = set, fun) when is_function(fun, 1) do
+    set |> to_list() |> Enum.map(fun)
   end
 
   @doc """
@@ -453,8 +521,8 @@ defmodule Tempo.IntervalSet do
 
   """
   @spec filter(t(), (Interval.t() -> as_boolean(any()))) :: t()
-  def filter(%__MODULE__{intervals: intervals} = set, fun) when is_function(fun, 1) do
-    %__MODULE__{set | intervals: Enum.filter(intervals, fun)}
+  def filter(%__MODULE__{} = set, fun) when is_function(fun, 1) do
+    with_intervals(set, set |> to_list() |> Enum.filter(fun))
   end
 
   @doc """
@@ -508,8 +576,11 @@ defmodule Tempo.IntervalSet do
           ]
           | {:error, term()}
   def relation_matrix(a, b) do
-    with {:ok, %__MODULE__{intervals: a_ivs}} <- coerce(a),
-         {:ok, %__MODULE__{intervals: b_ivs}} <- coerce(b) do
+    with {:ok, %__MODULE__{} = a_set} <- coerce(a),
+         {:ok, %__MODULE__{} = b_set} <- coerce(b) do
+      a_ivs = to_list(a_set)
+      b_ivs = to_list(b_set)
+
       for {iv_a, ai} <- Enum.with_index(a_ivs),
           {iv_b, bi} <- Enum.with_index(b_ivs) do
         {ai, bi, Interval.relation(iv_a, iv_b)}
@@ -624,8 +695,8 @@ defmodule Tempo.IntervalSet do
 
   """
   @spec coalesce(t()) :: t()
-  def coalesce(%__MODULE__{intervals: intervals} = set) do
-    %{set | intervals: coalesce_intervals(intervals)}
+  def coalesce(%__MODULE__{} = set) do
+    with_intervals(set, coalesce_intervals(to_list(set)))
   end
 
   @doc """
@@ -657,8 +728,8 @@ defmodule Tempo.IntervalSet do
 
   """
   @spec covered?(t(), Tempo.t()) :: boolean()
-  def covered?(%__MODULE__{intervals: intervals}, %Tempo{} = point) do
-    Enum.any?(intervals, fn interval -> Interval.within?(point, interval) end)
+  def covered?(%__MODULE__{} = set, %Tempo{} = point) do
+    set |> to_list() |> Enum.any?(fn interval -> Interval.within?(point, interval) end)
   end
 
   @doc """
@@ -694,7 +765,7 @@ defmodule Tempo.IntervalSet do
   def total_duration(%__MODULE__{} = set) do
     set
     |> coalesce()
-    |> Map.fetch!(:intervals)
+    |> to_list()
     |> Enum.reduce(Duration.build([]), fn interval, acc ->
       add_durations(acc, Interval.duration(interval))
     end)
