@@ -197,12 +197,12 @@ defmodule Tempo.Inspect do
     if IntervalSet.empty?(set) do
       "#Tempo.IntervalSet<[]" <> set_metadata_tag(metadata) <> ">"
     else
-      inspect_interval_set_members(IntervalSet.to_list(set), metadata, opts)
+      inspect_interval_set_members(set, metadata, opts)
     end
   end
 
-  defp inspect_interval_set_members(intervals, metadata, opts) do
-    {shown, truncated?} = take_within_limit(intervals, opts.limit)
+  defp inspect_interval_set_members(set, metadata, opts) do
+    {shown, truncated?} = take_within_limit(set, opts.limit)
 
     rendered =
       Enum.map(shown, fn iv ->
@@ -218,12 +218,19 @@ defmodule Tempo.Inspect do
   end
 
   # `Inspect.Opts.limit` bounds how many members are rendered; `:infinity`
-  # shows them all. Split (rather than take + length) so we learn whether
-  # the list was truncated without walking past the limit.
-  defp take_within_limit(intervals, :infinity), do: {intervals, false}
+  # shows them all — except on an unbounded (lazy) set, where "all" would
+  # walk forever, so the default limit of 50 applies instead. Members are
+  # taken from the walk, never `to_list/1`, so a lazy set inspects safely.
+  defp take_within_limit(set, :infinity) do
+    if IntervalSet.bounded?(set) do
+      {IntervalSet.to_list(set), false}
+    else
+      take_within_limit(set, 50)
+    end
+  end
 
-  defp take_within_limit(intervals, limit) when is_integer(limit) and limit >= 0 do
-    {shown, rest} = Enum.split(intervals, limit)
+  defp take_within_limit(set, limit) when is_integer(limit) and limit >= 0 do
+    {shown, rest} = set |> IntervalSet.walk() |> Enum.take(limit + 1) |> Enum.split(limit)
     {shown, rest != []}
   end
 

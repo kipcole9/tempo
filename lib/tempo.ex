@@ -4988,6 +4988,62 @@ defmodule Tempo do
   end
 
   @doc """
+  An unbounded lazy set of weekend days, walking forward from a start
+  date.
+
+  The result is a `t:Tempo.IntervalSet.t/0` on the lazy backend: each
+  member is one weekend day's span, generated on demand and never
+  materialised in full. Use it wherever a walk suffices — most
+  naturally as a `Tempo.shift/3` `skipping:` busy set, with no
+  `:bound` required:
+
+      Tempo.shift(start, ~o"P3D", skipping: Tempo.weekends(from: start))
+
+  Aggregate operations (`Tempo.IntervalSet.to_list/1`, `count/1`, set
+  algebra) raise `Tempo.UnboundedSetError` — take the members you need
+  from `Tempo.IntervalSet.walk/1` instead.
+
+  ### Arguments
+
+  * `options` is a keyword list of options.
+
+  ### Options
+
+  * `:from` is the day the walk starts at (inclusive). The default is
+    `Tempo.today/0`.
+
+  * `:territory` selects whose weekend applies, resolved through
+    `Tempo.Territory.resolve/1` as for `weekend?/2` — `:SA` weekends
+    on Friday–Saturday, `:IN` on Sunday only.
+
+  ### Returns
+
+  * A `t:Tempo.IntervalSet.t/0` on the lazy backend.
+
+  ### Examples
+
+      iex> weekends = Tempo.weekends(from: ~o"2026-06-15")
+      iex> weekends |> Tempo.IntervalSet.walk() |> Enum.take(2) |> Enum.map(& &1.from.time[:day])
+      [20, 21]
+
+      iex> saudi = Tempo.weekends(from: ~o"2026-06-15", territory: :SA)
+      iex> saudi |> Tempo.IntervalSet.walk() |> Enum.take(2) |> Enum.map(& &1.from.time[:day])
+      [19, 20]
+
+  """
+  @spec weekends(keyword()) :: Tempo.IntervalSet.t()
+  def weekends(options \\ []) do
+    from = Keyword.get_lazy(options, :from, &today/0)
+    territory = Keyword.get(options, :territory)
+
+    from
+    |> Stream.iterate(&shift(&1, day: 1))
+    |> Stream.filter(&weekend?(&1, territory))
+    |> Stream.map(&to_interval!/1)
+    |> IntervalSet.from_stream()
+  end
+
+  @doc """
   Return `true` when `tempo` falls on a workday — a day that is *not*
   in the territory's weekend.
 

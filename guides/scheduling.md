@@ -263,6 +263,17 @@ The weekend comes from the calendar's own vocabulary — `Tempo.weekend?/1` is t
 
 The rules at the edges: an origin already inside a busy span first moves to its end (a shift of `PT0S` from inside a meeting lands at the meeting's end); a negative duration walks backward symmetrically; and the duration must be exact — `~o"P1M"` of free time has no fixed length, so `:year`/`:month` components return `{:error, %Tempo.InvalidUnitError{}}`.
 
+When the only busy time *is* the weekend, skip the window arithmetic entirely: `Tempo.weekends/1` is an unbounded lazy busy set, and the walk consumes only as much of it as the shift needs — no `:bound` required.
+
+```elixir
+Tempo.shift(~o"2026-06-18T16:00", ~o"P3D", skipping: Tempo.weekends(from: ~o"2026-06-18"))
+#=> ~o"2026Y6M23DT16H0M0S"
+```
+
+> *"Three days of processing starting **Thursday 16:00**, skipping **every weekend from then on**, finishes **Tuesday 16:00**."*
+
+A lazy busy set is used on its own (not spliced into a busy list); see `Tempo.IntervalSet.Backend.Lazy` for what an unbounded set can and cannot answer.
+
 > *"The bookable hour-long slots are the mutual windows cut into one-hour pieces."* The 09:00–09:30 opening is too short to hold an hour, so it drops out. Pass `every: ~o"PT30M"` to offer a start on every half-hour instead (overlapping slots), or a larger `:every` to leave gaps between offered times.
 
 This is **instant-level** set algebra — you are asking about *time regions*, not preserving individual calendar events — so `difference`/`intersection` are the right operators rather than their member-preserving companions. The [set operations guide](./set-operations.md) explains that distinction in full; to load real calendars from `.ics` files instead of inline busy sets, see the free-busy recipe in the [cookbook](./cookbook.md).

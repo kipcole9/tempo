@@ -1219,11 +1219,20 @@ defmodule Tempo.Math do
     busy |> Tempo.to_interval_set() |> coalesce_busy()
   end
 
-  defp coalesce_busy({:ok, %IntervalSet{} = set}), do: {:ok, IntervalSet.coalesce(set)}
+  defp coalesce_busy({:ok, %IntervalSet{} = set}) do
+    if IntervalSet.bounded?(set), do: {:ok, IntervalSet.coalesce(set)}, else: {:ok, set}
+  end
+
   defp coalesce_busy({:error, _} = error), do: error
 
+  # A lazy busy set cannot be validated up front — its members are
+  # checked as the walk consumes them (`span_payload/1`).
   defp validate_busy_members(%IntervalSet{} = set) do
-    set |> IntervalSet.to_list() |> Enum.find_value(:ok, &busy_member_error/1)
+    if IntervalSet.bounded?(set) do
+      set |> IntervalSet.to_list() |> Enum.find_value(:ok, &busy_member_error/1)
+    else
+      :ok
+    end
   end
 
   defp busy_member_error(%Interval{from: %Tempo{} = from, to: %Tempo{} = to}) do
@@ -1249,45 +1258,74 @@ defmodule Tempo.Math do
   end
 
   # The walk runs on gregorian UTC seconds so gaps compare exactly
-  # across calendars and zones. Spans are the coalesced busy set:
-  # sorted, disjoint, half-open `[from, to)`.
+  # across calendars and zones. Spans stream off the busy set's walk —
+  # sorted, disjoint, half-open `[from, to)` — so an unbounded lazy
+  # busy set works: the forward walk only ever consumes successive
+  # spans until it lands, and the backward walk materialises only the
+  # finite prefix at or before the origin.
   defp walk_skipping(origin, seconds, %IntervalSet{} = busy_set) do
     origin_s = Compare.to_utc_seconds(origin)
-
-    spans =
-      Enum.map(IntervalSet.to_list(busy_set), fn %Interval{from: from, to: to} ->
-        {Compare.to_utc_seconds(from), Compare.to_utc_seconds(to), from, to}
-      end)
+    spans = busy_set |> IntervalSet.walk() |> Stream.map(&span_payload/1)
 
     if seconds >= 0 do
       walk_forward(origin, origin_s, seconds, spans)
     else
-      walk_backward(origin, origin_s, -seconds, Enum.reverse(spans))
+      prefix =
+        spans
+        |> Stream.take_while(fn {from_s, _to_s, _from, _to} -> from_s <= origin_s end)
+        |> Enum.reverse()
+
+      walk_backward(origin, origin_s, -seconds, prefix)
     end
   end
 
-  defp walk_forward(pos, _pos_s, remaining, []), do: land(pos, remaining)
+  # A bounded busy set was validated up front; a lazy one is checked
+  # member-by-member as the walk consumes it, raising the same
+  # exceptions the eager validation returns.
+  defp span_payload(%Interval{from: %Tempo{} = from, to: %Tempo{} = to} = interval) do
+    if Tempo.anchored?(from) and Tempo.anchored?(to) do
+      {Compare.to_utc_seconds(from), Compare.to_utc_seconds(to), from, to}
+    else
+      raise_busy_member!(interval)
+    end
+  end
 
-  defp walk_forward(pos, pos_s, remaining, [{from_s, to_s, _from, to} | rest]) do
-    cond do
-      # Busy span entirely behind the position (its exclusive end
-      # at or before us) — irrelevant.
-      to_s <= pos_s ->
-        walk_forward(pos, pos_s, remaining, rest)
+  defp span_payload(%Interval{} = interval), do: raise_busy_member!(interval)
 
-      # Position inside `[from, to)` — eject to the span's end at
-      # no cost, then keep walking.
-      pos_s >= from_s ->
-        walk_forward(to, to_s, remaining, rest)
+  @spec raise_busy_member!(Interval.t()) :: no_return()
+  defp raise_busy_member!(interval) do
+    {:error, exception} = busy_member_error(interval)
+    raise exception
+  end
 
-      # The free run before this span satisfies what remains.
-      # Equality lands exactly on the span's start: the duration is
-      # fully consumed at the instant the busy time begins.
-      remaining <= from_s - pos_s ->
-        land(pos, remaining)
+  defp walk_forward(pos, pos_s, remaining, spans) do
+    spans
+    |> Enum.reduce_while({pos, pos_s, remaining}, fn
+      {from_s, to_s, _from, to}, {pos, pos_s, remaining} ->
+        cond do
+          # Busy span entirely behind the position (its exclusive end
+          # at or before us) — irrelevant.
+          to_s <= pos_s ->
+            {:cont, {pos, pos_s, remaining}}
 
-      true ->
-        walk_forward(to, to_s, remaining - (from_s - pos_s), rest)
+          # Position inside `[from, to)` — eject to the span's end at
+          # no cost, then keep walking.
+          pos_s >= from_s ->
+            {:cont, {to, to_s, remaining}}
+
+          # The free run before this span satisfies what remains.
+          # Equality lands exactly on the span's start: the duration is
+          # fully consumed at the instant the busy time begins.
+          remaining <= from_s - pos_s ->
+            {:halt, {:landed, land(pos, remaining)}}
+
+          true ->
+            {:cont, {to, to_s, remaining - (from_s - pos_s)}}
+        end
+    end)
+    |> case do
+      {:landed, result} -> result
+      {pos, _pos_s, remaining} -> land(pos, remaining)
     end
   end
 

@@ -16,24 +16,48 @@ defimpl Enumerable, for: Tempo.IntervalSet do
   # piping into `Enum`. The protocol is not overloaded to do both; the
   # accessor makes the member-level intent visible at the call site.
 
+  # On an unbounded (lazy) set the fallback algorithms these `{:error,
+  # __MODULE__}` returns trigger would reduce forever, so they refuse
+  # loudly instead. Bounded walking (`Enum.take/2`, `take_while`,
+  # `Stream` composition) works on every backend.
+
   @impl Enumerable
-  def count(_set) do
+  def count(%Tempo.IntervalSet{} = set) do
+    ensure_bounded!(set, "Enum.count/1")
     {:error, __MODULE__}
   end
 
   @impl Enumerable
-  def member?(_set, _element) do
+  def member?(%Tempo.IntervalSet{} = set, _element) do
+    ensure_bounded!(set, "Enum.member?/2")
     {:error, __MODULE__}
   end
 
   @impl Enumerable
-  def slice(_set) do
+  def slice(%Tempo.IntervalSet{} = set) do
+    ensure_bounded!(set, "Enum.slice/2")
     {:error, __MODULE__}
   end
 
   @impl Enumerable
   def reduce(%Tempo.IntervalSet{} = set, acc, fun) do
-    do_reduce(Tempo.IntervalSet.to_list(set), acc, fun)
+    if Tempo.IntervalSet.bounded?(set) do
+      do_reduce(Tempo.IntervalSet.to_list(set), acc, fun)
+    else
+      # Flatten the member walk into its sub-points lazily: each member
+      # interval is itself Enumerable, and halting propagates, so
+      # `Enum.take/2` and friends work without materialising the set.
+      set
+      |> Tempo.IntervalSet.walk()
+      |> Stream.flat_map(& &1)
+      |> Enumerable.reduce(acc, fun)
+    end
+  end
+
+  defp ensure_bounded!(set, operation) do
+    unless Tempo.IntervalSet.bounded?(set) do
+      raise Tempo.UnboundedSetError.exception(operation: operation, set: set)
+    end
   end
 
   defp do_reduce(_intervals, {:halt, acc}, _fun) do

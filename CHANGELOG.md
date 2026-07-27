@@ -10,6 +10,10 @@
 
 * `Tempo.IntervalSet.Backend.Tree` (`backend: :tree`) — an interval-tree backend for large, query-heavy sets of anchored members. Stabbing via `covered?/2` runs in O(log n + k); on 10k members it benchmarks ~2,900× faster than the list scan for ~9% extra construction cost.
 
+* `Tempo.IntervalSet.Backend.Lazy` and `IntervalSet.from_stream/2` — unbounded lazy sets over an ordered generator. Walking (`walk/1`, `covered?/2`, `Enum.take/2`, `skipping:`) never materialises the set; aggregates raise the new `Tempo.UnboundedSetError` instead of hanging.
+
+* `Tempo.weekends/1` — an unbounded lazy set of weekend days (territory-aware), usable directly as a `skipping:` busy set with no `:bound`: `Tempo.shift(start, ~o"P3D", skipping: Tempo.weekends(from: start))`.
+
 ### Changed
 
 * **Breaking:** `Enum` over a *bounded* recurring interval now enumerates the sub-points of every occurrence (delegating to the materialised `IntervalSet`), instead of silently walking only the first occurrence. An *unbounded* recurrence raises `Tempo.UnboundedRecurrenceError` — materialise with `to_interval/2` and a `:bound` first.

@@ -80,6 +80,7 @@ defmodule Tempo.IntervalSet do
   alias Tempo.Interval
   alias Tempo.IntervalEndpointsError
   alias Tempo.IntervalSet.Backend
+  alias Tempo.UnboundedSetError
 
   @typedoc """
   The set struct. `:intervals` holds the backend's state — for the
@@ -166,7 +167,50 @@ defmodule Tempo.IntervalSet do
 
   defp resolve_backend(:list), do: Backend.List
   defp resolve_backend(:tree), do: Backend.Tree
+  defp resolve_backend(:lazy), do: Backend.Lazy
   defp resolve_backend(module) when is_atom(module), do: module
+
+  @doc """
+  Construct a lazy, potentially unbounded set from an ordered
+  generator.
+
+  The generator is any `Enumerable` (typically a `Stream`) yielding
+  member intervals in time order — sorted by `from`, disjoint, each
+  anchored and bounded. An infinite generator cannot be validated up
+  front, so this contract is the caller's responsibility; members are
+  checked as they are consumed. See `Tempo.IntervalSet.Backend.Lazy`
+  for what a lazy set can and cannot answer.
+
+  ### Arguments
+
+  * `enumerable` is the ordered member generator.
+
+  * `options` is a keyword list of options.
+
+  ### Options
+
+  * `:metadata` is a map of set-level metadata. The default is `%{}`.
+
+  ### Returns
+
+  * A `t:t/0` on the lazy backend.
+
+  ### Examples
+
+      iex> mondays = Stream.iterate(~o"2026-01-05", &Tempo.shift(&1, week: 1))
+      iex> set = mondays |> Stream.map(&Tempo.to_interval!/1) |> Tempo.IntervalSet.from_stream()
+      iex> set |> Tempo.IntervalSet.walk() |> Enum.take(2) |> Enum.map(& &1.from.time[:day])
+      [5, 12]
+
+  """
+  @spec from_stream(Enumerable.t(), keyword()) :: t()
+  def from_stream(enumerable, options \\ []) do
+    %__MODULE__{
+      intervals: enumerable,
+      metadata: Keyword.get(options, :metadata, %{}),
+      backend: Backend.Lazy
+    }
+  end
 
   @doc """
   Raising version of `new/1`.
@@ -209,7 +253,10 @@ defmodule Tempo.IntervalSet do
 
   """
   @spec to_list(t()) :: [Interval.t()]
-  def to_list(%__MODULE__{backend: backend, intervals: state}), do: backend.to_list(state)
+  def to_list(%__MODULE__{backend: backend, intervals: state} = set) do
+    ensure_bounded!(set, "Tempo.IntervalSet.to_list/1")
+    backend.to_list(state)
+  end
 
   @doc """
   An enumerable yielding the member intervals in time order.
@@ -264,7 +311,10 @@ defmodule Tempo.IntervalSet do
 
   """
   @spec count(t()) :: non_neg_integer()
-  def count(%__MODULE__{backend: backend, intervals: state}), do: backend.count(state)
+  def count(%__MODULE__{backend: backend, intervals: state} = set) do
+    ensure_bounded!(set, "Tempo.IntervalSet.count/1")
+    backend.count(state)
+  end
 
   @doc """
   Whether the set has no member intervals.
@@ -322,6 +372,42 @@ defmodule Tempo.IntervalSet do
   """
   @spec first(t()) :: Interval.t() | nil
   def first(%__MODULE__{backend: backend, intervals: state}), do: backend.first(state)
+
+  @doc """
+  Whether the set's backend holds a finite member list.
+
+  `true` on the list and tree backends; `false` on a lazy generator
+  backend, where aggregate operations (`to_list/1`, `count/1`,
+  `coalesce/1`, set algebra) raise `Tempo.UnboundedSetError` instead
+  of walking forever.
+
+  ### Arguments
+
+  * `set` is a `t:t/0`.
+
+  ### Returns
+
+  * `true` when every member can be materialised, otherwise `false`.
+
+  ### Examples
+
+      iex> Tempo.IntervalSet.bounded?(Tempo.IntervalSet.new!([]))
+      true
+
+  """
+  @spec bounded?(t()) :: boolean()
+  def bounded?(%__MODULE__{backend: backend, intervals: state}), do: backend.bounded?(state)
+
+  # The refusal gate for aggregate operations: raising (not an error
+  # tuple) because these functions have no error shape and a silent
+  # infinite walk is the alternative.
+  defp ensure_bounded!(%__MODULE__{} = set, operation) do
+    if bounded?(set) do
+      set
+    else
+      raise UnboundedSetError.exception(operation: operation, set: set)
+    end
+  end
 
   @doc false
   # Replace the member list, keeping the set's metadata (and, once
@@ -603,7 +689,7 @@ defmodule Tempo.IntervalSet do
 
   defp validate_all_bounded(intervals) do
     Enum.reduce_while(intervals, :ok, fn interval, :ok ->
-      case bounded?(interval) do
+      case bounded_member?(interval) do
         true ->
           {:cont, :ok}
 
@@ -618,11 +704,11 @@ defmodule Tempo.IntervalSet do
     end)
   end
 
-  defp bounded?(%Interval{from: from, to: to})
+  defp bounded_member?(%Interval{from: from, to: to})
        when from == :undefined or to == :undefined,
        do: false
 
-  defp bounded?(%Interval{}), do: true
+  defp bounded_member?(%Interval{}), do: true
 
   ## Ordering
 
