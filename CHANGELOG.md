@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+* `Tempo.shift/3` accepts `skipping:` — a busy set the shift jumps over, consuming the duration from free time only (`Tempo.shift(start, ~o"PT1H", skipping: meeting)`). Busy spans cost nothing to cross, an origin inside one first moves to its edge, and negative durations walk backward symmetrically.
+
 ### Changed
 
 * **Breaking:** `Enum` over a *bounded* recurring interval now enumerates the sub-points of every occurrence (delegating to the materialised `IntervalSet`), instead of silently walking only the first occurrence. An *unbounded* recurrence raises `Tempo.UnboundedRecurrenceError` — materialise with `to_interval/2` and a `:bound` first.

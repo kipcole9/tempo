@@ -20,8 +20,14 @@ defmodule Tempo.Math do
 
   """
 
+  alias Tempo.Compare
+  alias Tempo.Duration
+  alias Tempo.Interval
+  alias Tempo.IntervalEndpointsError
   alias Tempo.IntervalSet
+  alias Tempo.InvalidUnitError
   alias Tempo.Mask
+  alias Tempo.NonAnchoredError
   alias Tempo.RequiresAnchorError
 
   @doc """
@@ -1144,4 +1150,172 @@ defmodule Tempo.Math do
   def unit_minimum(:day_of_year), do: 1
   def unit_minimum(:day_of_week), do: 1
   def unit_minimum(_), do: 0
+
+  ## ---------------------------------------------------------
+  ## shift_skipping/3 — engine for `Tempo.shift/3` with `skipping:`
+  ## ---------------------------------------------------------
+
+  @doc false
+  # Walks the origin through free time only: the gaps between busy
+  # intervals consume the duration, busy spans are jumped at no cost,
+  # and an origin inside a busy span is first ejected to its edge
+  # (forward: the span's end; backward: its start). The duration must
+  # be exact (week/day/hour/minute/second) — a month or year of "free
+  # time" has no fixed length to consume.
+  def shift_skipping(%Tempo{} = origin, %Tempo.Duration{} = duration, busy) do
+    with :ok <- validate_anchored_origin(origin),
+         :ok <- validate_exact_skipping(duration),
+         {:ok, seconds} <- Duration.to_unit(duration, :second),
+         {:ok, busy_set} <- normalize_busy(busy),
+         :ok <- validate_busy_members(busy_set) do
+      Interval.reject_mixed_frame!(origin, busy_set)
+      walk_skipping(origin, seconds, busy_set)
+    end
+  end
+
+  defp validate_anchored_origin(origin) do
+    if Tempo.anchored?(origin) do
+      :ok
+    else
+      {:error, RequiresAnchorError.exception(value: origin, reason: :shift_skipping)}
+    end
+  end
+
+  defp validate_exact_skipping(%Tempo.Duration{time: time}) do
+    case Enum.find(time, fn {unit, amount} -> unit in [:year, :month] and amount != 0 end) do
+      nil ->
+        :ok
+
+      {unit, _amount} ->
+        {:error,
+         InvalidUnitError.exception(
+           unit: unit,
+           valid_units: [:week, :day, :hour, :minute, :second]
+         )}
+    end
+  end
+
+  defp normalize_busy(busy) when is_list(busy) do
+    busy
+    |> Enum.reduce_while({:ok, []}, fn member, {:ok, acc} ->
+      case Tempo.to_interval(member) do
+        {:ok, %Interval{} = interval} -> {:cont, {:ok, [interval | acc]}}
+        {:ok, %IntervalSet{intervals: members}} -> {:cont, {:ok, Enum.reverse(members) ++ acc}}
+        {:error, _} = error -> {:halt, error}
+      end
+    end)
+    |> case do
+      {:ok, intervals} -> intervals |> Enum.reverse() |> IntervalSet.new() |> coalesce_busy()
+      {:error, _} = error -> error
+    end
+  end
+
+  defp normalize_busy(busy) do
+    busy |> Tempo.to_interval_set() |> coalesce_busy()
+  end
+
+  defp coalesce_busy({:ok, %IntervalSet{} = set}), do: {:ok, IntervalSet.coalesce(set)}
+  defp coalesce_busy({:error, _} = error), do: error
+
+  defp validate_busy_members(%IntervalSet{intervals: intervals}) do
+    Enum.find_value(intervals, :ok, &busy_member_error/1)
+  end
+
+  defp busy_member_error(%Interval{from: %Tempo{} = from, to: %Tempo{} = to}) do
+    if Tempo.anchored?(from) and Tempo.anchored?(to) do
+      nil
+    else
+      {:error,
+       NonAnchoredError.exception(
+         operation:
+           "use a non-anchored interval as a busy span in `skipping:` " <>
+             "(anchor it via `Tempo.anchor/2` first)"
+       )}
+    end
+  end
+
+  defp busy_member_error(%Interval{} = interval) do
+    {:error,
+     IntervalEndpointsError.exception(
+       operation: :shift_skipping,
+       interval: interval,
+       reason: :open_endpoint
+     )}
+  end
+
+  # The walk runs on gregorian UTC seconds so gaps compare exactly
+  # across calendars and zones. Spans are the coalesced busy set:
+  # sorted, disjoint, half-open `[from, to)`.
+  defp walk_skipping(origin, seconds, %IntervalSet{intervals: intervals}) do
+    origin_s = Compare.to_utc_seconds(origin)
+
+    spans =
+      Enum.map(intervals, fn %Interval{from: from, to: to} ->
+        {Compare.to_utc_seconds(from), Compare.to_utc_seconds(to), from, to}
+      end)
+
+    if seconds >= 0 do
+      walk_forward(origin, origin_s, seconds, spans)
+    else
+      walk_backward(origin, origin_s, -seconds, Enum.reverse(spans))
+    end
+  end
+
+  defp walk_forward(pos, _pos_s, remaining, []), do: land(pos, remaining)
+
+  defp walk_forward(pos, pos_s, remaining, [{from_s, to_s, _from, to} | rest]) do
+    cond do
+      # Busy span entirely behind the position (its exclusive end
+      # at or before us) — irrelevant.
+      to_s <= pos_s ->
+        walk_forward(pos, pos_s, remaining, rest)
+
+      # Position inside `[from, to)` — eject to the span's end at
+      # no cost, then keep walking.
+      pos_s >= from_s ->
+        walk_forward(to, to_s, remaining, rest)
+
+      # The free run before this span satisfies what remains.
+      # Equality lands exactly on the span's start: the duration is
+      # fully consumed at the instant the busy time begins.
+      remaining <= from_s - pos_s ->
+        land(pos, remaining)
+
+      true ->
+        walk_forward(to, to_s, remaining - (from_s - pos_s), rest)
+    end
+  end
+
+  defp walk_backward(pos, _pos_s, remaining, []), do: land(pos, -remaining)
+
+  defp walk_backward(pos, pos_s, remaining, [{from_s, to_s, from, _to} | rest]) do
+    cond do
+      # Busy span entirely ahead of the position.
+      from_s > pos_s ->
+        walk_backward(pos, pos_s, remaining, rest)
+
+      # Position inside `[from, to)` — eject backward to the span's
+      # start at no cost. The exclusive end (`pos_s == to_s`) is
+      # already free, so it does not eject.
+      pos_s < to_s ->
+        walk_backward(from, from_s, remaining, rest)
+
+      remaining <= pos_s - to_s ->
+        land(pos, -remaining)
+
+      true ->
+        walk_backward(from, from_s, remaining - (pos_s - to_s), rest)
+    end
+  end
+
+  defp land(pos, seconds) when seconds == 0, do: pos
+
+  defp land(pos, seconds) do
+    add(pos, Duration.build(second: integer_seconds(seconds)))
+  end
+
+  # `Duration.to_unit/2` returns a float magnitude; the walk's gap
+  # arithmetic preserves integral values exactly, so an integral
+  # float converts losslessly.
+  defp integer_seconds(seconds), do: trunc(seconds)
 end

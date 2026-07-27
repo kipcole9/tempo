@@ -3415,6 +3415,23 @@ defmodule Tempo do
     `[year: 2]`. Valid units: `:year`, `:month`, `:week`, `:day`,
     `:hour`, `:minute`, `:second`. Keyword amounts may be negative.
 
+  * `options` is a keyword list of options.
+
+  ### Options
+
+  * `:skipping` is a busy set the shift jumps over: the duration is
+    consumed from *free* time only. Accepts anything
+    `Tempo.to_interval_set/1` accepts (an interval, an interval set, a
+    `t:t/0`, a bounded recurrence), or a list of such values. The busy
+    spans cost nothing to cross, and an origin already inside a busy
+    span first moves to its edge (forward: the end; backward: the
+    start) at no cost. The duration must be exact — built from
+    `:week`/`:day`/`:hour`/`:minute`/`:second` — because a month or
+    year of free time has no fixed length; `:year`/`:month` components
+    return `{:error, %Tempo.InvalidUnitError{}}`. Busy spans must be
+    anchored and bounded. In the keyword-units form `:skipping` may
+    ride in the same list: `Tempo.shift(t, hour: -1, skipping: busy)`.
+
   ### Returns
 
   * The shifted `t:t/0`.
@@ -3452,15 +3469,39 @@ defmodule Tempo do
       iex> match?({:error, %Tempo.RequiresAnchorError{}}, Tempo.shift(~o"1M31D", ~o"P1M"))
       true
 
+  One hour of working time from 09:30, skipping a 10:00–11:00 meeting,
+  ends at 11:30 — the meeting hour costs nothing:
+
+      iex> meeting = ~o"2026-06-15T10:00/2026-06-15T11:00"
+      iex> Tempo.shift(~o"2026-06-15T09:30", ~o"PT1H", skipping: meeting)
+      ~o"2026Y6M15DT11H30M0S"
+
+      iex> meeting = ~o"2026-06-15T10:00/2026-06-15T11:00"
+      iex> Tempo.shift(~o"2026-06-15T10:30", ~o"PT0S", skipping: meeting)
+      ~o"2026Y6M15DT11H0M"
+
   """
-  @spec shift(t(), Tempo.Duration.t() | keyword()) ::
+  @spec shift(t(), Tempo.Duration.t() | keyword(), keyword()) ::
           t() | Tempo.Set.t() | Tempo.IntervalSet.t() | {:error, error_reason()}
-  def shift(%Tempo{} = tempo, %Tempo.Duration{} = duration) do
+  def shift(tempo, shift, options \\ [])
+
+  def shift(%Tempo{} = tempo, %Tempo.Duration{} = duration, []) do
     Math.add(tempo, duration)
   end
 
-  def shift(%Tempo{} = tempo, units) when is_list(units) do
-    Math.add(tempo, Duration.build(units))
+  def shift(%Tempo{} = tempo, %Tempo.Duration{} = duration, options) when is_list(options) do
+    case Keyword.fetch(options, :skipping) do
+      {:ok, busy} -> Math.shift_skipping(tempo, duration, busy)
+      :error -> Math.add(tempo, duration)
+    end
+  end
+
+  def shift(%Tempo{} = tempo, units, options) when is_list(units) do
+    # In the keyword form the options merge into the same list —
+    # `shift(t, second: -3600, skipping: busy)` — so split them
+    # out before the rest becomes a duration.
+    {skip_options, units} = Keyword.split(units, [:skipping])
+    shift(tempo, Duration.build(units), Keyword.merge(skip_options, options))
   end
 
   ## ---------------------------------------------------------
