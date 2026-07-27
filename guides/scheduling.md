@@ -244,6 +244,25 @@ mutual
 #=> 11:00–12:00, 12:00–13:00, 13:00–14:00, 15:00–16:00
 ```
 
+### Arrival time — shift through free time only
+
+Free-busy answers *where* something can go. The dual question — **when will it be done?** — is a shift that consumes free time only: `Tempo.shift/3` with `skipping:` jumps busy spans at no cost.
+
+```elixir
+start   = ~o"2026-06-19T15:00"                        # Friday afternoon
+weekend = ~o"2026-06-19/2026-06-23" |> Enum.filter(&Tempo.weekend?/1)
+freeze  = ~o"2026-06-22T00:00/2026-06-22T06:00"       # Monday deploy freeze
+
+Tempo.shift(start, ~o"PT12H", skipping: [freeze | weekend])
+#=> ~o"2026Y6M22DT9H0M0S"
+```
+
+> *"Twelve hours of processing starting **Friday 15:00**: nine hours run before midnight, the **weekend** is skipped, the **deploy freeze** is skipped, and the remaining three hours finish **Monday 09:00**."*
+
+The weekend comes from the calendar's own vocabulary — `Tempo.weekend?/1` is territory-aware, so `Tempo.weekend?(&1, :SA)` would skip Friday–Saturday instead. The busy set accepts any mix of intervals, day values, interval sets, or bounded recurrences; overlapping and adjacent spans are coalesced before the walk.
+
+The rules at the edges: an origin already inside a busy span first moves to its end (a shift of `PT0S` from inside a meeting lands at the meeting's end); a negative duration walks backward symmetrically; and the duration must be exact — `~o"P1M"` of free time has no fixed length, so `:year`/`:month` components return `{:error, %Tempo.InvalidUnitError{}}`.
+
 > *"The bookable hour-long slots are the mutual windows cut into one-hour pieces."* The 09:00–09:30 opening is too short to hold an hour, so it drops out. Pass `every: ~o"PT30M"` to offer a start on every half-hour instead (overlapping slots), or a larger `:every` to leave gaps between offered times.
 
 This is **instant-level** set algebra — you are asking about *time regions*, not preserving individual calendar events — so `difference`/`intersection` are the right operators rather than their member-preserving companions. The [set operations guide](./set-operations.md) explains that distinction in full; to load real calendars from `.ics` files instead of inline busy sets, see the free-busy recipe in the [cookbook](./cookbook.md).
