@@ -196,7 +196,7 @@ defmodule Tempo.Select do
     |> IntervalSet.to_list()
     |> Enum.reduce_while({:ok, []}, fn member, {:ok, acc} ->
       case select(member, selector) do
-        {:ok, %IntervalSet{intervals: ivs}} -> {:cont, {:ok, acc ++ ivs}}
+        {:ok, %IntervalSet{} = set} -> {:cont, {:ok, acc ++ IntervalSet.to_list(set)}}
         {:error, _} = err -> {:halt, err}
       end
     end)
@@ -452,7 +452,7 @@ defmodule Tempo.Select do
 
     case Tempo.to_interval(new_tempo) do
       {:ok, %Interval{} = iv} -> iv
-      {:ok, %IntervalSet{intervals: [iv | _]}} -> iv
+      {:ok, %IntervalSet{} = set} -> IntervalSet.first(set)
       _ -> nil
     end
   end
@@ -502,7 +502,7 @@ defmodule Tempo.Select do
     case day_of_week_only(c_time) do
       {:ok, weekdays} ->
         case filter_by_weekdays(base, weekdays) do
-          {:ok, %IntervalSet{intervals: ivs}} -> ivs
+          {:ok, %IntervalSet{} = set} -> IntervalSet.to_list(set)
           {:error, _} = err -> err
         end
 
@@ -544,8 +544,10 @@ defmodule Tempo.Select do
       {:ok, %Interval{} = iv} ->
         intersect_with_base(trim_iv_to_constraint(iv, c_time), base)
 
-      {:ok, %IntervalSet{intervals: ivs}} ->
-        Enum.map(ivs, &intersect_with_base(trim_iv_to_constraint(&1, c_time), base))
+      {:ok, %IntervalSet{} = set} ->
+        set
+        |> IntervalSet.to_list()
+        |> Enum.map(&intersect_with_base(trim_iv_to_constraint(&1, c_time), base))
 
       _ ->
         nil

@@ -1080,16 +1080,11 @@ defmodule Tempo.Interval do
 
   defp to_single_interval(%__MODULE__{from: %Tempo{}, to: %Tempo{}} = iv, _label), do: {:ok, iv}
 
-  defp to_single_interval(%IntervalSet{intervals: [iv]}, _label), do: {:ok, iv}
-
-  defp to_single_interval(%IntervalSet{intervals: ivs}, label) do
-    {:error,
-     ArgumentError.exception(
-       "Tempo.Interval.relation/2 requires a single bounded interval on each side. " <>
-         "Operand #{inspect(label)} is an IntervalSet with #{length(ivs)} members. " <>
-         "For set-level questions use `Tempo.overlaps?/2`, `Tempo.disjoint?/2`, " <>
-         "`Tempo.intersection/2`, or `Tempo.IntervalSet.relation_matrix/2`."
-     )}
+  defp to_single_interval(%IntervalSet{} = set, label) do
+    case IntervalSet.to_list(set) do
+      [iv] -> {:ok, iv}
+      ivs -> multi_member_error(ivs, label)
+    end
   end
 
   defp to_single_interval(%Tempo{} = point, label) do
@@ -1121,6 +1116,16 @@ defmodule Tempo.Interval do
      ArgumentError.exception(
        "Tempo.Interval.relation/2 cannot classify operand #{inspect(label)}: " <>
          "#{inspect(other)}"
+     )}
+  end
+
+  defp multi_member_error(ivs, label) do
+    {:error,
+     ArgumentError.exception(
+       "Tempo.Interval.relation/2 requires a single bounded interval on each side. " <>
+         "Operand #{inspect(label)} is an IntervalSet with #{length(ivs)} members. " <>
+         "For set-level questions use `Tempo.overlaps?/2`, `Tempo.disjoint?/2`, " <>
+         "`Tempo.intersection/2`, or `Tempo.IntervalSet.relation_matrix/2`."
      )}
   end
 
@@ -2176,7 +2181,7 @@ defmodule Tempo.Interval do
   defp frame_tempo(%Tempo{} = tempo), do: tempo
   defp frame_tempo(%__MODULE__{from: %Tempo{} = from}), do: from
   defp frame_tempo(%__MODULE__{to: %Tempo{} = to}), do: to
-  defp frame_tempo(%IntervalSet{intervals: [interval | _rest]}), do: frame_tempo(interval)
+  defp frame_tempo(%IntervalSet{} = set), do: frame_tempo(IntervalSet.first(set))
   defp frame_tempo(_other), do: nil
 
   defp certainty(possible, concept) do
@@ -2296,7 +2301,7 @@ defmodule Tempo.Interval do
   defp mask_candidates(operand) do
     if non_contiguous_mask?(operand) do
       case Tempo.to_interval(operand) do
-        {:ok, %IntervalSet{intervals: intervals}} -> {:ok, intervals}
+        {:ok, %IntervalSet{} = set} -> {:ok, IntervalSet.to_list(set)}
         {:ok, %__MODULE__{} = interval} -> {:ok, [interval]}
         {:error, _} = error -> error
       end
@@ -2339,8 +2344,7 @@ defmodule Tempo.Interval do
   defp leading_time_unit(%Tempo{time: [{unit, _value} | _rest]}), do: unit
   defp leading_time_unit(%__MODULE__{from: %Tempo{} = from}), do: leading_time_unit(from)
 
-  defp leading_time_unit(%IntervalSet{intervals: [interval | _rest]}),
-    do: leading_time_unit(interval)
+  defp leading_time_unit(%IntervalSet{} = set), do: leading_time_unit(IntervalSet.first(set))
 
   defp leading_time_unit(_operand), do: nil
 
@@ -2348,7 +2352,14 @@ defmodule Tempo.Interval do
 
   defp anchored_operand?(%Tempo{} = value), do: Tempo.anchored?(value)
   defp anchored_operand?(%__MODULE__{from: %Tempo{} = from}), do: Tempo.anchored?(from)
-  defp anchored_operand?(%IntervalSet{intervals: [interval]}), do: anchored_operand?(interval)
+
+  defp anchored_operand?(%IntervalSet{} = set) do
+    case IntervalSet.to_list(set) do
+      [interval] -> anchored_operand?(interval)
+      _members -> true
+    end
+  end
+
   defp anchored_operand?(_operand), do: true
 
   defp masked_operand?(%Tempo{time: time}), do: Enum.any?(time, &masked_field?/1)
@@ -2390,7 +2401,12 @@ defmodule Tempo.Interval do
     {:ok, ordered}
   end
 
-  defp placements(%IntervalSet{intervals: [interval]}), do: placements(interval)
+  defp placements(%IntervalSet{} = set) do
+    case IntervalSet.to_list(set) do
+      [interval] -> placements(interval)
+      _members -> to_single_interval(set, :graded)
+    end
+  end
 
   defp placements(operand), do: to_single_interval(operand, :graded)
 
@@ -2510,7 +2526,12 @@ defmodule Tempo.Interval do
     {margin_duration(from_endpoint), margin_duration(to_endpoint)}
   end
 
-  defp endpoint_margins(%IntervalSet{intervals: [interval]}), do: endpoint_margins(interval)
+  defp endpoint_margins(%IntervalSet{} = set) do
+    case IntervalSet.to_list(set) do
+      [interval] -> endpoint_margins(interval)
+      _members -> {nil, nil}
+    end
+  end
 
   defp endpoint_margins(_operand), do: {nil, nil}
 

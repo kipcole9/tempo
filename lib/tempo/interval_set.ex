@@ -199,6 +199,74 @@ defmodule Tempo.IntervalSet do
   def count(%__MODULE__{intervals: intervals}), do: length(intervals)
 
   @doc """
+  Whether the set has no member intervals.
+
+  ### Arguments
+
+  * `set` is a `t:t/0`.
+
+  ### Returns
+
+  * `true` when the set is empty, otherwise `false`.
+
+  ### Examples
+
+      iex> Tempo.IntervalSet.empty?(Tempo.IntervalSet.new!([]))
+      true
+
+      iex> set = Tempo.IntervalSet.new!([
+      ...>   %Tempo.Interval{from: ~o"2026-06-01", to: ~o"2026-06-10"}
+      ...> ])
+      iex> Tempo.IntervalSet.empty?(set)
+      false
+
+  """
+  @spec empty?(t()) :: boolean()
+  def empty?(%__MODULE__{intervals: intervals}), do: intervals == []
+
+  @doc """
+  The earliest member interval of the set, or `nil` when the set
+  is empty.
+
+  Members are held in time order, so this is the interval with the
+  earliest `from` endpoint.
+
+  ### Arguments
+
+  * `set` is a `t:t/0`.
+
+  ### Returns
+
+  * The first `t:Tempo.Interval.t/0`, or `nil` for an empty set.
+
+  ### Examples
+
+      iex> set = Tempo.IntervalSet.new!([
+      ...>   %Tempo.Interval{from: ~o"2026-07-01", to: ~o"2026-07-10"},
+      ...>   %Tempo.Interval{from: ~o"2026-06-01", to: ~o"2026-06-10"}
+      ...> ])
+      iex> Tempo.IntervalSet.first(set).from
+      ~o"2026Y6M1D"
+
+      iex> Tempo.IntervalSet.first(Tempo.IntervalSet.new!([]))
+      nil
+
+  """
+  @spec first(t()) :: Interval.t() | nil
+  def first(%__MODULE__{intervals: []}), do: nil
+  def first(%__MODULE__{intervals: [first | _rest]}), do: first
+
+  @doc false
+  # Replace the member list, keeping the set's metadata (and, once
+  # backends land, its backend). The internal counterpart to `new/2`
+  # for representation-preserving rewrites; members must already be
+  # sorted and disjoint.
+  @spec with_intervals(t(), [Interval.t()]) :: t()
+  def with_intervals(%__MODULE__{} = set, intervals) when is_list(intervals) do
+    %{set | intervals: intervals}
+  end
+
+  @doc """
   Total covered duration of the set — the sum of every member's
   length.
 

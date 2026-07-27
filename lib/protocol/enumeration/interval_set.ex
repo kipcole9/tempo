@@ -32,8 +32,8 @@ defimpl Enumerable, for: Tempo.IntervalSet do
   end
 
   @impl Enumerable
-  def reduce(%Tempo.IntervalSet{intervals: intervals}, acc, fun) do
-    do_reduce(intervals, acc, fun)
+  def reduce(%Tempo.IntervalSet{} = set, acc, fun) do
+    do_reduce(Tempo.IntervalSet.to_list(set), acc, fun)
   end
 
   defp do_reduce(_intervals, {:halt, acc}, _fun) do

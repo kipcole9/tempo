@@ -132,9 +132,9 @@ if Code.ensure_loaded?(ICal) do
         ...> END:VCALENDAR
         ...> \"\"\"
         iex> {:ok, set} = Tempo.ICal.from_ical(ics)
-        iex> length(set.intervals)
+        iex> Tempo.IntervalSet.count(set)
         1
-        iex> [iv] = set.intervals
+        iex> [iv] = Tempo.IntervalSet.to_list(set)
         iex> iv.metadata.summary
         "Test meeting"
         iex> iv.metadata.location

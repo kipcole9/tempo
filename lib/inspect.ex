@@ -4,6 +4,7 @@ defmodule Tempo.Inspect do
   import Kernel, except: [inspect: 1]
 
   alias Localize.Validity.U
+  alias Tempo.IntervalSet
   alias Tempo.Iso8601EncodeError
   alias Tempo.Microsecond
 
@@ -192,14 +193,15 @@ defmodule Tempo.Inspect do
   render as `#Tempo.IntervalSet<[]>`.
 
   """
-  def inspect_interval_set(%Tempo.IntervalSet{intervals: [], metadata: metadata}, _opts) do
-    "#Tempo.IntervalSet<[]" <> set_metadata_tag(metadata) <> ">"
+  def inspect_interval_set(%Tempo.IntervalSet{metadata: metadata} = set, opts) do
+    if IntervalSet.empty?(set) do
+      "#Tempo.IntervalSet<[]" <> set_metadata_tag(metadata) <> ">"
+    else
+      inspect_interval_set_members(IntervalSet.to_list(set), metadata, opts)
+    end
   end
 
-  def inspect_interval_set(
-        %Tempo.IntervalSet{intervals: intervals, metadata: metadata},
-        opts
-      ) do
+  defp inspect_interval_set_members(intervals, metadata, opts) do
     {shown, truncated?} = take_within_limit(intervals, opts.limit)
 
     rendered =

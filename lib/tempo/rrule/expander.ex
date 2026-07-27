@@ -37,6 +37,7 @@ defmodule Tempo.RRule.Expander do
   """
 
   alias Tempo.Interval
+  alias Tempo.IntervalSet
   alias Tempo.RRule.Rule
 
   @doc """
@@ -201,7 +202,7 @@ defmodule Tempo.RRule.Expander do
     # silently lose event identity. Force `coalesce: false`
     # regardless of what the caller passed.
     case Tempo.to_interval(ast, Keyword.put(options, :coalesce, false)) do
-      {:ok, %Tempo.IntervalSet{intervals: intervals}} -> {:ok, intervals}
+      {:ok, %Tempo.IntervalSet{} = set} -> {:ok, IntervalSet.to_list(set)}
       {:ok, %Interval{} = single} -> {:ok, [single]}
       {:error, _} = err -> err
     end

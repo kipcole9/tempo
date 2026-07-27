@@ -4134,22 +4134,25 @@ defmodule Tempo do
   # boundary.
   defp bound_upper(bound) do
     case to_interval_set(bound) do
-      {:ok, %Tempo.IntervalSet{intervals: intervals}} when intervals != [] ->
-        upper =
-          intervals
-          |> Enum.map(& &1.to)
-          |> Enum.reduce(&later_endpoint/2)
+      {:ok, %Tempo.IntervalSet{} = set} -> bound_upper_from_set(set)
+      {:error, _} = err -> err
+    end
+  end
 
-        {:ok, upper}
+  defp bound_upper_from_set(set) do
+    if IntervalSet.empty?(set) do
+      {:error,
+       UnboundedRecurrenceError.exception(
+         reason: "Empty `:bound` — nothing to terminate the recurrence against."
+       )}
+    else
+      upper =
+        set
+        |> IntervalSet.to_list()
+        |> Enum.map(& &1.to)
+        |> Enum.reduce(&later_endpoint/2)
 
-      {:ok, _} ->
-        {:error,
-         UnboundedRecurrenceError.exception(
-           reason: "Empty `:bound` — nothing to terminate the recurrence against."
-         )}
-
-      {:error, _} = err ->
-        err
+      {:ok, upper}
     end
   end
 
@@ -4266,8 +4269,8 @@ defmodule Tempo do
           {:ok, %Tempo.Interval{} = i} ->
             {:cont, {:ok, [i | acc]}}
 
-          {:ok, %Tempo.IntervalSet{intervals: inner}} ->
-            {:cont, {:ok, Enum.reverse(inner) ++ acc}}
+          {:ok, %Tempo.IntervalSet{} = inner_set} ->
+            {:cont, {:ok, Enum.reverse(IntervalSet.to_list(inner_set)) ++ acc}}
 
           {:error, _} = err ->
             {:halt, err}
@@ -4306,7 +4309,7 @@ defmodule Tempo do
 
       iex> {:ok, tempo} = Tempo.from_iso8601("2026-01")
       iex> {:ok, set} = Tempo.to_interval_set(tempo)
-      iex> length(set.intervals)
+      iex> Tempo.IntervalSet.count(set)
       1
 
   """

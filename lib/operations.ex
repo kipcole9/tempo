@@ -110,14 +110,14 @@ defmodule Tempo.Operations do
 
   defp maybe_split_midnight_crossers(a, b, _class_a, _class_b), do: {:ok, a, b}
 
-  defp split_crossers(%IntervalSet{intervals: intervals} = set) do
-    split = Enum.flat_map(intervals, &maybe_split/1)
+  defp split_crossers(%IntervalSet{} = set) do
+    split = set |> IntervalSet.to_list() |> Enum.flat_map(&maybe_split/1)
 
     case IntervalSet.new(split) do
       {:ok, sorted} -> sorted
       # Should never error — split intervals are always bounded.
       # Fall back to unsorted form rather than raise.
-      _ -> %{set | intervals: split}
+      _ -> IntervalSet.with_intervals(set, split)
     end
   end
 
@@ -212,9 +212,9 @@ defmodule Tempo.Operations do
 
   defp anchor_to_days(%IntervalSet{} = non_anchored_set, %IntervalSet{} = bound_set) do
     materialised =
-      for bound_interval <- bound_set.intervals,
+      for bound_interval <- IntervalSet.to_list(bound_set),
           day_tempo <- days_in(bound_interval),
-          na_interval <- non_anchored_set.intervals do
+          na_interval <- IntervalSet.to_list(non_anchored_set) do
         anchor_interval_to_day(na_interval, day_tempo)
       end
 
@@ -341,10 +341,11 @@ defmodule Tempo.Operations do
   # position; `:non_anchored` = time-of-day only; `:empty` = empty
   # IntervalSet (identity element, compatible with any class).
 
-  defp anchor_class(%IntervalSet{intervals: []}), do: :empty
-
-  defp anchor_class(%IntervalSet{intervals: [first | _]}) do
-    anchor_class(first)
+  defp anchor_class(%IntervalSet{} = set) do
+    case IntervalSet.first(set) do
+      nil -> :empty
+      first -> anchor_class(first)
+    end
   end
 
   defp anchor_class(%Interval{from: %Tempo{} = from}), do: anchor_class(from)
@@ -363,8 +364,7 @@ defmodule Tempo.Operations do
   # it cannot be placed against a month/day value.
   defp same_axis?(a, b), do: leading_unit(a) == leading_unit(b)
 
-  defp leading_unit(%IntervalSet{intervals: [first | _]}), do: leading_unit(first)
-  defp leading_unit(%IntervalSet{intervals: []}), do: nil
+  defp leading_unit(%IntervalSet{} = set), do: leading_unit(IntervalSet.first(set))
   defp leading_unit(%Interval{from: %Tempo{} = from}), do: leading_unit(from)
   defp leading_unit(%Interval{to: %Tempo{} = to}), do: leading_unit(to)
   defp leading_unit(%Interval{}), do: nil
@@ -397,11 +397,14 @@ defmodule Tempo.Operations do
   ## type otherwise — so `to_iso8601/1` output re-parses in the
   ## same calendar.
 
-  defp convert_calendar(%IntervalSet{intervals: []} = empty, _other), do: {:ok, empty}
+  defp convert_calendar(%IntervalSet{} = b_set, %IntervalSet{} = a_set) do
+    convert_calendar_first(b_set, IntervalSet.first(b_set), IntervalSet.first(a_set))
+  end
 
-  defp convert_calendar(%IntervalSet{intervals: [b_first | _]} = b_set, %IntervalSet{
-         intervals: [a_first | _]
-       }) do
+  defp convert_calendar_first(b_set, nil, _a_first), do: {:ok, b_set}
+  defp convert_calendar_first(b_set, _b_first, nil), do: {:ok, b_set}
+
+  defp convert_calendar_first(b_set, b_first, a_first) do
     a_cal = endpoint_calendar(a_first)
     b_cal = endpoint_calendar(b_first)
 
@@ -419,15 +422,13 @@ defmodule Tempo.Operations do
     end
   end
 
-  defp convert_calendar(b_set, _a_set), do: {:ok, b_set}
-
   defp endpoint_calendar(%Interval{from: %Tempo{calendar: cal}}), do: cal
   defp endpoint_calendar(%Interval{to: %Tempo{calendar: cal}}), do: cal
   defp endpoint_calendar(_), do: nil
 
-  defp convert_calendar_intervals(%IntervalSet{intervals: intervals} = set, target_calendar) do
+  defp convert_calendar_intervals(%IntervalSet{} = set, target_calendar) do
     converted =
-      Enum.map(intervals, fn %Interval{from: from, to: to} = interval ->
+      Enum.map(IntervalSet.to_list(set), fn %Interval{from: from, to: to} = interval ->
         %{
           interval
           | from: convert_tempo_calendar(from, target_calendar),
@@ -435,7 +436,7 @@ defmodule Tempo.Operations do
         }
       end)
 
-    {:ok, %{set | intervals: converted}}
+    {:ok, IntervalSet.with_intervals(set, converted)}
   end
 
   # Convert a single %Tempo{}'s year/month/day into the target
@@ -558,8 +559,8 @@ defmodule Tempo.Operations do
     end
   end
 
-  defp week_axis?(%IntervalSet{intervals: intervals}) do
-    Enum.any?(intervals, fn %Interval{from: from, to: to} ->
+  defp week_axis?(%IntervalSet{} = set) do
+    Enum.any?(IntervalSet.to_list(set), fn %Interval{from: from, to: to} ->
       week_axis_endpoint?(from) or week_axis_endpoint?(to)
     end)
   end
@@ -615,10 +616,15 @@ defmodule Tempo.Operations do
   ## Resolution alignment — extend the coarser operand's endpoints
   ## to the finer resolution.
 
-  defp align_resolution(%IntervalSet{intervals: []} = a, b), do: {:ok, a, b}
-  defp align_resolution(a, %IntervalSet{intervals: []} = b), do: {:ok, a, b}
-
   defp align_resolution(a_set, b_set) do
+    if IntervalSet.empty?(a_set) or IntervalSet.empty?(b_set) do
+      {:ok, a_set, b_set}
+    else
+      align_nonempty_resolution(a_set, b_set)
+    end
+  end
+
+  defp align_nonempty_resolution(a_set, b_set) do
     a_res = finest_resolution(a_set)
     b_res = finest_resolution(b_set)
 
@@ -634,8 +640,9 @@ defmodule Tempo.Operations do
     end
   end
 
-  defp finest_resolution(%IntervalSet{intervals: intervals}) do
-    intervals
+  defp finest_resolution(%IntervalSet{} = set) do
+    set
+    |> IntervalSet.to_list()
     |> Enum.flat_map(fn %Interval{from: from, to: to} ->
       [Tempo.resolution(from), Tempo.resolution(to)]
     end)
@@ -667,9 +674,9 @@ defmodule Tempo.Operations do
   # member order and propagating the first `{:error, _}` returned.
   # Both callers apply monotone per-endpoint transforms, so the
   # from-sorted precondition the sweeps rely on is preserved.
-  defp map_endpoints(%IntervalSet{intervals: intervals} = set, mapper) do
-    with {:ok, mapped} <- map_interval_endpoints(intervals, mapper, []) do
-      {:ok, %{set | intervals: mapped}}
+  defp map_endpoints(%IntervalSet{} = set, mapper) do
+    with {:ok, mapped} <- map_interval_endpoints(IntervalSet.to_list(set), mapper, []) do
+      {:ok, IntervalSet.with_intervals(set, mapped)}
     end
   end
 
@@ -704,7 +711,9 @@ defmodule Tempo.Operations do
         when operand: Tempo.t() | Interval.t() | IntervalSet.t() | Tempo.Set.t()
   def union(a, b, opts \\ []) do
     with {:ok, {a_set, b_set}} <- align(a, b, opts) do
-      IntervalSet.new(a_set.intervals ++ b_set.intervals, metadata: a_set.metadata)
+      IntervalSet.new(IntervalSet.to_list(a_set) ++ IntervalSet.to_list(b_set),
+        metadata: a_set.metadata
+      )
     end
   end
 
@@ -732,7 +741,7 @@ defmodule Tempo.Operations do
         when operand: Tempo.t() | Interval.t() | IntervalSet.t() | Tempo.Set.t()
   def intersection(a, b, opts \\ []) do
     with {:ok, {a_set, b_set}} <- align(a, b, opts) do
-      IntervalSet.new(sweep_intersection(a_set.intervals, b_set.intervals),
+      IntervalSet.new(sweep_intersection(IntervalSet.to_list(a_set), IntervalSet.to_list(b_set)),
         metadata: a_set.metadata
       )
     end
@@ -756,7 +765,7 @@ defmodule Tempo.Operations do
         when operand: Tempo.t() | Interval.t() | IntervalSet.t() | Tempo.Set.t()
   def members_overlapping(a, b, opts \\ []) do
     with {:ok, {a_set, b_set}} <- align(a, b, opts) do
-      result = sweep_members(a_set.intervals, b_set.intervals, :overlapping)
+      result = sweep_members(IntervalSet.to_list(a_set), IntervalSet.to_list(b_set), :overlapping)
       IntervalSet.new(result, metadata: a_set.metadata)
     end
   end
@@ -886,7 +895,10 @@ defmodule Tempo.Operations do
           coalesced_input = IntervalSet.coalesce(input_set)
 
           IntervalSet.new(
-            sweep_difference(bound_set.intervals, coalesced_input.intervals),
+            sweep_difference(
+              IntervalSet.to_list(bound_set),
+              IntervalSet.to_list(coalesced_input)
+            ),
             metadata: bound_set.metadata
           )
         end
@@ -917,7 +929,7 @@ defmodule Tempo.Operations do
         when operand: Tempo.t() | Interval.t() | IntervalSet.t() | Tempo.Set.t()
   def difference(a, b, opts \\ []) do
     with {:ok, {a_set, b_set}} <- align(a, b, opts) do
-      IntervalSet.new(sweep_difference(a_set.intervals, b_set.intervals),
+      IntervalSet.new(sweep_difference(IntervalSet.to_list(a_set), IntervalSet.to_list(b_set)),
         metadata: a_set.metadata
       )
     end
@@ -942,7 +954,7 @@ defmodule Tempo.Operations do
         when operand: Tempo.t() | Interval.t() | IntervalSet.t() | Tempo.Set.t()
   def members_outside(a, b, opts \\ []) do
     with {:ok, {a_set, b_set}} <- align(a, b, opts) do
-      result = sweep_members(a_set.intervals, b_set.intervals, :outside)
+      result = sweep_members(IntervalSet.to_list(a_set), IntervalSet.to_list(b_set), :outside)
       IntervalSet.new(result, metadata: a_set.metadata)
     end
   end
@@ -1029,7 +1041,7 @@ defmodule Tempo.Operations do
   def symmetric_difference(a, b, opts \\ []) do
     with {:ok, a_minus_b} <- difference(a, b, opts),
          {:ok, b_minus_a} <- difference(b, a, opts) do
-      IntervalSet.new(a_minus_b.intervals ++ b_minus_a.intervals,
+      IntervalSet.new(IntervalSet.to_list(a_minus_b) ++ IntervalSet.to_list(b_minus_a),
         metadata: a_minus_b.metadata
       )
     end
@@ -1051,7 +1063,7 @@ defmodule Tempo.Operations do
   def members_in_exactly_one(a, b, opts \\ []) do
     with {:ok, a_minus_b} <- members_outside(a, b, opts),
          {:ok, b_minus_a} <- members_outside(b, a, opts) do
-      IntervalSet.new(a_minus_b.intervals ++ b_minus_a.intervals,
+      IntervalSet.new(IntervalSet.to_list(a_minus_b) ++ IntervalSet.to_list(b_minus_a),
         metadata: a_minus_b.metadata
       )
     end
@@ -1071,8 +1083,7 @@ defmodule Tempo.Operations do
     Interval.reject_mixed_frame!(a, b)
 
     case intersection(a, b, opts) do
-      {:ok, %IntervalSet{intervals: []}} -> true
-      {:ok, _} -> false
+      {:ok, %IntervalSet{} = result} -> IntervalSet.empty?(result)
       {:error, exception} -> raise exception
     end
   end
@@ -1095,8 +1106,7 @@ defmodule Tempo.Operations do
     Interval.reject_mixed_frame!(a, b)
 
     case difference(a, b, opts) do
-      {:ok, %IntervalSet{intervals: []}} -> true
-      {:ok, _} -> false
+      {:ok, %IntervalSet{} = result} -> IntervalSet.empty?(result)
       {:error, exception} -> raise exception
     end
   end
@@ -1121,7 +1131,9 @@ defmodule Tempo.Operations do
       {:ok, {a_set, b_set}} ->
         coalesced_a = IntervalSet.coalesce(a_set)
         coalesced_b = IntervalSet.coalesce(b_set)
-        strip_units(coalesced_a.intervals) == strip_units(coalesced_b.intervals)
+
+        strip_units(IntervalSet.to_list(coalesced_a)) ==
+          strip_units(IntervalSet.to_list(coalesced_b))
 
       {:error, exception} ->
         raise exception

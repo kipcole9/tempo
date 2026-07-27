@@ -66,6 +66,7 @@ defmodule Tempo.Explain do
   """
 
   alias Tempo.Explanation
+  alias Tempo.IntervalSet
   alias Tempo.Iso8601.Unit
   alias Tempo.Mask
 
@@ -156,8 +157,11 @@ defmodule Tempo.Explain do
        do: :recurring_interval
 
   defp classify(%Tempo.Interval{}), do: :closed_interval
-  defp classify(%Tempo.IntervalSet{intervals: []}), do: :empty_interval_set
-  defp classify(%Tempo.IntervalSet{}), do: :interval_set
+
+  defp classify(%Tempo.IntervalSet{} = set) do
+    if IntervalSet.empty?(set), do: :empty_interval_set, else: :interval_set
+  end
+
   defp classify(%Tempo.Set{type: :all}), do: :all_of_set
   defp classify(%Tempo.Set{type: :one}), do: :one_of_set
   defp classify(%Tempo.Duration{}), do: :duration
@@ -262,8 +266,8 @@ defmodule Tempo.Explain do
       {:ok, %Tempo.Interval{from: from, to: to}} ->
         "Span: [#{render_endpoint(from)}, #{render_endpoint(to)})."
 
-      {:ok, %Tempo.IntervalSet{intervals: intervals}} ->
-        "Materialises to #{length(intervals)} disjoint intervals."
+      {:ok, %Tempo.IntervalSet{} = set} ->
+        "Materialises to #{IntervalSet.count(set)} disjoint intervals."
 
       {:error, _} ->
         nil
@@ -403,15 +407,19 @@ defmodule Tempo.Explain do
   ## Tempo.IntervalSet
   ## ------------------------------------------------------------
 
-  defp interval_set_parts(%Tempo.IntervalSet{intervals: [], metadata: metadata}) do
-    [
-      {:headline, "An empty IntervalSet."},
-      set_metadata_part(metadata)
-    ]
-    |> Enum.reject(&is_nil/1)
+  defp interval_set_parts(%Tempo.IntervalSet{metadata: metadata} = set) do
+    if IntervalSet.empty?(set) do
+      [
+        {:headline, "An empty IntervalSet."},
+        set_metadata_part(metadata)
+      ]
+      |> Enum.reject(&is_nil/1)
+    else
+      interval_set_member_parts(IntervalSet.to_list(set), metadata)
+    end
   end
 
-  defp interval_set_parts(%Tempo.IntervalSet{intervals: intervals, metadata: metadata}) do
+  defp interval_set_member_parts(intervals, metadata) do
     count = length(intervals)
 
     preview_parts =

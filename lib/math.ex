@@ -1199,9 +1199,14 @@ defmodule Tempo.Math do
     busy
     |> Enum.reduce_while({:ok, []}, fn member, {:ok, acc} ->
       case Tempo.to_interval(member) do
-        {:ok, %Interval{} = interval} -> {:cont, {:ok, [interval | acc]}}
-        {:ok, %IntervalSet{intervals: members}} -> {:cont, {:ok, Enum.reverse(members) ++ acc}}
-        {:error, _} = error -> {:halt, error}
+        {:ok, %Interval{} = interval} ->
+          {:cont, {:ok, [interval | acc]}}
+
+        {:ok, %IntervalSet{} = set} ->
+          {:cont, {:ok, Enum.reverse(IntervalSet.to_list(set)) ++ acc}}
+
+        {:error, _} = error ->
+          {:halt, error}
       end
     end)
     |> case do
@@ -1217,8 +1222,8 @@ defmodule Tempo.Math do
   defp coalesce_busy({:ok, %IntervalSet{} = set}), do: {:ok, IntervalSet.coalesce(set)}
   defp coalesce_busy({:error, _} = error), do: error
 
-  defp validate_busy_members(%IntervalSet{intervals: intervals}) do
-    Enum.find_value(intervals, :ok, &busy_member_error/1)
+  defp validate_busy_members(%IntervalSet{} = set) do
+    set |> IntervalSet.to_list() |> Enum.find_value(:ok, &busy_member_error/1)
   end
 
   defp busy_member_error(%Interval{from: %Tempo{} = from, to: %Tempo{} = to}) do
@@ -1246,11 +1251,11 @@ defmodule Tempo.Math do
   # The walk runs on gregorian UTC seconds so gaps compare exactly
   # across calendars and zones. Spans are the coalesced busy set:
   # sorted, disjoint, half-open `[from, to)`.
-  defp walk_skipping(origin, seconds, %IntervalSet{intervals: intervals}) do
+  defp walk_skipping(origin, seconds, %IntervalSet{} = busy_set) do
     origin_s = Compare.to_utc_seconds(origin)
 
     spans =
-      Enum.map(intervals, fn %Interval{from: from, to: to} ->
+      Enum.map(IntervalSet.to_list(busy_set), fn %Interval{from: from, to: to} ->
         {Compare.to_utc_seconds(from), Compare.to_utc_seconds(to), from, to}
       end)
 
