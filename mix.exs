@@ -169,9 +169,9 @@ defmodule Tempo.MixProject do
   defp deps do
     [
       {:nimble_parsec, "~> 1.0"},
-      {:calendrical, "~> 0.12"},
+      {:calendrical, "~> 1.0-rc"},
       {:astro, "~> 2.3"},
-      {:localize, "~> 0.44"},
+      {:localize, path: "../../localize/localize", override: true},
       {:ical, "~> 2.0 or ~> 3.0", optional: true},
       {:ex_doc, "~> 0.38", only: [:dev, :test, :release], optional: true, runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
