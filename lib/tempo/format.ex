@@ -384,17 +384,18 @@ defmodule Tempo.Format do
     end
   end
 
-  # Intervals take {:format, :style} options; the style tells
-  # Localize which components to render. We pick the style from
-  # the coarsest resolution among the two endpoints so a year-month
-  # interval doesn't try to render an absent day.
+  # Intervals take {:format, :fields} options; `:fields` tells
+  # Localize which date fields to render (Localize 1.0 renamed it
+  # from `:style`). We pick the fields from the coarsest resolution
+  # among the two endpoints so a year-month interval doesn't try to
+  # render an absent day.
   defp with_default_interval_options(options, %Tempo{} = from, %Tempo{} = to) do
     options
     |> Keyword.put_new(:format, :medium)
-    |> Keyword.put_new(:style, interval_style_for(from, to))
+    |> Keyword.put_new(:fields, interval_fields_for(from, to))
   end
 
-  defp interval_style_for(%Tempo{} = from, %Tempo{} = to) do
+  defp interval_fields_for(%Tempo{} = from, %Tempo{} = to) do
     {from_unit, _} = Tempo.resolution(from)
     {to_unit, _} = Tempo.resolution(to)
     coarsest = coarsest_unit(from_unit, to_unit)
@@ -438,7 +439,7 @@ defmodule Tempo.Format do
     year_opts =
       options
       |> Keyword.put(:format, :y)
-      |> Keyword.drop([:style])
+      |> Keyword.drop([:fields])
 
     with {:ok, from_str} <- Localize.Date.to_string(to_locale_map(from), year_opts),
          {:ok, to_str} <- Localize.Date.to_string(to_locale_map(to), year_opts) do

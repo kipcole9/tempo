@@ -11,7 +11,7 @@ This conceptual shift — *time as interval, not instant* — removes a surprisi
 ```elixir
 def deps do
   [
-    {:ex_tempo, "~> 0.19"},
+    {:ex_tempo, "~> 1.0"},
     # Optional but recommended - needed for iCalendar import
     {:ical, "~> 2.0 or ~> 3.0"}
   ]
@@ -51,15 +51,16 @@ The import adds only `sigil_o/2` and `sigil_TEMPO/2` to the caller's namespace; 
 iex> ~o"2026-06-15"
 ~o"2026Y6M15D"
 
-# Its bounds are real — Tempo.to_interval materialises the span
+# Its bounds are real — Tempo.to_interval materialises the span.
+# Bounds keep the value's own resolution; `:unit` is the walk granularity.
 iex> {:ok, iv} = Tempo.to_interval(~o"2026-06-15")
 iex> {from, to} = Tempo.Interval.endpoints(iv)
-iex> {Tempo.year(from), Tempo.month(from), Tempo.day(from), Tempo.hour(from), Tempo.year(to), Tempo.month(to), Tempo.day(to), Tempo.hour(to)}
-{2026, 6, 15, 0, 2026, 6, 16, 0}
+iex> {Tempo.year(from), Tempo.month(from), Tempo.day(from), Tempo.year(to), Tempo.month(to), Tempo.day(to), iv.unit}
+{2026, 6, 15, 2026, 6, 16, :hour}
 
 # Cross-zone set operations compare by UTC, preserve the first operand's zone
 iex> paris = Tempo.from_elixir(DateTime.new!(~D[2026-06-15], ~T[10:00:00], "Europe/Paris"))
-iex> utc_window = ~o"2026-06-15T07/2026-06-15T09"   # UTC 07:00..09:00
+iex> utc_window = ~o"2026-06-15T07Z/2026-06-15T09Z"   # UTC 07:00..09:00
 iex> Tempo.overlaps?(paris, utc_window)
 true   # Paris 10:00 CEST == UTC 08:00 — inside the window
 
@@ -242,4 +243,4 @@ Without a configured database, parsing still works fully — zone names in IXDTF
 
 ## Licence
 
-See [LICENSE.md](https://github.com/kipcole9/tempo/blob/v0.19.2/LICENSE.md). Copyright © Kip Cole.
+See [LICENSE.md](https://github.com/kipcole9/tempo/blob/v1.0.0/LICENSE.md). Copyright © Kip Cole.

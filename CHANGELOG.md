@@ -1,6 +1,8 @@
 # Changelog
 
-## [Unreleased]
+## [v1.0.0] — 2026-08-01
+
+The first stable release. Time as an interval, not an instant: one `%Tempo{}` type for every temporal value at every resolution, ISO 8601 Parts 1 and 2 plus IXDTF and RFC 5545 RRULE conformance, calendar- and territory-aware arithmetic, set algebra with Allen-relation comparison and three-valued certainty over uncertain values, and locale-aware formatting through Localize 1.0. See the [README](https://hexdocs.pm/ex_tempo/readme.html) for the full tour.
 
 ### Added
 
@@ -21,6 +23,8 @@
 * **Breaking:** `:bound` day-anchoring in set operations rejects non-time-of-day partials with a `Tempo.NonAnchoredError`. Previously `~o"15D"` with a `:bound` silently matched every day of the bound; express the recurring reading with a selection or RRULE instead.
 
 * **Breaking:** the duration width option for `Tempo.to_string/2` is now `format: :long | :short | :narrow` (was `style:`), following Localize 1.0 and ECMA-402. Duration parts also now join with CLDR's unit list patterns (`"3 days, 2 hr"`, narrow `"3d 2h"`) instead of the prose conjunction (`"3 days and 2 hr"`).
+
+* Dependency floors move to the stable releases: `localize ~> 1.0`, `calendrical ~> 1.0`, and `astro ~> 2.4` (the first astro without the tzdata/hackney chain). Interval formatting follows Localize 1.0's option naming (`fields:` selects which date fields render; `format:` remains the width).
 
 ### Fixed
 

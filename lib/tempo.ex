@@ -628,6 +628,18 @@ defmodule Tempo do
       iex> {:error, %Tempo.UnknownZoneError{zone_id: "Continent/Imaginary"}} =
       ...>   Tempo.from_iso8601("2022-11-20T10:30:00Z[!Continent/Imaginary]")
 
+  ### Examples
+
+
+      iex> Tempo.from_iso8601("2026-06-15")
+      {:ok, ~o"2026Y6M15D"}
+
+  ### Examples
+
+
+      iex> Tempo.from_iso8601("2026-06-15", Calendrical.ISOWeek)
+      {:ok, ~o"2026Y6M15D"W}
+
   """
   @spec from_iso8601(string :: String.t()) ::
           {:ok,
@@ -823,6 +835,12 @@ defmodule Tempo do
 
       iex> Tempo.from_iso8601!("2022Y")
       ~o"2022Y"
+
+  ### Examples
+
+
+      iex> Tempo.from_iso8601!("2026-06-15T14:30[Australia/Sydney]")
+      ~o"2026Y6M15DT14H30M[Australia/Sydney]"
 
   """
   @spec from_iso8601!(string :: String.t()) :: t | no_return()
@@ -1125,6 +1143,12 @@ defmodule Tempo do
   * The RRULE string on success.
 
   * Raises `Tempo.ConversionError` otherwise.
+
+  ### Examples
+
+
+      iex> Tempo.to_rrule!(~o"R12/2026-01-05/P1D")
+      "COUNT=12;FREQ=DAILY"
 
   """
   @spec to_rrule!(Tempo.Interval.t()) :: String.t() | no_return()
@@ -1708,6 +1732,12 @@ defmodule Tempo do
   Split a tempo struct into a date
   and time.
 
+  ### Examples
+
+
+      iex> Tempo.split(~o"2026-06-15T14:30:00")
+      {~o"2026Y6M15D", ~o"T14H30M0S"}
+
   """
   @spec split(t()) :: {t() | nil, t() | nil}
   def split(%__MODULE__{time: time, calendar: calendar}) do
@@ -1953,6 +1983,12 @@ defmodule Tempo do
 
       iex> Tempo.extend(~o"2020")
       {:ok, ~o"2020Y{1..12}M"}
+
+  ### Examples
+
+
+      iex> Tempo.extend(~o"2026-06")
+      {:ok, ~o"2026Y6M{1..30}D"}
 
   """
 
@@ -2343,6 +2379,12 @@ defmodule Tempo do
 
   @doc """
   Convert a Tempo struct into a Time.
+
+  ### Examples
+
+
+      iex> Tempo.to_time(~o"T14:30:00")
+      {:ok, ~T[14:30:00.000000]}
 
   """
   # A zoned time-of-day projects to the wall-clock `Time`, dropping
@@ -4470,6 +4512,13 @@ defmodule Tempo do
   @doc """
   Union of two Tempo values — every instant in either operand.
   See `Tempo.Operations.union/3` for full details.
+  ### Examples
+
+
+      iex> {:ok, either} = Tempo.union(~o"2026-01", ~o"2026-03")
+      iex> either
+      #Tempo.IntervalSet<[#Tempo.Interval<~o"2026Y1M/2026Y2M" unit: day>, #Tempo.Interval<~o"2026Y3M/2026Y4M" unit: day>]>
+
   """
   defdelegate union(a, b, opts \\ []), to: Tempo.Operations
 
@@ -4478,12 +4527,27 @@ defmodule Tempo do
   operands. Each result interval is the trimmed overlap; `a`
   members can split into multiple fragments. See
   `Tempo.Operations.intersection/3`.
+  ### Examples
+
+
+      iex> {:ok, both} = Tempo.intersection(~o"2026-06-15T09/2026-06-15T17", ~o"2026-06-15T14/2026-06-15T20")
+      iex> both
+      #Tempo.IntervalSet<[~o"2026Y6M15DT14H/2026Y6M15DT17H"]>
+
   """
   defdelegate intersection(a, b, opts \\ []), to: Tempo.Operations
 
   @doc """
   Complement of a Tempo value within a bounding universe. The
   `:bound` option is required. See `Tempo.Operations.complement/2`.
+  ### Examples
+
+
+      iex> meeting = ~o"2026-06-15T10:00/2026-06-15T11:00"
+      iex> {:ok, free} = Tempo.complement(meeting, bound: ~o"2026-06-15T09:00/2026-06-15T17:00")
+      iex> free
+      #Tempo.IntervalSet<[~o"2026Y6M15DT9H0M/2026Y6M15DT10H0M", ~o"2026Y6M15DT11H0M/2026Y6M15DT17H0M"]>
+
   """
   defdelegate complement(set, opts), to: Tempo.Operations
 
@@ -4492,6 +4556,15 @@ defmodule Tempo do
   `b`. Each result interval is the trimmed remainder; `a`
   members can split into multiple fragments. See
   `Tempo.Operations.difference/3`.
+  ### Examples
+
+
+      iex> workday = ~o"2026-06-15T09/2026-06-15T17"
+      iex> lunch = ~o"2026-06-15T12/2026-06-15T13"
+      iex> {:ok, working} = Tempo.difference(workday, lunch)
+      iex> working
+      #Tempo.IntervalSet<[~o"2026Y6M15DT9H/2026Y6M15DT12H", ~o"2026Y6M15DT13H/2026Y6M15DT17H"]>
+
   """
   defdelegate difference(a, b, opts \\ []), to: Tempo.Operations
 
@@ -4499,6 +4572,13 @@ defmodule Tempo do
   Symmetric difference `a △ b` — instants in exactly one of
   the two operands. Trimmed/instant-level. See
   `Tempo.Operations.symmetric_difference/3`.
+  ### Examples
+
+
+      iex> {:ok, exactly_one} = Tempo.symmetric_difference(~o"2026-06-15T09/2026-06-15T13", ~o"2026-06-15T11/2026-06-15T17")
+      iex> exactly_one
+      #Tempo.IntervalSet<[~o"2026Y6M15DT9H/2026Y6M15DT11H", ~o"2026Y6M15DT13H/2026Y6M15DT17H"]>
+
   """
   defdelegate symmetric_difference(a, b, opts \\ []), to: Tempo.Operations
 
@@ -4507,6 +4587,17 @@ defmodule Tempo do
   `a` that overlap any member of `b`, with their original
   metadata. Use this when the question is about *which events*
   hit the query window. See `Tempo.Operations.members_overlapping/3`.
+  ### Examples
+
+
+      iex> busy = Tempo.IntervalSet.new!([
+      ...>   Tempo.to_interval!(~o"2026-06-15T10:00/2026-06-15T11:00"),
+      ...>   Tempo.to_interval!(~o"2026-06-16T14:00/2026-06-16T15:00")
+      ...> ])
+      iex> {:ok, monday_events} = Tempo.members_overlapping(busy, ~o"2026-06-15")
+      iex> monday_events
+      #Tempo.IntervalSet<[~o"2026Y6M15DT10H0M/2026Y6M15DT11H0M"]>
+
   """
   defdelegate members_overlapping(a, b, opts \\ []), to: Tempo.Operations
 
@@ -4517,6 +4608,17 @@ defmodule Tempo do
   question is about *which events* survive the filter (e.g.
   "which workdays aren't holidays?"). See
   `Tempo.Operations.members_outside/3`.
+  ### Examples
+
+
+      iex> busy = Tempo.IntervalSet.new!([
+      ...>   Tempo.to_interval!(~o"2026-06-15T10:00/2026-06-15T11:00"),
+      ...>   Tempo.to_interval!(~o"2026-06-16T14:00/2026-06-16T15:00")
+      ...> ])
+      iex> {:ok, not_monday} = Tempo.members_outside(busy, ~o"2026-06-15")
+      iex> not_monday
+      #Tempo.IntervalSet<[~o"2026Y6M16DT14H0M/2026Y6M16DT15H0M"]>
+
   """
   defdelegate members_outside(a, b, opts \\ []), to: Tempo.Operations
 
@@ -4524,36 +4626,93 @@ defmodule Tempo do
   Member-preserving symmetric-difference filter — members of
   either operand that don't overlap any member of the other,
   kept whole. See `Tempo.Operations.members_in_exactly_one/3`.
+  ### Examples
+
+
+      iex> busy = Tempo.IntervalSet.new!([
+      ...>   Tempo.to_interval!(~o"2026-06-15T10:00/2026-06-15T11:00"),
+      ...>   Tempo.to_interval!(~o"2026-06-16T14:00/2026-06-16T15:00")
+      ...> ])
+      iex> monday_only = Tempo.IntervalSet.new!([Tempo.to_interval!(~o"2026-06-15T10:00/2026-06-15T11:00")])
+      iex> {:ok, unshared} = Tempo.members_in_exactly_one(busy, monday_only)
+      iex> unshared
+      #Tempo.IntervalSet<[~o"2026Y6M16DT14H0M/2026Y6M16DT15H0M"]>
+
   """
   defdelegate members_in_exactly_one(a, b, opts \\ []), to: Tempo.Operations
 
   @doc """
   `true` when `a` and `b` share no instants.
   See `Tempo.Operations.disjoint?/3`.
+  ### Examples
+
+
+      iex> Tempo.disjoint?(~o"2026-01", ~o"2026-03")
+      true
+
+      iex> Tempo.disjoint?(~o"2026-01", ~o"2026-01-15")
+      false
+
   """
   defdelegate disjoint?(a, b, opts \\ []), to: Tempo.Operations
 
   @doc """
   `true` when `a` and `b` share at least one instant.
   See `Tempo.Operations.overlaps?/3`.
+  ### Examples
+
+
+      iex> Tempo.overlaps?(~o"2026-06-15T10/2026-06-15T12", ~o"2026-06-15T11/2026-06-15T14")
+      true
+
+      iex> Tempo.overlaps?(~o"2026-01", ~o"2026-03")
+      false
+
   """
   defdelegate overlaps?(a, b, opts \\ []), to: Tempo.Operations
 
   @doc """
   `true` when every instant of `a` is also in `b`.
   See `Tempo.Operations.subset?/3`.
+  ### Examples
+
+
+      iex> Tempo.subset?(~o"2026-06-15", ~o"2026-06")
+      true
+
+      iex> Tempo.subset?(~o"2026-06", ~o"2026-06-15")
+      false
+
   """
   defdelegate subset?(a, b, opts \\ []), to: Tempo.Operations
 
   @doc """
   `true` when every instant of `b` is also in `a`. Alias for
   `subset?(b, a, opts)`. See `Tempo.Operations.contains?/3`.
+  ### Examples
+
+
+      iex> Tempo.contains?(~o"2026-06", ~o"2026-06-15")
+      true
+
+      iex> Tempo.contains?(~o"2026-06-15", ~o"2026-06")
+      false
+
   """
   defdelegate contains?(a, b, opts \\ []), to: Tempo.Operations
 
   @doc """
   `true` when `a` and `b` span the same instants (at their
   aligned resolution). See `Tempo.Operations.equal?/3`.
+  ### Examples
+
+
+      iex> Tempo.equal?(~o"2026-06", ~o"2026-06-01/2026-07-01")
+      true
+
+      iex> Tempo.equal?(~o"2026-06", ~o"2026-07")
+      false
+
   """
   defdelegate equal?(a, b, opts \\ []), to: Tempo.Operations
 
@@ -4610,6 +4769,15 @@ defmodule Tempo do
 
   Unbounded intervals return `:infinity`. See
   `Tempo.Interval.duration/1` and `Tempo.IntervalSet.duration/1`.
+  ### Examples
+
+
+      iex> Tempo.duration(Tempo.to_interval!(~o"2026-06-15T09:00/2026-06-15T10:30"))
+      ~o"PT5400S"
+
+      iex> Tempo.duration(Tempo.to_interval!(~o"2026-06"))
+      ~o"PT2592000S"
+
   """
   def duration(%IntervalSet{} = set), do: IntervalSet.duration(set)
   def duration(interval), do: Interval.duration(interval)
@@ -4693,72 +4861,179 @@ defmodule Tempo do
   @doc """
   `true` when the interval is at least as long as the given
   duration. See `Tempo.Interval.at_least?/2`.
+  ### Examples
+
+      iex> meeting = ~o"2026-06-15T09:00/2026-06-15T10:30"
+      iex> Tempo.at_least?(meeting, ~o"PT1H")
+      true
+      iex> Tempo.at_least?(meeting, ~o"PT2H")
+      false
+
   """
   defdelegate at_least?(interval, duration), to: Tempo.Interval
 
   @doc """
   `true` when the interval is at most as long as the given
   duration. See `Tempo.Interval.at_most?/2`.
+  ### Examples
+
+      iex> meeting = ~o"2026-06-15T09:00/2026-06-15T10:30"
+      iex> Tempo.at_most?(meeting, ~o"PT2H")
+      true
+      iex> Tempo.at_most?(meeting, ~o"PT1H")
+      false
+
   """
   defdelegate at_most?(interval, duration), to: Tempo.Interval
 
   @doc """
   `true` when the interval's length equals the given duration.
   See `Tempo.Interval.exactly?/2`.
+  ### Examples
+
+      iex> meeting = ~o"2026-06-15T09:00/2026-06-15T10:30"
+      iex> Tempo.exactly?(meeting, ~o"PT90M")
+      true
+      iex> Tempo.exactly?(meeting, ~o"PT1H")
+      false
+
   """
   defdelegate exactly?(interval, duration), to: Tempo.Interval
 
   @doc """
   `true` when the interval is strictly longer than the given
   duration. See `Tempo.Interval.longer_than?/2`.
+  ### Examples
+
+      iex> meeting = ~o"2026-06-15T09:00/2026-06-15T10:30"
+      iex> Tempo.longer_than?(meeting, ~o"PT1H")
+      true
+      iex> Tempo.longer_than?(meeting, ~o"PT90M")
+      false
+
   """
   defdelegate longer_than?(interval, duration), to: Tempo.Interval
 
   @doc """
   `true` when the interval is strictly shorter than the given
   duration. See `Tempo.Interval.shorter_than?/2`.
+  ### Examples
+
+      iex> meeting = ~o"2026-06-15T09:00/2026-06-15T10:30"
+      iex> Tempo.shorter_than?(meeting, ~o"PT2H")
+      true
+      iex> Tempo.shorter_than?(meeting, ~o"PT90M")
+      false
+
   """
   defdelegate shorter_than?(interval, duration), to: Tempo.Interval
 
   @doc """
   `true` when both endpoints of the interval are concrete
   (neither `:undefined` nor `nil`). See `Tempo.Interval.bounded?/1`.
+  ### Examples
+
+
+      iex> Tempo.bounded?(Tempo.to_interval!(~o"2026-06-15"))
+      true
+
+      iex> {:ok, onwards} = Tempo.to_interval(~o"2026-01-15/..")
+      iex> Tempo.bounded?(onwards)
+      false
+
   """
   defdelegate bounded?(interval), to: Tempo.Interval
 
   @doc """
   `true` when the interval has zero length. See
   `Tempo.Interval.empty?/1`.
+  ### Examples
+
+
+      iex> Tempo.empty?(Tempo.to_interval!(~o"2026-06-15"))
+      false
+
   """
   defdelegate empty?(interval), to: Tempo.Interval
 
   @doc """
   `true` when `a` ends strictly before `b` starts (Allen's
   `:precedes`). See `Tempo.Interval.before?/2`.
+  ### Examples
+
+
+      iex> Tempo.before?(~o"2026-01", ~o"2026-03")
+      true
+
+  Adjacent months meet — no gap — so `before?/2` is `false`:
+
+      iex> Tempo.before?(~o"2026-01", ~o"2026-02")
+      false
+
   """
   defdelegate before?(a, b), to: Tempo.Interval
 
   @doc """
   `true` when `a` starts strictly after `b` ends (Allen's
   `:preceded_by`). See `Tempo.Interval.after?/2`.
+  ### Examples
+
+
+      iex> Tempo.after?(~o"2026-03", ~o"2026-01")
+      true
+
+      iex> Tempo.after?(~o"2026-01", ~o"2026-03")
+      false
+
   """
   defdelegate after?(a, b), to: Tempo.Interval
 
   @doc """
   `true` when `a`'s end coincides exactly with `b`'s start
   (Allen's `:meets`). See `Tempo.Interval.meets?/2`.
+  ### Examples
+
+
+      iex> Tempo.meets?(~o"2026-01", ~o"2026-02")
+      true
+
+      iex> Tempo.meets?(~o"2026-01", ~o"2026-03")
+      false
+
   """
   defdelegate meets?(a, b), to: Tempo.Interval
 
   @doc """
   `true` when the two intervals touch at a single boundary
   (Allen's `:meets | :met_by`). See `Tempo.Interval.adjacent?/2`.
+  ### Examples
+
+
+      iex> Tempo.adjacent?(~o"2026-02", ~o"2026-01")
+      true
+
+      iex> Tempo.adjacent?(~o"2026-01", ~o"2026-03")
+      false
+
   """
   defdelegate adjacent?(a, b), to: Tempo.Interval
 
   @doc """
   `true` when `a` is strictly inside `b` (Allen's `:during`).
   See `Tempo.Interval.during?/2`.
+  ### Examples
+
+
+      iex> lunch = ~o"2026-06-15T12/2026-06-15T13"
+      iex> Tempo.during?(lunch, ~o"2026-06-15T09/2026-06-15T17")
+      true
+
+  `during?/2` is strict — a value is not during itself; use `within?/2`
+  for the inclusive reading:
+
+      iex> Tempo.during?(~o"2026-06", ~o"2026-06")
+      false
+
   """
   defdelegate during?(a, b), to: Tempo.Interval
 
@@ -4766,72 +5041,177 @@ defmodule Tempo do
   `true` when `a` fits inside `b` inclusive of shared
   endpoints. The canonical "does this fit inside that window?"
   predicate. See `Tempo.Interval.within?/2`.
+  ### Examples
+
+
+      iex> Tempo.within?(~o"2026-06-01/2026-06-15", ~o"2026-06")
+      true
+
+      iex> Tempo.within?(~o"2026-06", ~o"2026-06")
+      true
+
   """
   defdelegate within?(a, b), to: Tempo.Interval
 
   @doc """
   The three-valued certainty that `a` and `b` intersect, given their
   `±` margins. See `Tempo.Interval.overlap_certainty/2`.
+  ### Examples
+
+
+      iex> Tempo.overlap_certainty(~o"2026-06", ~o"2026-06-15")
+      :certain
+
+      iex> Tempo.overlap_certainty(~o"2000±1Y", ~o"2001±1Y")
+      :possible
+
+      iex> Tempo.overlap_certainty(~o"2000±1Y", ~o"2010±1Y")
+      :impossible
+
   """
   defdelegate overlap_certainty(a, b), to: Tempo.Interval
 
   @doc """
   The three-valued certainty that `a` falls within `b`, given their
   `±` margins. See `Tempo.Interval.within_certainty/2`.
+  ### Examples
+
+
+      iex> Tempo.within_certainty(~o"20XX", ~o"2000Y/2100Y")
+      :certain
+
+  One grounding (2000) escapes a span starting at 2001, so within is
+  only possible:
+
+      iex> Tempo.within_certainty(~o"20XX", ~o"2001Y/2101Y")
+      :possible
+
   """
   defdelegate within_certainty(a, b), to: Tempo.Interval
 
   @doc """
   The three-valued certainty that `relation(a, b)` is (one of) `target`.
   See `Tempo.Interval.relation_certainty/3`.
+  ### Examples
+
+
+      iex> Tempo.relation_certainty(~o"20XX", ~o"2200", :precedes)
+      :certain
+
+      iex> Tempo.relation_certainty(~o"20XX", ~o"2050", :precedes)
+      :possible
+
   """
   defdelegate relation_certainty(a, b, target), to: Tempo.Interval
 
   @doc """
   `true` when `a` and `b` intersect for *every* placement of their `±`
   margins. See `Tempo.Interval.certainly_overlaps?/2`.
+  ### Examples
+
+
+      iex> Tempo.certainly_overlaps?(~o"2000±1Y", ~o"2001±1Y")
+      false
+
+      iex> Tempo.certainly_overlaps?(~o"2026-06", ~o"2026-06-15")
+      true
+
   """
   defdelegate certainly_overlaps?(a, b), to: Tempo.Interval
 
   @doc """
   `true` when `a` and `b` *could* intersect for some placement of their
   `±` margins. See `Tempo.Interval.possibly_overlaps?/2`.
+  ### Examples
+
+
+      iex> Tempo.possibly_overlaps?(~o"2000±1Y", ~o"2001±1Y")
+      true
+
+      iex> Tempo.possibly_overlaps?(~o"2000±1Y", ~o"2010±1Y")
+      false
+
   """
   defdelegate possibly_overlaps?(a, b), to: Tempo.Interval
 
   @doc """
   `true` when `a` falls within `b` for *every* placement of their `±`
   margins. See `Tempo.Interval.certainly_within?/2`.
+  ### Examples
+
+
+      iex> Tempo.certainly_within?(~o"2000±1Y", ~o"1990Y/2010Y")
+      true
+
+      iex> Tempo.certainly_within?(~o"2000±1Y", ~o"2000Y")
+      false
+
   """
   defdelegate certainly_within?(a, b), to: Tempo.Interval
 
   @doc """
   `true` when `a` *could* fall within `b` for some placement of their
   `±` margins. See `Tempo.Interval.possibly_within?/2`.
+  ### Examples
+
+
+      iex> Tempo.possibly_within?(~o"2000±1Y", ~o"2000Y")
+      true
+
   """
   defdelegate possibly_within?(a, b), to: Tempo.Interval
 
   @doc """
   `true` when `a` ends before `b` starts for *every* placement of their
   `±` margins. See `Tempo.Interval.certainly_before?/2`.
+  ### Examples
+
+
+      iex> Tempo.certainly_before?(~o"2000±1Y", ~o"2010")
+      true
+
+      iex> Tempo.certainly_before?(~o"2000±1Y", ~o"2001")
+      false
+
   """
   defdelegate certainly_before?(a, b), to: Tempo.Interval
 
   @doc """
   `true` when `a` *could* end before `b` starts for some placement of
   their `±` margins. See `Tempo.Interval.possibly_before?/2`.
+  ### Examples
+
+
+      iex> Tempo.possibly_before?(~o"2000±1Y", ~o"2001")
+      true
+
   """
   defdelegate possibly_before?(a, b), to: Tempo.Interval
 
   @doc """
   `true` when `a` starts after `b` ends for *every* placement of their
   `±` margins. See `Tempo.Interval.certainly_after?/2`.
+  ### Examples
+
+
+      iex> Tempo.certainly_after?(~o"2010±1Y", ~o"2000")
+      true
+
+      iex> Tempo.certainly_after?(~o"2001±1Y", ~o"2000")
+      false
+
   """
   defdelegate certainly_after?(a, b), to: Tempo.Interval
 
   @doc """
   `true` when `a` *could* start after `b` ends for some placement of
   their `±` margins. See `Tempo.Interval.possibly_after?/2`.
+  ### Examples
+
+
+      iex> Tempo.possibly_after?(~o"2001±1Y", ~o"2000")
+      true
+
   """
   defdelegate possibly_after?(a, b), to: Tempo.Interval
 
@@ -5313,6 +5693,12 @@ defmodule Tempo do
   Returns a plain string suitable for iex. For structured output
   that renderers can style (ANSI, HTML),
   use `Tempo.Explain.explain/1` directly and pick a formatter.
+  ### Examples
+
+
+      iex> Tempo.explain(~o"2026-06") |> String.split("\\n") |> hd()
+      "June 2026."
+
   """
   @spec explain(term()) :: String.t()
   def explain(value) do

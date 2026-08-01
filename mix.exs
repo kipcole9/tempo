@@ -13,7 +13,7 @@ defmodule Tempo.MixProject do
     )
   end
 
-  @version "0.21.0"
+  @version "1.0.0"
 
   def project do
     [
@@ -169,9 +169,9 @@ defmodule Tempo.MixProject do
   defp deps do
     [
       {:nimble_parsec, "~> 1.0"},
-      {:calendrical, "~> 1.0-rc"},
-      {:astro, "~> 2.3"},
-      {:localize, github: "elixir-localize/localize", branch: "main", override: true},
+      {:calendrical, "~> 1.0"},
+      {:astro, "~> 2.4"},
+      {:localize, "~> 1.0"},
       {:ical, "~> 2.0 or ~> 3.0", optional: true},
       {:ex_doc, "~> 0.38", only: [:dev, :test, :release], optional: true, runtime: false},
       {:benchee, "~> 1.3", only: :dev, runtime: false},
