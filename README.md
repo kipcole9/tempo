@@ -228,6 +228,7 @@ Interactive, runnable tours — every cell executes live in [Livebook](https://l
 
 ## Guides
 
+* [Tutorial: build a booking-availability service](https://hexdocs.pm/ex_tempo/tutorial-booking-availability.html) — the journey-shaped introduction: one small system, every core concept.
 * [Cookbook](https://hexdocs.pm/ex_tempo/cookbook.html) — recipe-format answers to common temporal questions.
 * [When to use Tempo](https://hexdocs.pm/ex_tempo/when-to-use-tempo.html) — where the interval model earns its keep (and where it doesn't).
 * [Set operations](https://hexdocs.pm/ex_tempo/set-operations.html) — union, intersection, complement, difference, predicates.

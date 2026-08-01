@@ -130,6 +130,9 @@ defmodule Tempo.MixProject do
 
   defp groups_for_extras do
     [
+      Tutorial: [
+        "guides/tutorial-booking-availability.md"
+      ],
       Livebooks: [
         "livebooks/getting-started.livemd",
         "livebooks/scheduling-workbook.livemd",
