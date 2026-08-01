@@ -216,6 +216,16 @@ Any implementation works — [`:tz`](https://hex.pm/packages/tz) (compile-time I
 
 Without a configured database, parsing still works fully — zone names in IXDTF suffixes are accepted without registry validation — but any operation that needs the zone's rules (UTC projection, `Tempo.shift_zone/2`, DST-aware walks, offset validation) will error or degrade. iCalendar import also needs the database: the upstream `:ical` library only populates an event's `dtstart`/`dtend` fields when a default `Calendar.TimeZoneDatabase` is installed, so `DTSTART;TZID=...` events silently come through empty without one.
 
+## Livebooks
+
+Interactive, runnable tours — every cell executes live in [Livebook](https://livebook.dev):
+
+* [![Run in Livebook](https://livebook.dev/badge/v1/blue.svg)](https://livebook.dev/run?url=https%3A%2F%2Fraw.githubusercontent.com%2Fkipcole9%2Ftempo%2Fmain%2Flivebooks%2Fgetting-started.livemd) **Getting started** — time as intervals: the sigil, resolutions, iteration, Allen relations, set algebra, and locale-aware formatting.
+
+* [![Run in Livebook](https://livebook.dev/badge/v1/blue.svg)](https://livebook.dev/run?url=https%3A%2F%2Fraw.githubusercontent.com%2Fkipcole9%2Ftempo%2Fmain%2Flivebooks%2Fscheduling.livemd) **Scheduling** — free-busy algebra, bookable slots, arrival times that skip busy spans and weekends, and RFC 5545 recurrence.
+
+* [![Run in Livebook](https://livebook.dev/badge/v1/blue.svg)](https://livebook.dev/run?url=https%3A%2F%2Fraw.githubusercontent.com%2Fkipcole9%2Ftempo%2Fmain%2Flivebooks%2Funcertain-dates.livemd) **Uncertain dates** — masks, one-of sets, margins, EDTF qualifications, and three-valued certainty.
+
 ## Guides
 
 * [Cookbook](https://hexdocs.pm/ex_tempo/cookbook.html) — recipe-format answers to common temporal questions.

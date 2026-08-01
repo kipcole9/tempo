@@ -1,0 +1,127 @@
+# Getting started with Tempo
+
+```elixir
+Mix.install([
+  {:ex_tempo, "~> 1.0"},
+  {:tz, "~> 0.28"}
+])
+
+Calendar.put_time_zone_database(Tz.TimeZoneDatabase)
+import Tempo.Sigils
+```
+
+## Time as an interval, not an instant
+
+Every mainstream library treats a date as a scalar — an instant, usually midnight, that everyone then *uses* as if it were a span. Tempo makes the span the value itself: `~o"2026-06-15"` **is** the half-open interval `[2026-06-15T00:00, 2026-06-16T00:00)`, a year is a year-long interval, and one `%Tempo{}` type carries any resolution.
+
+The `~o` sigil parses the full ISO 8601 Part 1 and Part 2 grammar (plus IXDTF zone suffixes):
+
+```elixir
+~o"2026-06-15"
+```
+
+The value knows its own resolution — and its bounds are real. Materialising gives a half-open interval whose endpoints stay at the value's resolution, with the walk granularity carried separately on `:unit`:
+
+```elixir
+{:ok, day} = Tempo.to_interval(~o"2026-06-15")
+{from, to} = Tempo.Interval.endpoints(day)
+{Tempo.day(from), Tempo.day(to), day.unit}
+```
+
+One type covers every resolution — a year, a month, a minute, a zoned datetime:
+
+```elixir
+[~o"2026", ~o"2026-06", ~o"2026-06-15T14:30", ~o"2026-06-15T14:30[Australia/Sydney]"]
+```
+
+## Constructing values at runtime
+
+The sigil is for literals. For runtime data use `Tempo.new/1`, which accepts components in any order and validates them against the calendar, or `Tempo.from_elixir/1` to bridge from stdlib types:
+
+```elixir
+Tempo.new!(day: 15, year: 2026, month: 6, hour: 14, minute: 30)
+```
+
+```elixir
+Tempo.from_elixir(~U[2026-06-15 14:30:00Z])
+```
+
+## Iteration walks the span
+
+Because a value is a span, `Enum` walks *into* it at the next finer resolution: a month yields its days, a year its months. Even a partially-specified value like `~o"156X"` — "sometime in the 1560s" — is a span you can walk:
+
+```elixir
+Enum.count(~o"2026-06")
+```
+
+```elixir
+Enum.take(~o"156X", 5)
+```
+
+## Comparison speaks Allen's algebra
+
+Two intervals stand in exactly one of thirteen relations. `Tempo.relation/2` names it; the predicates answer the everyday questions:
+
+```elixir
+Tempo.relation(~o"2026-01", ~o"2026-02")
+```
+
+> January doesn't come *before* February — they **meet**, with no gap. `before?/2` is strict about that:
+
+```elixir
+{Tempo.before?(~o"2026-01", ~o"2026-02"), Tempo.before?(~o"2026-01", ~o"2026-03")}
+```
+
+```elixir
+Tempo.within?(~o"2026-06-01/2026-06-15", ~o"2026-06")
+```
+
+## Set algebra
+
+Union, intersection, difference, and complement work on any combination of values, across resolutions. The workday minus lunch is the working time:
+
+```elixir
+workday = ~o"2026-06-15T09/2026-06-15T17"
+lunch = ~o"2026-06-15T12/2026-06-15T13"
+
+{:ok, working} = Tempo.difference(workday, lunch)
+working
+```
+
+> *"The working time is the workday **minus** lunch — two spans, morning and afternoon."*
+
+Cut a free region into bookable slots:
+
+```elixir
+working
+|> Tempo.IntervalSet.slots(~o"PT2H")
+|> Tempo.IntervalSet.to_list()
+```
+
+## Locale-aware formatting
+
+Rendering reflects the span: a year formats as its first-through-last month, in any CLDR locale, and durations follow ECMA-402 conventions:
+
+```elixir
+{Tempo.to_string(~o"2026"), Tempo.to_string(~o"2026-06")}
+```
+
+```elixir
+{Tempo.to_string(~o"P3DT2H"), Tempo.to_string(~o"P3DT2H", format: :short)}
+```
+
+```elixir
+Tempo.to_string(~o"P1Y6M", locale: :de)
+```
+
+And when a value puzzles you, ask it to explain itself:
+
+```elixir
+Tempo.explain(~o"156X") |> IO.puts()
+```
+
+## Where next
+
+* The [scheduling livebook](scheduling.livemd) — free-busy, bookable slots, arrival times, and recurrence.
+* The [uncertain dates livebook](uncertain-dates.livemd) — masks, one-of sets, margins, and three-valued certainty.
+* The [cookbook](https://hexdocs.pm/ex_tempo/cookbook.html) and [guides](https://hexdocs.pm/ex_tempo/readme.html) on hexdocs.

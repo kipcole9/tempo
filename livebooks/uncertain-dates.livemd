@@ -1,0 +1,121 @@
+# Uncertain dates with Tempo
+
+```elixir
+Mix.install([
+  {:ex_tempo, "~> 1.0"},
+  {:tz, "~> 0.28"}
+])
+
+Calendar.put_time_zone_database(Tz.TimeZoneDatabase)
+import Tempo.Sigils
+```
+
+## Real data is not precise
+
+Historians, archivists, genealogists, and anyone parsing messy records meet dates like *"sometime in the 1560s"*, *"the 15th of some month in 1985"*, *"1984 or 1986"*, *"around 2000, give or take a year"*. Most libraries force these into a false precision. Tempo represents each one faithfully — as ISO 8601-2 / EDTF values with real semantics — and answers questions about them without pretending to know more than the data does.
+
+## Masks — unknown digits
+
+An `X` is an unknown digit. `~o"156X"` is *some year in the 1560s* — one value spanning the whole decade, iterable and comparable like any other:
+
+```elixir
+Tempo.explain(~o"156X") |> IO.puts()
+```
+
+A mask *above* concrete finer units is subtler: `~o"1985-XX-15"` is *the 15th of some unknown month of 1985*. One actual day occurred — we just don't know which of twelve candidates. Materialising expands the candidate set:
+
+```elixir
+{:ok, candidates} = Tempo.to_interval(~o"1985-XX-15")
+Tempo.IntervalSet.count(candidates)
+```
+
+## One-of sets — enumerated possibilities
+
+When the record says *"1984 or 1986"*, that's not a span — it's an epistemic choice between listed values:
+
+```elixir
+Tempo.explain(~o"[1984,1986]") |> IO.puts()
+```
+
+## Margins — plus or minus
+
+*"Around 2000, give or take a year"* is a value with an uncertainty margin. The margin is not decoration — it widens every question you ask. A value of `2000±1Y` could ground anywhere in 1999–2001, so overlapping 1999 is possible, and overlapping 1997 is not:
+
+```elixir
+around_2000 = ~o"2000±1Y"
+
+{
+  Tempo.overlap_certainty(around_2000, ~o"1999"),
+  Tempo.overlap_certainty(around_2000, ~o"1997")
+}
+```
+
+## Qualifications — uncertain and approximate
+
+EDTF's `?` (uncertain) and `~` (approximate) attach to values and travel through operations:
+
+```elixir
+{~o"1984?", ~o"2004~"}
+```
+
+## Asking questions that respect the uncertainty
+
+Here is the point of all this representation: the **certainty API** gives three-valued answers — `:certain`, `:possible`, or `:impossible` — computed over every grounding the uncertain value admits.
+
+Was *some year in the 20XXs* within the 21st century? Every grounding is:
+
+```elixir
+Tempo.within_certainty(~o"20XX", ~o"2000Y/2100Y")
+```
+
+Shrink the window by one year and a single grounding (2000) escapes — so the answer honestly degrades:
+
+```elixir
+Tempo.within_certainty(~o"20XX", ~o"2001Y/2101Y")
+```
+
+Do two `±`-qualified events overlap? Depends how far apart they are:
+
+```elixir
+{
+  Tempo.overlap_certainty(~o"2000±1Y", ~o"2001±1Y"),
+  Tempo.overlap_certainty(~o"2000±1Y", ~o"2010±1Y")
+}
+```
+
+The crisp predicates come in `certainly_*` and `possibly_*` pairs — the modal square of the same underlying relation set:
+
+```elixir
+{
+  Tempo.certainly_before?(~o"2000±1Y", ~o"2010"),
+  Tempo.certainly_before?(~o"2000±1Y", ~o"2001"),
+  Tempo.possibly_before?(~o"2000±1Y", ~o"2001")
+}
+```
+
+## A worked example — dating an artifact
+
+A ledger entry is dated *the 15th of some month in 1985*. A fire destroyed the archive on June 20, 1985. Could the entry have been written before the fire? Must it have been?
+
+```elixir
+entry = ~o"1985-XX-15"
+fire = ~o"1985-06-20"
+
+{
+  Tempo.relation_certainty(entry, fire, :precedes),
+  Tempo.possibly_before?(entry, fire),
+  Tempo.certainly_before?(entry, fire)
+}
+```
+
+> *"The entry **possibly** precedes the fire — the January-through-June 15ths do, the July-through-December ones don't — but not **certainly**. If the fire had been in 1986, every candidate would precede it:"*
+
+```elixir
+Tempo.certainly_before?(entry, ~o"1986-01-01")
+```
+
+## Where next
+
+* The [uncertain dates guide](https://hexdocs.pm/ex_tempo/uncertain-dates.html) covers the full EDTF surface and how qualifications propagate.
+* The [temporal formalisms guide](https://hexdocs.pm/ex_tempo/temporal-formalisms.html) explains the theory: Allen's algebra, the certainty lattice, and why intervals are the only entities.
+* The [getting started livebook](getting-started.livemd) if you arrived here first.

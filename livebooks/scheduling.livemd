@@ -1,0 +1,119 @@
+# Scheduling with Tempo
+
+```elixir
+Mix.install([
+  {:ex_tempo, "~> 1.0"},
+  {:tz, "~> 0.28"}
+])
+
+Calendar.put_time_zone_database(Tz.TimeZoneDatabase)
+import Tempo.Sigils
+```
+
+## Free time is set algebra
+
+Scheduling questions are set-theory questions in disguise. *When is Alice free?* is the workday **minus** her meetings. *When are Alice and Bob both free?* is the **intersection** of their free time. No cursors, no sorting by start time — just the algebra:
+
+```elixir
+work = ~o"2026-06-15T09:00:00/2026-06-15T17:00:00"
+
+alice_busy =
+  Tempo.IntervalSet.new!([
+    Tempo.to_interval!(~o"2026-06-15T10:00:00/2026-06-15T11:00:00"),
+    Tempo.to_interval!(~o"2026-06-15T14:00:00/2026-06-15T15:00:00")
+  ])
+
+bob_busy =
+  Tempo.IntervalSet.new!([
+    Tempo.to_interval!(~o"2026-06-15T09:30:00/2026-06-15T10:30:00"),
+    Tempo.to_interval!(~o"2026-06-15T16:00:00/2026-06-15T17:00:00")
+  ])
+
+{:ok, alice_free} = Tempo.difference(work, alice_busy)
+{:ok, bob_free} = Tempo.difference(work, bob_busy)
+{:ok, mutual} = Tempo.intersection(alice_free, bob_free)
+mutual
+```
+
+> *"Alice's free time is the workday **minus** her meetings; Bob's is the same. **Mutual** free time is the **intersection** of theirs."*
+
+## From regions to bookable slots
+
+Free time gives the *regions* where a meeting could go. A booking page offers discrete slots — cut the regions with `slots/2` and keep only the windows long enough to book:
+
+```elixir
+mutual
+|> Tempo.IntervalSet.slots(~o"PT1H")
+|> Tempo.IntervalSet.to_list()
+|> Enum.filter(&Tempo.at_least?(&1, ~o"PT1H"))
+```
+
+## When will it be done? — shifting through free time
+
+The dual question — given a task and a busy calendar, *when does it finish?* — is `Tempo.shift/3` with `skipping:`. The duration is consumed from free time only; busy spans cost nothing to cross:
+
+```elixir
+meeting = ~o"2026-06-15T10:00/2026-06-15T11:00"
+Tempo.shift(~o"2026-06-15T09:30", ~o"PT1H", skipping: meeting)
+```
+
+> *"One hour of work starting **09:30**, skipping the **10:00 meeting**, finishes at **11:30** — thirty minutes before, thirty after."*
+
+The busy set can be unbounded. `Tempo.weekends/1` is a lazy, territory-aware stream of weekend days, and the walk consumes only as much of it as the shift needs:
+
+```elixir
+Tempo.shift(~o"2026-06-18T16:00", ~o"P3D", skipping: Tempo.weekends(from: ~o"2026-06-18"))
+```
+
+> *"Three days of processing starting **Thursday 16:00**, skipping **every weekend**, finishes **Tuesday 16:00**."*
+
+## Working days
+
+Business-day arithmetic is the same idea with the calendar's own vocabulary. Which days count as the weekend is territory-aware CLDR data — Saudi Arabia weekends on Friday–Saturday:
+
+```elixir
+{Tempo.add_working_days(~o"2026-06-18", 3), Tempo.working_days_in(Tempo.to_interval!(~o"2026-06"), :US)}
+```
+
+June 19 2026 is a Friday — a workday in the United States, the weekend in Saudi Arabia:
+
+```elixir
+{Tempo.weekend?(~o"2026-06-19"), Tempo.weekend?(~o"2026-06-19", :SA)}
+```
+
+## Recurrence — RFC 5545 RRULE
+
+Recurring events parse from standard RRULE strings into the same interval model, so occurrences are just another set to do algebra on:
+
+```elixir
+{:ok, standup} = Tempo.RRule.parse("FREQ=WEEKLY;BYDAY=TU;COUNT=4", from: ~o"2026-06-01")
+{:ok, tuesdays} = Tempo.to_interval(standup)
+tuesdays
+```
+
+An unbounded recurrence (`FREQ=WEEKLY` with no `COUNT`/`UNTIL`) refuses to materialise without a bound — supply one and it expands exactly as far as you asked:
+
+```elixir
+{:ok, weekly} = Tempo.RRule.parse("FREQ=WEEKLY;BYDAY=FR", from: ~o"2026-06-01")
+{:ok, fridays} = Tempo.to_interval(weekly, bound: ~o"2026-07")
+Tempo.IntervalSet.count(fridays)
+```
+
+## Putting it together
+
+Occurrences are just another set, so every predicate applies. *Does June 9 fall on a standup day? Which standups land in the first half of the month?*
+
+```elixir
+{Tempo.overlaps?(~o"2026-06-09", tuesdays), Tempo.IntervalSet.covered?(tuesdays, ~o"2026-06-10")}
+```
+
+```elixir
+{:ok, early_june} = Tempo.members_overlapping(tuesdays, ~o"2026-06-01/2026-06-15")
+early_june
+```
+
+## Where next
+
+* The [scheduling guide](https://hexdocs.pm/ex_tempo/scheduling.html) adds floating-vs-grounded events, zone-rule-proof future dates, and critical-path scheduling over `Tempo.Network`.
+* The [workdays and weekends](https://hexdocs.pm/ex_tempo/workdays-and-weekends.html) and [holidays](https://hexdocs.pm/ex_tempo/holidays.html) cookbooks cover observed-holiday rules.
+* The [iCal integration guide](https://hexdocs.pm/ex_tempo/ical-integration.html) imports real calendars into this same algebra.
