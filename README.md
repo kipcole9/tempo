@@ -222,9 +222,9 @@ Interactive, runnable tours — every cell executes live in [Livebook](https://l
 
 * [![Run in Livebook](https://livebook.dev/badge/v1/blue.svg)](https://livebook.dev/run?url=https%3A%2F%2Fraw.githubusercontent.com%2Fkipcole9%2Ftempo%2Fmain%2Flivebooks%2Fgetting-started.livemd) **Getting started** — time as intervals: the sigil, resolutions, iteration, Allen relations, set algebra, and locale-aware formatting.
 
-* [![Run in Livebook](https://livebook.dev/badge/v1/blue.svg)](https://livebook.dev/run?url=https%3A%2F%2Fraw.githubusercontent.com%2Fkipcole9%2Ftempo%2Fmain%2Flivebooks%2Fscheduling.livemd) **Scheduling** — free-busy algebra, bookable slots, arrival times that skip busy spans and weekends, and RFC 5545 recurrence.
+* [![Run in Livebook](https://livebook.dev/badge/v1/blue.svg)](https://livebook.dev/run?url=https%3A%2F%2Fraw.githubusercontent.com%2Fkipcole9%2Ftempo%2Fmain%2Flivebooks%2Fscheduling-workbook.livemd) **Scheduling** — free-busy algebra, bookable slots, arrival times that skip busy spans and weekends, and RFC 5545 recurrence.
 
-* [![Run in Livebook](https://livebook.dev/badge/v1/blue.svg)](https://livebook.dev/run?url=https%3A%2F%2Fraw.githubusercontent.com%2Fkipcole9%2Ftempo%2Fmain%2Flivebooks%2Funcertain-dates.livemd) **Uncertain dates** — masks, one-of sets, margins, EDTF qualifications, and three-valued certainty.
+* [![Run in Livebook](https://livebook.dev/badge/v1/blue.svg)](https://livebook.dev/run?url=https%3A%2F%2Fraw.githubusercontent.com%2Fkipcole9%2Ftempo%2Fmain%2Flivebooks%2Funcertain-dates-workbook.livemd) **Uncertain dates** — masks, one-of sets, margins, EDTF qualifications, and three-valued certainty.
 
 ## Guides
 

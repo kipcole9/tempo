@@ -122,6 +122,6 @@ Tempo.explain(~o"156X") |> IO.puts()
 
 ## Where next
 
-* The [scheduling livebook](scheduling.livemd) — free-busy, bookable slots, arrival times, and recurrence.
-* The [uncertain dates livebook](uncertain-dates.livemd) — masks, one-of sets, margins, and three-valued certainty.
+* The [scheduling livebook](scheduling-workbook.livemd) — free-busy, bookable slots, arrival times, and recurrence.
+* The [uncertain dates livebook](uncertain-dates-workbook.livemd) — masks, one-of sets, margins, and three-valued certainty.
 * The [cookbook](https://hexdocs.pm/ex_tempo/cookbook.html) and [guides](https://hexdocs.pm/ex_tempo/readme.html) on hexdocs.
