@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+* `Tempo.explain/1` surfaces `±` uncertainty margins with a dedicated `:margin` part: `~o"2000±1Y"` now reports "Margin: ±1 year — groundings span [1999-01-01, 2002-01-01)." instead of reading like a precise value.
+
 ## [v1.0.0] — 2026-08-01
 
 The first stable release. Time as an interval, not an instant: one `%Tempo{}` type for every temporal value at every resolution, ISO 8601 Parts 1 and 2 plus IXDTF and RFC 5545 RRULE conformance, calendar- and territory-aware arithmetic, set algebra with Allen-relation comparison and three-valued certainty over uncertain values, and locale-aware formatting through Localize 1.0. See the [README](https://hexdocs.pm/ex_tempo/readme.html) for the full tour.

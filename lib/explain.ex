@@ -18,6 +18,7 @@ defmodule Tempo.Explanation do
 
     * `:headline` — one-line description of what this value is.
     * `:span` — bounded interval in `[from, to)` form.
+    * `:margin` — `±` uncertainty margin and the span its groundings cover.
     * `:qualification` — EDTF qualifier description.
     * `:extended` — IXDTF metadata (zone, calendar, tags).
     * `:calendar` — non-default calendar.
@@ -116,6 +117,7 @@ defmodule Tempo.Explain do
 
   defp ansi_for({:headline, text}), do: [:bright, text, :reset]
   defp ansi_for({:span, text}), do: [:cyan, text, :reset]
+  defp ansi_for({:margin, text}), do: [:yellow, text, :reset]
   defp ansi_for({:qualification, text}), do: [:yellow, text, :reset]
   defp ansi_for({:extended, text}), do: [:yellow, text, :reset]
   defp ansi_for({:calendar, text}), do: [:magenta, text, :reset]
@@ -189,6 +191,7 @@ defmodule Tempo.Explain do
     [
       {:headline, scalar_headline(tempo)},
       {:span, scalar_span(tempo)},
+      {:margin, margin_text(tempo)},
       {:qualification, qualification_text(tempo)},
       {:extended, extended_text(tempo)},
       {:calendar, calendar_text(tempo)},
@@ -273,6 +276,75 @@ defmodule Tempo.Explain do
         nil
     end
   end
+
+  # A `±` margin means the value may ground anywhere within its
+  # margin of error: `2000±1Y` is some year in 1999–2001. Surface the
+  # margin and, for the single-margin case, the full span the
+  # groundings cover (the same widening the certainty API applies).
+  defp margin_text(%Tempo{time: time} = tempo) do
+    case margin_entries(time) do
+      [] -> nil
+      entries -> describe_margins(entries, tempo)
+    end
+  end
+
+  defp margin_entries(time) do
+    Enum.flat_map(time, fn
+      {unit, {_value, options}} when is_list(options) ->
+        case Keyword.get(options, :margin_of_error) do
+          nil -> []
+          margin -> [{unit, margin}]
+        end
+
+      _other ->
+        []
+    end)
+  end
+
+  defp describe_margins([{unit, margin}] = entries, tempo) do
+    nominal = strip_margins(tempo)
+
+    with %Tempo{} = low <- Tempo.shift(nominal, [{unit, -margin}]),
+         true <- Tempo.anchored?(low),
+         %Tempo{} = high <- Tempo.shift(nominal, [{unit, margin}]),
+         {:ok, %Tempo.Interval{from: from}} <- Tempo.to_interval(low),
+         {:ok, %Tempo.Interval{to: to}} <- Tempo.to_interval(high) do
+      "Margin: ±#{margin} #{unit_word(unit, margin)} — groundings span " <>
+        "[#{render_endpoint(from)}, #{render_endpoint(to)})."
+    else
+      _other -> margin_list_text(entries)
+    end
+  end
+
+  defp describe_margins(entries, _tempo), do: margin_list_text(entries)
+
+  defp margin_list_text(entries) do
+    rendered =
+      Enum.map_join(entries, ", ", fn {unit, margin} ->
+        "±#{margin} #{unit_word(unit, margin)}"
+      end)
+
+    "Margin: #{rendered}."
+  end
+
+  defp strip_margins(%Tempo{time: time} = tempo) do
+    stripped =
+      Enum.map(time, fn
+        {unit, {value, options}} when is_list(options) ->
+          case Keyword.delete(options, :margin_of_error) do
+            [] -> {unit, value}
+            rest -> {unit, {value, rest}}
+          end
+
+        other ->
+          other
+      end)
+
+    %{tempo | time: stripped}
+  end
+
+  defp unit_word(unit, 1), do: "#{unit}"
+  defp unit_word(unit, _margin), do: "#{unit}s"
 
   defp qualification_text(%Tempo{qualification: nil, qualifications: nil}), do: nil
 

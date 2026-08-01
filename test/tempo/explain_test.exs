@@ -186,6 +186,41 @@ defmodule Tempo.Explain.Test do
     end
   end
 
+  describe "± margins" do
+    test "a single year margin surfaces the margin and the grounding span" do
+      explanation = Tempo.explain(~o"2000±1Y")
+
+      assert explanation =~ "Margin: ±1 year"
+      assert explanation =~ "groundings span [1999-01-01, 2002-01-01)"
+    end
+
+    test "a plural margin pluralises the unit" do
+      assert Tempo.explain(~o"2000±2Y") =~
+               "Margin: ±2 years — groundings span [1998-01-01, 2003-01-01)."
+    end
+
+    test "the margin is a tagged part" do
+      parts = Explain.explain(~o"2000±1Y").parts
+      assert Enum.any?(parts, fn {tag, _text} -> tag == :margin end)
+    end
+
+    test "a non-anchored margin states the margin without an uncomputable span" do
+      non_anchored = %Tempo{
+        time: [month: {6, [margin_of_error: 1]}],
+        calendar: Calendrical.Gregorian
+      }
+
+      explanation = Tempo.explain(non_anchored)
+
+      assert explanation =~ "Margin: ±1 month."
+      refute explanation =~ "groundings span"
+    end
+
+    test "a value without margins has no margin part" do
+      refute Enum.any?(Explain.explain(~o"2022Y").parts, fn {tag, _} -> tag == :margin end)
+    end
+  end
+
   describe "Tempo.explain/1 (top-level delegation)" do
     test "returns the string form" do
       assert Tempo.explain(~o"2022Y") == Explain.to_string(Explain.explain(~o"2022Y"))
