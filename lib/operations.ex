@@ -67,6 +67,15 @@ defmodule Tempo.Operations do
     operand, one-of set operand, incompatible anchor classes
     without `:bound`, calendar mismatch, etc.).
 
+  ### Examples
+
+      iex> {:ok, {a, b}} = Tempo.Operations.align(~o"2026-01", ~o"2026-03")
+      iex> {Tempo.IntervalSet.count(a), Tempo.IntervalSet.count(b)}
+      {1, 1}
+
+      iex> Tempo.Operations.align(~o"P1D", ~o"2026-01")
+      {:error, %Tempo.MaterialisationError{value: ~o"P1D", reason: :bare_duration}}
+
   """
   @spec align(operand, operand, keyword()) ::
           {:ok, {IntervalSet.t(), IntervalSet.t()}} | {:error, term()}
@@ -705,11 +714,30 @@ defmodule Tempo.Operations do
   (touching members merged), call `Tempo.IntervalSet.coalesce/1`
   on the result.
 
+  ### Examples
+
+      iex> {:ok, both} = Tempo.union(~o"2026-01", ~o"2026-03")
+      iex> Tempo.IntervalSet.count(both)
+      2
+
+  Members stay distinct even when they touch; `coalesce/1` merges them:
+
+      iex> {:ok, both} = Tempo.union(~o"2026-01", ~o"2026-02")
+      iex> {Tempo.IntervalSet.count(both),
+      ...>  both |> Tempo.IntervalSet.coalesce() |> Tempo.IntervalSet.count()}
+      {2, 1}
+
   """
-  @spec union(operand, operand, keyword()) ::
+  @spec union(operand, operand | [operand], keyword()) ::
           {:ok, IntervalSet.t()} | {:error, term()}
         when operand: Tempo.t() | Interval.t() | IntervalSet.t() | Tempo.Set.t()
-  def union(a, b, opts \\ []) do
+  def union(a, b, opts \\ [])
+
+  def union(a, operands, opts) when is_list(operands) do
+    fold_operands(a, operands, opts, &union/3)
+  end
+
+  def union(a, b, opts) do
     with {:ok, {a_set, b_set}} <- align(a, b, opts) do
       IntervalSet.new(IntervalSet.to_list(a_set) ++ IntervalSet.to_list(b_set),
         metadata: a_set.metadata
@@ -724,7 +752,6 @@ defmodule Tempo.Operations do
   Each result interval is the portion of an `a` member trimmed
   to its overlap with some `b` member. Members of `a` can be
   split into multiple fragments if `b` covers only part of them.
-  Each emitted fragment carries the source `a` member's metadata.
 
   This is the canonical set-theoretic intersection: `A ∩ B`.
   Use it when the question is about *covered time* — "the parts
@@ -735,13 +762,65 @@ defmodule Tempo.Operations do
   that overlap any `b` member, untrimmed), use
   `members_overlapping/3`.
 
+  ### Options
+
+  * `:metadata` decides what an emitted fragment carries when both
+    operands have metadata:
+
+    * `:left` (the default) keeps the source `a` member's metadata
+      and drops `b`'s.
+
+    * `:merge` merges the two maps, `b` winning on a conflicting key.
+
+    * `{:merge, fun}` calls `fun.(a_metadata, b_metadata)` and uses
+      the result.
+
+  Reach for `{:merge, fun}` whenever the question is *which operands
+  produced this window*. A plain `:merge` cannot answer it: merging
+  `%{resource: "Alice"}` with `%{resource: "Bob"}` keeps only Bob,
+  silently. Supplying a resolver that accumulates keeps both.
+
+  ### N-ary form
+
+  The second argument may be a **list of operands**, intersected
+  left-to-right, so *"when are all of these free at once?"* reads as
+  one expression. An empty list is the identity — `a` alone.
+
+      iex> alice = ~o"2026-06-15T09:00:00/2026-06-15T12:00:00"
+      iex> bob = ~o"2026-06-15T10:00:00/2026-06-15T17:00:00"
+      iex> room = ~o"2026-06-15T11:00:00/2026-06-15T15:00:00"
+      iex> {:ok, mutual} = Tempo.intersection(alice, [bob, room])
+      iex> mutual |> Tempo.IntervalSet.to_list() |> Enum.map(&Tempo.to_iso8601/1)
+      ["2026Y6M15DT11H0M0S/2026Y6M15DT12H0M0S"]
+
+  ### Examples
+
+      iex> alice = Tempo.Interval.new!(
+      ...>   from: ~o"2026-06-15T09:00:00", to: ~o"2026-06-15T12:00:00",
+      ...>   metadata: %{free: ["Alice"]})
+      iex> bob = Tempo.Interval.new!(
+      ...>   from: ~o"2026-06-15T10:00:00", to: ~o"2026-06-15T17:00:00",
+      ...>   metadata: %{free: ["Bob"]})
+      iex> accumulate = fn a, b -> Map.merge(a, b, fn _key, x, y -> x ++ y end) end
+      iex> {:ok, both} = Tempo.intersection(alice, bob, metadata: {:merge, accumulate})
+      iex> both |> Tempo.IntervalSet.to_list() |> Enum.map(&Tempo.Interval.metadata/1)
+      [%{free: ["Alice", "Bob"]}]
+
   """
-  @spec intersection(operand, operand, keyword()) ::
+  @spec intersection(operand, operand | [operand], keyword()) ::
           {:ok, IntervalSet.t()} | {:error, term()}
         when operand: Tempo.t() | Interval.t() | IntervalSet.t() | Tempo.Set.t()
-  def intersection(a, b, opts \\ []) do
-    with {:ok, {a_set, b_set}} <- align(a, b, opts) do
-      IntervalSet.new(sweep_intersection(IntervalSet.to_list(a_set), IntervalSet.to_list(b_set)),
+  def intersection(a, b, opts \\ [])
+
+  def intersection(a, operands, opts) when is_list(operands) do
+    fold_operands(a, operands, opts, &intersection/3)
+  end
+
+  def intersection(a, b, opts) do
+    with {:ok, resolve} <- metadata_resolver(Keyword.get(opts, :metadata, :left)),
+         {:ok, {a_set, b_set}} <- align(a, b, opts) do
+      IntervalSet.new(
+        sweep_intersection(IntervalSet.to_list(a_set), IntervalSet.to_list(b_set), resolve),
         metadata: a_set.metadata
       )
     end
@@ -758,6 +837,13 @@ defmodule Tempo.Operations do
 
   For the canonical instant-level intersection (each survivor
   trimmed to its overlap with `b`), use `intersection/3`.
+
+  ### Examples
+
+      iex> bookings = Tempo.IntervalSet.new!([~o"2026-01-05/2026-01-06", ~o"2026-01-20/2026-01-21"])
+      iex> {:ok, hits} = Tempo.members_overlapping(bookings, ~o"2026-01-01/2026-01-10")
+      iex> hits |> Tempo.IntervalSet.to_list() |> Enum.map(&Tempo.to_iso8601/1)
+      ["2026Y1M5D/2026Y1M6D"]
 
   """
   @spec members_overlapping(operand, operand, keyword()) ::
@@ -815,31 +901,56 @@ defmodule Tempo.Operations do
 
   # Sweep-line instant-level intersection. Each step finds the
   # overlap between the current A and current B interval; if
-  # non-empty, emit; advance whichever ends first. Used by
-  # `intersection/3` and by `complement/2`'s internal pipeline.
+  # non-empty, emit; advance whichever ends first. `resolve` decides
+  # what metadata the emitted fragment carries — see
+  # `metadata_resolver/1`.
 
-  defp sweep_intersection([], _b), do: []
-  defp sweep_intersection(_a, []), do: []
+  defp keep_left_metadata(a_metadata, _b_metadata), do: a_metadata
 
-  defp sweep_intersection([%Interval{} = a | a_rest], [%Interval{} = b | b_rest]) do
+  defp sweep_intersection([], _b, _resolve), do: []
+  defp sweep_intersection(_a, [], _resolve), do: []
+
+  defp sweep_intersection([%Interval{} = a | a_rest], [%Interval{} = b | b_rest], resolve) do
     overlap_from = later_endpoint(a.from, b.from)
     overlap_to = earlier_endpoint(a.to, b.to)
 
     case Compare.compare_endpoints(overlap_from, overlap_to) do
       :earlier ->
-        result = %Interval{from: overlap_from, to: overlap_to, metadata: a.metadata}
-        [result | advance(a, a_rest, b, b_rest)]
+        result = %Interval{
+          from: overlap_from,
+          to: overlap_to,
+          metadata: resolve.(a.metadata, b.metadata)
+        }
+
+        [result | advance(a, a_rest, b, b_rest, resolve)]
 
       _ ->
-        advance(a, a_rest, b, b_rest)
+        advance(a, a_rest, b, b_rest, resolve)
     end
   end
 
-  defp advance(a, a_rest, b, b_rest) do
+  defp advance(a, a_rest, b, b_rest, resolve) do
     case Compare.compare_endpoints(a.to, b.to) do
-      :later -> sweep_intersection([a | a_rest], b_rest)
-      _ -> sweep_intersection(a_rest, [b | b_rest])
+      :later -> sweep_intersection([a | a_rest], b_rest, resolve)
+      _ -> sweep_intersection(a_rest, [b | b_rest], resolve)
     end
+  end
+
+  # `:metadata` decides what an emitted fragment carries when both
+  # operands have something to say. `:left` is the historical default.
+  # A plain `:merge` is deliberately *not* enough for provenance —
+  # merging `%{resource: "Alice"}` with `%{resource: "Bob"}` silently
+  # keeps only Bob — so `{:merge, fun}` lets the caller decide how
+  # conflicting keys combine.
+  defp metadata_resolver(:left), do: {:ok, &keep_left_metadata/2}
+  defp metadata_resolver(:merge), do: {:ok, &Map.merge/2}
+
+  defp metadata_resolver({:merge, fun}) when is_function(fun, 2), do: {:ok, fun}
+
+  defp metadata_resolver(other) do
+    {:error,
+     "Invalid :metadata option #{inspect(other)}. " <>
+       "Valid options are :left, :merge, or {:merge, fun/2}"}
   end
 
   defp later_endpoint(x, y) do
@@ -872,6 +983,14 @@ defmodule Tempo.Operations do
 
   * `:bound` — the universe to complement within. Any Tempo
     value. Required.
+
+  ### Examples
+
+      iex> lunch = ~o"2026-06-15T12:00:00/2026-06-15T13:00:00"
+      iex> day = ~o"2026-06-15T09:00:00/2026-06-15T17:00:00"
+      iex> {:ok, free} = Tempo.complement(lunch, bound: day)
+      iex> free |> Tempo.IntervalSet.to_list() |> Enum.map(&Tempo.to_iso8601/1)
+      ["2026Y6M15DT9H0M0S/2026Y6M15DT12H0M0S", "2026Y6M15DT13H0M0S/2026Y6M15DT17H0M0S"]
 
   """
   @spec complement(operand, keyword()) :: {:ok, IntervalSet.t()} | {:error, term()}
@@ -923,15 +1042,65 @@ defmodule Tempo.Operations do
   don't overlap any `b` member, drop the rest), use
   `members_outside/3`.
 
+  ### N-ary form
+
+  The second argument may be a **list of operands**, subtracted
+  left-to-right, so *"the workday minus everything already booked"*
+  reads as one expression rather than a hand-rolled `Enum.reduce`. An
+  empty list is the identity — nothing is booked, so all of `a`
+  remains — which means the caller never has to special-case it.
+
+      iex> work = ~o"2026-06-15T09:00:00/2026-06-15T17:00:00"
+      iex> standup = ~o"2026-06-15T09:00:00/2026-06-15T09:30:00"
+      iex> lunch = ~o"2026-06-15T12:00:00/2026-06-15T13:00:00"
+      iex> {:ok, free} = Tempo.difference(work, [standup, lunch])
+      iex> Tempo.IntervalSet.count(free)
+      2
+
+      iex> work = ~o"2026-06-15T09:00:00/2026-06-15T17:00:00"
+      iex> {:ok, free} = Tempo.difference(work, [])
+      iex> Tempo.IntervalSet.count(free)
+      1
+
   """
-  @spec difference(operand, operand, keyword()) ::
+  @spec difference(operand, operand | [operand], keyword()) ::
           {:ok, IntervalSet.t()} | {:error, term()}
         when operand: Tempo.t() | Interval.t() | IntervalSet.t() | Tempo.Set.t()
-  def difference(a, b, opts \\ []) do
+  def difference(a, b, opts \\ [])
+
+  def difference(a, operands, opts) when is_list(operands) do
+    fold_operands(a, operands, opts, &difference/3)
+  end
+
+  def difference(a, b, opts) do
     with {:ok, {a_set, b_set}} <- align(a, b, opts) do
       IntervalSet.new(sweep_difference(IntervalSet.to_list(a_set), IntervalSet.to_list(b_set)),
         metadata: a_set.metadata
       )
+    end
+  end
+
+  # N-ary set operations: the second argument may be a *list* of
+  # operands, folded left-to-right. A list is never itself a valid
+  # operand, so there is no ambiguity. An empty list is the identity —
+  # `a` alone, coerced to a set — which makes "subtract whatever is
+  # busy" work without the caller special-casing "nothing is busy".
+  defp fold_operands(a, [], opts, _operation), do: as_set(a, opts)
+
+  defp fold_operands(a, operands, opts, operation) do
+    Enum.reduce_while(operands, {:ok, a}, fn operand, {:ok, acc} ->
+      case operation.(acc, operand, opts) do
+        {:ok, result} -> {:cont, {:ok, result}}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+  end
+
+  # Coerce a lone operand to its `IntervalSet` form using the same
+  # preflight every operation runs.
+  defp as_set(a, opts) do
+    with {:ok, {a_set, _b_set}} <- align(a, a, opts) do
+      {:ok, a_set}
     end
   end
 
@@ -947,6 +1116,13 @@ defmodule Tempo.Operations do
   For the canonical instant-level difference (trim each member
   of `a` to its non-overlapping portion of `b`, splitting if
   necessary), use `difference/3`.
+
+  ### Examples
+
+      iex> bookings = Tempo.IntervalSet.new!([~o"2026-01-05/2026-01-06", ~o"2026-01-20/2026-01-21"])
+      iex> {:ok, missed} = Tempo.members_outside(bookings, ~o"2026-01-01/2026-01-10")
+      iex> missed |> Tempo.IntervalSet.to_list() |> Enum.map(&Tempo.to_iso8601/1)
+      ["2026Y1M20D/2026Y1M21D"]
 
   """
   @spec members_outside(operand, operand, keyword()) ::
@@ -1034,6 +1210,13 @@ defmodule Tempo.Operations do
   the member-preserving filter (whole members of either
   operand that don't overlap any member of the other), use
   `members_in_exactly_one/3`.
+
+  ### Examples
+
+      iex> {:ok, either} = Tempo.symmetric_difference(~o"2026-01/2026-04", ~o"2026-03/2026-06")
+      iex> either |> Tempo.IntervalSet.to_list() |> Enum.map(&Tempo.to_iso8601/1)
+      ["2026Y1M/2026Y3M", "2026Y4M/2026Y6M"]
+
   """
   @spec symmetric_difference(operand, operand, keyword()) ::
           {:ok, IntervalSet.t()} | {:error, term()}
@@ -1056,6 +1239,15 @@ defmodule Tempo.Operations do
   This is the "which events appear on exactly one calendar?"
   query. For the canonical instant-level form, use
   `symmetric_difference/3`.
+
+  ### Examples
+
+      iex> mine = Tempo.IntervalSet.new!([~o"2026-01-05/2026-01-06", ~o"2026-01-20/2026-01-21"])
+      iex> yours = Tempo.IntervalSet.new!([~o"2026-01-20/2026-01-21", ~o"2026-01-25/2026-01-26"])
+      iex> {:ok, unshared} = Tempo.members_in_exactly_one(mine, yours)
+      iex> unshared |> Tempo.IntervalSet.to_list() |> Enum.map(&Tempo.to_iso8601/1)
+      ["2026Y1M5D/2026Y1M6D", "2026Y1M25D/2026Y1M26D"]
+
   """
   @spec members_in_exactly_one(operand, operand, keyword()) ::
           {:ok, IntervalSet.t()} | {:error, term()}
@@ -1076,6 +1268,13 @@ defmodule Tempo.Operations do
   @doc """
   `true` when `a` and `b` share no instants — no member of `a`
   overlaps any member of `b`.
+
+  ### Examples
+
+      iex> {Tempo.disjoint?(~o"2026-01", ~o"2026-03"),
+      ...>  Tempo.disjoint?(~o"2026-01", ~o"2026-01")}
+      {true, false}
+
   """
   @spec disjoint?(operand, operand, keyword()) :: boolean()
         when operand: Tempo.t() | Interval.t() | IntervalSet.t() | Tempo.Set.t()
@@ -1090,6 +1289,13 @@ defmodule Tempo.Operations do
 
   @doc """
   `true` when `a` and `b` share at least one instant.
+
+  ### Examples
+
+      iex> {Tempo.overlaps?(~o"2026-01/2026-04", ~o"2026-03/2026-06"),
+      ...>  Tempo.overlaps?(~o"2026-01", ~o"2026-03")}
+      {true, false}
+
   """
   @spec overlaps?(operand, operand, keyword()) :: boolean()
         when operand: Tempo.t() | Interval.t() | IntervalSet.t() | Tempo.Set.t()
@@ -1099,6 +1305,13 @@ defmodule Tempo.Operations do
   `true` when every instant covered by `a` is also covered by
   `b`. Operates at the instant-set level (both operands
   coalesced internally) — not member-by-member.
+
+  ### Examples
+
+      iex> {Tempo.subset?(~o"2026-01-15", ~o"2026-01"),
+      ...>  Tempo.subset?(~o"2026-01", ~o"2026-01-15")}
+      {true, false}
+
   """
   @spec subset?(operand, operand, keyword()) :: boolean()
         when operand: Tempo.t() | Interval.t() | IntervalSet.t() | Tempo.Set.t()
@@ -1114,6 +1327,13 @@ defmodule Tempo.Operations do
   @doc """
   `true` when every instant covered by `b` is also covered by
   `a`. Alias for `subset?(b, a, opts)`.
+
+  ### Examples
+
+      iex> {Tempo.contains?(~o"2026-01", ~o"2026-01-15"),
+      ...>  Tempo.contains?(~o"2026-01-15", ~o"2026-01")}
+      {true, false}
+
   """
   @spec contains?(operand, operand, keyword()) :: boolean()
         when operand: Tempo.t() | Interval.t() | IntervalSet.t() | Tempo.Set.t()
@@ -1123,6 +1343,15 @@ defmodule Tempo.Operations do
   `true` when `a` and `b` cover the same instants — i.e. they
   are mutual subsets at the instant-set level. Member identity
   and metadata are ignored; only the covered instants matter.
+
+  ### Examples
+
+      iex> Tempo.equal?(~o"2026-01", ~o"2026-01-01/2026-02-01")
+      true
+
+      iex> Tempo.equal?(~o"2026-01", ~o"2026-02")
+      false
+
   """
   @spec equal?(operand, operand, keyword()) :: boolean()
         when operand: Tempo.t() | Interval.t() | IntervalSet.t() | Tempo.Set.t()

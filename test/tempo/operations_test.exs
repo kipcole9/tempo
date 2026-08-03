@@ -8,6 +8,8 @@ defmodule Tempo.Operations.Test do
   alias Tempo.IntervalSet
   alias Tempo.Operations
 
+  doctest Tempo.Operations
+
   # Tests for `Tempo.Operations` — the set-operations module.
   # Organised by concern:
   #
@@ -1045,6 +1047,98 @@ defmodule Tempo.Operations.Test do
     case mode do
       :overlapping -> Enum.filter(a_set.intervals, overlaps?)
       :outside -> Enum.reject(a_set.intervals, overlaps?)
+    end
+  end
+
+  describe "intersection/3 :metadata" do
+    setup do
+      %{
+        alice:
+          Interval.new!(
+            from: ~o"2026-06-15T09:00:00",
+            to: ~o"2026-06-15T12:00:00",
+            metadata: %{free: ["Alice"], role: :person}
+          ),
+        bob:
+          Interval.new!(
+            from: ~o"2026-06-15T10:00:00",
+            to: ~o"2026-06-15T17:00:00",
+            metadata: %{free: ["Bob"], room: "Boardroom"}
+          )
+      }
+    end
+
+    defp metadata_of(set) do
+      set |> IntervalSet.to_list() |> Enum.map(&Interval.metadata/1)
+    end
+
+    test "defaults to the left operand's metadata, unchanged from before the option existed",
+         context do
+      {:ok, both} = Operations.intersection(context.alice, context.bob)
+
+      assert metadata_of(both) == [%{free: ["Alice"], role: :person}]
+    end
+
+    test ":left is the default, stated explicitly", context do
+      {:ok, implicit} = Operations.intersection(context.alice, context.bob)
+      {:ok, explicit} = Operations.intersection(context.alice, context.bob, metadata: :left)
+
+      assert metadata_of(implicit) == metadata_of(explicit)
+    end
+
+    test ":merge takes both maps, the right operand winning a conflict", context do
+      {:ok, both} = Operations.intersection(context.alice, context.bob, metadata: :merge)
+
+      assert metadata_of(both) == [%{free: ["Bob"], role: :person, room: "Boardroom"}]
+    end
+
+    test "{:merge, fun} resolves the conflict the caller's way — the provenance case",
+         context do
+      accumulate = fn a, b -> Map.merge(a, b, fn _key, x, y -> x ++ y end) end
+
+      {:ok, both} =
+        Operations.intersection(context.alice, context.bob, metadata: {:merge, accumulate})
+
+      assert [%{free: ["Alice", "Bob"]}] = metadata_of(both)
+    end
+
+    test "an invalid :metadata option is an error, not a crash", context do
+      assert {:error, message} =
+               Operations.intersection(context.alice, context.bob, metadata: :both)
+
+      assert message =~ ":left, :merge, or {:merge, fun/2}"
+    end
+
+    test "the resolver runs per emitted fragment, not once per call" do
+      # A single `a` member split by two `b` members yields two
+      # fragments, each carrying its own `b`'s metadata.
+      whole =
+        Interval.new!(
+          from: ~o"2026-06-15T09:00:00",
+          to: ~o"2026-06-15T17:00:00",
+          metadata: %{who: "room"}
+        )
+
+      pieces =
+        IntervalSet.new!([
+          Interval.new!(
+            from: ~o"2026-06-15T09:00:00",
+            to: ~o"2026-06-15T10:00:00",
+            metadata: %{slot: :first}
+          ),
+          Interval.new!(
+            from: ~o"2026-06-15T14:00:00",
+            to: ~o"2026-06-15T15:00:00",
+            metadata: %{slot: :second}
+          )
+        ])
+
+      {:ok, both} = Operations.intersection(whole, pieces, metadata: :merge)
+
+      assert metadata_of(both) == [
+               %{who: "room", slot: :first},
+               %{who: "room", slot: :second}
+             ]
     end
   end
 

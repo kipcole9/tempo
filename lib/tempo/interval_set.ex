@@ -488,6 +488,13 @@ defmodule Tempo.IntervalSet do
     A smaller value yields overlapping slots; a larger value leaves
     gaps. Must be positive.
 
+  ### Metadata
+
+  Each slot carries the metadata of the member it was cut from, so a
+  region tagged with the resource it belongs to yields slots that are
+  still tagged with it. Cutting cannot create a conflict — every slot
+  comes from exactly one member.
+
   ### Returns
 
   * a `t:t/0` of the fitting slots, in order.
@@ -520,21 +527,21 @@ defmodule Tempo.IntervalSet do
     |> new!()
   end
 
-  defp interval_slots(%Interval{from: from, to: to}, duration, every) do
-    collect_slots(from, to, duration, every, [])
+  defp interval_slots(%Interval{from: from, to: to, metadata: metadata}, duration, every) do
+    collect_slots(from, to, duration, every, metadata, [])
   end
 
-  defp collect_slots(slot_start, to, duration, every, acc) do
+  defp collect_slots(slot_start, to, duration, every, metadata, acc) do
     slot_end = Tempo.shift(slot_start, duration)
 
     if Compare.compare_endpoints(slot_end, to) in [:earlier, :same] do
-      slot = Interval.new!(from: slot_start, to: slot_end)
+      slot = Interval.new!(from: slot_start, to: slot_end, metadata: metadata)
       next_start = Tempo.shift(slot_start, every)
 
       # Strictly advancing guarantees termination even if `:every` is
       # non-positive — at worst a single slot is emitted.
       if Compare.compare_endpoints(next_start, slot_start) == :later do
-        collect_slots(next_start, to, duration, every, [slot | acc])
+        collect_slots(next_start, to, duration, every, metadata, [slot | acc])
       else
         Enum.reverse([slot | acc])
       end

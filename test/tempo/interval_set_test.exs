@@ -2,6 +2,8 @@ defmodule Tempo.IntervalSet.Test do
   use ExUnit.Case, async: true
   import Tempo.Sigils
 
+  alias Tempo.Interval
+
   doctest Tempo.IntervalSet
 
   # `%Tempo.IntervalSet{}` is the multi-interval value. The tests
@@ -309,6 +311,61 @@ defmodule Tempo.IntervalSet.Test do
       {:ok, set} = Tempo.from_iso8601("[2020Y,2021Y,2022Y]")
       assert {:error, message} = Tempo.to_interval_set(set)
       assert Exception.message(message) =~ "epistemic"
+    end
+  end
+
+  describe "slots/3 metadata" do
+    test "every slot carries the metadata of the member it was cut from" do
+      work =
+        Interval.new!(
+          from: ~o"2026-06-15T09:00:00",
+          to: ~o"2026-06-15T12:00:00",
+          metadata: %{resource: "Boardroom"}
+        )
+
+      metadata =
+        work
+        |> Tempo.IntervalSet.slots(~o"PT1H")
+        |> Tempo.IntervalSet.to_list()
+        |> Enum.map(&Interval.metadata/1)
+
+      assert metadata == List.duplicate(%{resource: "Boardroom"}, 3)
+    end
+
+    test "each member's slots carry that member's own metadata" do
+      set =
+        Tempo.IntervalSet.new!([
+          Interval.new!(
+            from: ~o"2026-06-15T09:00:00",
+            to: ~o"2026-06-15T10:00:00",
+            metadata: %{resource: "Boardroom"}
+          ),
+          Interval.new!(
+            from: ~o"2026-06-15T14:00:00",
+            to: ~o"2026-06-15T15:00:00",
+            metadata: %{resource: "Annexe"}
+          )
+        ])
+
+      metadata =
+        set
+        |> Tempo.IntervalSet.slots(~o"PT1H")
+        |> Tempo.IntervalSet.to_list()
+        |> Enum.map(&Interval.metadata/1)
+
+      assert metadata == [%{resource: "Boardroom"}, %{resource: "Annexe"}]
+    end
+
+    test "a member with no metadata still yields slots with none" do
+      work = ~o"2026-06-15T09:00:00/2026-06-15T11:00:00"
+
+      metadata =
+        work
+        |> Tempo.IntervalSet.slots(~o"PT1H")
+        |> Tempo.IntervalSet.to_list()
+        |> Enum.map(&Interval.metadata/1)
+
+      assert metadata == [%{}, %{}]
     end
   end
 

@@ -6,6 +6,16 @@
 
 * `Tempo.explain/1` surfaces `±` uncertainty margins with a dedicated `:margin` part: `~o"2000±1Y"` now reports "Margin: ±1 year — groundings span [1999-01-01, 2002-01-01)." instead of reading like a precise value.
 
+* `Tempo.intersection/3` takes a `:metadata` option deciding what an emitted fragment carries: `:left` (the default, unchanged), `:merge`, or `{:merge, fun}` for a caller-supplied resolver. Use the resolver form for provenance — a plain merge of `%{resource: "Alice"}` and `%{resource: "Bob"}` silently keeps only Bob.
+
+* `Tempo.intersection/3`, `union/3`, and `difference/3` accept a **list** as the second operand, folded left-to-right: `Tempo.difference(workday, [standup, lunch])`. An empty list is the identity, so "subtract whatever is busy" needs no empty-case handling. Previously a list raised a `FunctionClauseError`.
+
+### Fixed
+
+* `Tempo.IntervalSet.slots/3` now carries each source member's metadata onto the slots cut from it. Previously every slot came back with `%{}`, so cutting a tagged free region into bookable slots lost the tag.
+
+* Every public function in `Tempo.Operations` now carries an `### Examples` section, and the module's doctests run for the first time — it had no `doctest` declaration in the suite, so its documentation had never been executed.
+
 ## [v1.0.0] — 2026-08-01
 
 The first stable release. Time as an interval, not an instant: one `%Tempo{}` type for every temporal value at every resolution, ISO 8601 Parts 1 and 2 plus IXDTF and RFC 5545 RRULE conformance, calendar- and territory-aware arithmetic, set algebra with Allen-relation comparison and three-valued certainty over uncertain values, and locale-aware formatting through Localize 1.0. See the [README](https://hexdocs.pm/ex_tempo/readme.html) for the full tour.
