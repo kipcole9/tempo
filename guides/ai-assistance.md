@@ -22,7 +22,7 @@ Because ISO 8601-2 is easy to get subtly wrong (`2004-06~-11` and `2004-?06-11` 
 The skill ships as a Claude Code **plugin** from the Tempo GitHub repo, so improvements reach every user without waiting on a hex release. Install it once:
 
 ```sh
-/plugin marketplace add kipcole9/tempo
+/plugin marketplace add elixir-tempo/tempo
 /plugin install tempo@tempo-plugins
 ```
 

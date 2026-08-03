@@ -1,6 +1,6 @@
 # Tempo
 
-![Tempo](https://raw.githubusercontent.com/kipcole9/tempo/main/assets/logo-social-cropped.png)
+![Tempo](https://raw.githubusercontent.com/elixir-tempo/tempo/main/assets/logo-social-cropped.png)
 
 Tempo is an Elixir library that models time the way humans actually use it — as bounded spans on a shared timeline rather than as scalar instants. One type represents every temporal value you might deal with: a year, a month, an afternoon, a meeting, an archaeological period, a recurring event, a free-busy calendar. Every value is a bounded interval at some resolution, and every operation (iteration, comparison, set-theoretic combination) is defined uniformly.
 
@@ -11,7 +11,7 @@ This conceptual shift — *time as interval, not instant* — removes a surprisi
 ```elixir
 def deps do
   [
-    {:ex_tempo, "~> 1.0"},
+    {:ex_tempo, "~> 1.1"},
     # Optional but recommended - needed for iCalendar import
     {:ical, "~> 2.0 or ~> 3.0"}
   ]
@@ -220,11 +220,11 @@ Without a configured database, parsing still works fully — zone names in IXDTF
 
 Interactive, runnable tours — every cell executes live in [Livebook](https://livebook.dev):
 
-* [![Run in Livebook](https://livebook.dev/badge/v1/blue.svg)](https://livebook.dev/run?url=https%3A%2F%2Fraw.githubusercontent.com%2Fkipcole9%2Ftempo%2Fmain%2Flivebooks%2Fgetting-started.livemd) **Getting started** — time as intervals: the sigil, resolutions, iteration, Allen relations, set algebra, and locale-aware formatting.
+* [![Run in Livebook](https://livebook.dev/badge/v1/blue.svg)](https://livebook.dev/run?url=https%3A%2F%2Fraw.githubusercontent.com%2Felixir-tempo%2Ftempo%2Fmain%2Flivebooks%2Fgetting-started.livemd) **Getting started** — time as intervals: the sigil, resolutions, iteration, Allen relations, set algebra, and locale-aware formatting.
 
-* [![Run in Livebook](https://livebook.dev/badge/v1/blue.svg)](https://livebook.dev/run?url=https%3A%2F%2Fraw.githubusercontent.com%2Fkipcole9%2Ftempo%2Fmain%2Flivebooks%2Fscheduling-workbook.livemd) **Scheduling** — free-busy algebra, bookable slots, arrival times that skip busy spans and weekends, and RFC 5545 recurrence.
+* [![Run in Livebook](https://livebook.dev/badge/v1/blue.svg)](https://livebook.dev/run?url=https%3A%2F%2Fraw.githubusercontent.com%2Felixir-tempo%2Ftempo%2Fmain%2Flivebooks%2Fscheduling-workbook.livemd) **Scheduling** — free-busy algebra, bookable slots, arrival times that skip busy spans and weekends, and RFC 5545 recurrence.
 
-* [![Run in Livebook](https://livebook.dev/badge/v1/blue.svg)](https://livebook.dev/run?url=https%3A%2F%2Fraw.githubusercontent.com%2Fkipcole9%2Ftempo%2Fmain%2Flivebooks%2Funcertain-dates-workbook.livemd) **Uncertain dates** — masks, one-of sets, margins, EDTF qualifications, and three-valued certainty.
+* [![Run in Livebook](https://livebook.dev/badge/v1/blue.svg)](https://livebook.dev/run?url=https%3A%2F%2Fraw.githubusercontent.com%2Felixir-tempo%2Ftempo%2Fmain%2Flivebooks%2Funcertain-dates-workbook.livemd) **Uncertain dates** — masks, one-of sets, margins, EDTF qualifications, and three-valued certainty.
 
 ## Guides
 
@@ -254,4 +254,4 @@ Interactive, runnable tours — every cell executes live in [Livebook](https://l
 
 ## Licence
 
-See [LICENSE.md](https://github.com/kipcole9/tempo/blob/v1.0.0/LICENSE.md). Copyright © Kip Cole.
+See [LICENSE.md](https://github.com/elixir-tempo/tempo/blob/v1.0.0/LICENSE.md). Copyright © Kip Cole.

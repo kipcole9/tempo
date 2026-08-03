@@ -4,6 +4,7 @@ defmodule Tempo.Duration.NegateTest do
 
   import Tempo.Sigils
 
+  alias Tempo.Compare
   alias Tempo.Duration
 
   doctest Tempo.Duration, only: [negate: 1]
@@ -63,8 +64,8 @@ defmodule Tempo.Duration.NegateTest do
 
         # Whatever side of the origin one lands on, the other lands on
         # the opposite side — or both sit on it for a zero duration.
-        assert Tempo.Compare.compare_endpoints(forward, origin) ==
-                 opposite(Tempo.Compare.compare_endpoints(backward, origin))
+        assert Compare.compare_endpoints(forward, origin) ==
+                 opposite(Compare.compare_endpoints(backward, origin))
       end
     end
 

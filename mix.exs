@@ -13,14 +13,14 @@ defmodule Tempo.MixProject do
     )
   end
 
-  @version "1.0.0"
+  @version "1.1.0"
 
   def project do
     [
       app: :ex_tempo,
       version: @version,
       name: "Tempo",
-      source_url: "https://github.com/kipcole9/tempo",
+      source_url: "https://github.com/elixir-tempo/tempo",
       docs: docs(),
       deps: deps(),
       description: description(),
@@ -78,9 +78,9 @@ defmodule Tempo.MixProject do
 
   def links do
     %{
-      "GitHub" => "https://github.com/kipcole9/tempo",
-      "Readme" => "https://github.com/kipcole9/tempo/blob/v#{@version}/README.md",
-      "Changelog" => "https://github.com/kipcole9/tempo/blob/v#{@version}/CHANGELOG.md"
+      "GitHub" => "https://github.com/elixir-tempo/tempo",
+      "Readme" => "https://github.com/elixir-tempo/tempo/blob/v#{@version}/README.md",
+      "Changelog" => "https://github.com/elixir-tempo/tempo/blob/v#{@version}/CHANGELOG.md"
     }
   end
 

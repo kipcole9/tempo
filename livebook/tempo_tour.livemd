@@ -6,7 +6,7 @@ The cell below installs Tempo, pulls in Kino for rich output, and — critically
 
 ```elixir
 Mix.install([
-  {:ex_tempo, github: "kipcole9/tempo"},
+  {:ex_tempo, github: "elixir-tempo/tempo"},
   {:kino, "~> 0.14"}
 ])
 
