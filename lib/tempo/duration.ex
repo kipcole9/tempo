@@ -160,6 +160,59 @@ defmodule Tempo.Duration do
   @fixed_units Map.keys(@fixed_unit_seconds)
 
   @doc """
+  The same length in the opposite direction.
+
+  Every unit is negated, including the fractional part, so a negated
+  duration shifts backwards by exactly what the original shifted
+  forwards. Negating twice returns the original.
+
+  This is what a caller needs whenever the direction of a shift is
+  decided at runtime rather than written literally — stepping back by a
+  configured lead time, widening an interval at both ends, walking a
+  recurrence in reverse.
+
+  ### Arguments
+
+  * `duration` is a `t:t/0`.
+
+  ### Returns
+
+  * a `t:t/0` of the same magnitude and the opposite sign.
+
+  ### Examples
+
+      iex> Tempo.Duration.negate(~o"PT15M")
+      ~o"PT-15M"
+
+      iex> Tempo.Duration.negate(~o"PT-15M")
+      ~o"PT15M"
+
+  Shifting by a duration and then by its negation returns where you
+  started:
+
+      iex> lead = ~o"PT15M"
+      iex> ~o"2027-03-02T10:00:00"
+      ...> |> Tempo.shift(Tempo.Duration.negate(lead))
+      ...> |> Tempo.shift(lead)
+      ~o"2027Y3M2DT10H0M0S"
+
+  Every component flips, fractional seconds included:
+
+      iex> Tempo.Duration.negate(~o"P1Y2MT1.5S").time
+      [year: -1, month: -2, second: -1, microsecond: {-500000, 1}]
+
+  """
+  @spec negate(t()) :: t()
+  def negate(%__MODULE__{time: time} = duration) do
+    %{duration | time: Enum.map(time, &negate_component/1)}
+  end
+
+  defp negate_component({:microsecond, {value, precision}}),
+    do: {:microsecond, {-value, precision}}
+
+  defp negate_component({unit, value}), do: {unit, -value}
+
+  @doc """
   Express a duration as a single magnitude in `unit`, as a float.
 
   For a duration built only from fixed-length units (microsecond

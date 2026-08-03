@@ -314,6 +314,92 @@ defmodule Tempo.IntervalSet.Test do
     end
   end
 
+  describe "overlapping/2" do
+    defp at(from, to) do
+      Interval.new!(
+        from: Tempo.from_iso8601!("2026-06-15T#{from}:00:00"),
+        to: Tempo.from_iso8601!("2026-06-15T#{to}:00:00")
+      )
+    end
+
+    defp spans(set) do
+      set |> Tempo.IntervalSet.to_list() |> Enum.map(&Tempo.to_iso8601/1)
+    end
+
+    test "at_least: 1 is the covered region" do
+      set = Tempo.IntervalSet.new!([at("09", "11"), at("10", "12")])
+
+      assert spans(Tempo.IntervalSet.overlapping(set, at_least: 1)) ==
+               spans(Tempo.IntervalSet.coalesce(set))
+    end
+
+    test "at_least: 2 keeps only the doubled part" do
+      set = Tempo.IntervalSet.new!([at("09", "12"), at("11", "14")])
+
+      assert spans(Tempo.IntervalSet.overlapping(set, at_least: 2)) ==
+               ["2026Y6M15DT11H0M0S/2026Y6M15DT12H0M0S"]
+    end
+
+    test "a threshold no member reaches yields nothing" do
+      set = Tempo.IntervalSet.new!([at("09", "10"), at("11", "12")])
+
+      assert Tempo.IntervalSet.overlapping(set, at_least: 2) |> Tempo.IntervalSet.empty?()
+    end
+
+    test "members that merely meet never count as overlapping" do
+      set = Tempo.IntervalSet.new!([at("09", "10"), at("10", "11"), at("11", "12")])
+
+      assert Tempo.IntervalSet.overlapping(set, at_least: 2) |> Tempo.IntervalSet.empty?()
+    end
+
+    test "depth is tracked across three members" do
+      set = Tempo.IntervalSet.new!([at("09", "14"), at("10", "13"), at("11", "12")])
+
+      assert spans(Tempo.IntervalSet.overlapping(set, at_least: 3)) ==
+               ["2026Y6M15DT11H0M0S/2026Y6M15DT12H0M0S"]
+
+      assert spans(Tempo.IntervalSet.overlapping(set, at_least: 2)) ==
+               ["2026Y6M15DT10H0M0S/2026Y6M15DT13H0M0S"]
+    end
+
+    test "several separate regions can reach the threshold" do
+      set =
+        Tempo.IntervalSet.new!([
+          at("09", "11"),
+          at("10", "12"),
+          at("14", "16"),
+          at("15", "17")
+        ])
+
+      assert spans(Tempo.IntervalSet.overlapping(set, at_least: 2)) == [
+               "2026Y6M15DT10H0M0S/2026Y6M15DT11H0M0S",
+               "2026Y6M15DT15H0M0S/2026Y6M15DT16H0M0S"
+             ]
+    end
+
+    test "raising the threshold never widens the result" do
+      set =
+        Tempo.IntervalSet.new!([at("09", "14"), at("10", "13"), at("11", "12"), at("09", "17")])
+
+      widths =
+        for depth <- 1..4 do
+          set
+          |> Tempo.IntervalSet.overlapping(at_least: depth)
+          |> Tempo.IntervalSet.total_duration()
+          |> Map.get(:time)
+          |> Keyword.get(:second)
+        end
+
+      assert widths == Enum.sort(widths, :desc)
+    end
+
+    test "an empty set has no overlap at any depth" do
+      set = Tempo.IntervalSet.new!([])
+
+      assert Tempo.IntervalSet.overlapping(set, at_least: 1) |> Tempo.IntervalSet.empty?()
+    end
+  end
+
   describe "slots/3 metadata" do
     test "every slot carries the metadata of the member it was cut from" do
       work =

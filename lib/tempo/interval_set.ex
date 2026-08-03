@@ -848,6 +848,108 @@ defmodule Tempo.IntervalSet do
   end
 
   @doc """
+  The regions covered by at least `:at_least` members of the set.
+
+  Where `coalesce/1` flattens overlap away, this measures it. Sweeping
+  the members' endpoints and tracking how many are open at each instant
+  answers the questions overlap depth is really asked for — *"when are
+  three or more of these happening at once?"*, *"where is this
+  double-booked?"*, *"when did load peak?"*
+
+  `at_least: 1` is the covered region, equivalent to
+  `coalesce/1`. Higher thresholds narrow to the busier parts.
+
+  The half-open convention decides the boundaries: a member ending at
+  the instant another begins does not overlap it, so depth never
+  spuriously rises where two members merely meet.
+
+  ### Arguments
+
+  * `set` is a `t:t/0`.
+
+  ### Options
+
+  * `:at_least` is the minimum number of overlapping members a region
+    must have. Required, and must be positive.
+
+  ### Returns
+
+  * a `t:t/0` of the qualifying regions, in order. Empty when nothing
+    reaches the threshold.
+
+  ### Examples
+
+      iex> set = Tempo.IntervalSet.new!([
+      ...>   %Tempo.Interval{from: ~o"2026-06-15T09:00:00", to: ~o"2026-06-15T12:00:00"},
+      ...>   %Tempo.Interval{from: ~o"2026-06-15T11:00:00", to: ~o"2026-06-15T14:00:00"}
+      ...> ])
+      iex> set
+      ...> |> Tempo.IntervalSet.overlapping(at_least: 2)
+      ...> |> Tempo.IntervalSet.to_list()
+      ...> |> Enum.map(&Tempo.to_iso8601/1)
+      ["2026Y6M15DT11H0M0S/2026Y6M15DT12H0M0S"]
+
+  Members that merely meet do not overlap:
+
+      iex> set = Tempo.IntervalSet.new!([
+      ...>   %Tempo.Interval{from: ~o"2026-06-15T09:00:00", to: ~o"2026-06-15T10:00:00"},
+      ...>   %Tempo.Interval{from: ~o"2026-06-15T10:00:00", to: ~o"2026-06-15T11:00:00"}
+      ...> ])
+      iex> set |> Tempo.IntervalSet.overlapping(at_least: 2) |> Tempo.IntervalSet.empty?()
+      true
+
+  """
+  @spec overlapping(t(), keyword()) :: t()
+  def overlapping(%__MODULE__{} = set, options) do
+    threshold = Keyword.fetch!(options, :at_least)
+
+    set
+    |> to_list()
+    |> Enum.flat_map(fn %Interval{from: from, to: to} -> [{from, 1}, {to, -1}] end)
+    |> sort_edges()
+    |> sweep_depth(threshold, 0, nil, [])
+    |> Enum.reverse()
+    |> then(&with_intervals(set, &1))
+  end
+
+  # Closing edges sort before opening ones at the same instant, which
+  # is what keeps `[a, b)` and `[b, c)` from reading as an overlap at
+  # `b`.
+  defp sort_edges(edges) do
+    Enum.sort(edges, fn {a_at, a_delta}, {b_at, b_delta} ->
+      case Compare.compare_endpoints(a_at, b_at) do
+        :earlier -> true
+        :later -> false
+        :same -> a_delta <= b_delta
+      end
+    end)
+  end
+
+  defp sweep_depth([], _threshold, _depth, _opened_at, acc), do: acc
+
+  defp sweep_depth([{at, delta} | rest], threshold, depth, opened_at, acc) do
+    deeper = depth + delta
+
+    cond do
+      depth < threshold and deeper >= threshold ->
+        sweep_depth(rest, threshold, deeper, at, acc)
+
+      depth >= threshold and deeper < threshold ->
+        sweep_depth(rest, threshold, deeper, nil, emit_region(opened_at, at, acc))
+
+      true ->
+        sweep_depth(rest, threshold, deeper, opened_at, acc)
+    end
+  end
+
+  defp emit_region(from, to, acc) do
+    case Compare.compare_endpoints(from, to) do
+      :earlier -> [%Interval{from: from, to: to} | acc]
+      _not_a_span -> acc
+    end
+  end
+
+  @doc """
   Total duration covered by the set's members, as a
   `t:Tempo.Duration.t/0`.
 
