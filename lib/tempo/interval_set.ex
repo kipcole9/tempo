@@ -696,26 +696,36 @@ defmodule Tempo.IntervalSet do
 
   defp validate_all_bounded(intervals) do
     Enum.reduce_while(intervals, :ok, fn interval, :ok ->
-      case bounded_member?(interval) do
-        true ->
-          {:cont, :ok}
-
-        false ->
-          {:halt,
-           {:error,
-            IntervalEndpointsError.exception(
-              interval: interval,
-              operation: "include open-ended interval in a set"
-            )}}
+      case validate_member(interval) do
+        :ok -> {:cont, :ok}
+        {:error, _} = error -> {:halt, error}
       end
     end)
   end
 
-  defp bounded_member?(%Interval{from: from, to: to})
-       when from == :undefined or to == :undefined,
-       do: false
+  # Every member must be an interval, bounded on both ends. A member
+  # that is neither is reported rather than raised: `new/2` answers
+  # with a tagged tuple, so a bad value arriving from user input —
+  # a changeset, a decoded document — must not crash the caller.
+  defp validate_member(%Interval{from: from, to: to} = interval)
+       when from == :undefined or to == :undefined do
+    {:error,
+     IntervalEndpointsError.exception(
+       interval: interval,
+       operation: "include open-ended interval in a set"
+     )}
+  end
 
-  defp bounded_member?(%Interval{}), do: true
+  defp validate_member(%Interval{}), do: :ok
+
+  defp validate_member(other) do
+    {:error,
+     ConversionError.exception(
+       value: other,
+       target: Interval,
+       reason: "IntervalSet members must be Tempo.Interval structs, got: #{inspect(other)}"
+     )}
+  end
 
   ## Ordering
 

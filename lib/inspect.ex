@@ -558,6 +558,13 @@ defmodule Tempo.Inspect do
     [inspect_value(from), ?/, inspect_value(duration)]
   end
 
+  # An interval that takes its extent from a duration has no end
+  # endpoint, so an explicitly open `to` says the same thing as an
+  # absent one. Render them alike rather than matching neither.
+  defp inspect_value(%Tempo.Interval{to: :undefined, duration: %Tempo.Duration{}} = interval) do
+    inspect_value(%{interval | to: nil})
+  end
+
   # Duration-first: `P1D/2022-01-01` — a bounded-end interval
   # whose start is derived from the duration. The tokenizer
   # models this with `from: :undefined` so the endpoint is shown
@@ -569,6 +576,17 @@ defmodule Tempo.Inspect do
          duration: %Tempo.Duration{} = duration
        }) do
     [inspect_value(duration), ?/, inspect_value(to)]
+  end
+
+  # The same shape repeated — `R3/P1D/2022-01-01`. The tokenizer
+  # parses this, so it must render too.
+  defp inspect_value(%Tempo.Interval{
+         recurrence: recurrence,
+         from: :undefined,
+         to: %Tempo{} = to,
+         duration: %Tempo.Duration{} = duration
+       }) do
+    [?R, recurrence(recurrence), ?/, inspect_value(duration), ?/, inspect_value(to)]
   end
 
   defp inspect_value(%Tempo.Interval{

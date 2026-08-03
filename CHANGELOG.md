@@ -1,5 +1,15 @@
 # Changelog
 
+## [v1.1.1] — 2026-08-03
+
+### Fixed
+
+* Duration-first recurring intervals render again. `Tempo.from_iso8601("R3/P1D/2022-01-01")` parsed but `Tempo.to_iso8601/1` and `inspect/1` raised a `FunctionClauseError` on the result, so a value Tempo accepted could not be printed.
+
+* An interval taking its extent from a duration now renders whether its end is absent or explicitly open. `%{interval | to: :undefined}` on a value like `R5/2022-01-01/P1M` previously raised instead of rendering.
+
+* `Tempo.IntervalSet.new/2` returns `{:error, Tempo.ConversionError.t()}` for a member that is not a `Tempo.Interval`, rather than raising a `FunctionClauseError`. A function documented to answer with a tagged tuple must not crash on user input.
+
 ## [v1.1.0] — 2026-08-03
 
 ### Added
