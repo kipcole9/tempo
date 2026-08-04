@@ -62,9 +62,13 @@ jobs:
       - name: Restore dependency cache
         uses: actions/cache@v5
         with:
+          # `_build/dev/dialyxir_*` is excluded because the PLT has its own
+          # cache step later in the job. Without the exclusion it is stored
+          # twice per matrix entry, against the repository's 10 GB quota.
           path: |
             deps
             _build
+            !_build/dev/dialyxir_*
           key: mix-${{ matrix.elixir }}-${{ matrix.otp }}-${{ hashFiles('mix.lock') }}
           restore-keys: |
             mix-${{ matrix.elixir }}-${{ matrix.otp }}-
