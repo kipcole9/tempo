@@ -89,7 +89,7 @@ If any of these appear in user-facing examples, it's a signal that an abstractio
 * **Struct field accessors** like `set.intervals`, `iv.from.time[:hour]` — add a named helper (`IntervalSet.to_list/1`, a predicate, or a query function).
 * **Magic numbers** for durations (`3600`, `86_400`) — use an ISO 8601 duration literal (`~o"PT1H"`, `~o"P1D"`).
 * **Hand-rolled geometric checks** like `compare_endpoints(a + d, b) in [:earlier, :same]` — add a predicate that names the concept.
-* **Pattern-matching on Allen relation lists inline** like `Tempo.compare(a, b) in [:equals, :starts, :during, :finishes]` — name that set (`Tempo.within?/2` does exactly this).
+* **Pattern-matching on Allen relation lists inline** like `Tempo.relation(a, b) in [:equals, :starts, :during, :finishes]` — name that set (`Tempo.within?/2` does exactly this). Note `Tempo.relation/2` returns the Allen relation; `Tempo.compare/3` is the separate stdlib-ternary sorter callback returning `:lt | :eq | :gt`.
 
 When writing a new example and one of these patterns appears, stop and add the missing abstraction first. The codebase already models this — `within?/2`, `at_least?/2`, `adjacent?/2` all exist because geometric checks and inline-relation-lists were recurring in examples.
 
@@ -176,4 +176,4 @@ The following documents are **critical** when working on this project. Consult t
 
 * **IETF draft-ietf-sedate-datetime-extended-09 (IXDTF)** — <https://www.ietf.org/archive/id/draft-ietf-sedate-datetime-extended-09.html#name-format-of-extended-informat>. Defines the extended information suffix syntax (`[zone]`, `[u-ca=calendar]`, `[key=value]`, critical `!` flag) parsed by `Tempo.Iso8601.Tokenizer.Extended`.
 
-* **Allen's Interval Algebra** — <https://ics.uci.edu/~alspaugh/cls/shr/allen.html>. The 13 base relations (`precedes`, `meets`, `overlaps`, `finished_by`, `contains`, `starts`, `equals`, and their inverses, plus `preceded_by`) used by `Tempo.Comparison` when comparing intervals.
+* **Allen's Interval Algebra** — <https://ics.uci.edu/~alspaugh/cls/shr/allen.html>. The 13 base relations (`precedes`, `meets`, `overlaps`, `finished_by`, `contains`, `starts`, `equals`, and their inverses, plus `preceded_by`) used by `Tempo.relation/2` (delegating to `Tempo.Interval.relation/2`) when comparing intervals. For ordering rather than relating, `Tempo.compare/3` returns `:lt | :eq | :gt` and makes `Tempo` usable as an `Enum` sorter module.

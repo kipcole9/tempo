@@ -1,5 +1,15 @@
 # Changelog
 
+## [v1.2.0] — 2026-08-03
+
+### Added
+
+* `Tempo.compare/3` returns stdlib's ternary `:lt | :eq | :gt`, so `Tempo` can be passed as a sorter module anywhere `Date` or `DateTime` would be — `Enum.sort(values, Tempo)`, `Enum.sort_by(sessions, & &1.starts_at, Tempo)`, `Enum.min/2`, `Enum.max/2`. Consumers previously had to hand-roll a comparator around `Tempo.Compare.compare_endpoints/2`, and reaching for plain `Enum.sort/1` silently sorted by Erlang term order.
+
+* `Tempo.compare/3` orders `t:Tempo.t/0` by start-moment, `t:Tempo.Duration.t/0` by length, and `t:Tempo.Interval.t/0` by start with ties broken by end. Comparing a calendar-dependent duration such as `P1M` requires `relative_to:`, since a month has no fixed length; without it the call raises rather than guessing.
+
+* `Tempo.Compare` is now doctested — its documented examples had never been executed.
+
 ## [v1.1.1] — 2026-08-03
 
 ### Fixed

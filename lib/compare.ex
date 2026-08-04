@@ -28,6 +28,7 @@ defmodule Tempo.Compare do
   """
 
   alias Calendar.ISO
+  alias Tempo.Duration
   alias Tempo.TimeZoneDatabase
   alias Tempo.ZoneOffsetMismatchError
 
@@ -180,6 +181,144 @@ defmodule Tempo.Compare do
       compare_via_utc(a, b)
     end
   end
+
+  @doc """
+  Compare two Tempo values, returning stdlib's ternary
+  `:lt | :eq | :gt`.
+
+  This is the sorter-module callback Elixir's `Enum` and `List`
+  functions look for, so `Tempo` can be passed wherever `Date`,
+  `Time`, or `DateTime` would be:
+
+      Enum.sort_by(sessions, & &1.starts_at, Tempo)
+      Enum.max_by(bookings, & &1.window.from, Tempo)
+
+  Use `Tempo.relation/2` instead when the question is *how* two
+  intervals relate — this function collapses Allen's 13 relations to
+  a total order, which is what sorting needs and reasoning does not.
+
+  ### Comparison is crisp
+
+  A total order cannot express doubt, so uncertainty is dropped before
+  comparing: `~o"1984?"` and `~o"1984"` compare `:eq`, and a margin of
+  error is discarded the same way `compare_endpoints/2` discards it.
+  When the uncertainty is the point, reach for `Tempo.certainly_before?/2`
+  or `Tempo.possibly_before?/2` rather than this function.
+
+  ### Arguments
+
+  * `a` and `b` are two values of the same kind — both `t:Tempo.t/0`,
+    both `t:Tempo.Duration.t/0`, or both `t:Tempo.Interval.t/0`.
+
+  * `options` is a keyword list of options.
+
+  ### Options
+
+  * `:relative_to` is a `t:Tempo.t/0` used to resolve
+    calendar-dependent durations. `P1M` has no fixed length, so
+    comparing it requires a date to measure that month against.
+
+  ### Returns
+
+  * `:lt`, `:eq`, or `:gt`.
+
+  * Raises `ArgumentError` when the two values are of different kinds,
+    or when a duration cannot be resolved to a fixed length and no
+    `:relative_to` was given.
+
+  ### Examples
+
+  Tempo values compare as start-moments on the time line:
+
+      iex> Tempo.compare(~o"2026-06-15", ~o"2026-06-16")
+      :lt
+
+      iex> Tempo.compare(~o"2026Y", ~o"2026-06")
+      :lt
+
+  Zones are resolved, so the same instant compares equal:
+
+      iex> Tempo.compare(~o"2026-06-15T09:00:00Z", ~o"2026-06-15T10:00:00+01:00")
+      :eq
+
+  Which makes `Tempo` usable directly as a sorter:
+
+      iex> [~o"2026-06-16", ~o"2026-06-15"]
+      ...> |> Enum.sort(Tempo)
+      ...> |> Enum.map(&Tempo.to_iso8601/1)
+      ["2026Y6M15D", "2026Y6M16D"]
+
+  Durations compare by length:
+
+      iex> Tempo.compare(~o"PT1H", ~o"PT90M")
+      :lt
+
+  Intervals compare by start, ties broken by end:
+
+      iex> morning = Tempo.Interval.new!(from: ~o"2026-06-15T09:00", to: ~o"2026-06-15T10:00")
+      iex> longer = Tempo.Interval.new!(from: ~o"2026-06-15T09:00", to: ~o"2026-06-15T11:00")
+      iex> Tempo.compare(morning, longer)
+      :lt
+
+  """
+  @spec compare(
+          Tempo.t() | Tempo.Duration.t() | Tempo.Interval.t(),
+          Tempo.t() | Tempo.Duration.t() | Tempo.Interval.t(),
+          keyword()
+        ) :: :lt | :eq | :gt
+  def compare(a, b, options \\ [])
+
+  def compare(%Tempo{} = a, %Tempo{} = b, _options) do
+    a |> compare_endpoints(b) |> from_endpoint_order()
+  end
+
+  def compare(%Tempo.Duration{} = a, %Tempo.Duration{} = b, options) do
+    with {:ok, a_seconds} <- Duration.to_unit(a, :second, options),
+         {:ok, b_seconds} <- Duration.to_unit(b, :second, options) do
+      from_magnitudes(a_seconds, b_seconds)
+    else
+      {:error, exception} -> raise exception
+    end
+  end
+
+  def compare(%Tempo.Interval{} = a, %Tempo.Interval{} = b, options) do
+    case compare_bound(a.from, b.from, :from, options) do
+      :eq -> compare_bound(a.to, b.to, :to, options)
+      order -> order
+    end
+  end
+
+  def compare(a, b, _options) do
+    raise ArgumentError,
+          "cannot compare #{kind_of(a)} with #{kind_of(b)} — " <>
+            "both values must be of the same kind"
+  end
+
+  defp from_endpoint_order(:earlier), do: :lt
+  defp from_endpoint_order(:same), do: :eq
+  defp from_endpoint_order(:later), do: :gt
+
+  defp from_magnitudes(a, b) when a < b, do: :lt
+  defp from_magnitudes(a, b) when a > b, do: :gt
+  defp from_magnitudes(_a, _b), do: :eq
+
+  # An unbounded `from` starts before every stated instant; an
+  # unbounded `to` ends after every stated instant. Two unbounded
+  # endpoints on the same side are indistinguishable.
+  defp compare_bound(same, same, _side, _options), do: :eq
+  defp compare_bound(:undefined, _b, :from, _options), do: :lt
+  defp compare_bound(_a, :undefined, :from, _options), do: :gt
+  defp compare_bound(:undefined, _b, :to, _options), do: :gt
+  defp compare_bound(_a, :undefined, :to, _options), do: :lt
+  defp compare_bound(nil, _b, :to, _options), do: :gt
+  defp compare_bound(_a, nil, :to, _options), do: :lt
+  defp compare_bound(a, b, _side, options), do: compare(a, b, options)
+
+  defp kind_of(%Tempo{}), do: "a Tempo"
+  defp kind_of(%Tempo.Duration{}), do: "a Tempo.Duration"
+  defp kind_of(%Tempo.Interval{}), do: "a Tempo.Interval"
+  defp kind_of(%Tempo.IntervalSet{}), do: "a Tempo.IntervalSet"
+  defp kind_of(other), do: inspect(other)
 
   @doc """
   Drop the `margin_of_error` annotation from every component of a time

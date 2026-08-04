@@ -4745,6 +4745,35 @@ defmodule Tempo do
   defdelegate relation(a, b), to: Tempo.Interval
 
   @doc """
+  Compare two Tempo values, returning stdlib's ternary
+  `:lt | :eq | :gt`.
+
+  Thin delegate to `Tempo.Compare.compare/3` — see that function for
+  the full discussion, including how uncertainty is handled and how
+  calendar-dependent durations are resolved.
+
+  This is the sorter-module callback `Enum` looks for, so `Tempo` may
+  be passed anywhere `Date` or `DateTime` would be. Use `relation/2`
+  when the question is *how* two intervals relate rather than which
+  comes first.
+
+  ### Examples
+
+      iex> Tempo.compare(~o"2026-06-15", ~o"2026-06-16")
+      :lt
+
+      iex> [~o"2026-06-16", ~o"2026-06-15"]
+      ...> |> Enum.sort(Tempo)
+      ...> |> Enum.map(&Tempo.to_iso8601/1)
+      ["2026Y6M15D", "2026Y6M16D"]
+
+      iex> Tempo.compare(~o"PT1H", ~o"PT90M")
+      :lt
+
+  """
+  defdelegate compare(a, b, options \\ []), to: Tempo.Compare
+
+  @doc """
   Compose two Allen relations — the relations possible from `A` to `C`
   given `A r1 B` and `B r2 C`.
 
